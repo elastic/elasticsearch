@@ -16,7 +16,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -86,7 +85,7 @@ public final class RoundUnsignedLongEvaluator implements EvalOperator.Expression
         }
         try {
           result.appendLong(Round.processUnsignedLong(valBlock.getLong(valBlock.getFirstValueIndex(p)), decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p))));
-        } catch (InvalidArgumentException | ArithmeticException e) {
+        } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
         }
@@ -100,7 +99,7 @@ public final class RoundUnsignedLongEvaluator implements EvalOperator.Expression
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendLong(Round.processUnsignedLong(valVector.getLong(p), decimalsVector.getLong(p)));
-        } catch (InvalidArgumentException | ArithmeticException e) {
+        } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
         }

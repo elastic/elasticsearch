@@ -149,33 +149,74 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
                 List.of(DataType.UNSIGNED_LONG, DataType.LONG),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(new BigInteger("16144415263046370459"), DataType.UNSIGNED_LONG, "number"),
+                        new TestCaseSupplier.TypedData(new BigInteger("18446744073709551615"), DataType.UNSIGNED_LONG, "number"),
                         new TestCaseSupplier.TypedData(-9223372036854775808L, DataType.LONG, "decimals")
                     ),
                     "RoundUnsignedLongEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
                     DataType.UNSIGNED_LONG,
-                    equalTo(null)
-                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                    .withWarning(
-                        "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: "
-                            + "[-9223372036854775808] out of [integer] range"
+                    equalTo(BigInteger.ZERO)
                 )
             )
         );
         suppliers.add(
             new TestCaseSupplier(
-                "<big unsigned_long>, <negative long in integer range>",
+                "<max unsigned_long>, <negative long in integer range>",
                 List.of(DataType.UNSIGNED_LONG, DataType.LONG),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(new BigInteger("16144415263046370459"), DataType.UNSIGNED_LONG, "number"),
+                        new TestCaseSupplier.TypedData(new BigInteger("18446744073709551615"), DataType.UNSIGNED_LONG, "number"),
                         new TestCaseSupplier.TypedData(-2147483647L, DataType.LONG, "decimals")
+                    ),
+                    "RoundUnsignedLongEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
+                    DataType.UNSIGNED_LONG,
+                    equalTo(BigInteger.ZERO)
+                )
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                "<max unsigned_long>, <-20>",
+                List.of(DataType.UNSIGNED_LONG, DataType.LONG),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BigInteger("18446744073709551615"), DataType.UNSIGNED_LONG, "number"),
+                        new TestCaseSupplier.TypedData(-20L, DataType.LONG, "decimals")
+                    ),
+                    "RoundUnsignedLongEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
+                    DataType.UNSIGNED_LONG,
+                    equalTo(BigInteger.ZERO)
+                )
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                "<max unsigned_long>, <-19>",
+                List.of(DataType.UNSIGNED_LONG, DataType.LONG),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BigInteger("18446744073709551615"), DataType.UNSIGNED_LONG, "number"),
+                        new TestCaseSupplier.TypedData(-19L, DataType.LONG, "decimals")
                     ),
                     "RoundUnsignedLongEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
                     DataType.UNSIGNED_LONG,
                     equalTo(null)
                 ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                    .withWarning("Line -1:-1: java.lang.ArithmeticException: BigInteger would overflow supported range")
+                    .withWarning("Line -1:-1: java.lang.ArithmeticException: unsigned_long overflow")
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                "<big unsigned_long>, <-19>",
+                List.of(DataType.UNSIGNED_LONG, DataType.LONG),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BigInteger("14446744073709551615"), DataType.UNSIGNED_LONG, "number"),
+                        new TestCaseSupplier.TypedData(-19L, DataType.LONG, "decimals")
+                    ),
+                    "RoundUnsignedLongEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
+                    DataType.UNSIGNED_LONG,
+                    equalTo(new BigInteger("10000000000000000000"))
+                )
             )
         );
 

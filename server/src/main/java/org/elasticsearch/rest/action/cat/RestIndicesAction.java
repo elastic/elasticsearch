@@ -553,7 +553,7 @@ public class RestIndicesAction extends AbstractCatAction {
                 clusterState.metadata().projects().isEmpty() ? "No project available" : "Cluster has multiple projects"
             );
         }
-        final ProjectMetadata project = clusterState.metadata().projects().get(projectIdResolver.getProjectId());
+        final ProjectMetadata project = clusterState.metadata().getProject(projectIdResolver.getProjectId());
 
         // Use indicesSettings to determine the indices returned - see [NOTE: WHY GET SETTINGS] above for details.
         indicesSettings.forEach((indexName, settings) -> {

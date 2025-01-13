@@ -577,6 +577,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectInvalidIndexNameErrorWithLineNumber(command, "indexpattern, --indexpattern", lineNumber, "-indexpattern");
             expectInvalidIndexNameErrorWithLineNumber(command, "indexpattern, \"--indexpattern\"", lineNumber, "-indexpattern");
             expectInvalidIndexNameErrorWithLineNumber(command, "\"indexpattern, --indexpattern\"", commands.get(command), "-indexpattern");
+            expectInvalidIndexNameErrorWithLineNumber(command, "\"- , -\"", commands.get(command), "", "must not be empty");
+            expectInvalidIndexNameErrorWithLineNumber(command, "\"indexpattern,-\"", commands.get(command), "", "must not be empty");
+            clustersAndIndices(command, "indexpattern", "*-");
             clustersAndIndices(command, "indexpattern", "-indexpattern");
         }
 

@@ -227,15 +227,6 @@ tests:
 - class: org.elasticsearch.search.profile.dfs.DfsProfilerIT
   method: testProfileDfs
   issue: https://github.com/elastic/elasticsearch/issues/119711
-- class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
-  method: testSingleMatchFunctionFilterPushdownWithStringValues {default}
-  issue: https://github.com/elastic/elasticsearch/issues/119720
-- class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
-  method: testSingleMatchFunctionPushdownWithCasting {default}
-  issue: https://github.com/elastic/elasticsearch/issues/119722
-- class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
-  method: testSingleMatchOperatorFilterPushdownWithStringValues {default}
-  issue: https://github.com/elastic/elasticsearch/issues/119721
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
   method: testBulkOperations {p0=false}
   issue: https://github.com/elastic/elasticsearch/issues/119901
@@ -271,6 +262,12 @@ tests:
 - class: org.elasticsearch.index.mapper.IntervalThrottlerTests
   method: testThrottling
   issue: https://github.com/elastic/elasticsearch/issues/120023
+- class: org.elasticsearch.entitlement.qa.EntitlementsDeniedIT
+  method: testCheckThrows {pathPrefix=denied actionName=sslSessionImpl_getSessionContext}
+  issue: https://github.com/elastic/elasticsearch/issues/120053
+- class: org.elasticsearch.entitlement.qa.EntitlementsDeniedIT
+  method: testCheckThrows {pathPrefix=denied_nonmodular actionName=sslSessionImpl_getSessionContext}
+  issue: https://github.com/elastic/elasticsearch/issues/120054
 
 # Examples:
 #

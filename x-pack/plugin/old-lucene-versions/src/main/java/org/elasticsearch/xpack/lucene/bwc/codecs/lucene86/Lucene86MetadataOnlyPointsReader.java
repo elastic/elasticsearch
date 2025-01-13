@@ -129,11 +129,6 @@ public final class Lucene86MetadataOnlyPointsReader extends PointsReader {
         }
     }
 
-    /**
-     * Returns the underlying {@link PointValues}.
-     *
-     * @lucene.internal
-     */
     @Override
     public PointValues getValues(String fieldName) {
         FieldInfo fieldInfo = readState.fieldInfos.fieldInfo(fieldName);

@@ -44,7 +44,7 @@ import java.util.regex.Pattern
  */
 
 plugins {
-  id "com.netflix.nebula.ospackage-base" version "11.10.0"
+  id "com.netflix.nebula.ospackage-base" version "11.10.1"
 }
 
 ['deb', 'rpm'].each { type ->
@@ -88,21 +88,21 @@ def commonPackageConfig(String type, String architecture) {
       OS.current().equals(OS.WINDOWS) == false
     }
     dependsOn "process${type.capitalize()}Files"
-    packageName "elasticsearch"
+    packageName = "elasticsearch"
     if (type == 'deb') {
       if (architecture == 'x64') {
-        arch('amd64')
+        arch = 'amd64'
       } else {
         assert architecture == 'aarch64': architecture
-        arch('arm64')
+        arch = 'arm64'
       }
     } else {
       assert type == 'rpm': type
       if (architecture == 'x64') {
-        arch('X86_64')
+        arch = 'X86_64'
       } else {
         assert architecture == 'aarch64': architecture
-        arch('aarch64')
+        arch = 'aarch64'
       }
     }
     // Follow elasticsearch's file naming convention
@@ -201,7 +201,7 @@ def commonPackageConfig(String type, String architecture) {
       into('/etc')
       permissionGroup 'elasticsearch'
       setgid true
-      includeEmptyDirs true
+      includeEmptyDirs = true
       createDirectoryEntry true
       include("elasticsearch") // empty dir, just to add directory entry
       include("elasticsearch/jvm.options.d") // empty dir, just to add directory entry
@@ -216,7 +216,7 @@ def commonPackageConfig(String type, String architecture) {
         unix(0660)
       }
       permissionGroup 'elasticsearch'
-      includeEmptyDirs true
+      includeEmptyDirs = true
       createDirectoryEntry true
       fileType CONFIG | NOREPLACE
     }
@@ -266,7 +266,7 @@ def commonPackageConfig(String type, String architecture) {
       into(file.parent) {
         from "${packagingFiles}/${file.parent}"
         include file.name
-        includeEmptyDirs true
+        includeEmptyDirs = true
         createDirectoryEntry true
         user u
         permissionGroup g
@@ -290,15 +290,15 @@ def commonPackageConfig(String type, String architecture) {
 
 // this is package independent configuration
 ospackage {
-  maintainer 'Elasticsearch Team <info@elastic.co>'
-  summary 'Distributed RESTful search engine built for the cloud'
-  packageDescription '''
+  maintainer = 'Elasticsearch Team <info@elastic.co>'
+  summary = 'Distributed RESTful search engine built for the cloud'
+  packageDescription = '''
     Reference documentation can be found at
     https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html
     and the 'Elasticsearch: The Definitive Guide' book can be found at
     https://www.elastic.co/guide/en/elasticsearch/guide/current/index.html
   '''.stripIndent().trim()
-  url 'https://www.elastic.co/'
+  url = 'https://www.elastic.co/'
 
   // signing setup
   if (project.hasProperty('signing.password') && buildParams.isSnapshotBuild() == false) {
@@ -312,10 +312,10 @@ ospackage {
   // version found on oldest supported distro, centos-6
   requires('coreutils', '8.4', GREATER | EQUAL)
 
-  fileMode 0644
-  dirMode 0755
-  user 'root'
-  permissionGroup 'root'
+  fileMode = 0644
+  dirMode = 0755
+  user = 'root'
+  permissionGroup = 'root'
 
   into '/usr/share/elasticsearch'
 }
@@ -331,7 +331,7 @@ Closure commonDebConfig(String architecture) {
     customFields['License'] = 'Elastic-License'
 
     archiveVersion = project.version.replace('-', '~')
-    packageGroup 'web'
+    packageGroup = 'web'
 
     // versions found on oldest supported distro, centos-6
     requires('bash', '4.1', GREATER | EQUAL)
@@ -360,24 +360,24 @@ Closure commonRpmConfig(String architecture) {
   return {
     configure(commonPackageConfig('rpm', architecture))
 
-    license 'Elastic License'
+    license = 'Elastic License'
 
-    packageGroup 'Application/Internet'
+    packageGroup = 'Application/Internet'
     requires '/bin/bash'
 
     obsoletes packageName, '7.0.0', Flags.LESS
 
     prefix '/usr'
-    packager 'Elasticsearch'
+    packager = 'Elasticsearch'
     archiveVersion = project.version.replace('-', '_')
     release = '1'
-    os 'LINUX'
-    distribution 'Elasticsearch'
-    vendor 'Elasticsearch'
+    os = 'LINUX'
+    distribution = 'Elasticsearch'
+    vendor = 'Elasticsearch'
     // TODO ospackage doesn't support icon but we used to have one
 
     // without this the rpm will have parent dirs of any files we copy in, eg /etc/elasticsearch
-    addParentDirs false
+    addParentDirs = false
   }
 }
 

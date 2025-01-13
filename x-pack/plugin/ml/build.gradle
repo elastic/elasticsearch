@@ -6,10 +6,10 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.dra-artifacts'
 
 esplugin {
-  name 'x-pack-ml'
-  description 'Elasticsearch Expanded Pack Plugin - Machine Learning'
-  classname 'org.elasticsearch.xpack.ml.MachineLearning'
-  hasNativeController true
+  name = 'x-pack-ml'
+  description = 'Elasticsearch Expanded Pack Plugin - Machine Learning'
+  classname ='org.elasticsearch.xpack.ml.MachineLearning'
+  hasNativeController =true
   extendedPlugins = ['x-pack-autoscaling', 'lang-painless']
 }
 
@@ -18,8 +18,8 @@ if (useDra == false) {
     exclusiveContent {
       forRepository {
         ivy {
-          name "ml-cpp"
-          url providers.systemProperty('build.ml_cpp.repo').orElse('https://prelert-artifacts.s3.amazonaws.com').get()
+          name = "ml-cpp"
+          url = providers.systemProperty('build.ml_cpp.repo').orElse('https://prelert-artifacts.s3.amazonaws.com').get()
           metadataSources {
             // no repository metadata, look directly for the artifact
             artifact()

@@ -12,8 +12,8 @@ apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.'
-  classname 'org.elasticsearch.discovery.ec2.Ec2DiscoveryPlugin'
+  description = 'The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.'
+  classname ='org.elasticsearch.discovery.ec2.Ec2DiscoveryPlugin'
 }
 
 versions << [
@@ -77,6 +77,7 @@ tasks.register("writeTestJavaPolicy") {
           "permission java.security.SecurityPermission \"getProperty.jdk.tls.disabledAlgorithms\";",
           "permission java.security.SecurityPermission \"getProperty.jdk.certpath.disabledAlgorithms\";",
           "permission java.security.SecurityPermission \"getProperty.keystore.type.compat\";",
+          "permission java.security.SecurityPermission \"getProperty.org.bouncycastle.ec.max_f2m_field_size\";",
           "};"
         ].join("\n")
       )

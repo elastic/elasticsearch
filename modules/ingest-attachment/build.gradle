@@ -12,8 +12,8 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
-  description 'Ingest processor that uses Apache Tika to extract contents'
-  classname 'org.elasticsearch.ingest.attachment.IngestAttachmentPlugin'
+  description = 'Ingest processor that uses Apache Tika to extract contents'
+  classname = 'org.elasticsearch.ingest.attachment.IngestAttachmentPlugin'
 }
 
 // this overwrites the 'versions' map from Elasticsearch itself, but indeed we want that -- we're interested in managing our dependencies

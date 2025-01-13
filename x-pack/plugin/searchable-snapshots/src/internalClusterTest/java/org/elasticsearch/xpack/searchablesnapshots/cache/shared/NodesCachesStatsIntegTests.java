@@ -41,6 +41,7 @@ import static org.hamcrest.Matchers.hasSize;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/116375")
     public void testNodesCachesStats() throws Exception {
         final String[] nodeNames = internalCluster().getNodeNames();
         // here to ensure no shard relocations after the snapshot is mounted,

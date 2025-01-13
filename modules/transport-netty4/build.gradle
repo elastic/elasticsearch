@@ -23,8 +23,8 @@ apply plugin: 'elasticsearch.publish'
    * fix the hack in the build framework that copies transport-netty4 into the integ test cluster
  */
 esplugin {
-  description 'Netty 4 based transport implementation'
-  classname 'org.elasticsearch.transport.netty4.Netty4Plugin'
+  description = 'Netty 4 based transport implementation'
+  classname = 'org.elasticsearch.transport.netty4.Netty4Plugin'
 }
 
 // exclude transitively pulled in version via the esplugin plugin to always build from fresh sources and make jar-hell checks pass

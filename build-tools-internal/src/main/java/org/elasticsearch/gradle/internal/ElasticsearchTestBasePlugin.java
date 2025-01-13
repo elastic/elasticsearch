@@ -13,7 +13,6 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
-import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
@@ -26,7 +25,6 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
-import org.gradle.api.provider.Property;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -55,8 +53,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
-        Property<BuildParameterExtension> buildParams = loadBuildParams(project);
-
+        var buildParams = loadBuildParams(project);
         project.getPluginManager().apply(GradleTestPolicySetupPlugin.class);
         // for fips mode check
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);

@@ -26,6 +26,7 @@ Alternatively, refer to our <<elasticsearch-intro-deploy,other deployment option
 * <<getting-started,Basics: Index and search data using {es} APIs>>. Learn about indices, documents, and mappings, and perform a basic search using the Query DSL.
 * <<full-text-filter-tutorial, Basics: Full-text search and filtering>>. Learn about different options for querying data, including full-text search and filtering, using the Query DSL.
 * <<esql-getting-started>>: Learn how to query and aggregate your data using {esql}.
+* <<aggregations-tutorial, Basics: Analyze ecommerce data with aggregations>>. Learn how to analyze data using different types of aggregations, including metrics, buckets, and pipelines.
 * <<semantic-search-semantic-text, Semantic search>>: Learn how to create embeddings for your data with `semantic_text` and query using the `semantic` query.
 ** <<semantic-text-hybrid-search, Hybrid search with `semantic_text`>>: Learn how to combine semantic search with full-text search.
 * <<bring-your-own-vectors, Bring your own dense vector embeddings>>: Learn how to ingest dense vector embeddings into {es}.
@@ -41,3 +42,4 @@ If you're interested in using {es} with Python, check out Elastic Search Labs:
 
 include::getting-started.asciidoc[]
 include::full-text-filtering-tutorial.asciidoc[]
+include::aggs-tutorial.asciidoc[]

@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
+import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
@@ -34,10 +35,15 @@ public interface TestClustersAware extends Task {
         if (cluster.getPath().equals(getProject().getPath()) == false) {
             throw new TestClustersException("Task " + getPath() + " can't use test cluster from" + " another project " + cluster);
         }
-
-        cluster.getNodes()
-            .all(node -> node.getDistributions().forEach(distro -> dependsOn(getProject().provider(() -> distro.maybeFreeze()))));
-        dependsOn(cluster.getPluginAndModuleConfigurations());
+        if (cluster.getName().equals(getName())) {
+            for (ElasticsearchNode node : cluster.getNodes()) {
+                for (ElasticsearchDistribution distro : node.getDistributions()) {
+                    ElasticsearchDistribution frozenDistro = distro.maybeFreeze();
+                    dependsOn(frozenDistro);
+                }
+            }
+            dependsOn(cluster.getPluginAndModuleConfigurations());
+        }
         getClusters().add(cluster);
     }
 

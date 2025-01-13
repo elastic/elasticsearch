@@ -308,6 +308,11 @@ public class EsqlCapabilities {
         TO_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
 
         /**
+         * DATE_PARSE supports reading timezones
+         */
+        DATE_PARSE_TZ(),
+
+        /**
          * Support for datetime in least and greatest functions
          */
         LEAST_GREATEST_FOR_DATES,

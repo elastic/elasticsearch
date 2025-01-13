@@ -3,7 +3,7 @@ steps:
     steps:
       - label: "{{matrix.image}} / packaging-tests-unix"
         command: ./.ci/scripts/packaging-test.sh destructivePackagingTest
-        timeout_in_minutes: 420
+        timeout_in_minutes: 300
         matrix:
           setup:
             image:
@@ -22,6 +22,7 @@ steps:
               - rhel-8
               - rhel-9
               - almalinux-8
+              - almalinux-9
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}

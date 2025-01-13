@@ -15,8 +15,8 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
-  description 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
-  classname 'org.elasticsearch.repositories.hdfs.HdfsPlugin'
+  description = 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
+  classname ='org.elasticsearch.repositories.hdfs.HdfsPlugin'
 }
 
 versions << [

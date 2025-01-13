@@ -3,9 +3,9 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
-  name 'x-pack-identity-provider'
-  description 'Elasticsearch Expanded Pack Plugin - Identity Provider'
-  classname 'org.elasticsearch.xpack.idp.IdentityProviderPlugin'
+  name = 'x-pack-identity-provider'
+  description = 'Elasticsearch Expanded Pack Plugin - Identity Provider'
+  classname = 'org.elasticsearch.xpack.idp.IdentityProviderPlugin'
   extendedPlugins = ['x-pack-core']
 }
 

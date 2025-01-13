@@ -183,7 +183,8 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         ClusterStateResponse clusterStateResponseUnfiltered = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         assertThat(clusterStateResponseUnfiltered.getState().metadata().templates().size(), is(greaterThanOrEqualTo(2)));
 
-        GetIndexTemplatesResponse getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates("foo_template").get();
+        GetIndexTemplatesResponse getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT, "foo_template")
+            .get();
         assertIndexTemplateExists(getIndexTemplatesResponse, "foo_template");
     }
 

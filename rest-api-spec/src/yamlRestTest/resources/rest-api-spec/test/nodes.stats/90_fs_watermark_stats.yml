@@ -1,5 +1,8 @@
 ---
 "Allocation stats":
+  - requires:
+      test_runner_features: [arbitrary_key]
+
   - do:
       nodes.info: {}
   - set:

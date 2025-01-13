@@ -12,28 +12,29 @@ package org.elasticsearch.search.rank;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 public class LinearRankDoc extends RankDoc {
 
     public float[] weights;
-    public float[] scores;
+    public float[] normalizedScores;
     public String[] normalizers;
 
     public LinearRankDoc(int doc, float score, int shardIndex, int queriesCount) {
         super(doc, score, shardIndex);
         this.weights = new float[queriesCount];
-        this.scores = new float[queriesCount];
-        Arrays.fill(scores, 0f);
+        this.normalizedScores = new float[queriesCount];
         this.normalizers = new String[queriesCount];
     }
 
     public LinearRankDoc(StreamInput in) throws IOException {
         super(in.readVInt(), in.readFloat(), in.readVInt());
         weights = in.readFloatArray();
-        scores = in.readFloatArray();
+        normalizedScores = in.readFloatArray();
         normalizers = in.readStringArray();
     }
 
@@ -43,17 +44,17 @@ public class LinearRankDoc extends RankDoc {
         for (int i = 0; i < sources.length; i++) {
             final String queryAlias = queryNames[i] == null ? "" : " [" + queryNames[i] + "]";
             final String queryIdentifier = "at index [" + i + "]" + queryAlias;
-            if (scores[i] > 0) {
+            if (normalizedScores[i] > 0) {
                 details[i] = Explanation.match(
-                    weights[i] * scores[i],
+                    weights[i] * normalizedScores[i],
                     "weighted score: ["
-                        + weights[i] * scores[i]
+                        + weights[i] * normalizedScores[i]
                         + "] in query "
                         + queryIdentifier
                         + " computed as ["
                         + weights[i]
                         + " * "
-                        + scores[i]
+                        + normalizedScores[i]
                         + "]"
                         + " using score normalizer ["
                         + normalizers[i]
@@ -71,7 +72,7 @@ public class LinearRankDoc extends RankDoc {
             "weighted linear combination score: ["
                 + score
                 + "] computed for normalized scores "
-                + Arrays.toString(scores)
+                + Arrays.toString(normalizedScores)
                 + " and weights "
                 + Arrays.toString(weights)
                 + "] as sum of (weight[i] * score[i]) for each query.",
@@ -82,7 +83,28 @@ public class LinearRankDoc extends RankDoc {
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeFloatArray(weights);
-        out.writeFloatArray(scores);
+        out.writeFloatArray(normalizedScores);
         out.writeStringArray(normalizers);
+    }
+
+    @Override
+    protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("weights", weights);
+        builder.field("normalizedScores", normalizedScores);
+        builder.field("normalizers", normalizers);
+    }
+
+    @Override
+    public boolean doEquals(RankDoc rd) {
+        LinearRankDoc lrd = (LinearRankDoc) rd;
+        return Arrays.equals(weights, lrd.weights)
+            && Arrays.equals(normalizedScores, lrd.normalizedScores)
+            && Arrays.equals(normalizers, lrd.normalizers);
+    }
+
+    @Override
+    public int doHashCode() {
+        int result = Objects.hash(Arrays.hashCode(weights), Arrays.hashCode(normalizedScores) + Arrays.hashCode(normalizers));
+        return 31 * result;
     }
 }

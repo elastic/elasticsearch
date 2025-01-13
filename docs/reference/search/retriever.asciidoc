@@ -28,6 +28,9 @@ A <<standard-retriever, retriever>> that replaces the functionality of a traditi
 `knn`::
 A <<knn-retriever, retriever>> that replaces the functionality of a <<search-api-knn, knn search>>.
 
+`linear`::
+A <<linear-retriever, retriever>> that linearly combines the scores of other retrievers for the top documents.
+
 `rescorer`::
 A <<rescorer-retriever, retriever>> that replaces the functionality of the <<rescore, query rescorer>>.
 
@@ -263,6 +266,18 @@ GET /restaurants/_search
 This value must be fewer than or equal to `num_candidates`.
 <5> The size of the initial candidate set from which the final `k` nearest neighbors are selected.
 
+[[linear-retriever]]
+==== Linear Retriever
+A retriever that normalizes and linearly combines the scores of other retrievers.
+
+===== Parameters
+
+`retrievers`::
+(Required, A list of <<retriever, retriever objects>>)
+
+sth
+
++
 [[rrf-retriever]]
 ==== RRF Retriever
 
@@ -576,7 +591,7 @@ This example demonstrates how to deploy the {ml-docs}/ml-nlp-rerank.html[Elastic
 
 Follow these steps:
 
-. Create an inference endpoint for the `rerank` task using the <<put-inference-api, Create {infer} API>>. 
+. Create an inference endpoint for the `rerank` task using the <<put-inference-api, Create {infer} API>>.
 +
 [source,console]
 ----
@@ -584,7 +599,7 @@ PUT _inference/rerank/my-elastic-rerank
 {
   "service": "elasticsearch",
   "service_settings": {
-    "model_id": ".rerank-v1", 
+    "model_id": ".rerank-v1",
     "num_threads": 1,
     "adaptive_allocations": { <1>
       "enabled": true,
@@ -595,7 +610,7 @@ PUT _inference/rerank/my-elastic-rerank
 }
 ----
 // TEST[skip:uses ML]
-<1> {ml-docs}/ml-nlp-auto-scale.html#nlp-model-adaptive-allocations[Adaptive allocations] will be enabled with the minimum of 1 and the maximum of 10 allocations. 
+<1> {ml-docs}/ml-nlp-auto-scale.html#nlp-model-adaptive-allocations[Adaptive allocations] will be enabled with the minimum of 1 and the maximum of 10 allocations.
 +
 . Define a `text_similarity_rerank` retriever:
 +

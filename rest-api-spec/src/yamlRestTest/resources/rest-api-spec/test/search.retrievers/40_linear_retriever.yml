@@ -1,0 +1,239 @@
+setup:
+  - requires:
+      cluster_features: [ "linear_retriever_supported" ]
+      reason: "Support for linear retriever"
+      test_runner_features: close_to
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 1
+                index: true
+                similarity: l2_norm
+              keyword:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {"_id": 1 }}'
+          - '{"vector": [1], "keyword": "one"}'
+          - '{"index": {"_id": 2 }}'
+          - '{"vector": [2], "keyword": "two"}'
+          - '{"index": {"_id": 3 }}'
+          - '{"vector": [3], "keyword": "three"}'
+          - '{"index": {"_id": 4 }}'
+          - '{"vector": [4], "keyword": "four"}'
+---
+"basic linear weighted combination of a standard and knn retrievers":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  component: {
+                    retriever: {
+                      standard: {
+                        query: {
+                          constant_score: {
+                            filter: {
+                              term: {
+                                keyword: {
+                                  value: "one"
+                                }
+                              }
+                            },
+                            boost: 10.0
+                          }
+                        }
+                      }
+                    },
+                    weight: 0.5
+                  }
+                },
+                {
+                  component: {
+                    retriever: {
+                      knn: {
+                        field: "vector",
+                        query_vector: [ 4 ],
+                        k: 1,
+                        num_candidates: 1
+                      }
+                    },
+                    weight: 2.0
+                  }
+                }
+              ]
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 5.0 }
+  - match: { hits.hits.1._id: "4" }
+  - match: { hits.hits.1._score: 2.0 }
+
+---
+"should normalize initial scores":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  component: {
+                    retriever: {
+                      standard: {
+                        query: {
+                          bool: {
+                            should: [
+                              {
+                                constant_score: {
+                                  filter: {
+                                    term: {
+                                      keyword: {
+                                        value: "one"
+                                      }
+                                    }
+                                  },
+                                  boost: 10.0
+                                }
+                              },
+                              {
+                                constant_score: {
+                                  filter: {
+                                    term: {
+                                      keyword: {
+                                        value: "two"
+                                      }
+                                    }
+                                  },
+                                  boost: 9.0
+                                }
+                              },
+                              {
+                                constant_score: {
+                                  filter: {
+                                    term: {
+                                      keyword: {
+                                        value: "three"
+                                      }
+                                    }
+                                  },
+                                  boost: 5.0
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    weight: 10.0,
+                    normalizer: "minmax"
+                  }
+                },
+                {
+                  component: {
+                    retriever: {
+                      knn: {
+                        field: "vector",
+                        query_vector: [ 4 ],
+                        k: 1,
+                        num_candidates: 1
+                      }
+                    },
+                    weight: 2.0
+                  }
+                }
+              ]
+
+  - match: { hits.total.value: 4 }
+  - match: { hits.hits.0._id: "1" }
+  - close_to: { hits.hits.0._score: { value: 10.0, error: 0.001 } }
+  - match: { hits.hits.1._id: "2" }
+  - close_to: { hits.hits.1._score: { value: 8.0, error: 0.001 } }
+  - match: { hits.hits.2._id: "4" }
+  - match: { hits.hits.2._score: 2.0 }
+  - match: { hits.hits.3._id: "3" }
+  - close_to: { hits.hits.3._score: { value: 0.0, error: 0.001 } }
+
+---
+"should throw on unknown normalizer":
+  - do:
+      catch: /Unknown \[aardvark\] ScoreNormalizer provided/
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  component: {
+                    retriever: {
+                      standard: {
+                        query: {
+                          constant_score: {
+                            filter: {
+                              term: {
+                                keyword: {
+                                  value: "one"
+                                }
+                              }
+                            },
+                            boost: 10.0
+                          }
+                        }
+                      }
+                    },
+                    weight: 1.0,
+                    normalizer: "aardvark"
+                  }
+                },
+                {
+                  component: {
+                    retriever: {
+                      knn: {
+                        field: "vector",
+                        query_vector: [ 4 ],
+                        k: 1,
+                        num_candidates: 1
+                      }
+                    },
+                    weight: 2.0
+                  }
+                }
+              ]
+
+#---
+#"pagination within a consistent rank_window_size":
+#
+#---
+#"explain should provide info on weights and inner retrievers":
+#
+#---
+#"collapsing results":
+#
+#---
+#"highlighting results":
+#
+#---
+#"multiple nested linear retrievers":
+#
+#---
+#"linear retriever with filters":
+#
+#
+#---
+#"linear retriever with filters on nested retrievers":
+#

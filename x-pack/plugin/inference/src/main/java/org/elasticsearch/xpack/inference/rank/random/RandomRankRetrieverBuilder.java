@@ -49,8 +49,12 @@ public class RandomRankRetrieverBuilder extends RetrieverBuilder {
         });
 
     static {
-        //PARSER.declareNamedObject(constructorArg(), (p, c, n) -> p.namedObject(RetrieverBuilder.class, n, c), RETRIEVER_FIELD);
-        PARSER.declareField(constructorArg(), RandomRankRetrieverBuilder::parseRetrieverBuilder, RETRIEVER_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(
+            constructorArg(),
+            RandomRankRetrieverBuilder::parseRetrieverBuilder,
+            RETRIEVER_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
         PARSER.declareString(optionalConstructorArg(), FIELD_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareInt(optionalConstructorArg(), SEED_FIELD);

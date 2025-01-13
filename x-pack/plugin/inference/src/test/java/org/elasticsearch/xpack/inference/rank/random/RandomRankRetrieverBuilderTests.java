@@ -23,9 +23,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.Matchers.containsString;
-
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
+import static org.hamcrest.Matchers.containsString;
 
 public class RandomRankRetrieverBuilderTests extends AbstractXContentTestCase<RandomRankRetrieverBuilder> {
 
@@ -111,7 +110,10 @@ public class RandomRankRetrieverBuilderTests extends AbstractXContentTestCase<Ra
             }""";
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            XContentParseException ex = expectThrows(XContentParseException.class, () -> RandomRankRetrieverBuilder.PARSER.parse(parser, null));
+            XContentParseException ex = expectThrows(
+                XContentParseException.class,
+                () -> RandomRankRetrieverBuilder.PARSER.parse(parser, null)
+            );
             assertThat(ex.getMessage(), containsString("[random_reranker] failed to parse field [retriever]"));
             assertThat(ex.getCause().getMessage(), containsString("empty [retriever] object"));
         }
@@ -129,7 +131,10 @@ public class RandomRankRetrieverBuilderTests extends AbstractXContentTestCase<Ra
             }""";
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            XContentParseException ex = expectThrows(XContentParseException.class, () -> RandomRankRetrieverBuilder.PARSER.parse(parser, null));
+            XContentParseException ex = expectThrows(
+                XContentParseException.class,
+                () -> RandomRankRetrieverBuilder.PARSER.parse(parser, null)
+            );
             assertThat(ex.getMessage(), containsString("[random_reranker] failed to parse field [retriever]"));
             assertThat(ex.getCause().getMessage(), containsString("unknown field [test2]"));
         }
@@ -148,7 +153,10 @@ public class RandomRankRetrieverBuilderTests extends AbstractXContentTestCase<Ra
             }""";
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            XContentParseException ex = expectThrows(XContentParseException.class, () -> RandomRankRetrieverBuilder.PARSER.parse(parser, null));
+            XContentParseException ex = expectThrows(
+                XContentParseException.class,
+                () -> RandomRankRetrieverBuilder.PARSER.parse(parser, null)
+            );
             assertThat(ex.getMessage(), containsString("[random_reranker] failed to parse field [retriever]"));
             assertThat(ex.getCause().getMessage(), containsString("unexpected field [field2]"));
         }

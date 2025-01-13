@@ -449,7 +449,9 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         prepareSourceIndex(sourceIndex, true);
         downsample(sourceIndex, downsampleIndex, config);
 
-        GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex().addIndices(sourceIndex, downsampleIndex).get();
+        GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .addIndices(sourceIndex, downsampleIndex)
+            .get();
         assertDownsampleIndexSettings(sourceIndex, downsampleIndex, indexSettingsResp);
         for (String key : settings.keySet()) {
             if (LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey().equals(key)) {
@@ -605,7 +607,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         );
         assertBusy(() -> {
             try {
-                assertEquals(indicesAdmin().prepareGetIndex().addIndices(downsampleIndex).get().getIndices().length, 1);
+                assertEquals(indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(downsampleIndex).get().getIndices().length, 1);
             } catch (IndexNotFoundException e) {
                 fail("downsample index has not been created");
             }
@@ -1211,7 +1213,9 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         assertDownsampleIndexAggregations(sourceIndex, downsampleIndex, config, metricFields, labelFields);
 
-        GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex().addIndices(sourceIndex, downsampleIndex).get();
+        GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .addIndices(sourceIndex, downsampleIndex)
+            .get();
         assertDownsampleIndexSettings(sourceIndex, downsampleIndex, indexSettingsResp);
 
         Map<String, Map<String, Object>> mappings = (Map<String, Map<String, Object>>) indexSettingsResp.getMappings()

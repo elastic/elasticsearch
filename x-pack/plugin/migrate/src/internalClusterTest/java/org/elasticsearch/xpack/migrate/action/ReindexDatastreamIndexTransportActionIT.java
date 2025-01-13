@@ -377,7 +377,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             backingIndexName = indexResponse.getIndex();
         }
 
-        var sourceSettings = indicesAdmin().getIndex(new GetIndexRequest().indices(backingIndexName))
+        var sourceSettings = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(backingIndexName))
             .actionGet()
             .getSettings()
             .get(backingIndexName);
@@ -399,7 +399,10 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             .actionGet()
             .getDestIndex();
 
-        var destSettings = indicesAdmin().getIndex(new GetIndexRequest().indices(destIndex)).actionGet().getSettings().get(destIndex);
+        var destSettings = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(destIndex))
+            .actionGet()
+            .getSettings()
+            .get(destIndex);
         var destStart = IndexSettings.TIME_SERIES_START_TIME.get(destSettings);
         var destEnd = IndexSettings.TIME_SERIES_END_TIME.get(destSettings);
 
@@ -440,7 +443,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     private static String getIndexUUID(String index) {
-        return indicesAdmin().getIndex(new GetIndexRequest().indices(index))
+        return indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(index))
             .actionGet()
             .getSettings()
             .get(index)

@@ -434,7 +434,10 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertNull(exceptionHolder.get());
         assertThat(modelHolder.get(), hasSize(2));
 
-        expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex().addIndices(".inference").get());
+        expectThrows(
+            IndexNotFoundException.class,
+            () -> client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(".inference").get()
+        );
 
         // this time check the index is created
         blockingCall(listener -> modelRegistry.getAllModels(true, listener), modelHolder, exceptionHolder);
@@ -552,7 +555,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     }
 
     private void assertInferenceIndexExists() {
-        var indexResponse = client().admin().indices().prepareGetIndex().addIndices(".inference").get();
+        var indexResponse = client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(".inference").get();
         assertNotNull(indexResponse.getSettings());
         assertNotNull(indexResponse.getMappings());
     }

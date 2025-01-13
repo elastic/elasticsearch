@@ -163,7 +163,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             final DirectoryReader reader = open(writer);
             if (reader.leaves().size() != 1) {
                 reader.close();
-                throw new IllegalStateException("Expected a single segment; " + "but [" + reader.leaves().size() + "] segments");
+                throw new IllegalStateException("Expected a single segment; " + "but  got[" + reader.leaves().size() + "] segments");
             }
             return reader;
         } catch (IOException e) {
@@ -436,7 +436,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
                 SourceFieldMapper mapper = mappingLookup.getMapping().getMetadataMapperByClass(SourceFieldMapper.class);
                 if (mapper != null) {
                     try {
-                        sourceBytes = mapper.applyFilters(mappingLookup, sourceBytes, null);
+                        sourceBytes = mapper.applyFilters(mappingLookup, sourceBytes, null, true);
                     } catch (IOException e) {
                         throw new IOException("Failed to reapply filters after reading from translog", e);
                     }

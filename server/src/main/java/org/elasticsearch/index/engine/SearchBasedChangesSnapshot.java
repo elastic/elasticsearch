@@ -49,7 +49,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
 
     private final IndexVersion indexVersionCreated;
     private final IndexSearcher indexSearcher;
-    protected final ValueFetcher sourceMetadataFetcher;
+    private final ValueFetcher sourceMetadataFetcher;
     private final Closeable onClose;
 
     protected final long fromSeqNo, toSeqNo;

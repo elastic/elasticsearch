@@ -27,8 +27,11 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.engine.SearchBasedChangesSnapshot;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.fetch.FetchContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentType;
@@ -406,16 +409,17 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(DocumentParserContext context) throws IOException {
-        BytesReference originalSource = context.sourceToParse().source();
+        int originalSourceLength = context.sourceToParse().source().length();
         XContentType contentType = context.sourceToParse().getXContentType();
-        final BytesReference adaptedSource = applyFilters(context.mappingLookup(), originalSource, contentType);
+        BytesReference originalSource = removeInferenceMetadataFields(context.mappingLookup(), context.sourceToParse().source(), contentType);
+        final BytesReference adaptedSource = applyFilters(context.mappingLookup(), originalSource, contentType, false);
 
         if (adaptedSource != null) {
             final BytesRef ref = adaptedSource.toBytesRef();
             context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         }
 
-        boolean enableRecoverySource = context.indexSettings().isRecoverySourceEnabled() && (sourceFilter != null || stored() == false);
+        boolean enableRecoverySource = context.indexSettings().isRecoverySourceEnabled();
         if (enableRecoverySource && originalSource != null && adaptedSource != originalSource) {
             // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
             BytesRef ref = originalSource.toBytesRef();
@@ -427,7 +431,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                  * This size is used in {@link LuceneSyntheticSourceChangesSnapshot} to control memory
                  * usage during the recovery process when loading a batch of synthetic sources.
                  */
-                context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, ref.length));
+                context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, originalSourceLength));
             } else {
                 context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
                 context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
@@ -435,28 +439,48 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    @Nullable
-    public BytesReference applyFilters(
-        @Nullable MappingLookup mappingLookup,
+    /**
+     * Removes the {@link InferenceMetadataFieldsMapper} content from the {@code _source} if it is present.
+     * This metadata is regenerated at query or snapshot recovery time using stored fields and doc values.
+     *
+     * <p>For details on how the metadata is re-added, see:</p>
+     * <ul>
+     *   <li>{@link SearchBasedChangesSnapshot#addSourceMetadata(BytesReference, int)}</li>
+     *   <li>{@link FetchSourcePhase#getProcessor(FetchContext)}</li>
+     * </ul>
+     */
+    private BytesReference removeInferenceMetadataFields(
+        MappingLookup mappingLookup,
         @Nullable BytesReference originalSource,
         @Nullable XContentType contentType
+    ) {
+        if (originalSource != null
+            && InferenceMetadataFieldsMapper.isEnabled(mappingLookup)
+            && mappingLookup.inferenceFields().isEmpty() == false) {
+            return Source.fromBytes(originalSource, contentType)
+                .filter(new SourceFilter(new String[] {}, new String[] { InferenceMetadataFieldsMapper.NAME }))
+                .internalSourceRef();
+        } else {
+            return originalSource;
+        }
+    }
+
+    @Nullable
+    public BytesReference applyFilters(
+        MappingLookup mappingLookup,
+        @Nullable BytesReference originalSource,
+        @Nullable XContentType contentType,
+        boolean removeMetadataFields
     ) throws IOException {
         if (stored() == false || originalSource == null) {
             return null;
         }
         var modSourceFilter = sourceFilter;
-        if (mappingLookup != null
+        if (removeMetadataFields
             && InferenceMetadataFieldsMapper.isEnabled(mappingLookup)
             && mappingLookup.inferenceFields().isEmpty() == false) {
             /*
              * Removes the {@link InferenceMetadataFieldsMapper} content from the {@code _source}.
-             * This metadata is regenerated at query or snapshot recovery time using stored fields and doc values.
-             *
-             * <p>For details on how the metadata is re-added, see:</p>
-             * <ul>
-             *   <li>{@link SearchBasedChangesSnapshot#addSourceMetadata(Source, int)}</li>
-             *   <li>{@link FetchSourcePhase#getProcessor(FetchContext)}</li>
-             * </ul>
              */
             String[] modExcludes = new String[excludes != null ? excludes.length + 1 : 1];
             if (excludes != null) {

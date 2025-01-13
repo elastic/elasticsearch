@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
@@ -31,34 +33,34 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase {
-    private final XContentType xContentType;
     private final Model model1;
     private final Model model2;
     private final boolean useSynthetic;
+    private final boolean useIncludesExcludes;
 
-    public SemanticInferenceMetadataFieldsRecoveryTests(boolean useSynthetic) {
-        this.xContentType = randomFrom(XContentType.JSON);
+    public SemanticInferenceMetadataFieldsRecoveryTests(boolean useSynthetic, boolean useIncludesExcludes) {
         this.model1 = randomModel(TaskType.TEXT_EMBEDDING);
         this.model2 = randomModel(TaskType.SPARSE_EMBEDDING);
         this.useSynthetic = useSynthetic;
+        this.useIncludesExcludes = useIncludesExcludes;
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return List.of(new Object[] { false }, new Object[] { true });
+        return List.of(new Object[] { false, false }, new Object[] { false, true }, new Object[] { true, false });
     }
 
     @Override
@@ -80,41 +82,44 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
 
     @Override
     protected String defaultMapping() {
-        return String.format(
-            Locale.ROOT,
-            """
-                {
-                    "dynamic": false,
-                    "properties": {
-                        "field": {
-                          "type": "keyword"
-                        },
-                        "semantic_1": {
-                            "type": "semantic_text",
-                            "inference_id": "%s",
-                            "model_settings": {
-                              "task_type": "text_embedding",
-                              "dimensions": %d,
-                              "similarity": "%s",
-                              "element_type": "%s"
-                            }
-                        },
-                        "semantic_2": {
-                            "type": "semantic_text",
-                            "inference_id": "%s",
-                            "model_settings": {
-                              "task_type": "sparse_embedding"
-                            }
-                        }
-                    }
-                }
-                """,
-            model1.getInferenceEntityId(),
-            model1.getServiceSettings().dimensions(),
-            model1.getServiceSettings().similarity().name(),
-            model1.getServiceSettings().elementType().name(),
-            model2.getInferenceEntityId()
-        );
+        XContentBuilder builder = null;
+        try {
+            builder = JsonXContent.contentBuilder().startObject();
+            if (useIncludesExcludes) {
+                builder.startObject(SourceFieldMapper.NAME).array("excludes", "field").endObject();
+            }
+            builder.field("dynamic", false);
+            builder.startObject("properties");
+
+            builder.startObject("field");
+            builder.field("type", "keyword");
+            builder.endObject();
+
+            builder.startObject("semantic_1");
+            builder.field("type", "semantic_text");
+            builder.field("inference_id", model1.getInferenceEntityId());
+            builder.startObject("model_settings");
+            builder.field("task_type", model1.getTaskType().name());
+            builder.field("dimensions", model1.getServiceSettings().dimensions());
+            builder.field("similarity", model1.getServiceSettings().similarity().name());
+            builder.field("element_type", model1.getServiceSettings().elementType().name());
+            builder.endObject();
+            builder.endObject();
+
+            builder.startObject("semantic_2");
+            builder.field("type", "semantic_text");
+            builder.field("inference_id", model2.getInferenceEntityId());
+            builder.startObject("model_settings");
+            builder.field("task_type", model2.getTaskType().name());
+            builder.endObject();
+            builder.endObject();
+
+            builder.endObject();
+            builder.endObject();
+            return BytesReference.bytes(builder).utf8ToString();
+        } catch (IOException exc) {
+            throw new RuntimeException(exc);
+        }
     }
 
     public void testSnapshotRecovery() throws IOException {
@@ -122,9 +127,23 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
         int size = randomIntBetween(10, 50);
         for (int i = 0; i < size; i++) {
             var source = randomSource();
-            var sourceToParse = new SourceToParse(Integer.toString(i), source, xContentType, null);
+            var sourceToParse = new SourceToParse(Integer.toString(i), source, XContentType.JSON, null);
             var doc = mapperService.documentMapper().parse(sourceToParse);
             assertNull(doc.dynamicMappingsUpdate());
+            if (useSynthetic) {
+                assertNull(doc.rootDoc().getField(SourceFieldMapper.RECOVERY_SOURCE_NAME));
+                assertNotNull(doc.rootDoc().getField(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME));
+            } else {
+                if (useIncludesExcludes) {
+                    assertNotNull(doc.rootDoc().getField(SourceFieldMapper.RECOVERY_SOURCE_NAME));
+                    var originalSource = new BytesArray(doc.rootDoc().getField(SourceFieldMapper.RECOVERY_SOURCE_NAME).binaryValue());
+                    var map = XContentHelper.convertToMap(originalSource, false, XContentType.JSON);
+                    assertThat(map.v2().size(), equalTo(1));
+                    assertNull(map.v2().remove(InferenceMetadataFieldsMapper.NAME));
+                } else {
+                    assertNull(doc.rootDoc().getField(SourceFieldMapper.RECOVERY_SOURCE_NAME));
+                }
+            }
             var op = indexForDoc(doc);
             expectedOperations.add(op);
             engine.index(op);
@@ -154,7 +173,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
                 Translog.Index indexOp = (Translog.Index) op;
                 assertThat(indexOp.id(), equalTo(expectedOperations.get(i).id()));
                 assertThat(indexOp.routing(), equalTo(expectedOperations.get(i).routing()));
-                assertToXContentEquivalent(indexOp.source(), expectedOperations.get(i).source(), xContentType);
+                assertToXContentEquivalent(indexOp.source(), expectedOperations.get(i).source(), XContentType.JSON);
             }
             assertNull(snapshot.next());
         }
@@ -213,7 +232,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
     }
 
     private BytesReference randomSource() throws IOException {
-        var builder = XContentBuilder.builder(xContentType.xContent()).startObject();
+        var builder = JsonXContent.contentBuilder().startObject();
         builder.field("field", randomAlphaOfLengthBetween(10, 30));
         if (rarely()) {
             return BytesReference.bytes(builder.endObject());
@@ -222,8 +241,8 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
             false,
             builder,
             List.of(
-                randomSemanticText(false, "semantic_2", model2, randomInputs(), xContentType),
-                randomSemanticText(false, "semantic_1", model1, randomInputs(), xContentType)
+                randomSemanticText(false, "semantic_2", model2, randomInputs(), XContentType.JSON),
+                randomSemanticText(false, "semantic_1", model1, randomInputs(), XContentType.JSON)
             )
         );
         builder.endObject();

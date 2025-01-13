@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -38,6 +37,7 @@ import org.elasticsearch.plugins.Plugin;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Semaphore;
@@ -154,7 +154,8 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
         public Searcher acquireSearcher(String source, SearcherScope scope, Function<Searcher, Searcher> wrapper) throws EngineException {
             if (blockedSearcherRestCancellationTestCaseLogger.isDebugEnabled()) {
                 blockedSearcherRestCancellationTestCaseLogger.debug(
-                    Strings.format(
+                    String.format(
+                        Locale.ROOT,
                         "in acquireSearcher for shard [%s] on thread [%s], availablePermits=%d",
                         config().getShardId(),
                         Thread.currentThread().getName(),
@@ -173,7 +174,8 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
 
             if (blockedSearcherRestCancellationTestCaseLogger.isDebugEnabled()) {
                 blockedSearcherRestCancellationTestCaseLogger.debug(
-                    Strings.format(
+                    String.format(
+                        Locale.ROOT,
                         "continuing in acquireSearcher for shard [%s] on thread [%s], availablePermits=%d",
                         config().getShardId(),
                         Thread.currentThread().getName(),

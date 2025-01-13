@@ -46,7 +46,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     public static final NodeFeature LINEAR_RETRIEVER_SUPPORTED = new NodeFeature("linear_retriever_supported");
 
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
-    public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
 
     private final float[] weights;
     private final LinearRetrieverComponent.ScoreNormalizer[] normalizers;

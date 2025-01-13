@@ -109,9 +109,9 @@ public class LinearRetrieverComponent implements ToXContentObject {
 
         public abstract ScoreDoc[] normalizeScores(ScoreDoc[] docs);
 
-        public static ScoreNormalizer fromString(final String normalizerName){
-            for(ScoreNormalizer normalizer: values()){
-                if(normalizer.name().equalsIgnoreCase(normalizerName)){
+        public static ScoreNormalizer fromString(final String normalizerName) {
+            for (ScoreNormalizer normalizer : values()) {
+                if (normalizer.name().equalsIgnoreCase(normalizerName)) {
                     return normalizer;
                 }
             }

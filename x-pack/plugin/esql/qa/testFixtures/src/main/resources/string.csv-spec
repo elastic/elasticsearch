@@ -1287,7 +1287,7 @@ emp_no:integer  | first_name:keyword
 10001           | Georgi
 ;
 
-equalsToUpperFolded
+equalsToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees
 | where to_upper(first_name) == "Georgi"
 | keep emp_no, first_name
@@ -1296,7 +1296,7 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-negatedEqualsToUpperFolded
+negatedEqualsToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees
 | where not(to_upper(first_name) == "Georgi")
 | stats c = count()
@@ -1315,9 +1315,9 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-equalsNullToUpperFolded
+equalsNullToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees
-| where to_upper(first_name) == null::keyword
+| where to_upper(first_name) == to_string(null)
 | keep emp_no, first_name
 ;
 
@@ -1333,16 +1333,16 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-notEqualsNullToUpperFolded
+notEqualsNullToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees
-| where to_upper(first_name) != null::keyword
+| where to_upper(first_name) != to_string(null)
 | keep emp_no, first_name
 ;
 
 emp_no:integer  | first_name:keyword
 ;
 
-notEqualsToUpperFolded
+notEqualsToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees
 | where to_upper(first_name) != "Georgi"
 | stats c = count()
@@ -1352,7 +1352,7 @@ c:long
 90
 ;
 
-negatedNotEqualsToUpperFolded
+negatedNotEqualsToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees
 | where not(to_upper(first_name) != "Georgi")
 | stats c = count()
@@ -1384,7 +1384,7 @@ emp_no:integer  | first_name:keyword
 10002           | Bezalel
 ;
 
-equalsToLowerFolded
+equalsToLowerFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees
 | where to_lower(first_name) == "Georgi"
 | keep emp_no, first_name
@@ -1393,7 +1393,7 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-notEqualsToLowerFolded
+notEqualsToLowerFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees
 | where to_lower(first_name) != "Georgi"
 | stats c = count()
@@ -1403,7 +1403,7 @@ c:long
 90
 ;
 
-equalsToLowerWithUnico(rn|d)s
+equalsToLowerWithUnico(rn|d)s#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees
 | where to_lower(concat(first_name, "🦄🦄")) != "georgi🦄🦄"
 | stats c = count()

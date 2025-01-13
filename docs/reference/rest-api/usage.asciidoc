@@ -2,6 +2,12 @@
 [[usage-api]]
 == Usage API
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-xpack[Usage APIs].
+--
+
 Provides usage information about the installed {xpack} features.
 
 [discrete]

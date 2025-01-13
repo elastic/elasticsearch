@@ -644,6 +644,7 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
 
     public void testCheckForCcsLicense() {
         final TestIndicesExpressionGrouper indicesGrouper = new TestIndicesExpressionGrouper();
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
 
         // this seems to be used only for tracking usage of features, not for checking if a license is expired
         final LongSupplier currTime = () -> System.currentTimeMillis();
@@ -671,22 +672,22 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
             List<TableInfo> indices = new ArrayList<>();
             indices.add(new TableInfo(new TableIdentifier(EMPTY, null, randomFrom("idx", "idx1,idx2*"))));
 
-            checkForCcsLicense(indices, indicesGrouper, enterpriseLicenseValid);
-            checkForCcsLicense(indices, indicesGrouper, platinumLicenseValid);
-            checkForCcsLicense(indices, indicesGrouper, goldLicenseValid);
-            checkForCcsLicense(indices, indicesGrouper, trialLicenseValid);
-            checkForCcsLicense(indices, indicesGrouper, basicLicenseValid);
-            checkForCcsLicense(indices, indicesGrouper, standardLicenseValid);
-            checkForCcsLicense(indices, indicesGrouper, missingLicense);
-            checkForCcsLicense(indices, indicesGrouper, nullLicense);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, enterpriseLicenseValid);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, platinumLicenseValid);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, goldLicenseValid);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, trialLicenseValid);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, basicLicenseValid);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, standardLicenseValid);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, missingLicense);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, nullLicense);
 
-            checkForCcsLicense(indices, indicesGrouper, enterpriseLicenseInactive);
-            checkForCcsLicense(indices, indicesGrouper, platinumLicenseInactive);
-            checkForCcsLicense(indices, indicesGrouper, goldLicenseInactive);
-            checkForCcsLicense(indices, indicesGrouper, trialLicenseInactive);
-            checkForCcsLicense(indices, indicesGrouper, basicLicenseInactive);
-            checkForCcsLicense(indices, indicesGrouper, standardLicenseInactive);
-            checkForCcsLicense(indices, indicesGrouper, missingLicenseInactive);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, enterpriseLicenseInactive);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, platinumLicenseInactive);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, goldLicenseInactive);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, trialLicenseInactive);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, basicLicenseInactive);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, standardLicenseInactive);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, missingLicenseInactive);
         }
 
         // cross-cluster search requires a valid (active, non-expired) enterprise license OR a valid trial license
@@ -701,8 +702,8 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
             }
 
             // licenses that work
-            checkForCcsLicense(indices, indicesGrouper, enterpriseLicenseValid);
-            checkForCcsLicense(indices, indicesGrouper, trialLicenseValid);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, enterpriseLicenseValid);
+            checkForCcsLicense(executionInfo, indices, indicesGrouper, trialLicenseValid);
 
             // all others fail ---
 
@@ -739,9 +740,10 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
         XPackLicenseState licenseState,
         String expectedErrorMessageSuffix
     ) {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> checkForCcsLicense(indices, indicesGrouper, licenseState)
+            () -> checkForCcsLicense(executionInfo, indices, indicesGrouper, licenseState)
         );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(

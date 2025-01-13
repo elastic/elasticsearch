@@ -19,10 +19,14 @@ import static org.elasticsearch.ingest.EnterpriseGeoIpTask.GEOIP_DOWNLOADER_DATA
 public class IngestGeoIpFeatures implements FeatureSpecification {
 
     public static final NodeFeature GET_DATABASE_CONFIGURATION_ACTION_MULTI_NODE = new NodeFeature(
-        "get_database_configuration_action.multi_node"
+        "get_database_configuration_action.multi_node",
+        true
     );
 
-    public static final NodeFeature PUT_DATABASE_CONFIGURATION_ACTION_IPINFO = new NodeFeature("put_database_configuration_action.ipinfo");
+    public static final NodeFeature PUT_DATABASE_CONFIGURATION_ACTION_IPINFO = new NodeFeature(
+        "put_database_configuration_action.ipinfo",
+        true
+    );
 
     public Set<NodeFeature> getFeatures() {
         return Set.of(

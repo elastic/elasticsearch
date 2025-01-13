@@ -232,7 +232,7 @@ public class DateDiff extends EsqlScalarFunction {
 
         if (unit.foldable()) {
             try {
-                Part datePartField = Part.resolve(((BytesRef) unit.fold()).utf8ToString());
+                Part datePartField = Part.resolve(((BytesRef) unit.fold(toEvaluator.foldCtx())).utf8ToString());
                 return new DateDiffConstantEvaluator.Factory(source(), datePartField, startTimestampEvaluator, endTimestampEvaluator);
             } catch (IllegalArgumentException e) {
                 throw new InvalidArgumentException("invalid unit format for [{}]: {}", sourceText(), e.getMessage());

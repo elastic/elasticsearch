@@ -299,6 +299,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             client,
             clusterService.getNodeName(),
             clusterService,
+            services.indexNameExpressionResolver(),
             getTransformExtension().includeNodeInfo()
         );
         Clock clock = Clock.systemUTC();

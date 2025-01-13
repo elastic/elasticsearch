@@ -13,9 +13,9 @@ import java.util.Map;
 
 public final class NotificationsIndex {
 
-    public static final String NOTIFICATIONS_INDEX_PREFIX = ".ml-notifications";
-    public static final String NOTIFICATIONS_INDEX_SUFFIX = "-000002";
-    public static final String NOTIFICATIONS_INDEX = NOTIFICATIONS_INDEX_PREFIX + NOTIFICATIONS_INDEX_SUFFIX;
+    public static final String NOTIFICATIONS_INDEX_PREFIX = ".ml-notifications-";
+    public static final String NOTIFICATIONS_INDEX_VERSION = "000002";
+    public static final String NOTIFICATIONS_INDEX = NOTIFICATIONS_INDEX_PREFIX + NOTIFICATIONS_INDEX_VERSION;
     public static final String NOTIFICATIONS_INDEX_WRITE_ALIAS = ".ml-notifications-write";
 
     private static final String RESOURCE_PATH = "/ml/";

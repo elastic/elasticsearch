@@ -78,7 +78,7 @@ public class TransformUpdaterTests extends ESTestCase {
     private TestThreadPool threadPool;
     private Client client;
     private ClusterService clusterService = mock(ClusterService.class);
-    private TransformAuditor auditor = new MockTransformAuditor(clusterService);
+    private TransformAuditor auditor = new MockTransformAuditor(clusterService, mock(IndexNameExpressionResolver.class));
     private final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
     private final Settings destIndexSettings = new DefaultTransformExtension().getTransformDestinationIndexSettings();
 
@@ -125,7 +125,7 @@ public class TransformUpdaterTests extends ESTestCase {
         threadPool = createThreadPool();
         client = new MyMockClient(threadPool);
         clusterService = mock(ClusterService.class);
-        auditor = new MockTransformAuditor(clusterService);
+        auditor = new MockTransformAuditor(clusterService, mock(IndexNameExpressionResolver.class));
     }
 
     @After

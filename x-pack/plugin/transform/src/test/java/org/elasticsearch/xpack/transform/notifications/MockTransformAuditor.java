@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -51,13 +52,13 @@ public class MockTransformAuditor extends TransformAuditor {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
 
-        return new MockTransformAuditor(clusterService);
+        return new MockTransformAuditor(clusterService, mock(IndexNameExpressionResolver.class));
     }
 
     private final List<AuditExpectation> expectations;
 
-    public MockTransformAuditor(ClusterService clusterService) {
-        super(mock(Client.class), MOCK_NODE_NAME, clusterService, true);
+    public MockTransformAuditor(ClusterService clusterService, IndexNameExpressionResolver indexNameResolver) {
+        super(mock(Client.class), MOCK_NODE_NAME, clusterService, indexNameResolver, true);
         expectations = new CopyOnWriteArrayList<>();
     }
 

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.common.notifications;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -18,7 +19,9 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -26,6 +29,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,7 +38,11 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
+import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -64,6 +73,7 @@ public class AbstractAuditorTests extends ESTestCase {
     private static final String TEST_NODE_NAME = "node_1";
     private static final String TEST_ORIGIN = "test_origin";
     private static final String TEST_INDEX = "test_index";
+    private static final String TEST_INDEX_ALIAS = "test_index_write";
 
     private static final int TEST_TEMPLATE_VERSION = 23456789;
 
@@ -225,16 +235,27 @@ public class AbstractAuditorTests extends ESTestCase {
 
     private TestAuditor createTestAuditorWithTemplateInstalled() {
         Map<String, IndexTemplateMetadata> templates = Map.of(TEST_INDEX, mock(IndexTemplateMetadata.class));
-        Map<String, ComposableIndexTemplate> templatesV2 = Collections.singletonMap(TEST_INDEX, mock(ComposableIndexTemplate.class));
+        var template = mock(ComposableIndexTemplate.class);
+        when(template.version()).thenReturn((long) TEST_TEMPLATE_VERSION);
+        Map<String, ComposableIndexTemplate> templatesV2 = Collections.singletonMap(TEST_INDEX, template);
         Metadata metadata = mock(Metadata.class);
         when(metadata.getTemplates()).thenReturn(templates);
         when(metadata.templatesV2()).thenReturn(templatesV2);
+
         ClusterState state = mock(ClusterState.class);
         when(state.getMetadata()).thenReturn(metadata);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
 
         return new TestAuditor(client, TEST_NODE_NAME, clusterService);
+    }
+
+    private static IndexMetadata createIndexMetadata(String indexName, boolean withAlias) {
+        IndexMetadata.Builder builder = IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), 1, 0));
+        if (withAlias) {
+            builder.putAlias(AliasMetadata.builder(TEST_INDEX_ALIAS).build());
+        }
+        return builder.build();
     }
 
     @SuppressWarnings("unchecked")
@@ -279,14 +300,48 @@ public class AbstractAuditorTests extends ESTestCase {
 
     public static class TestAuditor extends AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> {
 
-        TestAuditor(Client client, String nodeName, ClusterService clusterService) { // TODO remove clusterservice
+        TestAuditor(Client client, String nodeName, ClusterService clusterService) {
             super(
                 new OriginSettingClient(client, TEST_ORIGIN),
-                TEST_INDEX,
+                TEST_INDEX_ALIAS,
                 nodeName,
                 AbstractAuditMessageTests.TestAuditMessage::new,
-                l -> { l.onResponse(Boolean.TRUE); }
+                clusterService,
+                TestIndexNameExpressionResolver.newInstance()
             );
+        }
+
+        @Override
+        protected TransportPutComposableIndexTemplateAction.Request putTemplateRequest() {
+            var templateConfig = new IndexTemplateConfig(
+                TEST_INDEX,
+                "/ml/notifications_index_template.json",
+                TEST_TEMPLATE_VERSION,
+                "xpack.ml.version",
+                Map.of(
+                    "xpack.ml.version.id",
+                    String.valueOf(TEST_TEMPLATE_VERSION),
+                    "xpack.ml.notifications.mappings",
+                    NotificationsIndex.mapping()
+                )
+            );
+            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())) {
+                return new TransportPutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
+                    ComposableIndexTemplate.parse(parser)
+                ).masterNodeTimeout(MASTER_TIMEOUT);
+            } catch (IOException e) {
+                throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);
+            }
+        }
+
+        @Override
+        protected int templateVersion() {
+            return 1;
+        }
+
+        @Override
+        protected IndexDetails indexDetails() {
+            return new IndexDetails(TEST_INDEX, "-000001");
         }
     }
 }

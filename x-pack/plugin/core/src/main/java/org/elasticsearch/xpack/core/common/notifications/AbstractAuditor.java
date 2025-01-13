@@ -10,12 +10,18 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 
 import java.io.IOException;
 import java.util.Date;
@@ -23,7 +29,6 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
@@ -40,10 +45,11 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     private final String nodeName;
     private final String auditIndexWriteAlias;
     private final AbstractAuditMessageFactory<T> messageFactory;
+    private final ClusterService clusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final AtomicBoolean indexAndAliasCreated;
 
     private Queue<ToXContent> backlog;
-    private final Consumer<ActionListener<Boolean>> createIndexAndAliasAction;
     private final AtomicBoolean indexAndAliasCreationInProgress;
 
     protected AbstractAuditor(
@@ -51,13 +57,15 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         String auditIndexWriteAlias,
         String nodeName,
         AbstractAuditMessageFactory<T> messageFactory,
-        Consumer<ActionListener<Boolean>> createIndexAndAliasAction
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         this.client = Objects.requireNonNull(client);
         this.auditIndexWriteAlias = Objects.requireNonNull(auditIndexWriteAlias);
         this.messageFactory = Objects.requireNonNull(messageFactory);
         this.nodeName = Objects.requireNonNull(nodeName);
-        this.createIndexAndAliasAction = Objects.requireNonNull(createIndexAndAliasAction);
+        this.clusterService = Objects.requireNonNull(clusterService);
+        this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
         this.backlog = new ConcurrentLinkedQueue<>();
         this.indexAndAliasCreated = new AtomicBoolean();
         this.indexAndAliasCreationInProgress = new AtomicBoolean();
@@ -89,7 +97,6 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
     protected void indexDoc(ToXContent toXContent) {
         if (indexAndAliasCreated.get()) {
-            logger.info("has template Indexing audit message");
             writeDoc(toXContent);
             return;
         }
@@ -121,9 +128,8 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
                 // stop multiple invocations
                 if (indexAndAliasCreationInProgress.compareAndSet(false, true)) {
-                    this.createIndexAndAliasAction.accept(createListener);
+                    installTemplateAndCreateIndex(createListener);
                 }
-                return;
             }
         }
     }
@@ -180,4 +186,32 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     int backLogSize() {
         return backlog.size();
     }
+
+    private void installTemplateAndCreateIndex(ActionListener<Boolean> listener) {
+        SubscribableListener.<Boolean>newForked(l -> {
+            MlIndexAndAlias.installIndexTemplateIfRequired(clusterService.state(), client, templateVersion(), putTemplateRequest(), l);
+        }).<Boolean>andThen((l, success) -> {
+            var indexDetails = indexDetails();
+            MlIndexAndAlias.createIndexAndAliasIfNecessary(
+                client,
+                clusterService.state(),
+                indexNameExpressionResolver,
+                indexDetails.indexPrefix(),
+                indexDetails.indexVersion(),
+                auditIndexWriteAlias,
+                MASTER_TIMEOUT,
+                ActiveShardCount.DEFAULT,
+                l
+            );
+
+        }).addListener(listener);
+    }
+
+    protected abstract TransportPutComposableIndexTemplateAction.Request putTemplateRequest();
+
+    protected abstract int templateVersion();
+
+    protected abstract IndexDetails indexDetails();
+
+    public record IndexDetails(String indexPrefix, String indexVersion) {};
 }

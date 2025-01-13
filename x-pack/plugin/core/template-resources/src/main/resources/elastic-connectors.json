@@ -22,6 +22,9 @@
         "custom_scheduling": {
           "type": "object"
         },
+        "deleted": {
+          "type": "boolean"
+        },
         "description": {
           "type": "text"
         },

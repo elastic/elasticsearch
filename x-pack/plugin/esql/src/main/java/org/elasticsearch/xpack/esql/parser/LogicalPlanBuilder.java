@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -570,5 +571,51 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return p -> new LookupJoin(source, p, right, joinFields);
+    }
+
+    @Override
+    public PlanFactory visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx) {
+        var source = source(ctx);
+
+        if (false == Build.current().isSnapshot()) {
+            throw new ParsingException(source, "RERANK is in preview and only available in SNAPSHOT build");
+        }
+
+        Literal queryText = visitStringOrParameter(ctx.queryText);
+        Expression input = expression(ctx.input);
+        Literal inferenceId = new Literal(source(ctx.inferenceId), visitIdentifierOrParameter(ctx.inferenceId), DataType.KEYWORD);
+        Literal windowSize = visitRerankCommandWindowSize(ctx);
+
+        return p -> new Rerank(source, p, queryText, input, inferenceId, windowSize);
+    }
+
+    public Literal visitRerankCommandWindowSize(EsqlBaseParser.RerankCommandContext ctx) {
+        Literal windowSize = null;
+
+        if (ctx.rerankCommandOptions() != null) {
+            for (var rerankCommandOption : ctx.rerankCommandOptions()) {
+                if (rerankCommandOption.rerankCommandWindowSize() != null) {
+                    if (windowSize != null) {
+                        throw new ParsingException(source(ctx), "window_size can only be set once in the RERANK command");
+                    }
+
+                    windowSize = visitRerankCommandWindowSize(rerankCommandOption.rerankCommandWindowSize());
+                }
+            }
+        }
+
+        return windowSize;
+    }
+
+    @Override
+    public Literal visitRerankCommandWindowSize(EsqlBaseParser.RerankCommandWindowSizeContext ctx) {
+        Source source = source(ctx);
+        int windowSize = stringToInt(ctx.INTEGER_LITERAL().getText());
+
+        if (windowSize < 1) {
+            throw new ParsingException(source, "window_size can not be < 1");
+        }
+
+        return new Literal(source, windowSize, DataType.INTEGER);
     }
 }

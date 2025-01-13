@@ -291,7 +291,7 @@ string
     ;
 
 stringOrParameter
-    : QUOTED_STRING
+    : string
     | {this.isDevVersion()}? parameter
     ;
 
@@ -331,7 +331,7 @@ inlinestatsCommand
     ;
 
 rerankCommand
-    : DEV_RERANK queryText=stringOrParameter ON source=primaryExpression WITH inferenceId=identifierOrParameter (COMMA rerankCommandOptions)*
+    : DEV_RERANK queryText=stringOrParameter ON input=primaryExpression WITH inferenceId=identifierOrParameter (COMMA rerankCommandOptions)*
     ;
 
 rerankCommandOptions

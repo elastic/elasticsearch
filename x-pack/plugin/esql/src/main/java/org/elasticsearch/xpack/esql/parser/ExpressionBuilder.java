@@ -248,6 +248,15 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
+    public Literal visitStringOrParameter(EsqlBaseParser.StringOrParameterContext ctx) {
+        if (ctx.parameter() != null) {
+            return new Literal(source(ctx), unresolvedAttributeNameInParam(ctx.parameter(), expression(ctx.parameter())), DataType.TEXT);
+        }
+
+        return visitString(ctx.string());
+    }
+
+    @Override
     public UnresolvedAttribute visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx) {
         if (ctx == null) {
             return null;

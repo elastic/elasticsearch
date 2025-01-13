@@ -31,7 +31,7 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
     }
 
     public void testDevelopmentRerank() {
-        // TODO: implement parser test for the RERANK command.
+        parse("row a = 1 | rerank \"foo\" ON title WITH reranker", "rerank");
     }
 
     void parse(String query, String errorMessage) {

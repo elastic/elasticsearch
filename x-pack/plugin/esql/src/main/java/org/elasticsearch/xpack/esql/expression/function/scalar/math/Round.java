@@ -64,7 +64,7 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
         @Param(
             optional = true,
             name = "decimals",
-            type = { "integer", "long" },  // TODO long is supported here too
+            type = { "integer", "long" },
             description = "The number of decimal places to round to. Defaults to 0. If `null`, the function returns `null`."
         ) Expression decimals
     ) {

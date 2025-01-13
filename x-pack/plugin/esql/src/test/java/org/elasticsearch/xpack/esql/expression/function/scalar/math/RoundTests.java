@@ -159,7 +159,7 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
                     .withWarning(
                         "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: "
                             + "[-9223372036854775808] out of [integer] range"
-                    )
+                )
             )
         );
         suppliers.add(
@@ -227,11 +227,10 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
         suppliers.add(supplier(123, 2, 123));
         suppliers.add(supplier(123, -1, 120));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
             (nullPosition, nullValueDataType, original) -> nullPosition == 0 ? nullValueDataType : original.expectedType(),
             (nullPosition, nullData, original) -> original,
-            suppliers,
-            (v, p) -> p == 0 ? "numeric" : "whole number except unsigned_long or counter types"
+            suppliers
         );
     }
 

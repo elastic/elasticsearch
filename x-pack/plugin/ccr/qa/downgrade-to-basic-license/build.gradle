@@ -1,5 +1,16 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.testclusters.TestClusterValueSource
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.testclusters.TestClustersRegistry
+import org.elasticsearch.gradle.util.GradleUtils
+
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -10,6 +21,8 @@ dependencies {
   testImplementation project(xpackModule('ccr'))
   testImplementation project(':x-pack:plugin:ccr:qa')
 }
+
+def clusterPath = getPath()
 
 def leaderCluster = testClusters.register("leader-cluster") {
   testDistribution = 'DEFAULT'
@@ -24,7 +37,19 @@ def followCluster = testClusters.register("follow-cluster") {
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   user username: 'admin', password: 'admin-password', role: 'superuser'
-  setting 'cluster.remote.leader_cluster.seeds', { "\"${leaderCluster.get().getAllTransportPortURI().join(",")}\"" }, IGNORE_VALUE
+  Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
+    project.gradle.sharedServices,
+    TestClustersPlugin.REGISTRY_SERVICE_NAME
+  )
+  def leaderInfo = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
+    it.parameters.clusterName.set("leader-cluster")
+    it.parameters.service = serviceProvider
+  }
+  def leaderUris = leaderInfo.map { it.getAllTransportPortURI() }
+
+  setting 'cluster.remote.leader_cluster.seeds',
+    { "\"${leaderUris.get().join(",")}\"" }, IGNORE_VALUE
 }
 
 tasks.register("leader-cluster", RestIntegTestTask) {
@@ -41,7 +66,7 @@ tasks.register("writeJavaPolicy") {
     policyFile.write(
       [
         "grant {",
-        "  permission java.io.FilePermission \"${-> testClusters."follow-cluster".getFirstNode().getServerLog()}\", \"read\";",
+        "  permission java.io.FilePermission \"${-> followCluster.map { it.getFirstNode().getServerLog() }.get()}\", \"read\";",
         "};"
       ].join("\n")
     )
@@ -50,11 +75,28 @@ tasks.register("writeJavaPolicy") {
 
 tasks.register("follow-cluster", RestIntegTestTask) {
   dependsOn 'writeJavaPolicy', "leader-cluster"
-    useCluster leaderCluster
-    systemProperty 'tests.target_cluster', 'follow'
-    nonInputProperties.systemProperty 'java.security.policy', "file://${policyFile}"
-    nonInputProperties.systemProperty 'tests.leader_host', leaderCluster.map(c -> c.allHttpSocketURI.get(0))
-    nonInputProperties.systemProperty 'log', followCluster.map(c -> c.getFirstNode().getServerLog())
+  useCluster leaderCluster
+  systemProperty 'tests.target_cluster', 'follow'
+  nonInputProperties.systemProperty 'java.security.policy', "file://${policyFile}"
+  Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
+    project.gradle.sharedServices,
+    TestClustersPlugin.REGISTRY_SERVICE_NAME
+  )
+  def leaderInfo = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
+    it.parameters.clusterName.set("leader-cluster")
+    it.parameters.service = serviceProvider
+  }
+  def followInfo = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
+    it.parameters.clusterName.set("follow-cluster")
+    it.parameters.service = serviceProvider
+  }
+  def leaderUri = leaderInfo.map { it.getAllHttpSocketURI().get(0) }
+  def followerUri = followInfo.map { it.getAllHttpSocketURI().get(0) }
+
+  nonInputProperties.systemProperty 'tests.leader_host', leaderUri
+  nonInputProperties.systemProperty 'log', followCluster.map(c -> c.getFirstNode().getServerLog())
 }
 
 tasks.named("check").configure { dependsOn "follow-cluster" }

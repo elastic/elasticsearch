@@ -194,27 +194,23 @@ public record ScriptStats(
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-        return Iterators.concat(
-            ChunkedToXContentHelper.startObject(SCRIPT_STATS),
-            ChunkedToXContentHelper.field(COMPILATIONS, compilations),
-            ChunkedToXContentHelper.field(CACHE_EVICTIONS, cacheEvictions),
-            ChunkedToXContentHelper.field(COMPILATION_LIMIT_TRIGGERED, compilationLimitTriggered),
-            single((builder, params) -> {
-                if (compilationsHistory != null && compilationsHistory.areTimingsEmpty() == false) {
-                    builder.startObject(COMPILATIONS_HISTORY);
-                    compilationsHistory.toXContent(builder, params);
-                    builder.endObject();
-                }
-                if (cacheEvictionsHistory != null && cacheEvictionsHistory.areTimingsEmpty() == false) {
-                    builder.startObject(COMPILATIONS_HISTORY);
-                    cacheEvictionsHistory.toXContent(builder, params);
-                    builder.endObject();
-                }
-                return builder;
-            }),
-            ChunkedToXContentHelper.array(CONTEXTS, contextStats.iterator()),
-            ChunkedToXContentHelper.endObject()
-        );
+        return Iterators.concat(single((builder, params) -> {
+            builder.startObject(SCRIPT_STATS)
+                .field(COMPILATIONS, compilations)
+                .field(CACHE_EVICTIONS, cacheEvictions)
+                .field(COMPILATION_LIMIT_TRIGGERED, compilationLimitTriggered);
+            if (compilationsHistory != null && compilationsHistory.areTimingsEmpty() == false) {
+                builder.startObject(COMPILATIONS_HISTORY);
+                compilationsHistory.toXContent(builder, params);
+                builder.endObject();
+            }
+            if (cacheEvictionsHistory != null && cacheEvictionsHistory.areTimingsEmpty() == false) {
+                builder.startObject(COMPILATIONS_HISTORY);
+                cacheEvictionsHistory.toXContent(builder, params);
+                builder.endObject();
+            }
+            return builder;
+        }), ChunkedToXContentHelper.array(CONTEXTS, contextStats.iterator()), ChunkedToXContentHelper.endObject());
     }
 
     static final class Fields {

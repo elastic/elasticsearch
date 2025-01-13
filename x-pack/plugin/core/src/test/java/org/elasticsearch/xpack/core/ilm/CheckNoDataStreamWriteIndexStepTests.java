@@ -59,8 +59,8 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
             .build();
 
         ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexMetadata.getIndex(), clusterState);
-        assertThat(result.isComplete(), is(true));
-        assertThat(result.getInfomationContext(), is(nullValue()));
+        assertThat(result.complete(), is(true));
+        assertThat(result.informationContext(), is(nullValue()));
     }
 
     public void testStepIncompleteIfIndexIsTheDataStreamWriteIndex() {
@@ -94,10 +94,10 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
         IndexMetadata indexToOperateOn = useFailureStore ? failureIndexMetadata : indexMetadata;
         String expectedIndexName = indexToOperateOn.getIndex().getName();
         ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexToOperateOn.getIndex(), clusterState);
-        assertThat(result.isComplete(), is(false));
-        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInfomationContext();
+        assertThat(result.complete(), is(false));
+        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.informationContext();
         assertThat(
-            info.getMessage(),
+            info.message(),
             is(
                 "index ["
                     + expectedIndexName
@@ -161,7 +161,7 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
         boolean useFailureStore = randomBoolean();
         IndexMetadata indexToOperateOn = useFailureStore ? failureIndexMetadata : indexMetadata;
         ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexToOperateOn.getIndex(), clusterState);
-        assertThat(result.isComplete(), is(true));
-        assertThat(result.getInfomationContext(), is(nullValue()));
+        assertThat(result.complete(), is(true));
+        assertThat(result.informationContext(), is(nullValue()));
     }
 }

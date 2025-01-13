@@ -47,17 +47,14 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                 searchHits[i] = SearchHitTests.createTestItem(randomBoolean(), randomBoolean());
             }
             SearchHits hits = new SearchHits(searchHits, new TotalHits(numHits, TotalHits.Relation.EQUAL_TO), 1.0f);
-            var sections = new SearchResponseSections(hits, null, null, false, null, null, 1);
-            try {
+            try (var sections = new SearchResponseSections(hits, null, null, false, null, null, 1)) {
                 FetchLookupFieldsPhase phase = new FetchLookupFieldsPhase(searchPhaseContext, sections, null);
                 phase.run();
             } finally {
-                sections.decRef();
                 hits.decRef();
             }
             searchPhaseContext.assertNoFailure();
             assertNotNull(searchPhaseContext.searchResponse.get());
-            searchPhaseContext.execute(() -> {});
         } finally {
             var resp = searchPhaseContext.searchResponse.get();
             if (resp != null) {
@@ -190,12 +187,10 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                 new TotalHits(2, TotalHits.Relation.EQUAL_TO),
                 1.0f
             );
-            var sections = new SearchResponseSections(searchHits, null, null, false, null, null, 1);
-            try {
+            try (var sections = new SearchResponseSections(searchHits, null, null, false, null, null, 1)) {
                 FetchLookupFieldsPhase phase = new FetchLookupFieldsPhase(searchPhaseContext, sections, null);
                 phase.run();
             } finally {
-                sections.decRef();
                 searchHits.decRef();
             }
             assertTrue(requestSent.get());
@@ -225,8 +220,8 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                 leftHit1.field("lookup_field_3").getValues(),
                 contains(Map.of("field_a", List.of("a2"), "field_b", List.of("b1", "b2")))
             );
-            searchPhaseContext.execute(() -> {});
         } finally {
+            searchPhaseContext.results.close();
             var resp = searchPhaseContext.searchResponse.get();
             if (resp != null) {
                 resp.decRef();

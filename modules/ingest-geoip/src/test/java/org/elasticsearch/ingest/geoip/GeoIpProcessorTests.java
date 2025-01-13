@@ -82,13 +82,13 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testIpinfoGeolocation() throws Exception {
-        String ip = "13.107.39.238";
+        String ip = "72.20.12.220";
         GeoIpProcessor processor = new GeoIpProcessor(
             IP_LOCATION_TYPE, // n.b. this is an "ip_location" processor
             randomAlphaOfLength(10),
             null,
             "source_field",
-            loader("ipinfo/ip_geolocation_sample.mmdb"),
+            loader("ipinfo/ip_geolocation_standard_sample.mmdb"),
             () -> true,
             "target_field",
             getIpinfoGeolocationLookup(),
@@ -107,7 +107,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         Map<String, Object> data = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(data, notNullValue());
         assertThat(data.get("ip"), equalTo(ip));
-        assertThat(data.get("city_name"), equalTo("Des Moines"));
+        assertThat(data.get("city_name"), equalTo("Chicago"));
         // see IpinfoIpDataLookupsTests for more tests of the data lookup behavior
     }
 

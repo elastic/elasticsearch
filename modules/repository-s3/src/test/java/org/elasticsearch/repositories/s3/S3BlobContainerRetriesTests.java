@@ -586,16 +586,16 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                         ),
                         -1
                     );
+                    exchange.getResponseBody().flush();
                 } else if (randomBoolean()) {
                     final var bytesSent = sendIncompleteContent(exchange, bytes);
                     if (bytesSent < meaningfulProgressBytes) {
                         failuresWithoutProgress += 1;
-                    } else {
-                        exchange.getResponseBody().flush();
                     }
                 } else {
                     failuresWithoutProgress += 1;
                 }
+                exchange.getResponseBody().flush();
                 exchange.close();
             }
         }
@@ -640,6 +640,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 failureCount += 1;
                 Streams.readFully(exchange.getRequestBody());
                 sendIncompleteContent(exchange, bytes);
+                exchange.getResponseBody().flush();
                 exchange.close();
             }
         }

@@ -111,7 +111,8 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                         testCase.getExpectedTypeError(),
                         null,
                         null,
-                        null
+                        null,
+                        testCase.canBuildEvaluator()
                     );
                 }));
             }
@@ -163,15 +164,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()));
         }
 
-        assertThat(result, not(equalTo(Double.NaN)));
-        assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
-        assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
-        assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
-        assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
-        assertThat(result, testCase.getMatcher());
-        if (testCase.getExpectedWarnings() != null) {
-            assertWarnings(testCase.getExpectedWarnings());
-        }
+        assertTestCaseResultAndWarnings(result);
     }
 
     private void aggregateGroupingSingleMode(Expression expression) {
@@ -263,15 +256,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()));
         }
 
-        assertThat(result, not(equalTo(Double.NaN)));
-        assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
-        assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
-        assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
-        assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
-        assertThat(result, testCase.getMatcher());
-        if (testCase.getExpectedWarnings() != null) {
-            assertWarnings(testCase.getExpectedWarnings());
-        }
+        assertTestCaseResultAndWarnings(result);
     }
 
     private void evaluate(Expression evaluableExpression) {
@@ -288,21 +273,15 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
             result = NumericUtils.unsignedLongAsBigInteger((Long) result);
         }
-        assertThat(result, not(equalTo(Double.NaN)));
-        assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
-        assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
-        assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
-        assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
-        assertThat(result, testCase.getMatcher());
-        if (testCase.getExpectedWarnings() != null) {
-            assertWarnings(testCase.getExpectedWarnings());
-        }
+        assertTestCaseResultAndWarnings(result);
     }
 
     private void resolveExpression(Expression expression, Consumer<Expression> onAggregator, Consumer<Expression> onEvaluableExpression) {
-        logger.info(
-            "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
-        );
+        String valuesString = testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","));
+        if (valuesString.length() > 200) {
+            valuesString = valuesString.substring(0, 200) + "...";
+        }
+        logger.info("Test Values: " + valuesString);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
             return;

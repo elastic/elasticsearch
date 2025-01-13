@@ -6,5 +6,5 @@
 |===
 str | result
 keyword | keyword
-text | text
+text | keyword
 |===

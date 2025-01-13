@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
@@ -265,6 +267,17 @@ public class FoldNullTests extends ESTestCase {
             transformed = rule.rule(isNotNull);
             assertEquals(isNotNull, transformed);
         }
+    }
+
+    public void testNullBucketGetsFolded() {
+        FoldNull foldNull = new FoldNull();
+        assertEquals(NULL, foldNull.rule(new Bucket(EMPTY, NULL, NULL, NULL, NULL)));
+    }
+
+    public void testNullCategorizeGroupingNotFolded() {
+        FoldNull foldNull = new FoldNull();
+        Categorize categorize = new Categorize(EMPTY, NULL);
+        assertEquals(categorize, foldNull.rule(categorize));
     }
 
     private void assertNullLiteral(Expression expression) {

@@ -15,12 +15,12 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * This extends BulkRequest with support for providing substitute pipeline definitions, component template definitions, and index template
@@ -73,7 +73,8 @@ import java.util.Map;
  *           }
  *         }
  *       }
- *     },
+ *     }
+ *   },
  *   "index_template_substitutions": {
  *     "my-index-template-1": {
  *       "template": {
@@ -84,6 +85,13 @@ import java.util.Map;
  *         ]
  *       }
  *     }
+ *   },
+ *   "mapping_addition": {
+ *     "dynamic": "strict",
+ *     "properties": {
+ *       "foo": {
+ *         "type": "keyword"
+ *       }
  *   }
  *
  *   The pipelineSubstitutions Map held by this class is intended to be the result of XContentHelper.convertToMap(). The top-level keys
@@ -94,6 +102,7 @@ public class SimulateBulkRequest extends BulkRequest {
     private final Map<String, Map<String, Object>> pipelineSubstitutions;
     private final Map<String, Map<String, Object>> componentTemplateSubstitutions;
     private final Map<String, Map<String, Object>> indexTemplateSubstitutions;
+    private final Map<String, Object> mappingAddition;
 
     /**
      * @param pipelineSubstitutions The pipeline definitions that are to be used in place of any pre-existing pipeline definitions with
@@ -103,31 +112,40 @@ public class SimulateBulkRequest extends BulkRequest {
      *                                       component template definitions with the same name.
      * @param indexTemplateSubstitutions The index template definitions that are to be used in place of any pre-existing
      *                                       index template definitions with the same name.
+     * @param mappingAddition   A mapping that will be merged into the final index's mapping for mapping validation
      */
     public SimulateBulkRequest(
-        @Nullable Map<String, Map<String, Object>> pipelineSubstitutions,
-        @Nullable Map<String, Map<String, Object>> componentTemplateSubstitutions,
-        @Nullable Map<String, Map<String, Object>> indexTemplateSubstitutions
+        Map<String, Map<String, Object>> pipelineSubstitutions,
+        Map<String, Map<String, Object>> componentTemplateSubstitutions,
+        Map<String, Map<String, Object>> indexTemplateSubstitutions,
+        Map<String, Object> mappingAddition
     ) {
         super();
+        Objects.requireNonNull(pipelineSubstitutions);
+        Objects.requireNonNull(componentTemplateSubstitutions);
+        Objects.requireNonNull(indexTemplateSubstitutions);
+        Objects.requireNonNull(mappingAddition);
         this.pipelineSubstitutions = pipelineSubstitutions;
         this.componentTemplateSubstitutions = componentTemplateSubstitutions;
         this.indexTemplateSubstitutions = indexTemplateSubstitutions;
+        this.mappingAddition = mappingAddition;
     }
 
     @SuppressWarnings("unchecked")
     public SimulateBulkRequest(StreamInput in) throws IOException {
         super(in);
         this.pipelineSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_COMPONENT_TEMPLATES_SUBSTITUTIONS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.componentTemplateSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
-        } else {
-            componentTemplateSubstitutions = Map.of();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_INDEX_TEMPLATES_SUBSTITUTIONS)) {
             this.indexTemplateSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
         } else {
+            componentTemplateSubstitutions = Map.of();
             indexTemplateSubstitutions = Map.of();
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_MAPPING_ADDITION)) {
+            this.mappingAddition = (Map<String, Object>) in.readGenericValue();
+        } else {
+            mappingAddition = Map.of();
         }
     }
 
@@ -135,11 +153,12 @@ public class SimulateBulkRequest extends BulkRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeGenericValue(pipelineSubstitutions);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_COMPONENT_TEMPLATES_SUBSTITUTIONS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeGenericValue(componentTemplateSubstitutions);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_INDEX_TEMPLATES_SUBSTITUTIONS)) {
             out.writeGenericValue(indexTemplateSubstitutions);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_MAPPING_ADDITION)) {
+            out.writeGenericValue(mappingAddition);
         }
     }
 
@@ -153,41 +172,39 @@ public class SimulateBulkRequest extends BulkRequest {
     }
 
     @Override
-    public Map<String, ComponentTemplate> getComponentTemplateSubstitutions() throws IOException {
-        if (componentTemplateSubstitutions == null) {
-            return Map.of();
-        }
-        Map<String, ComponentTemplate> result = new HashMap<>(componentTemplateSubstitutions.size());
-        for (Map.Entry<String, Map<String, Object>> rawEntry : componentTemplateSubstitutions.entrySet()) {
-            result.put(rawEntry.getKey(), convertRawTemplateToComponentTemplate(rawEntry.getValue()));
-        }
-        return result;
+    public Map<String, ComponentTemplate> getComponentTemplateSubstitutions() {
+        return componentTemplateSubstitutions.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> convertRawTemplateToComponentTemplate(entry.getValue())));
     }
 
     @Override
-    public Map<String, ComposableIndexTemplate> getIndexTemplateSubstitutions() throws IOException {
-        if (indexTemplateSubstitutions == null) {
-            return Map.of();
-        }
-        Map<String, ComposableIndexTemplate> result = new HashMap<>(indexTemplateSubstitutions.size());
-        for (Map.Entry<String, Map<String, Object>> rawEntry : indexTemplateSubstitutions.entrySet()) {
-            result.put(rawEntry.getKey(), convertRawTemplateToIndexTemplate(rawEntry.getValue()));
-        }
-        return result;
+    public Map<String, ComposableIndexTemplate> getIndexTemplateSubstitutions() {
+        return indexTemplateSubstitutions.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> convertRawTemplateToIndexTemplate(entry.getValue())));
     }
 
-    private static ComponentTemplate convertRawTemplateToComponentTemplate(Map<String, Object> rawTemplate) throws IOException {
+    public Map<String, Object> getMappingAddition() {
+        return mappingAddition;
+    }
+
+    private static ComponentTemplate convertRawTemplateToComponentTemplate(Map<String, Object> rawTemplate) {
         ComponentTemplate componentTemplate;
         try (var parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, rawTemplate)) {
             componentTemplate = ComponentTemplate.parse(parser);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
         return componentTemplate;
     }
 
-    private static ComposableIndexTemplate convertRawTemplateToIndexTemplate(Map<String, Object> rawTemplate) throws IOException {
+    private static ComposableIndexTemplate convertRawTemplateToIndexTemplate(Map<String, Object> rawTemplate) {
         ComposableIndexTemplate indexTemplate;
         try (var parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, rawTemplate)) {
             indexTemplate = ComposableIndexTemplate.parse(parser);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
         return indexTemplate;
     }
@@ -197,7 +214,8 @@ public class SimulateBulkRequest extends BulkRequest {
         BulkRequest bulkRequest = new SimulateBulkRequest(
             pipelineSubstitutions,
             componentTemplateSubstitutions,
-            indexTemplateSubstitutions
+            indexTemplateSubstitutions,
+            mappingAddition
         );
         bulkRequest.setRefreshPolicy(getRefreshPolicy());
         bulkRequest.waitForActiveShards(waitForActiveShards());

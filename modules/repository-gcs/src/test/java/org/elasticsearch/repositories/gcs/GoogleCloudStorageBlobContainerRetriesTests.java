@@ -41,6 +41,7 @@ import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTest
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.threeten.bp.Duration;
 
 import java.io.IOException;
@@ -58,9 +59,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeEnd;
-import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeLimit;
-import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeStart;
 import static fixture.gcs.GoogleCloudStorageHttpHandler.parseMultipartRequestBody;
 import static fixture.gcs.TestUtils.createServiceAccount;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -177,9 +175,9 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "large_blob_retries"), exchange -> {
             Streams.readFully(exchange.getRequestBody());
             exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-            final Tuple<Long, Long> range = getRange(exchange);
-            final int offset = Math.toIntExact(range.v1());
-            final byte[] chunk = Arrays.copyOfRange(bytes, offset, Math.toIntExact(Math.min(range.v2() + 1, bytes.length)));
+            final HttpHeaderParser.Range range = getRange(exchange);
+            final int offset = Math.toIntExact(range.start());
+            final byte[] chunk = Arrays.copyOfRange(bytes, offset, Math.toIntExact(Math.min(range.end() + 1, bytes.length)));
             exchange.sendResponseHeaders(RestStatus.OK.getStatus(), chunk.length);
             if (randomBoolean() && countDown.decrementAndGet() >= 0) {
                 exchange.getResponseBody().write(chunk, 0, chunk.length - 1);
@@ -368,14 +366,14 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
 
                     assertThat(Math.toIntExact(requestBody.length()), anyOf(equalTo(defaultChunkSize), equalTo(lastChunkSize)));
 
-                    final int rangeStart = getContentRangeStart(range);
-                    final int rangeEnd = getContentRangeEnd(range);
+                    final HttpHeaderParser.ContentRange contentRange = HttpHeaderParser.parseContentRangeHeader(range);
+                    final int rangeStart = Math.toIntExact(contentRange.start());
+                    final int rangeEnd = Math.toIntExact(contentRange.end());
                     assertThat(rangeEnd + 1 - rangeStart, equalTo(Math.toIntExact(requestBody.length())));
                     assertThat(new BytesArray(data, rangeStart, rangeEnd - rangeStart + 1), is(requestBody));
                     bytesReceived.updateAndGet(existing -> Math.max(existing, rangeEnd));
 
-                    final Integer limit = getContentRangeLimit(range);
-                    if (limit != null) {
+                    if (contentRange.size() != null) {
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                         return;
                     } else {

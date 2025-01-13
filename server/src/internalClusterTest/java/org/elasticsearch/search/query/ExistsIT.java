@@ -133,7 +133,7 @@ public class ExistsIT extends ESIntegTestCase {
                                 response
                             ),
                             count,
-                            response.getHits().getTotalHits().value
+                            response.getHits().getTotalHits().value()
                         );
                     } catch (AssertionError e) {
                         for (SearchHit searchHit : allDocs.getHits()) {

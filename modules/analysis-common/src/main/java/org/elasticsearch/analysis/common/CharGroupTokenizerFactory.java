@@ -33,7 +33,7 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory {
     private boolean tokenizeOnSymbol = false;
 
     public CharGroupTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, settings, name);
+        super(name);
 
         maxTokenLength = settings.getAsInt(MAX_TOKEN_LENGTH, CharTokenizer.DEFAULT_MAX_WORD_LEN);
 

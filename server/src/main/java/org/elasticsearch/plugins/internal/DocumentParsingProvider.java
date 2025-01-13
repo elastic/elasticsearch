@@ -9,7 +9,7 @@
 
 package org.elasticsearch.plugins.internal;
 
-import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.mapper.MapperService;
 
 /**
@@ -40,7 +40,7 @@ public interface DocumentParsingProvider {
     /**
      * @return an observer
      */
-    default <T> XContentMeteringParserDecorator newMeteringParserDecorator(DocWriteRequest<T> request) {
+    default <T> XContentMeteringParserDecorator newMeteringParserDecorator(IndexRequest request) {
         return XContentMeteringParserDecorator.NOOP;
     }
 }

@@ -14,8 +14,14 @@ import java.util.Map;
 
 public class ChunkingSettingsBuilder {
     public static final SentenceBoundaryChunkingSettings DEFAULT_SETTINGS = new SentenceBoundaryChunkingSettings(250, 1);
+    // Old settings used for backward compatibility for endpoints created before 8.16 when default was changed
+    public static final WordBoundaryChunkingSettings OLD_DEFAULT_SETTINGS = new WordBoundaryChunkingSettings(250, 100);
 
     public static ChunkingSettings fromMap(Map<String, Object> settings) {
+        if (settings == null) {
+            return OLD_DEFAULT_SETTINGS;
+        }
+
         if (settings.isEmpty()) {
             return DEFAULT_SETTINGS;
         }

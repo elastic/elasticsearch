@@ -45,6 +45,7 @@ public class AzureHttpFixture extends ExternalResource {
     private final String clientId;
     private final String tenantId;
     private final Predicate<String> authHeaderPredicate;
+    private final MockAzureBlobStore.LeaseExpiryPredicate leaseExpiryPredicate;
 
     private HttpServer server;
     private HttpServer metadataServer;
@@ -116,7 +117,8 @@ public class AzureHttpFixture extends ExternalResource {
         String container,
         @Nullable String rawTenantId,
         @Nullable String rawClientId,
-        Predicate<String> authHeaderPredicate
+        Predicate<String> authHeaderPredicate,
+        MockAzureBlobStore.LeaseExpiryPredicate leaseExpiryPredicate
     ) {
         final var tenantId = Strings.hasText(rawTenantId) ? rawTenantId : null;
         final var clientId = Strings.hasText(rawClientId) ? rawClientId : null;
@@ -135,6 +137,7 @@ public class AzureHttpFixture extends ExternalResource {
         this.tenantId = tenantId;
         this.clientId = clientId;
         this.authHeaderPredicate = authHeaderPredicate;
+        this.leaseExpiryPredicate = leaseExpiryPredicate;
     }
 
     private String scheme() {
@@ -193,7 +196,10 @@ public class AzureHttpFixture extends ExternalResource {
                 }
                 case HTTP -> {
                     server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-                    server.createContext("/" + account, new AzureHttpHandler(account, container, actualAuthHeaderPredicate));
+                    server.createContext(
+                        "/" + account,
+                        new AzureHttpHandler(account, container, actualAuthHeaderPredicate, leaseExpiryPredicate)
+                    );
                     server.start();
 
                     oauthTokenServiceServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
@@ -222,7 +228,10 @@ public class AzureHttpFixture extends ExternalResource {
                         final var httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
                         this.server = httpsServer;
                         httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
-                        httpsServer.createContext("/" + account, new AzureHttpHandler(account, container, actualAuthHeaderPredicate));
+                        httpsServer.createContext(
+                            "/" + account,
+                            new AzureHttpHandler(account, container, actualAuthHeaderPredicate, leaseExpiryPredicate)
+                        );
                         httpsServer.start();
                     }
                     {

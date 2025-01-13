@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.rest.job;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -26,11 +25,9 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_JOBS_PARAM;
 import static org.elasticsearch.xpack.core.ml.job.config.Job.ID;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
-import static org.elasticsearch.xpack.ml.rest.RestCompatibilityChecker.checkAndSetDeprecatedParam;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetJobsAction extends BaseRestHandler {
@@ -52,14 +49,7 @@ public class RestGetJobsAction extends BaseRestHandler {
             jobId = Metadata.ALL;
         }
         Request request = new Request(jobId);
-        checkAndSetDeprecatedParam(
-            DEPRECATED_ALLOW_NO_JOBS_PARAM,
-            Request.ALLOW_NO_MATCH,
-            RestApiVersion.V_7,
-            restRequest,
-            (r, s) -> r.paramAsBoolean(s, request.allowNoMatch()),
-            request::setAllowNoMatch
-        );
+        request.setAllowNoMatch(restRequest.paramAsBoolean(Request.ALLOW_NO_MATCH, request.allowNoMatch()));
         return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
             GetJobsAction.INSTANCE,
             request,

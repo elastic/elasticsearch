@@ -110,24 +110,7 @@ public class ReferenceAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<ReferenceAttribute> info() {
-        return NodeInfo.create(
-            this,
-            (source, name, dataType, qualifier, nullability, id, synthetic) -> new ReferenceAttribute(
-                source,
-                name,
-                dataType,
-                qualifier,
-                nullability,
-                id,
-                synthetic
-            ),
-            name(),
-            dataType(),
-            (String) null,
-            nullable(),
-            id(),
-            synthetic()
-        );
+        return NodeInfo.create(this, ReferenceAttribute::new, name(), dataType(), nullable(), id(), synthetic());
     }
 
     @Override

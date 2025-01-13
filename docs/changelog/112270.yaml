@@ -1,5 +1,0 @@
-pr: 112270
-summary: Support sparse embedding models in the elasticsearch inference service
-area: Machine Learning
-type: enhancement
-issues: []

@@ -15,6 +15,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -94,6 +95,19 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
     }
 
+    public record ScoreSort(Order.OrderDirection direction) implements Sort {
+        @Override
+        public SortBuilder<?> sortBuilder() {
+            return new ScoreSortBuilder();
+        }
+
+        @Override
+        public FieldAttribute field() {
+            // TODO: refactor this: not all Sorts are backed by FieldAttributes
+            return null;
+        }
+    }
+
     public EsQueryExec(Source source, EsIndex index, IndexMode indexMode, List<Attribute> attributes, QueryBuilder query) {
         this(source, index, indexMode, attributes, query, null, null, null);
     }
@@ -124,7 +138,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
      */
     public static EsQueryExec deserialize(StreamInput in) throws IOException {
         var source = Source.readFrom((PlanStreamInput) in);
-        var index = new EsIndex(in);
+        var index = EsIndex.readFrom(in);
         var indexMode = EsRelation.readIndexMode(in);
         var attrs = in.readNamedWriteableCollectionAsList(Attribute.class);
         var query = in.readOptionalNamedWriteable(QueryBuilder.class);

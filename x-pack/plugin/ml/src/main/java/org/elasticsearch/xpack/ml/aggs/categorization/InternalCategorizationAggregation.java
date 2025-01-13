@@ -86,7 +86,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         }
     }
 
-    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket
+    public static class Bucket extends InternalMultiBucketAggregation.InternalBucketWritable
         implements
             MultiBucketsAggregation.Bucket,
             Comparable<Bucket> {
@@ -142,8 +142,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             aggregations.writeTo(out);
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private void bucketToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), serializableCategory.getNumMatches());
             builder.field(CommonFields.KEY.getPreferredName());
@@ -152,7 +151,6 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             builder.field(CategoryDefinition.MAX_MATCHING_LENGTH.getPreferredName(), serializableCategory.maxMatchingStringLen());
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         BucketKey getRawKey() {
@@ -280,7 +278,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (Bucket bucket : buckets) {
-            bucket.toXContent(builder, params);
+            bucket.bucketToXContent(builder, params);
         }
         builder.endArray();
         return builder;

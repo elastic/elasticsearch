@@ -45,10 +45,6 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     public static final ParseField LTE_FIELD = new ParseField("lte");
     public static final ParseField GTE_FIELD = new ParseField("gte");
-    public static final ParseField FROM_FIELD = new ParseField("from").withAllDeprecated();
-    public static final ParseField TO_FIELD = new ParseField("to").withAllDeprecated();
-    private static final ParseField INCLUDE_LOWER_FIELD = new ParseField("include_lower").withAllDeprecated();
-    private static final ParseField INCLUDE_UPPER_FIELD = new ParseField("include_upper").withAllDeprecated();
     public static final ParseField GT_FIELD = new ParseField("gt");
     public static final ParseField LT_FIELD = new ParseField("lt");
     private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
@@ -367,15 +363,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            from = maybeConvertToBytesRef(parser.objectBytes());
-                        } else if (TO_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            to = maybeConvertToBytesRef(parser.objectBytes());
-                        } else if (INCLUDE_LOWER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            includeLower = parser.booleanValue();
-                        } else if (INCLUDE_UPPER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            includeUpper = parser.booleanValue();
-                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             boost = parser.floatValue();
                         } else if (GT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             from = maybeConvertToBytesRef(parser.objectBytes());
@@ -438,6 +426,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     protected MappedFieldType.Relation getRelation(final CoordinatorRewriteContext coordinatorRewriteContext) {
         final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(fieldName);
         if (fieldType instanceof final DateFieldMapper.DateFieldType dateFieldType) {
+            assert fieldName.equals(fieldType.name());
             IndexLongFieldRange fieldRange = coordinatorRewriteContext.getFieldRange(fieldName);
             if (fieldRange.isComplete() == false || fieldRange == IndexLongFieldRange.EMPTY) {
                 // if not all shards for this (frozen) index have reported ranges to cluster state, OR if they

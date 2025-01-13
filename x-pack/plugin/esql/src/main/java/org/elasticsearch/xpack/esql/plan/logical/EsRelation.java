@@ -58,7 +58,7 @@ public class EsRelation extends LeafPlan {
 
     private static EsRelation readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
-        EsIndex esIndex = new EsIndex(in);
+        EsIndex esIndex = EsIndex.readFrom(in);
         List<Attribute> attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         if (supportingEsSourceOptions(in.getTransportVersion())) {
             // We don't do anything with these strings
@@ -181,7 +181,12 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public String nodeString() {
-        return nodeName() + "[" + index + "]" + NodeUtils.limitedToString(attrs);
+        return nodeName()
+            + "["
+            + index
+            + "]"
+            + (indexMode != IndexMode.STANDARD ? "[" + indexMode.name() + "]" : "")
+            + NodeUtils.limitedToString(attrs);
     }
 
     public static IndexMode readIndexMode(StreamInput in) throws IOException {

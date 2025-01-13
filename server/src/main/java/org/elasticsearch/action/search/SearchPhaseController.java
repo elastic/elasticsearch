@@ -29,6 +29,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
@@ -190,7 +191,7 @@ public final class SearchPhaseController {
      */
     static SortedTopDocs sortDocs(
         boolean ignoreFrom,
-        final Collection<TopDocs> topDocs,
+        final List<TopDocs> topDocs,
         int from,
         int size,
         List<CompletionSuggestion> reducedCompletionSuggestions
@@ -233,22 +234,22 @@ public final class SearchPhaseController {
         return new SortedTopDocs(scoreDocs, isSortedByField, sortFields, groupField, groupValues, numSuggestDocs);
     }
 
-    static TopDocs mergeTopDocs(Collection<TopDocs> results, int topN, int from) {
+    static TopDocs mergeTopDocs(List<TopDocs> results, int topN, int from) {
         if (results.isEmpty()) {
             return null;
         }
-        final TopDocs topDocs = results.stream().findFirst().get();
+        final TopDocs topDocs = results.getFirst();
         final TopDocs mergedTopDocs;
         final int numShards = results.size();
         if (numShards == 1 && from == 0) { // only one shard and no pagination we can just return the topDocs as we got them.
             return topDocs;
         } else if (topDocs instanceof TopFieldGroups firstTopDocs) {
             final Sort sort = new Sort(firstTopDocs.fields);
-            final TopFieldGroups[] shardTopDocs = results.toArray(new TopFieldGroups[numShards]);
+            final TopFieldGroups[] shardTopDocs = results.toArray(new TopFieldGroups[0]);
             mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
             final Sort sort = checkSameSortTypes(results, firstTopDocs.fields);
-            final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
+            final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[0]);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
         } else {
             final TopDocs[] shardTopDocs = results.toArray(new TopDocs[numShards]);
@@ -524,17 +525,7 @@ public final class SearchPhaseController {
                 topDocs.add(td.topDocs);
             }
         }
-        return reducedQueryPhase(
-            queryResults,
-            Collections.emptyList(),
-            topDocs,
-            topDocsStats,
-            0,
-            true,
-            aggReduceContextBuilder,
-            null,
-            true
-        );
+        return reducedQueryPhase(queryResults, null, topDocs, topDocsStats, 0, true, aggReduceContextBuilder, null, true);
     }
 
     /**
@@ -548,7 +539,7 @@ public final class SearchPhaseController {
      */
     static ReducedQueryPhase reducedQueryPhase(
         Collection<? extends SearchPhaseResult> queryResults,
-        List<DelayableWriteable<InternalAggregations>> bufferedAggs,
+        @Nullable List<DelayableWriteable<InternalAggregations>> bufferedAggs,
         List<TopDocs> bufferedTopDocs,
         TopDocsStats topDocsStats,
         int numReducePhases,
@@ -560,9 +551,8 @@ public final class SearchPhaseController {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
         if (queryResults.isEmpty()) { // early terminate we have nothing to reduce
-            final TotalHits totalHits = topDocsStats.getTotalHits();
             return new ReducedQueryPhase(
-                totalHits,
+                topDocsStats.getTotalHits(),
                 topDocsStats.fetchHits,
                 topDocsStats.getMaxScore(),
                 false,
@@ -579,8 +569,7 @@ public final class SearchPhaseController {
                 true
             );
         }
-        int total = queryResults.size();
-        final Collection<SearchPhaseResult> nonNullResults = new ArrayList<>();
+        final List<QuerySearchResult> nonNullResults = new ArrayList<>();
         boolean hasSuggest = false;
         boolean hasProfileResults = false;
         for (SearchPhaseResult queryResult : queryResults) {
@@ -590,12 +579,11 @@ public final class SearchPhaseController {
             }
             hasSuggest |= res.suggest() != null;
             hasProfileResults |= res.hasProfileResults();
-            nonNullResults.add(queryResult);
+            nonNullResults.add(res);
         }
-        queryResults = nonNullResults;
-        validateMergeSortValueFormats(queryResults);
-        if (queryResults.isEmpty()) {
-            var ex = new IllegalStateException("must have at least one non-empty search result, got 0 out of " + total);
+        validateMergeSortValueFormats(nonNullResults);
+        if (nonNullResults.isEmpty()) {
+            var ex = new IllegalStateException("must have at least one non-empty search result, got 0 out of " + queryResults.size());
             assert false : ex;
             throw ex;
         }
@@ -603,13 +591,12 @@ public final class SearchPhaseController {
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
         final Map<String, List<Suggestion<?>>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
         final Map<String, SearchProfileQueryPhaseResult> profileShardResults = hasProfileResults
-            ? Maps.newMapWithExpectedSize(queryResults.size())
+            ? Maps.newMapWithExpectedSize(nonNullResults.size())
             : Collections.emptyMap();
         int from = 0;
         int size = 0;
         DocValueFormat[] sortValueFormats = null;
-        for (SearchPhaseResult entry : queryResults) {
-            QuerySearchResult result = entry.queryResult();
+        for (QuerySearchResult result : nonNullResults) {
             from = result.from();
             // sorted queries can set the size to 0 if they have enough competitive hits.
             size = Math.max(result.size(), size);
@@ -620,8 +607,7 @@ public final class SearchPhaseController {
             if (hasSuggest) {
                 assert result.suggest() != null;
                 for (Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> suggestion : result.suggest()) {
-                    List<Suggestion<?>> suggestionList = groupedSuggestions.computeIfAbsent(suggestion.getName(), s -> new ArrayList<>());
-                    suggestionList.add(suggestion);
+                    groupedSuggestions.computeIfAbsent(suggestion.getName(), s -> new ArrayList<>()).add(suggestion);
                     if (suggestion instanceof CompletionSuggestion completionSuggestion) {
                         completionSuggestion.setShardIndex(result.getShardIndex());
                     }
@@ -629,48 +615,48 @@ public final class SearchPhaseController {
             }
             assert bufferedTopDocs.isEmpty() || result.hasConsumedTopDocs() : "firstResult has no aggs but we got non null buffered aggs?";
             if (hasProfileResults) {
-                String key = result.getSearchShardTarget().toString();
-                profileShardResults.put(key, result.consumeProfileResult());
+                profileShardResults.put(result.getSearchShardTarget().toString(), result.consumeProfileResult());
             }
         }
-        final Suggest reducedSuggest;
-        final List<CompletionSuggestion> reducedCompletionSuggestions;
-        if (groupedSuggestions.isEmpty()) {
-            reducedSuggest = null;
-            reducedCompletionSuggestions = Collections.emptyList();
-        } else {
-            reducedSuggest = new Suggest(Suggest.reduce(groupedSuggestions));
-            reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
-        }
-        final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
-        final SearchProfileResultsBuilder profileBuilder = profileShardResults.isEmpty()
-            ? null
-            : new SearchProfileResultsBuilder(profileShardResults);
+        final Suggest reducedSuggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
         final SortedTopDocs sortedTopDocs;
         if (queryPhaseRankCoordinatorContext == null) {
-            sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
-        } else {
-            ScoreDoc[] rankedDocs = queryPhaseRankCoordinatorContext.rankQueryPhaseResults(
-                queryResults.stream().map(SearchPhaseResult::queryResult).toList(),
-                topDocsStats
+            sortedTopDocs = sortDocs(
+                isScrollRequest,
+                bufferedTopDocs,
+                from,
+                size,
+                reducedSuggest == null ? Collections.emptyList() : reducedSuggest.filter(CompletionSuggestion.class)
             );
-            sortedTopDocs = new SortedTopDocs(rankedDocs, false, null, null, null, 0);
+        } else {
+            sortedTopDocs = new SortedTopDocs(
+                queryPhaseRankCoordinatorContext.rankQueryPhaseResults(nonNullResults, topDocsStats),
+                false,
+                null,
+                null,
+                null,
+                0
+            );
             size = sortedTopDocs.scoreDocs.length;
             // we need to reset from here as pagination and result trimming has already taken place
             // within the `QueryPhaseRankCoordinatorContext#rankQueryPhaseResults` and we don't want
             // to apply it again in the `getHits` method.
             from = 0;
         }
-        final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(
-            totalHits,
+            topDocsStats.getTotalHits(),
             topDocsStats.fetchHits,
             topDocsStats.getMaxScore(),
             topDocsStats.timedOut,
             topDocsStats.terminatedEarly,
             reducedSuggest,
-            aggregations,
-            profileBuilder,
+            bufferedAggs == null
+                ? null
+                : InternalAggregations.topLevelReduceDelayable(
+                    bufferedAggs,
+                    performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
+                ),
+            profileShardResults.isEmpty() ? null : new SearchProfileResultsBuilder(profileShardResults),
             sortedTopDocs,
             sortValueFormats,
             queryPhaseRankCoordinatorContext,
@@ -679,19 +665,6 @@ public final class SearchPhaseController {
             from,
             false
         );
-    }
-
-    private static InternalAggregations reduceAggs(
-        AggregationReduceContext.Builder aggReduceContextBuilder,
-        boolean performFinalReduce,
-        List<DelayableWriteable<InternalAggregations>> toReduce
-    ) {
-        return toReduce.isEmpty()
-            ? null
-            : InternalAggregations.topLevelReduceDelayable(
-                toReduce,
-                performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
-            );
     }
 
     /**
@@ -892,8 +865,8 @@ public final class SearchPhaseController {
 
         void add(TopDocsAndMaxScore topDocs, boolean timedOut, Boolean terminatedEarly) {
             if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
-                totalHits += topDocs.topDocs.totalHits.value;
-                if (topDocs.topDocs.totalHits.relation == Relation.GREATER_THAN_OR_EQUAL_TO) {
+                totalHits += topDocs.topDocs.totalHits.value();
+                if (topDocs.topDocs.totalHits.relation() == Relation.GREATER_THAN_OR_EQUAL_TO) {
                     totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
                 }
             }

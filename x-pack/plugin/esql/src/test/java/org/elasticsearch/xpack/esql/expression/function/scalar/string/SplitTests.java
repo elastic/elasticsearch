@@ -42,9 +42,8 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        List<DataType> supportedDataTyes = List.of(DataType.KEYWORD, DataType.TEXT);
-        for (DataType sType : supportedDataTyes) {
-            for (DataType dType : supportedDataTyes) {
+        for (DataType sType : DataType.stringTypes()) {
+            for (DataType dType : DataType.stringTypes()) {
                 suppliers.add(new TestCaseSupplier("split test " + sType.toString() + " " + dType.toString(), List.of(sType, dType), () -> {
                     String delimiter = randomAlphaOfLength(1);
                     List<BytesRef> strings = IntStream.range(0, between(1, 5))
@@ -64,7 +63,7 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
                 }));
             }
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "string");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

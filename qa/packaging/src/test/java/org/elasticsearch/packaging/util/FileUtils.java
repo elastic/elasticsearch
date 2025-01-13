@@ -373,7 +373,7 @@ public class FileUtils {
     }
 
     /**
-     * Recursively copy the the source directory to the target directory, preserving permissions.
+     * Recursively copy the source directory to the target directory, preserving permissions.
      */
     public static void copyDirectory(Path source, Path target) throws IOException {
         Files.walkFileTree(source, new SimpleFileVisitor<>() {

@@ -159,7 +159,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
                     // to be met (eg. {@link LifecycleSettings#LIFECYCLE_STEP_WAIT_TIME_THRESHOLD_SETTING}, so it's important we
                     // re-evaluate what the next step is after we evaluate the condition
                     nextStepKey = currentStep.getNextStepKey();
-                    if (result.isComplete()) {
+                    if (result.complete()) {
                         logger.trace(
                             "[{}] cluster state step condition met successfully ({}) [{}], moving to next step {}",
                             index.getName(),
@@ -180,7 +180,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
                             );
                         }
                     } else {
-                        final ToXContentObject stepInfo = result.getInfomationContext();
+                        final ToXContentObject stepInfo = result.informationContext();
                         if (logger.isTraceEnabled()) {
                             logger.trace(
                                 "[{}] condition not met ({}) [{}], returning existing state (info: {})",

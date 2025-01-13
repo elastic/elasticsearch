@@ -12,7 +12,6 @@ package org.elasticsearch.benchmark.index.codec.tsdb.internal;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.DataOutput;
-import org.elasticsearch.index.codec.tsdb.DocValuesForUtil;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
@@ -44,7 +43,7 @@ public class DecodeBenchmark extends AbstractDocValuesForUtilBenchmark {
 
     @Override
     public void benchmark(int bitsPerValue, Blackhole bh) throws IOException {
-        DocValuesForUtil.decode(bitsPerValue, this.dataInput, this.output);
+        forUtil.decode(bitsPerValue, this.dataInput, this.output);
         bh.consume(this.output);
     }
 }

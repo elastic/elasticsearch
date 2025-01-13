@@ -158,8 +158,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testTwoEmptyEqualMappings() throws Exception {
-        assertAcked(prepareCreate("test1"));
-        assertAcked(prepareCreate("test2").setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
+        assertAcked(prepareCreate("test1"), prepareCreate("test2").setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
         FieldCapabilitiesRequest fieldCapsReq1 = new FieldCapabilitiesRequest();
         fieldCapsReq1.indices("test1");
         fieldCapsReq1.fields("*");
@@ -306,8 +305,8 @@ public class CreateIndexIT extends ESIntegTestCase {
             prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true)),
             expected -> assertNoFailuresAndResponse(prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()), all -> {
-                assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits().value, all.getHits().getTotalHits().value);
-                logger.info("total: {}", expected.getHits().getTotalHits().value);
+                assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits().value(), all.getHits().getTotalHits().value());
+                logger.info("total: {}", expected.getHits().getTotalHits().value());
             })
         );
     }

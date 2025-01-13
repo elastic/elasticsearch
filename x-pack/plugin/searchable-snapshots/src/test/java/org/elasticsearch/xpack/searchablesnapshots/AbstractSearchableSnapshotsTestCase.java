@@ -348,8 +348,8 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
      * uses a different buffer size for them.
      */
     public static IOContext randomIOContext() {
-        final IOContext ioContext = randomFrom(IOContext.DEFAULT, IOContext.READ, IOContext.READONCE);
-        assert ioContext.context != IOContext.Context.MERGE;
+        final IOContext ioContext = randomFrom(IOContext.DEFAULT, IOContext.READONCE);
+        assert ioContext.context() != IOContext.Context.MERGE;
         return ioContext;
     }
 }

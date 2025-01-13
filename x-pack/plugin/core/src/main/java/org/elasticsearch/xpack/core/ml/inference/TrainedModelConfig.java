@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -514,15 +513,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 CREATE_TIME.getPreferredName() + "_string",
                 createTime.toEpochMilli()
             );
-            // If we are NOT storing the model, we should return the deprecated field name
-            if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false
-                && builder.getRestApiVersion().matches(RestApiVersion.equalTo(RestApiVersion.V_7))) {
-                builder.humanReadableField(
-                    DEPRECATED_ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
-                    ESTIMATED_HEAP_MEMORY_USAGE_HUMAN,
-                    ByteSizeValue.ofBytes(modelSize)
-                );
-            }
             builder.humanReadableField(MODEL_SIZE_BYTES.getPreferredName(), MODEL_SIZE_HUMAN, ByteSizeValue.ofBytes(modelSize));
             builder.field(ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations);
             builder.field(LICENSE_LEVEL.getPreferredName(), licenseLevel.description());

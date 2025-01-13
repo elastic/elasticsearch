@@ -32,6 +32,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.transport.TransportException;
@@ -130,12 +131,55 @@ public class Netty4Utils {
         }
     }
 
+    /**
+     * Wrap Netty's {@link ByteBuf} into {@link ReleasableBytesReference} and delegating reference count to ByteBuf.
+     */
     public static ReleasableBytesReference toReleasableBytesReference(final ByteBuf buffer) {
-        return new ReleasableBytesReference(toBytesReference(buffer), buffer::release);
+        return new ReleasableBytesReference(toBytesReference(buffer), toRefCounted(buffer));
+    }
+
+    static ByteBufRefCounted toRefCounted(final ByteBuf buf) {
+        return new ByteBufRefCounted(buf);
+    }
+
+    record ByteBufRefCounted(ByteBuf buffer) implements RefCounted {
+
+        public int refCnt() {
+            return buffer.refCnt();
+        }
+
+        @Override
+        public void incRef() {
+            buffer.retain();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            if (hasReferences() == false) {
+                return false;
+            }
+            try {
+                buffer.retain();
+            } catch (RuntimeException e) {
+                assert hasReferences() == false;
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            return buffer.release();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return buffer.refCnt() > 0;
+        }
     }
 
     public static HttpBody.Full fullHttpBodyFrom(final ByteBuf buf) {
-        return new HttpBody.ByteRefHttpBody(toBytesReference(buf));
+        return new HttpBody.ByteRefHttpBody(toReleasableBytesReference(buf));
     }
 
     public static Recycler<BytesRef> createRecycler(Settings settings) {

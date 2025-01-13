@@ -80,7 +80,7 @@ Create a new index to be managed by the connector.
 
 Continue from above, or navigate to the following location within the {kib} UI:
 
-*Search > Content > Elasticsearch indices*
+*Search > Content > Elasticsearch indices* from the main menu, or use the {kibana-ref}/kibana-concepts-analysts.html#_finding_your_apps_and_objects[global search field].
 
 Choose the index to configure, and then choose the *Configuration* tab.
 

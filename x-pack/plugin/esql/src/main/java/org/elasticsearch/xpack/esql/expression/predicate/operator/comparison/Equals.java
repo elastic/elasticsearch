@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
@@ -42,6 +43,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         Map.entry(DataType.CARTESIAN_SHAPE, EqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.KEYWORD, EqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataType.TEXT, EqualsKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.SEMANTIC_TEXT, EqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataType.VERSION, EqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataType.IP, EqualsKeywordsEvaluator.Factory::new)
     );
@@ -94,11 +96,28 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
             description = "An expression."
         ) Expression right
     ) {
-        super(source, left, right, BinaryComparisonOperation.EQ, evaluatorMap);
+        super(
+            source,
+            left,
+            right,
+            BinaryComparisonOperation.EQ,
+            evaluatorMap,
+            EqualsNanosMillisEvaluator.Factory::new,
+            EqualsMillisNanosEvaluator.Factory::new
+        );
     }
 
     public Equals(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonOperation.EQ, zoneId, evaluatorMap);
+        super(
+            source,
+            left,
+            right,
+            BinaryComparisonOperation.EQ,
+            zoneId,
+            evaluatorMap,
+            EqualsNanosMillisEvaluator.Factory::new,
+            EqualsMillisNanosEvaluator.Factory::new
+        );
     }
 
     @Override
@@ -139,6 +158,16 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
     @Evaluator(extraName = "Longs")
     static boolean processLongs(long lhs, long rhs) {
         return lhs == rhs;
+    }
+
+    @Evaluator(extraName = "MillisNanos")
+    static boolean processMillisNanos(long lhs, long rhs) {
+        return DateUtils.compareNanosToMillis(rhs, lhs) == 0;
+    }
+
+    @Evaluator(extraName = "NanosMillis")
+    static boolean processNanosMillis(long lhs, long rhs) {
+        return DateUtils.compareNanosToMillis(lhs, rhs) == 0;
     }
 
     @Evaluator(extraName = "Doubles")

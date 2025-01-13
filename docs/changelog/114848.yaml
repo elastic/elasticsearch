@@ -1,5 +1,0 @@
-pr: 114848
-summary: "ESQL: Fix grammar changes around per agg filtering"
-area: ES|QL
-type: bug
-issues: []

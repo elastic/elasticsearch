@@ -28,10 +28,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOBooleanSupplier;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -52,6 +52,7 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -111,8 +112,11 @@ import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
  */
 public final class FlattenedFieldMapper extends FieldMapper {
 
-    public static final NodeFeature IGNORE_ABOVE_SUPPORT = new NodeFeature("flattened.ignore_above_support");
-    public static final NodeFeature IGNORE_ABOVE_WITH_ARRAYS_SUPPORT = new NodeFeature("mapper.flattened.ignore_above_with_arrays_support");
+    public static final NodeFeature IGNORE_ABOVE_SUPPORT = new NodeFeature("flattened.ignore_above_support", true);
+    public static final NodeFeature IGNORE_ABOVE_WITH_ARRAYS_SUPPORT = new NodeFeature(
+        "mapper.flattened.ignore_above_with_arrays_support",
+        true
+    );
 
     public static final String CONTENT_TYPE = "flattened";
     public static final String KEYED_FIELD_SUFFIX = "._keyed";
@@ -394,7 +398,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 a = Operations.concatenate(a, Automata.makeAnyString());
             }
             assert a.isDeterministic();
-            a = MinimizationOperations.minimize(a, 0);
 
             CompiledAutomaton automaton = new CompiledAutomaton(a);
             if (searchAfter != null) {
@@ -480,6 +483,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public AttributeSource attributes() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public IOBooleanSupplier prepareSeekExact(BytesRef bytesRef) throws IOException {
             throw new UnsupportedOperationException();
         }
 
@@ -666,7 +674,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final boolean isDimension;
         private final int ignoreAbove;
 
-        public RootFlattenedFieldType(
+        RootFlattenedFieldType(
             String name,
             boolean indexed,
             boolean hasDocValues,
@@ -678,7 +686,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             this(name, indexed, hasDocValues, meta, splitQueriesOnWhitespace, eagerGlobalOrdinals, Collections.emptyList(), ignoreAbove);
         }
 
-        public RootFlattenedFieldType(
+        RootFlattenedFieldType(
             String name,
             boolean indexed,
             boolean hasDocValues,
@@ -800,6 +808,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public MappedFieldType getChildFieldType(String childPath) {
             return new KeyedFlattenedFieldType(name(), childPath, this);
+        }
+
+        public MappedFieldType getKeyedFieldType() {
+            return new KeywordFieldMapper.KeywordFieldType(name() + KEYED_FIELD_SUFFIX);
         }
 
         @Override

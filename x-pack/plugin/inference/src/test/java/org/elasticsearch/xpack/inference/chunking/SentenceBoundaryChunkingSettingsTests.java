@@ -11,7 +11,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -28,14 +27,14 @@ public class SentenceBoundaryChunkingSettingsTests extends AbstractWireSerializi
     }
 
     public void testInvalidInputsProvided() {
-        var chunkingSettingsMap = buildChunkingSettingsMap(Optional.of(randomNonNegativeInt()));
+        var chunkingSettingsMap = buildChunkingSettingsMap(Optional.of(randomIntBetween(20, 300)));
         chunkingSettingsMap.put(randomAlphaOfLength(10), randomNonNegativeInt());
 
         assertThrows(ValidationException.class, () -> { SentenceBoundaryChunkingSettings.fromMap(chunkingSettingsMap); });
     }
 
     public void testValidInputsProvided() {
-        int maxChunkSize = randomNonNegativeInt();
+        int maxChunkSize = randomIntBetween(20, 300);
         SentenceBoundaryChunkingSettings settings = SentenceBoundaryChunkingSettings.fromMap(
             buildChunkingSettingsMap(Optional.of(maxChunkSize))
         );
@@ -59,12 +58,12 @@ public class SentenceBoundaryChunkingSettingsTests extends AbstractWireSerializi
 
     @Override
     protected SentenceBoundaryChunkingSettings createTestInstance() {
-        return new SentenceBoundaryChunkingSettings(randomNonNegativeInt(), randomBoolean() ? 0 : 1);
+        return new SentenceBoundaryChunkingSettings(randomIntBetween(20, 300), randomBoolean() ? 0 : 1);
     }
 
     @Override
     protected SentenceBoundaryChunkingSettings mutateInstance(SentenceBoundaryChunkingSettings instance) throws IOException {
-        var chunkSize = randomValueOtherThan(instance.maxChunkSize, ESTestCase::randomNonNegativeInt);
+        var chunkSize = randomValueOtherThan(instance.maxChunkSize, () -> randomIntBetween(20, 300));
         return new SentenceBoundaryChunkingSettings(chunkSize, instance.sentenceOverlap);
     }
 }

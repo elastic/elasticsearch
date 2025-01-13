@@ -131,25 +131,12 @@ public class TransformState implements Task.Status, PersistentTaskState {
     public TransformState(StreamInput in) throws IOException {
         taskState = TransformTaskState.fromStream(in);
         indexerState = IndexerState.fromStream(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
-            position = in.readOptionalWriteable(TransformIndexerPosition::new);
-        } else {
-            Map<String, Object> pos = in.readGenericMap();
-            position = new TransformIndexerPosition(pos, null);
-        }
+        position = in.readOptionalWriteable(TransformIndexerPosition::new);
         checkpoint = in.readLong();
         reason = in.readOptionalString();
         progress = in.readOptionalWriteable(TransformProgress::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
-            node = in.readOptionalWriteable(NodeAttributes::new);
-        } else {
-            node = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-            shouldStopAtNextCheckpoint = in.readBoolean();
-        } else {
-            shouldStopAtNextCheckpoint = false;
-        }
+        node = in.readOptionalWriteable(NodeAttributes::new);
+        shouldStopAtNextCheckpoint = in.readBoolean();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             authState = in.readOptionalWriteable(AuthorizationState::new);
         } else {
@@ -241,20 +228,12 @@ public class TransformState implements Task.Status, PersistentTaskState {
     public void writeTo(StreamOutput out) throws IOException {
         taskState.writeTo(out);
         indexerState.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
-            out.writeOptionalWriteable(position);
-        } else {
-            out.writeGenericMap(position != null ? position.getIndexerPosition() : null);
-        }
+        out.writeOptionalWriteable(position);
         out.writeLong(checkpoint);
         out.writeOptionalString(reason);
         out.writeOptionalWriteable(progress);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
-            out.writeOptionalWriteable(node);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-            out.writeBoolean(shouldStopAtNextCheckpoint);
-        }
+        out.writeOptionalWriteable(node);
+        out.writeBoolean(shouldStopAtNextCheckpoint);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalWriteable(authState);
         }

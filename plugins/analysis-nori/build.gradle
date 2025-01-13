@@ -10,8 +10,8 @@ apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 esplugin {
-  description 'The Korean (nori) Analysis plugin integrates Lucene nori analysis module into elasticsearch.'
-  classname 'org.elasticsearch.plugin.analysis.nori.AnalysisNoriPlugin'
+  description = 'The Korean (nori) Analysis plugin integrates Lucene nori analysis module into elasticsearch.'
+  classname ='org.elasticsearch.plugin.analysis.nori.AnalysisNoriPlugin'
 }
 
 dependencies {

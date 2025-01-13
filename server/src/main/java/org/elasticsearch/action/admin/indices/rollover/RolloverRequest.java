@@ -13,12 +13,13 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -61,24 +62,11 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             // a type is not included, add a dummy _doc type
             Map<String, Object> mappings = parser.map();
             if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
-                throw new IllegalArgumentException(
-                    "The mapping definition cannot be nested under a type "
-                        + "["
-                        + MapperService.SINGLE_MAPPING_NAME
-                        + "] unless include_type_name is set to true."
-                );
-            }
-            request.createIndexRequest.mapping(mappings);
-        }, CreateIndexRequest.MAPPINGS.forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((parser, request, context) -> {
-            // a type is not included, add a dummy _doc type
-            Map<String, Object> mappings = parser.map();
-            if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
 
                 throw new IllegalArgumentException("The mapping definition cannot be nested under a type");
             }
             request.createIndexRequest.mapping(mappings);
-        }, CreateIndexRequest.MAPPINGS.forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8)), ObjectParser.ValueType.OBJECT);
+        }, CreateIndexRequest.MAPPINGS, ObjectParser.ValueType.OBJECT);
 
         PARSER.declareField(
             (parser, request, context) -> request.createIndexRequest.aliases(parser.map()),
@@ -94,7 +82,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private RolloverConditions conditions = new RolloverConditions();
     // the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
-    private IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+    private IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosedAllowSelectors();
 
     public RolloverRequest(StreamInput in) throws IOException {
         super(in);
@@ -138,12 +126,15 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             );
         }
 
-        var selectors = indicesOptions.selectorOptions().defaultSelectors();
-        if (selectors.size() > 1) {
-            validationException = addValidationError(
-                "rollover cannot be applied to both regular and failure indices at the same time",
-                validationException
-            );
+        if (rolloverTarget != null) {
+            ResolvedExpression resolvedExpression = SelectorResolver.parseExpression(rolloverTarget, indicesOptions);
+            IndexComponentSelector selector = resolvedExpression.selector();
+            if (IndexComponentSelector.ALL_APPLICABLE.equals(selector)) {
+                validationException = addValidationError(
+                    "rollover cannot be applied to both regular and failure indices at the same time",
+                    validationException
+                );
+            }
         }
 
         return validationException;
@@ -173,13 +164,6 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
-    }
-
-    /**
-     * @return true of the rollover request targets the failure store, false otherwise.
-     */
-    public boolean targetsFailureStore() {
-        return DataStream.isFailureStoreFeatureFlagEnabled() && indicesOptions.includeFailureIndices();
     }
 
     public void setIndicesOptions(IndicesOptions indicesOptions) {

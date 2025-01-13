@@ -749,7 +749,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             TooComplexToDeterminizeException.class,
             () -> queryBuilder.toQuery(createSearchExecutionContext())
         );
-        assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
+        assertThat(e.getMessage(), containsString("Determinizing automaton"));
         assertThat(e.getMessage(), containsString("would require more than 10000 effort."));
     }
 
@@ -775,7 +775,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             TooComplexToDeterminizeException.class,
             () -> queryBuilder.toQuery(createSearchExecutionContext())
         );
-        assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
+        assertThat(e.getMessage(), containsString("Determinizing automaton"));
         assertThat(e.getMessage(), containsString("would require more than 10 effort."));
     }
 
@@ -925,10 +925,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery booleanQuery = (BooleanQuery) query;
         assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(2));
-        assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-        assertThat(booleanQuery.clauses().get(0).getQuery(), equalTo(new TermQuery(new Term(TEXT_FIELD_NAME, "foo"))));
-        assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-        assertThat(booleanQuery.clauses().get(1).getQuery(), equalTo(new TermQuery(new Term(TEXT_FIELD_NAME, "bar"))));
+        assertThat(booleanQuery.clauses().get(0).occur(), equalTo(BooleanClause.Occur.SHOULD));
+        assertThat(booleanQuery.clauses().get(0).query(), equalTo(new TermQuery(new Term(TEXT_FIELD_NAME, "foo"))));
+        assertThat(booleanQuery.clauses().get(1).occur(), equalTo(BooleanClause.Occur.SHOULD));
+        assertThat(booleanQuery.clauses().get(1).query(), equalTo(new TermQuery(new Term(TEXT_FIELD_NAME, "bar"))));
     }
 
     public void testToQueryPhraseQueryBoostAndSlop() throws IOException {

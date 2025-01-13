@@ -38,7 +38,6 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
@@ -223,7 +222,7 @@ public class Querier {
         }
 
         var totalHits = response.getHits().getTotalHits();
-        var hits = totalHits != null ? "hits " + totalHits.relation + " " + totalHits.value + ", " : "";
+        var hits = totalHits != null ? "hits " + totalHits.relation() + " " + totalHits.value() + ", " : "";
         logger.trace(
             "Got search response [{}{} aggregations: [{}], {} failed shards, {} skipped shards, "
                 + "{} successful shards, {} total shards, took {}, timed out [{}]]",
@@ -359,11 +358,6 @@ public class Querier {
     static class ImplicitGroupActionListener extends BaseAggActionListener {
 
         private static final List<? extends Bucket> EMPTY_BUCKET = singletonList(new Bucket() {
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                throw new SqlIllegalArgumentException("No group-by/aggs defined");
-            }
 
             @Override
             public Object getKey() {
@@ -548,7 +542,7 @@ public class Querier {
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
             TotalHits totalHits = response.getHits().getTotalHits();
-            ConstantExtractor totalCount = new TotalHitsExtractor(totalHits == null ? -1L : totalHits.value);
+            ConstantExtractor totalCount = new TotalHitsExtractor(totalHits == null ? -1L : totalHits.value());
             for (QueryContainer.FieldInfo ref : refs) {
                 exts.add(createExtractor(ref.extraction(), totalCount));
             }

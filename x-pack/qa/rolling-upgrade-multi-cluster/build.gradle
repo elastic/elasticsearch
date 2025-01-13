@@ -1,4 +1,10 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -9,7 +15,7 @@ dependencies {
   testImplementation project(':x-pack:qa')
 }
 
-BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   def baseLeaderCluster = testClusters.register("${baseName}-leader") {
       numberOfNodes = 3
@@ -92,5 +98,5 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
 // Security is explicitly disabled, do not run tests in FIPS mode
 tasks.withType(Test).configureEach {
-  BuildParams.withFipsEnabledOnly(it)
+  buildParams.withFipsEnabledOnly(it)
 }

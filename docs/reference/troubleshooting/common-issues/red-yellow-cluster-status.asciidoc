@@ -19,6 +19,12 @@ operate to have a green health status.
 In many cases, your cluster will recover to green health status automatically.
 If the cluster doesn't automatically recover, then you must <<fix-red-yellow-cluster-status,manually address>>
 the remaining problems so management and cleanup activities can proceed.
+See https://www.youtube.com/watch?v=v2mbeSd1vTQ[this video]
+for a walkthrough of monitoring allocation health.
+
+****
+If you're using Elastic Cloud Hosted, then you can use AutoOps to monitor your cluster. AutoOps significantly simplifies cluster management with performance recommendations, resource utilization visibility, real-time issue detection and resolution paths. For more information, refer to https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
+****
 
 [discrete]
 [[diagnose-cluster-status]]
@@ -89,6 +95,8 @@ PUT _cluster/settings
   }
 }
 ----
+
+See https://www.youtube.com/watch?v=MiKKUdZvwnI[this video] for walkthrough of troubleshooting "no allocations are allowed".
 
 [discrete]
 [[fix-cluster-status-recover-nodes]]
@@ -262,3 +270,5 @@ POST _cluster/reroute
 ----
 // TEST[s/^/PUT my-index\n/]
 // TEST[catch:bad_request]
+
+See https://www.youtube.com/watch?v=6OAg9IyXFO4[this video] for a walkthrough of troubleshooting `no_valid_shard_copy`.

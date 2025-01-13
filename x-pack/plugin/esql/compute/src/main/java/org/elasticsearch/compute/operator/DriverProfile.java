@@ -80,7 +80,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
     }
 
     public DriverProfile(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_SLEEPS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.startMillis = in.readVLong();
             this.stopMillis = in.readVLong();
         } else {
@@ -102,7 +102,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_SLEEPS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeVLong(startMillis);
             out.writeVLong(stopMillis);
         }

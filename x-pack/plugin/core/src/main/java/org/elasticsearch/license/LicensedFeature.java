@@ -104,7 +104,7 @@ public abstract class LicensedFeature {
         return needsActive;
     }
 
-    /** Create a momentary feature for hte given license level */
+    /** Create a momentary feature for the given license level */
     public static Momentary momentary(String family, String name, License.OperationMode licenseLevel) {
         return new Momentary(family, name, licenseLevel, true);
     }
@@ -136,11 +136,11 @@ public abstract class LicensedFeature {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         LicensedFeature that = (LicensedFeature) o;
-        return Objects.equals(name, that.name);
+        return Objects.equals(name, that.name) && Objects.equals(family, that.family);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name);
+        return Objects.hash(name, family);
     }
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -35,6 +36,11 @@ public abstract class LogsIndexModeRestTestIT extends ESRestTestCase {
         throws IOException {
         final Request request = new Request("PUT", "/_component_template/" + componentTemplate);
         request.setJsonEntity(contends);
+        if (isSyntheticSourceConfiguredInTemplate(contends) && SourceFieldMapper.onOrAfterDeprecateModeVersion(minimumIndexVersion())) {
+            request.setOptions(
+                expectVersionSpecificWarnings((VersionSensitiveWarningsHandler v) -> v.current(SourceFieldMapper.DEPRECATION_WARNING))
+            );
+        }
         return client.performRequest(request);
     }
 
@@ -97,5 +103,16 @@ public abstract class LogsIndexModeRestTestIT extends ESRestTestCase {
         final Request request = new Request("PUT", "/_cluster/settings");
         request.setJsonEntity("{ \"transient\": { \"" + settingName + "\": " + settingValue + " } }");
         return client.performRequest(request);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static Map<String, Object> getMapping(final RestClient client, final String indexName) throws IOException {
+        final Request request = new Request("GET", "/" + indexName + "/_mapping");
+
+        Map<String, Object> mappings = ((Map<String, Map<String, Object>>) entityAsMap(client.performRequest(request)).get(indexName)).get(
+            "mappings"
+        );
+
+        return mappings;
     }
 }

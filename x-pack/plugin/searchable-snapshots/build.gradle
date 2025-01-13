@@ -3,9 +3,9 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
-  name 'searchable-snapshots'
-  description 'A plugin for the searchable snapshots functionality'
-  classname 'org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots'
+  name = 'searchable-snapshots'
+  description = 'A plugin for the searchable snapshots functionality'
+  classname = 'org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots'
   extendedPlugins = ['x-pack-core', 'blob-cache']
 }
 base {
@@ -15,7 +15,7 @@ base {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(path: xpackModule('blob-cache'))
-  compileOnly project(path: ':libs:elasticsearch-native')
+  compileOnly project(path: ':libs:native')
   testImplementation(testArtifact(project(xpackModule('blob-cache'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
   internalClusterTestImplementation(project(path: xpackModule('shutdown')))

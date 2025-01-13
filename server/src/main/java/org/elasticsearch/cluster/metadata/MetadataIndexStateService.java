@@ -885,7 +885,7 @@ public class MetadataIndexStateService {
                 final IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.CLOSE);
                 metadata.put(
                     updatedMetadata.timestampRange(IndexLongFieldRange.NO_SHARDS)
-                        .eventIngestedRange(IndexLongFieldRange.NO_SHARDS, currentState.getMinTransportVersion())
+                        .eventIngestedRange(IndexLongFieldRange.NO_SHARDS)
                         .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                         .settings(Settings.builder().put(indexMetadata.getSettings()).put(VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true))
                 );
@@ -1120,6 +1120,7 @@ public class MetadataIndexStateService {
             final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
             final IndexVersion minIndexCompatibilityVersion = currentState.getNodes().getMinSupportedIndexVersion();
+            final IndexVersion minReadOnlyIndexCompatibilityVersion = currentState.getNodes().getMinReadOnlySupportedIndexVersion();
 
             for (IndexMetadata indexMetadata : indicesToOpen) {
                 final Index index = indexMetadata.getIndex();
@@ -1132,12 +1133,16 @@ public class MetadataIndexStateService {
                         .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                         .settings(updatedSettings)
                         .timestampRange(IndexLongFieldRange.NO_SHARDS)
-                        .eventIngestedRange(IndexLongFieldRange.NO_SHARDS, currentState.getMinTransportVersion())
+                        .eventIngestedRange(IndexLongFieldRange.NO_SHARDS)
                         .build();
 
                     // The index might be closed because we couldn't import it due to an old incompatible
                     // version, so we need to verify its compatibility.
-                    newIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(newIndexMetadata, minIndexCompatibilityVersion);
+                    newIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(
+                        newIndexMetadata,
+                        minIndexCompatibilityVersion,
+                        minReadOnlyIndexCompatibilityVersion
+                    );
                     try {
                         indicesService.verifyIndexMetadata(newIndexMetadata, newIndexMetadata);
                     } catch (Exception e) {

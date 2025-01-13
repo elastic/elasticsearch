@@ -1,6 +1,17 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.testclusters.TestClusterValueSource
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.testclusters.TestClustersRegistry
+import org.elasticsearch.gradle.util.GradleUtils
+
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -12,6 +23,7 @@ dependencies {
   testImplementation project(':x-pack:plugin:ccr:qa')
 }
 
+def clusterPath = getPath()
 def leaderCluster = testClusters.register('leader-cluster') {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'trial'
@@ -21,12 +33,23 @@ def leaderCluster = testClusters.register('leader-cluster') {
 }
 
 def middleCluster = testClusters.register('middle-cluster') {
-    testDistribution = 'DEFAULT'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'xpack.security.enabled', 'true'
-    user username: 'admin', password: 'admin-password', role: 'superuser'
-    setting 'cluster.remote.leader_cluster.seeds',
-            { "\"${leaderCluster.get().getAllTransportPortURI().join(",")}\"" }, IGNORE_VALUE
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+
+  Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
+    project.gradle.sharedServices,
+    TestClustersPlugin.REGISTRY_SERVICE_NAME
+  )
+  def leaderInfo = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
+    it.parameters.clusterName.set("leader-cluster")
+    it.parameters.service = serviceProvider
+  }
+  def leaderUris = leaderInfo.map { it.getAllTransportPortURI() }
+  setting 'cluster.remote.leader_cluster.seeds',
+    { "\"${leaderUris.get().join(",")}\"" }, IGNORE_VALUE
 }
 
 tasks.register("leader-cluster", RestIntegTestTask) {
@@ -40,30 +63,74 @@ tasks.register("middle-cluster", RestIntegTestTask) {
   useCluster testClusters.named("leader-cluster")
   systemProperty 'tests.target_cluster', 'middle'
   systemProperty 'tests.leader_cluster_repository_path', "${buildDir}/cluster/shared/repo/leader-cluster"
-  nonInputProperties.systemProperty 'tests.leader_host',leaderCluster.map(c -> c.allHttpSocketURI.get(0))
-}
 
+  Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
+    project.gradle.sharedServices,
+    TestClustersPlugin.REGISTRY_SERVICE_NAME
+  )
+
+  def leaderUri = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
+    it.parameters.clusterName.set("leader-cluster")
+    it.parameters.service = serviceProvider
+  }.map { it.allHttpSocketURI.get(0) }
+  nonInputProperties.systemProperty 'tests.leader_host', leaderUri
+}
 
 tasks.register('follow-cluster', RestIntegTestTask) {
   dependsOn "leader-cluster", "middle-cluster"
-    useCluster leaderCluster
-    useCluster middleCluster
-    systemProperty 'tests.target_cluster', 'follow'
-    systemProperty 'tests.leader_cluster_repository_path', "${buildDir}/cluster/shared/repo/leader-cluster"
-    nonInputProperties.systemProperty 'tests.leader_host', leaderCluster.map(c -> c.allHttpSocketURI.get(0))
-    nonInputProperties.systemProperty 'tests.middle_host', middleCluster.map(c -> c.allHttpSocketURI.get(0))
+  useCluster leaderCluster
+  useCluster middleCluster
+  systemProperty 'tests.target_cluster', 'follow'
+  systemProperty 'tests.leader_cluster_repository_path', "${buildDir}/cluster/shared/repo/leader-cluster"
+
+  Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
+    project.gradle.sharedServices,
+    TestClustersPlugin.REGISTRY_SERVICE_NAME
+  )
+
+  def leaderUri = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
+    it.parameters.clusterName.set("leader-cluster")
+    it.parameters.service = serviceProvider
+  }.map { it.allHttpSocketURI.get(0) }
+
+  def middleUri = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
+    it.parameters.clusterName.set("middle-cluster")
+    it.parameters.service = serviceProvider
+  }.map { it.allHttpSocketURI.get(0) }
+  nonInputProperties.systemProperty 'tests.leader_host', leaderUri
+  nonInputProperties.systemProperty 'tests.middle_host', middleUri
 }
 
-testClusters.matching {it.name == "follow-cluster" }.configureEach {
+testClusters.matching { it.name == "follow-cluster" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   user username: 'admin', password: 'admin-password', role: 'superuser'
+
+  Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
+    project.gradle.sharedServices,
+    TestClustersPlugin.REGISTRY_SERVICE_NAME
+  )
+  def leaderUris = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
+    it.parameters.clusterName.set("leader-cluster")
+    it.parameters.service = serviceProvider
+  }.map { it.getAllTransportPortURI() }
+
+  def middleUris = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
+    it.parameters.clusterName.set("middle-cluster")
+    it.parameters.service = serviceProvider
+  }.map { it.getAllTransportPortURI() }
+
   setting 'cluster.remote.leader_cluster.seeds',
-    { "\"${leaderCluster.get().getAllTransportPortURI().join(",")}\"" }, IGNORE_VALUE
+    { "\"${leaderUris.get().join(",")}\"" }, IGNORE_VALUE
   setting 'cluster.remote.middle_cluster.seeds',
-    { "\"${middleCluster.get().getAllTransportPortURI().join(",")}\"" }, IGNORE_VALUE
+    { "\"${middleUris.get().join(",")}\"" }, IGNORE_VALUE
 }
 
 

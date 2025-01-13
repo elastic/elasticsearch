@@ -10,7 +10,6 @@
 
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -18,7 +17,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
-BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   /*
    * NOTE: This module is for the tests that were problematic when converting :qa:rolling-upgrade to the junit-based bwc test definition
    * Over time, these should be migrated into the :qa:rolling-upgrade module and fixed properly

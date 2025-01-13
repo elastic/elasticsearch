@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextParams;
@@ -63,7 +64,7 @@ import java.util.regex.Pattern;
  **/
 public class AnnotatedTextFieldMapper extends FieldMapper {
 
-    public static final NodeFeature SYNTHETIC_SOURCE_SUPPORT = new NodeFeature("mapper.annotated_text.synthetic_source");
+    public static final NodeFeature SYNTHETIC_SOURCE_SUPPORT = new NodeFeature("mapper.annotated_text.synthetic_source", true);
 
     public static final String CONTENT_TYPE = "annotated_text";
 
@@ -91,15 +92,10 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         private final IndexVersion indexCreatedVersion;
         private final TextParams.Analyzers analyzers;
-        private final boolean isSyntheticSourceEnabledViaIndexMode;
+        private final boolean isSyntheticSourceEnabled;
         private final Parameter<Boolean> store;
 
-        public Builder(
-            String name,
-            IndexVersion indexCreatedVersion,
-            IndexAnalyzers indexAnalyzers,
-            boolean isSyntheticSourceEnabledViaIndexMode
-        ) {
+        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers, boolean isSyntheticSourceEnabled) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
@@ -108,10 +104,10 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 m -> builder(m).analyzers.positionIncrementGap.getValue(),
                 indexCreatedVersion
             );
-            this.isSyntheticSourceEnabledViaIndexMode = isSyntheticSourceEnabledViaIndexMode;
+            this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
             this.store = Parameter.storeParam(
                 m -> builder(m).store.getValue(),
-                () -> isSyntheticSourceEnabledViaIndexMode && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false
+                () -> isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false
             );
         }
 
@@ -171,8 +167,8 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
     }
 
-    public static TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), c.getIndexSettings().getMode().isSyntheticSourceEnabled())
+    public static final TypeParser PARSER = new TypeParser(
+        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), SourceFieldMapper.isSynthetic(c.getIndexSettings()))
     );
 
     /**
@@ -560,12 +556,8 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            builder.indexCreatedVersion,
-            builder.analyzers.indexAnalyzers,
-            builder.isSyntheticSourceEnabledViaIndexMode
-        ).init(this);
+        return new Builder(leafName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers, builder.isSyntheticSourceEnabled)
+            .init(this);
     }
 
     @Override

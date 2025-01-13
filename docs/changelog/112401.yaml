@@ -1,6 +1,0 @@
-pr: 112401
-summary: "ESQL: Fix CASE when conditions are multivalued"
-area: ES|QL
-type: bug
-issues:
- - 112359

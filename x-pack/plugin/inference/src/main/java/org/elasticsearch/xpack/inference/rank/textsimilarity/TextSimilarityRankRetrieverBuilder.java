@@ -10,17 +10,13 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
-import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -41,17 +37,18 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder<TextSimilarityRankRetrieverBuilder> {
 
     public static final NodeFeature TEXT_SIMILARITY_RERANKER_RETRIEVER_SUPPORTED = new NodeFeature(
-        "text_similarity_reranker_retriever_supported"
+        "text_similarity_reranker_retriever_supported",
+        true
     );
     public static final NodeFeature TEXT_SIMILARITY_RERANKER_COMPOSITION_SUPPORTED = new NodeFeature(
-        "text_similarity_reranker_retriever_composition_supported"
+        "text_similarity_reranker_retriever_composition_supported",
+        true
     );
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
     public static final ParseField INFERENCE_TEXT_FIELD = new ParseField("inference_text");
     public static final ParseField FIELD_FIELD = new ParseField("field");
-    public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
 
     public static final ConstructingObjectParser<TextSimilarityRankRetrieverBuilder, RetrieverParserContext> PARSER =
         new ConstructingObjectParser<>(TextSimilarityRankBuilder.NAME, args -> {
@@ -83,7 +80,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + TextSimilarityRankBuilder.NAME + "]");
         }
         if (context.clusterSupportsFeature(TEXT_SIMILARITY_RERANKER_COMPOSITION_SUPPORTED) == false) {
-            throw new UnsupportedOperationException(
+            throw new IllegalArgumentException(
                 "[text_similarity_reranker] retriever composition feature is not supported by all nodes in the cluster"
             );
         }
@@ -133,7 +130,10 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     }
 
     @Override
-    protected TextSimilarityRankRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers) {
+    protected TextSimilarityRankRetrieverBuilder clone(
+        List<RetrieverSource> newChildRetrievers,
+        List<QueryBuilder> newPreFilterQueryBuilders
+    ) {
         return new TextSimilarityRankRetrieverBuilder(
             newChildRetrievers,
             inferenceId,
@@ -142,7 +142,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             rankWindowSize,
             minScore,
             retrieverName,
-            preFilterQueryBuilders
+            newPreFilterQueryBuilders
         );
     }
 
@@ -159,32 +159,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     }
 
     @Override
-    public QueryBuilder explainQuery() {
-        // the original matching set of the TextSimilarityRank retriever is specified by its nested retriever
-        return new RankDocsQueryBuilder(rankDocs, new QueryBuilder[] { innerRetrievers.getFirst().retriever().explainQuery() }, true);
-    }
-
-    @Override
-    protected SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {
-        var sourceBuilder = new SearchSourceBuilder().pointInTimeBuilder(pit)
-            .trackTotalHits(false)
-            .storedFields(new StoredFieldsContext(false))
-            .size(rankWindowSize);
-        if (preFilterQueryBuilders.isEmpty() == false) {
-            retrieverBuilder.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
-        }
-        retrieverBuilder.extractToSearchSourceBuilder(sourceBuilder, true);
-
-        // apply the pre-filters
-        if (preFilterQueryBuilders.size() > 0) {
-            QueryBuilder query = sourceBuilder.query();
-            BoolQueryBuilder newQuery = new BoolQueryBuilder();
-            if (query != null) {
-                newQuery.must(query);
-            }
-            preFilterQueryBuilders.forEach(newQuery::filter);
-            sourceBuilder.query(newQuery);
-        }
+    protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
         sourceBuilder.rankBuilder(
             new TextSimilarityRankBuilder(this.field, this.inferenceId, this.inferenceText, this.rankWindowSize, this.minScore)
         );

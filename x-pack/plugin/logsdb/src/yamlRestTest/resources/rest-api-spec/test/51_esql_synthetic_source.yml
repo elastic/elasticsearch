@@ -175,3 +175,80 @@ teardown:
   - match: {values.3.0: "No, I am your father."}
   - match: {values.4.0: "May the force be with you."}
   - match: {values.5.0: "That's no moon. It's a space station."}
+
+---
+"message field with stored keyword multi-field with ignore_above":
+  - do:
+      indices.create:
+        index: my-index2
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+                store: false
+              message:
+                type: text
+                store: false
+                fields:
+                  raw:
+                    type: keyword
+                    store: true
+
+  - do:
+      bulk:
+        index: my-index2
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:30:00Z", "host.name": "foo", "message": "No, I am your father." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:31:00Z", "host.name": "bar", "message": "Do. Or do not. There is no try." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:32:00Z", "host.name": "foo", "message": "May the force be with you." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:33:00Z", "host.name": "baz", "message": "I find your lack of faith disturbing." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:34:00Z", "host.name": "baz", "message": "Wars not make one great." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:35:00Z", "host.name": "foo", "message": "That's no moon. It's a space station." }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM my-index2 | SORT host.name, @timestamp | LIMIT 1'
+
+  - match: {columns.0.name: "@timestamp"}
+  - match: {columns.0.type: "date"}
+  - match: {columns.1.name: "host.name"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "message"}
+  - match: {columns.2.type: "text"}
+  - match: {columns.3.name: "message.raw"}
+  - match: {columns.3.type: "keyword"}
+
+  - match: {values.0.0: "2024-02-12T10:31:00.000Z"}
+  - match: {values.0.1: "bar"}
+  - match: {values.0.2: "Do. Or do not. There is no try."}
+  - match: {values.0.3: "Do. Or do not. There is no try."}
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM my-index2 | SORT host.name, @timestamp | KEEP message | LIMIT 10'
+
+  - match: {columns.0.name: "message"}
+  - match: {columns.0.type: "text"}
+
+  - match: {values.0.0: "Do. Or do not. There is no try."}
+  - match: {values.1.0: "I find your lack of faith disturbing."}
+  - match: {values.2.0: "Wars not make one great."}
+  - match: {values.3.0: "No, I am your father."}
+  - match: {values.4.0: "May the force be with you."}
+  - match: {values.5.0: "That's no moon. It's a space station."}
+

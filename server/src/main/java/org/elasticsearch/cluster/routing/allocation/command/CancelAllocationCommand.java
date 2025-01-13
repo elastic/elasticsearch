@@ -136,11 +136,13 @@ public class CancelAllocationCommand implements AllocationCommand {
                     allocation.decision(
                         Decision.NO,
                         "cancel_allocation_command",
-                        "can't cancel " + shardId + ", failed to find it on node " + discoNode
+                        "can't cancel [" + index + "][" + shardId + "], failed to find it on node " + discoNode
                     )
                 );
             }
-            throw new IllegalArgumentException("[cancel_allocation] can't cancel " + shardId + ", failed to find it on node " + discoNode);
+            throw new IllegalArgumentException(
+                "[cancel_allocation] can't cancel [" + index + "][" + shardId + "], failed to find it on node " + discoNode
+            );
         }
         if (shardRouting.primary() && allowPrimary == false) {
             if ((shardRouting.initializing() && shardRouting.relocatingNodeId() != null) == false) {
@@ -151,9 +153,11 @@ public class CancelAllocationCommand implements AllocationCommand {
                         allocation.decision(
                             Decision.NO,
                             "cancel_allocation_command",
-                            "can't cancel "
+                            "can't cancel ["
+                                + index
+                                + "]["
                                 + shardId
-                                + " on node "
+                                + "] on node "
                                 + discoNode
                                 + ", shard is primary and "
                                 + shardRouting.state().name().toLowerCase(Locale.ROOT)
@@ -161,9 +165,11 @@ public class CancelAllocationCommand implements AllocationCommand {
                     );
                 }
                 throw new IllegalArgumentException(
-                    "[cancel_allocation] can't cancel "
+                    "[cancel_allocation] can't cancel ["
+                        + index
+                        + "]["
                         + shardId
-                        + " on node "
+                        + "] on node "
                         + discoNode
                         + ", shard is primary and "
                         + shardRouting.state().name().toLowerCase(Locale.ROOT)
@@ -178,7 +184,7 @@ public class CancelAllocationCommand implements AllocationCommand {
             allocation.decision(
                 Decision.YES,
                 "cancel_allocation_command",
-                "shard " + shardId + " on node " + discoNode + " can be cancelled"
+                "shard [" + index + "][" + shardId + "] on node " + discoNode + " can be cancelled"
             )
         );
     }

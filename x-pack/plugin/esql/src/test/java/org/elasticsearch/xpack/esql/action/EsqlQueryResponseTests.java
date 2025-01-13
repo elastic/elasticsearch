@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.BlockWritables;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -99,7 +100,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Stream.concat(Stream.of(AbstractPageMappingOperator.Status.ENTRY), Block.getNamedWriteables().stream()).toList()
+            Stream.concat(Stream.of(AbstractPageMappingOperator.Status.ENTRY), BlockWritables.getNamedWriteables().stream()).toList()
         );
     }
 
@@ -147,6 +148,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 10,
                 3,
                 0,
+                null,
                 new TimeValue(4444L)
             )
         );
@@ -161,6 +163,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 12,
                 5,
                 0,
+                null,
                 new TimeValue(4999L)
             )
         );
@@ -193,7 +196,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case INTEGER, COUNTER_INTEGER -> ((IntBlock.Builder) builder).appendInt(randomInt());
                 case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(randomDouble());
                 case KEYWORD -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
-                case TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10000)));
+                case TEXT, SEMANTIC_TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10000)));
                 case IP -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                     new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())))
                 );
@@ -201,7 +204,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(randomBoolean());
                 case UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendNull();
                 // TODO - add a random instant thing here?
-                case DATE_NANOS -> ((LongBlock.Builder) builder).appendLong(randomLong());
+                case DATE_NANOS -> ((LongBlock.Builder) builder).appendLong(randomNonNegativeLong());
                 case VERSION -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(randomIdentifier()).toBytesRef());
                 case GEO_POINT -> ((BytesRefBlock.Builder) builder).appendBytesRef(GEO.asWkb(GeometryTestUtils.randomPoint()));
                 case CARTESIAN_POINT -> ((BytesRefBlock.Builder) builder).appendBytesRef(CARTESIAN.asWkb(ShapeTestUtils.randomPoint()));
@@ -498,6 +501,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 successfulShardsFinal,
                 skippedShardsFinal,
                 failedShardsFinal,
+                null,
                 tookTimeValue
             );
         }
@@ -525,7 +529,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         try (EsqlQueryResponse resp = randomResponseAsync(true, null, true)) {
             int columnCount = resp.pages().get(0).getBlockCount();
             int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount() * p.getBlockCount()).sum() + columnCount * 2;
-            assertChunkCount(resp, r -> 7 + sizeClusterDetails + bodySize); // is_running
+            assertChunkCount(resp, r -> 6 + sizeClusterDetails + bodySize); // is_running
         }
     }
 
@@ -537,7 +541,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
         try (EsqlQueryResponse resp = randomResponseAsync(false, null, true)) {
             int bodySize = resp.pages().stream().mapToInt(Page::getPositionCount).sum();
-            assertChunkCount(resp, r -> 7 + sizeClusterDetails + bodySize);
+            assertChunkCount(resp, r -> 6 + sizeClusterDetails + bodySize);
         }
     }
 
@@ -866,7 +870,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     case LONG, COUNTER_LONG -> ((LongBlock.Builder) builder).appendLong(((Number) value).longValue());
                     case INTEGER, COUNTER_INTEGER -> ((IntBlock.Builder) builder).appendInt(((Number) value).intValue());
                     case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(((Number) value).doubleValue());
-                    case KEYWORD, TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
+                    case KEYWORD, TEXT, SEMANTIC_TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
                     case UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendNull();
                     case IP -> ((BytesRefBlock.Builder) builder).appendBytesRef(stringToIP(value.toString()));
                     case DATETIME -> {

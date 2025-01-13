@@ -35,9 +35,9 @@ public final class RankFeatureShardPhase {
 
     public static final RankFeatureShardResult EMPTY_RESULT = new RankFeatureShardResult(new RankFeatureDoc[0]);
 
-    public RankFeatureShardPhase() {}
+    private RankFeatureShardPhase() {}
 
-    public void prepareForFetch(SearchContext searchContext, RankFeatureShardRequest request) {
+    public static void prepareForFetch(SearchContext searchContext, RankFeatureShardRequest request) {
         if (logger.isTraceEnabled()) {
             logger.trace("{}", new SearchContextSourcePrinter(searchContext));
         }
@@ -58,7 +58,7 @@ public final class RankFeatureShardPhase {
         }
     }
 
-    public void processFetch(SearchContext searchContext) {
+    public static void processFetch(SearchContext searchContext) {
         if (logger.isTraceEnabled()) {
             logger.trace("{}", new SearchContextSourcePrinter(searchContext));
         }
@@ -92,7 +92,7 @@ public final class RankFeatureShardPhase {
         }
     }
 
-    private RankFeaturePhaseRankShardContext shardContext(SearchContext searchContext) {
+    private static RankFeaturePhaseRankShardContext shardContext(SearchContext searchContext) {
         return searchContext.request().source() != null && searchContext.request().source().rankBuilder() != null
             ? searchContext.request().source().rankBuilder().buildRankFeaturePhaseShardContext()
             : null;

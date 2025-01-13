@@ -5,6 +5,12 @@
 <titleabbrev>Create jobs</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Instantiates an {anomaly-job}.
 
 [[ml-put-job-request]]
@@ -551,4 +557,3 @@ The API returns the following results:
 // TESTRESPONSE[s/"job_version" : "8.4.0"/"job_version" : $body.job_version/]
 // TESTRESPONSE[s/1656087283340/$body.$_path/]
 // TESTRESPONSE[s/"superuser"/"_es_test_root"/]
-// TESTRESPONSE[s/"ignore_throttled" : true/"ignore_throttled" : true,"failure_store":"exclude"/]

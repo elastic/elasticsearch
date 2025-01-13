@@ -14,12 +14,13 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -342,8 +343,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     }
 
     /**
-     * If scrolling was enabled ({@link SearchRequest#scroll(org.elasticsearch.search.Scroll)}, the
-     * scroll id that can be used to continue scrolling.
+     * If scrolling was enabled ({@link SearchRequest#scroll(TimeValue)}, the scroll id that can be used to continue scrolling.
      */
     public String getScrollId() {
         return scrollId;
@@ -382,17 +382,24 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         assert hasReferences();
-        return ChunkedToXContent.builder(params).xContentObject(innerToXContentChunked(params));
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            this.innerToXContentChunked(params),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     public Iterator<? extends ToXContent> innerToXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params)
-            .append(SearchResponse.this::headerToXContent)
-            .append(clusters)
-            .append(hits)
-            .appendIfPresent(aggregations)
-            .appendIfPresent(suggest)
-            .appendIfPresent(profileResults);
+        return Iterators.concat(
+            ChunkedToXContentHelper.chunk(SearchResponse.this::headerToXContent),
+            Iterators.single(clusters),
+            Iterators.concat(
+                hits.toXContentChunked(params),
+                aggregations == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(aggregations),
+                suggest == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(suggest),
+                profileResults == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(profileResults)
+            )
+        );
     }
 
     public XContentBuilder headerToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -787,7 +794,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          *              This will be false for local-cluster (non-CCS) only searches.
          */
         public boolean hasRemoteClusters() {
-            return total > 1 || clusterInfo.keySet().stream().anyMatch(alias -> alias != RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            return total > 1
+                || clusterInfo.keySet().stream().anyMatch(alias -> alias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false);
         }
 
     }

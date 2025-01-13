@@ -10,6 +10,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
 
@@ -35,6 +36,11 @@ public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldC
 
     public FieldCapabilitiesRequestBuilder setincludeEmptyFields(boolean includeEmptyFields) {
         request().includeEmptyFields(includeEmptyFields);
+        return this;
+    }
+
+    public FieldCapabilitiesRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+        request().indicesOptions(indicesOptions);
         return this;
     }
 

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
@@ -16,7 +15,6 @@ import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -35,138 +33,112 @@ public class EsqlFeatures implements FeatureSpecification {
      * Introduction of {@code MV_SORT}, {@code MV_SLICE}, and {@code MV_ZIP}.
      * Added in #106095.
      */
-    private static final NodeFeature MV_SORT = new NodeFeature("esql.mv_sort");
+    private static final NodeFeature MV_SORT = new NodeFeature("esql.mv_sort", true);
 
     /**
      * When we disabled some broken optimizations around {@code nullable}.
      * Fixed in #105691.
      */
-    private static final NodeFeature DISABLE_NULLABLE_OPTS = new NodeFeature("esql.disable_nullable_opts");
+    private static final NodeFeature DISABLE_NULLABLE_OPTS = new NodeFeature("esql.disable_nullable_opts", true);
 
     /**
      * Introduction of {@code ST_X} and {@code ST_Y}. Added in #105768.
      */
-    private static final NodeFeature ST_X_Y = new NodeFeature("esql.st_x_y");
-
-    /**
-     * When we added the warnings for multivalued fields emitting {@code null}
-     * when they touched multivalued fields. Added in #102417.
-     */
-    private static final NodeFeature MV_WARN = new NodeFeature("esql.mv_warn");
-
-    /**
-     * Support for loading {@code geo_point} and {@code cartesian_point} fields. Added in #102177.
-     */
-    private static final NodeFeature SPATIAL_POINTS = new NodeFeature("esql.spatial_points");
+    private static final NodeFeature ST_X_Y = new NodeFeature("esql.st_x_y", true);
 
     /**
      * Changed precision of {@code geo_point} and {@code cartesian_point} fields, by loading from source into WKB. Done in #103691.
      */
-    private static final NodeFeature SPATIAL_POINTS_FROM_SOURCE = new NodeFeature("esql.spatial_points_from_source");
-
-    /**
-     * When we added the warnings when conversion functions fail. Like {@code TO_INT('foo')}.
-     * Added in ESQL-1183.
-     */
-    private static final NodeFeature CONVERT_WARN = new NodeFeature("esql.convert_warn");
-
-    /**
-     * When we flipped the return type of {@code POW} to always return a double. Changed
-     * in #102183.
-     */
-    private static final NodeFeature POW_DOUBLE = new NodeFeature("esql.pow_double");
+    private static final NodeFeature SPATIAL_POINTS_FROM_SOURCE = new NodeFeature("esql.spatial_points_from_source", true);
 
     /**
      * Support for loading {@code geo_shape} and {@code cartesian_shape} fields. Done in #104269.
      */
-    private static final NodeFeature SPATIAL_SHAPES = new NodeFeature("esql.spatial_shapes");
+    private static final NodeFeature SPATIAL_SHAPES = new NodeFeature("esql.spatial_shapes", true);
 
     /**
      * Support for spatial aggregation {@code ST_CENTROID}. Done in #104269.
      */
-    private static final NodeFeature ST_CENTROID_AGG = new NodeFeature("esql.st_centroid_agg");
+    private static final NodeFeature ST_CENTROID_AGG = new NodeFeature("esql.st_centroid_agg", true);
 
     /**
      * Support for spatial aggregation {@code ST_INTERSECTS}. Done in #104907.
      */
-    private static final NodeFeature ST_INTERSECTS = new NodeFeature("esql.st_intersects");
+    private static final NodeFeature ST_INTERSECTS = new NodeFeature("esql.st_intersects", true);
 
     /**
      * Support for spatial aggregation {@code ST_CONTAINS} and {@code ST_WITHIN}. Done in #106503.
      */
-    private static final NodeFeature ST_CONTAINS_WITHIN = new NodeFeature("esql.st_contains_within");
+    private static final NodeFeature ST_CONTAINS_WITHIN = new NodeFeature("esql.st_contains_within", true);
 
     /**
      * Support for spatial aggregation {@code ST_DISJOINT}. Done in #107007.
      */
-    private static final NodeFeature ST_DISJOINT = new NodeFeature("esql.st_disjoint");
+    private static final NodeFeature ST_DISJOINT = new NodeFeature("esql.st_disjoint", true);
 
     /**
      * The introduction of the {@code VALUES} agg.
      */
-    private static final NodeFeature AGG_VALUES = new NodeFeature("esql.agg_values");
+    private static final NodeFeature AGG_VALUES = new NodeFeature("esql.agg_values", true);
 
     /**
      * Does ESQL support async queries.
      */
-    public static final NodeFeature ASYNC_QUERY = new NodeFeature("esql.async_query");
+    public static final NodeFeature ASYNC_QUERY = new NodeFeature("esql.async_query", true);
 
     /**
      * Does ESQL support FROM OPTIONS?
      */
     @Deprecated
-    public static final NodeFeature FROM_OPTIONS = new NodeFeature("esql.from_options");
+    public static final NodeFeature FROM_OPTIONS = new NodeFeature("esql.from_options", true);
 
     /**
      * Cast string literals to a desired data type.
      */
-    public static final NodeFeature STRING_LITERAL_AUTO_CASTING = new NodeFeature("esql.string_literal_auto_casting");
+    public static final NodeFeature STRING_LITERAL_AUTO_CASTING = new NodeFeature("esql.string_literal_auto_casting", true);
 
     /**
      * Base64 encoding and decoding functions.
      */
-    public static final NodeFeature BASE64_DECODE_ENCODE = new NodeFeature("esql.base64_decode_encode");
+    public static final NodeFeature BASE64_DECODE_ENCODE = new NodeFeature("esql.base64_decode_encode", true);
 
     /**
      * Support for the :: casting operator
      */
-    public static final NodeFeature CASTING_OPERATOR = new NodeFeature("esql.casting_operator");
+    public static final NodeFeature CASTING_OPERATOR = new NodeFeature("esql.casting_operator", true);
 
     /**
      * Blocks can be labelled with {@link org.elasticsearch.compute.data.Block.MvOrdering#SORTED_ASCENDING} for optimizations.
      */
-    public static final NodeFeature MV_ORDERING_SORTED_ASCENDING = new NodeFeature("esql.mv_ordering_sorted_ascending");
+    public static final NodeFeature MV_ORDERING_SORTED_ASCENDING = new NodeFeature("esql.mv_ordering_sorted_ascending", true);
 
     /**
      * Support for metrics counter fields
      */
-    public static final NodeFeature METRICS_COUNTER_FIELDS = new NodeFeature("esql.metrics_counter_fields");
+    public static final NodeFeature METRICS_COUNTER_FIELDS = new NodeFeature("esql.metrics_counter_fields", true);
 
     /**
      * Cast string literals to a desired data type for IN predicate and more types for BinaryComparison.
      */
-    public static final NodeFeature STRING_LITERAL_AUTO_CASTING_EXTENDED = new NodeFeature("esql.string_literal_auto_casting_extended");
+    public static final NodeFeature STRING_LITERAL_AUTO_CASTING_EXTENDED = new NodeFeature(
+        "esql.string_literal_auto_casting_extended",
+        true
+    );
 
     /**
      * Support for metadata fields.
      */
-    public static final NodeFeature METADATA_FIELDS = new NodeFeature("esql.metadata_fields");
-
-    /**
-     * Support for loading values over enrich. This is supported by all versions of ESQL but not
-     * the unit test CsvTests.
-     */
-    public static final NodeFeature ENRICH_LOAD = new NodeFeature("esql.enrich_load");
+    public static final NodeFeature METADATA_FIELDS = new NodeFeature("esql.metadata_fields", true);
 
     /**
      * Support for timespan units abbreviations
      */
-    public static final NodeFeature TIMESPAN_ABBREVIATIONS = new NodeFeature("esql.timespan_abbreviations");
+    public static final NodeFeature TIMESPAN_ABBREVIATIONS = new NodeFeature("esql.timespan_abbreviations", true);
 
     /**
      * Support metrics counter types
      */
-    public static final NodeFeature COUNTER_TYPES = new NodeFeature("esql.counter_types");
+    public static final NodeFeature COUNTER_TYPES = new NodeFeature("esql.counter_types", true);
 
     /**
      * Support metrics syntax
@@ -176,7 +148,7 @@ public class EsqlFeatures implements FeatureSpecification {
     /**
      * Internal resolve_fields API for ES|QL
      */
-    public static final NodeFeature RESOLVE_FIELDS_API = new NodeFeature("esql.resolve_fields_api");
+    public static final NodeFeature RESOLVE_FIELDS_API = new NodeFeature("esql.resolve_fields_api", true);
 
     private Set<NodeFeature> snapshotBuildFeatures() {
         assert Build.current().isSnapshot() : Build.current();
@@ -214,17 +186,5 @@ public class EsqlFeatures implements FeatureSpecification {
         } else {
             return features;
         }
-    }
-
-    @Override
-    public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.ofEntries(
-            Map.entry(TransportEsqlStatsAction.ESQL_STATS_FEATURE, Version.V_8_11_0),
-            Map.entry(MV_WARN, Version.V_8_12_0),
-            Map.entry(SPATIAL_POINTS, Version.V_8_12_0),
-            Map.entry(CONVERT_WARN, Version.V_8_12_0),
-            Map.entry(POW_DOUBLE, Version.V_8_12_0),
-            Map.entry(ENRICH_LOAD, Version.V_8_12_0)
-        );
     }
 }

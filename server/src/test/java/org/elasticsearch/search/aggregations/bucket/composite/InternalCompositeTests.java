@@ -143,18 +143,10 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
                 continue;
             }
             keys.add(key);
-            InternalComposite.InternalBucket bucket = new InternalComposite.InternalBucket(
-                sourceNames,
-                formats,
-                key,
-                reverseMuls,
-                missingOrders,
-                1L,
-                aggregations
-            );
+            InternalComposite.InternalBucket bucket = new InternalComposite.InternalBucket(sourceNames, formats, key, 1L, aggregations);
             buckets.add(bucket);
         }
-        Collections.sort(buckets, (o1, o2) -> o1.compareKey(o2));
+        Collections.sort(buckets, (o1, o2) -> o1.compareKey(o2, reverseMuls, missingOrders));
         CompositeKey lastBucket = buckets.size() > 0 ? buckets.get(buckets.size() - 1).getRawKey() : null;
         return new InternalComposite(
             name,
@@ -191,8 +183,6 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
                         sourceNames,
                         formats,
                         createCompositeKey(),
-                        reverseMuls,
-                        missingOrders,
                         randomLongBetween(1, 100),
                         InternalAggregations.EMPTY
                     )

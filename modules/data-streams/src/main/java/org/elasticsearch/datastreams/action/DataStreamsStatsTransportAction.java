@@ -16,6 +16,7 @@ import org.elasticsearch.action.datastreams.DataStreamsActionUtil;
 import org.elasticsearch.action.datastreams.DataStreamsStatsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndicesService;
@@ -101,10 +103,11 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
 
     @Override
     protected String[] resolveConcreteIndexNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
-        return DataStreamsActionUtil.resolveConcreteIndexNames(
+        return DataStreamsActionUtil.resolveConcreteIndexNamesWithSelector(
             indexNameExpressionResolver,
             clusterState,
             request.indices(),
+            IndexComponentSelector.ALL_APPLICABLE,
             request.indicesOptions()
         ).toArray(String[]::new);
     }
@@ -130,7 +133,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             DataStream dataStream = indexAbstraction.getParentDataStream();
             assert dataStream != null;
             long maxTimestamp = 0L;
-            try (Engine.Searcher searcher = indexShard.acquireSearcher("data_stream_stats")) {
+            try (Engine.Searcher searcher = indexShard.acquireSearcher(ReadOnlyEngine.FIELD_RANGE_SEARCH_SOURCE)) {
                 IndexReader indexReader = searcher.getIndexReader();
                 byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, DataStream.TIMESTAMP_FIELD_NAME);
                 if (maxPackedValue != null) {
@@ -162,13 +165,17 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             request.indicesOptions(),
             request.indices()
         );
-        for (String abstractionName : abstractionNames) {
-            IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
+        for (String abstraction : abstractionNames) {
+            IndexAbstraction indexAbstraction = indicesLookup.get(abstraction);
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                 DataStream dataStream = (DataStream) indexAbstraction;
                 AggregatedStats stats = aggregatedDataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
-                dataStream.getIndices().stream().map(Index::getName).forEach(index -> {
+                dataStream.getBackingIndices().getIndices().stream().map(Index::getName).forEach(index -> {
+                    stats.backingIndices.add(index);
+                    allBackingIndices.add(index);
+                });
+                dataStream.getFailureIndices().getIndices().stream().map(Index::getName).forEach(index -> {
                     stats.backingIndices.add(index);
                     allBackingIndices.add(index);
                 });

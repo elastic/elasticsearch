@@ -11,6 +11,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -43,11 +44,10 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetrieverBuilder> {
 
     public static final String NAME = "rrf";
-    public static final NodeFeature RRF_RETRIEVER_SUPPORTED = new NodeFeature("rrf_retriever_supported");
-    public static final NodeFeature RRF_RETRIEVER_COMPOSITION_SUPPORTED = new NodeFeature("rrf_retriever_composition_supported");
+    public static final NodeFeature RRF_RETRIEVER_SUPPORTED = new NodeFeature("rrf_retriever_supported", true);
+    public static final NodeFeature RRF_RETRIEVER_COMPOSITION_SUPPORTED = new NodeFeature("rrf_retriever_composition_supported", true);
 
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
-    public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
 
     public static final int DEFAULT_RANK_CONSTANT = 60;
@@ -83,7 +83,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
         }
         if (context.clusterSupportsFeature(RRF_RETRIEVER_COMPOSITION_SUPPORTED) == false) {
-            throw new UnsupportedOperationException("[rrf] retriever composition feature is not supported by all nodes in the cluster");
+            throw new IllegalArgumentException("[rrf] retriever composition feature is not supported by all nodes in the cluster");
         }
         if (RRFRankPlugin.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
             throw LicenseUtils.newComplianceException("Reciprocal Rank Fusion (RRF)");
@@ -108,8 +108,10 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     }
 
     @Override
-    protected RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers) {
-        return new RRFRetrieverBuilder(newRetrievers, this.rankWindowSize, this.rankConstant);
+    protected RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
+        RRFRetrieverBuilder clone = new RRFRetrieverBuilder(newRetrievers, this.rankWindowSize, this.rankConstant);
+        clone.preFilterQueryBuilders = newPreFilterQueryBuilders;
+        return clone;
     }
 
     @Override

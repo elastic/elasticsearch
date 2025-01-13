@@ -612,7 +612,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                 assertThat(resp.getSuccessfulShards(), equalTo(numShards - shardsRemoved));
                 assertThat(resp.getFailedShards(), equalTo(shardsRemoved));
                 assertNotNull(resp.getHits().getTotalHits());
-                assertThat(resp.getHits().getTotalHits().value, lessThan((long) numDocs));
+                assertThat(resp.getHits().getTotalHits().value(), lessThan((long) numDocs));
             });
 
             // create a PIT when some shards are missing
@@ -637,7 +637,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                         assertThat(resp.getFailedShards(), equalTo(shardsRemoved));
                         assertThat(resp.pointInTimeId(), equalTo(pointInTimeResponseOneNodeDown.getPointInTimeId()));
                         assertNotNull(resp.getHits().getTotalHits());
-                        assertThat(resp.getHits().getTotalHits().value, lessThan((long) numDocs));
+                        assertThat(resp.getHits().getTotalHits().value(), lessThan((long) numDocs));
                     }
                 );
 
@@ -661,7 +661,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                         assertThat(resp.getSuccessfulShards(), equalTo(numShards));
                         assertThat(resp.getFailedShards(), equalTo(0));
                         assertNotNull(resp.getHits().getTotalHits());
-                        assertThat(resp.getHits().getTotalHits().value, greaterThan((long) numDocs));
+                        assertThat(resp.getHits().getTotalHits().value(), greaterThan((long) numDocs));
                     });
 
                     // ensure that when using the previously created PIT, we'd see the same number of documents as before regardless of the
@@ -681,7 +681,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                             }
                             assertNotNull(resp.getHits().getTotalHits());
                             // we expect less documents as the newly indexed ones should not be part of the PIT
-                            assertThat(resp.getHits().getTotalHits().value, lessThan((long) numDocs));
+                            assertThat(resp.getHits().getTotalHits().value(), lessThan((long) numDocs));
                         }
                     );
 

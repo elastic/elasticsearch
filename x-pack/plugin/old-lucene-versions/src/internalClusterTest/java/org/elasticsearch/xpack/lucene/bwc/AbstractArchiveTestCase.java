@@ -94,11 +94,7 @@ public abstract class AbstractArchiveTestCase extends AbstractSnapshotIntegTestC
                             .put(
                                 IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
                                 metadata.settings()
-                                    .getAsVersionId(
-                                        "version",
-                                        IndexVersion::fromId,
-                                        IndexVersion.fromId(randomBoolean() ? 5000099 : 6000099)
-                                    )
+                                    .getAsVersionId("version", IndexVersion::fromId, IndexVersion.fromId(randomFrom(5000099, 6000099)))
                             )
                     )
                     .build();

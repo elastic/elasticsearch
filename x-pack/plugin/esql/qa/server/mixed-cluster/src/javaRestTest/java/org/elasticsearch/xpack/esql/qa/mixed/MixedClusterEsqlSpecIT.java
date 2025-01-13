@@ -18,8 +18,10 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V10;
 import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.Mode.ASYNC;
 
 public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
@@ -84,6 +86,27 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean enableRoundingDoubleValuesOnAsserting() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsInferenceTestService() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsIndexModeLookup() throws IOException {
+        return hasCapabilities(List.of(JOIN_LOOKUP_V10.capabilityName()));
+    }
+
+    @Override
+    protected boolean deduplicateExactWarnings() {
+        /*
+         * In ESQL's main tests we shouldn't have to deduplicate but in
+         * serverless, where we reuse this test case exactly with *slightly*
+         * different configuration, we must deduplicate. So we do it here.
+         * It's a bit of a loss of precision, but that's ok.
+         */
         return true;
     }
 }

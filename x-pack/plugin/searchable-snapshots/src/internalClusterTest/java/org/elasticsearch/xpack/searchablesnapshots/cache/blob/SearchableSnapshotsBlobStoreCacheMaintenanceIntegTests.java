@@ -179,7 +179,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
                             )
                             .setSize(0),
                         res -> {
-                            final long remainingEntriesInCache = res.getHits().getTotalHits().value;
+                            final long remainingEntriesInCache = res.getHits().getTotalHits().value();
                             if (indicesToDelete.contains(mountedIndex)) {
                                 assertThat(remainingEntriesInCache, equalTo(0L));
                             } else if (snapshotId.equals(SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings))) {

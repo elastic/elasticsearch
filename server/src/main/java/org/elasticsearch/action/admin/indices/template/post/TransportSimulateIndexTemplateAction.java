@@ -48,6 +48,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -60,6 +61,7 @@ import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStrea
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV2Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveDataStreamOptions;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveLifecycle;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 
@@ -212,8 +214,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             .build();
 
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            // handle mixed-cluster states by passing in minTransportVersion to reset event.ingested range to UNKNOWN if an older version
-            .eventIngestedRange(getEventIngestedRange(indexName, simulatedState), simulatedState.getMinTransportVersion())
+            .eventIngestedRange(getEventIngestedRange(indexName, simulatedState))
             .settings(dummySettings)
             .build();
         return ClusterState.builder(simulatedState)
@@ -270,6 +271,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         // First apply settings sourced from index settings providers
         final var now = Instant.now();
         Settings.Builder additionalSettings = Settings.builder();
+        Set<String> overrulingSettings = new HashSet<>();
         for (var provider : indexSettingProviders) {
             Settings result = provider.getAdditionalIndexSettings(
                 indexName,
@@ -283,13 +285,25 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             MetadataCreateIndexService.validateAdditionalSettings(provider, result, additionalSettings);
             dummySettings.put(result);
             additionalSettings.put(result);
+            if (provider.overrulesTemplateAndRequestSettings()) {
+                overrulingSettings.addAll(result.keySet());
+            }
         }
-        // Then apply settings resolved from templates:
+
+        if (overrulingSettings.isEmpty() == false) {
+            // Filter any conflicting settings from overruling providers, to avoid overwriting their values from templates.
+            final Settings.Builder filtered = Settings.builder().put(templateSettings);
+            for (String setting : overrulingSettings) {
+                filtered.remove(setting);
+            }
+            templateSettings = filtered.build();
+        }
+
+        // Apply settings resolved from templates.
         dummySettings.put(templateSettings);
 
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            // handle mixed-cluster states by passing in minTransportVersion to reset event.ingested range to UNKNOWN if an older version
-            .eventIngestedRange(getEventIngestedRange(indexName, simulatedState), simulatedState.getMinTransportVersion())
+            .eventIngestedRange(getEventIngestedRange(indexName, simulatedState))
             .settings(dummySettings)
             .build();
 
@@ -333,7 +347,13 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         if (template.getDataStreamTemplate() != null && lifecycle == null && isDslOnlyMode) {
             lifecycle = DataStreamLifecycle.DEFAULT;
         }
-        return new Template(settings, mergedMapping, aliasesByName, lifecycle);
+        return new Template(
+            settings,
+            mergedMapping,
+            aliasesByName,
+            lifecycle,
+            resolveDataStreamOptions(simulatedState.metadata(), matchingTemplate)
+        );
     }
 
     private static IndexLongFieldRange getEventIngestedRange(String indexName, ClusterState simulatedState) {

@@ -9,7 +9,6 @@
 
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.java'
 
@@ -18,22 +17,22 @@ configurations {
 }
 
 dependencies {
-  implementation 'org.ow2.asm:asm:9.7'
-  implementation 'org.ow2.asm:asm-tree:9.7'
+  implementation 'org.ow2.asm:asm:9.7.1'
+  implementation 'org.ow2.asm:asm-tree:9.7.1'
 }
 
 def outputDir = layout.buildDirectory.dir("jdk-patches")
 def generatePatch = tasks.register("generatePatch", JavaExec)
 generatePatch.configure {
   dependsOn tasks.named("compileJava")
-  inputs.property("java-home-set", BuildParams.getIsRuntimeJavaHomeSet())
-  inputs.property("java-version", BuildParams.runtimeJavaVersion)
+  inputs.property("java-home-set", buildParams.getIsRuntimeJavaHomeSet())
+  inputs.property("java-version", buildParams.runtimeJavaVersion)
   outputs.dir(outputDir)
 
   classpath = sourceSets.main.runtimeClasspath
   mainClass = 'org.elasticsearch.jdk.patch.ImmutableCollectionsPatcher'
-  if (BuildParams.getIsRuntimeJavaHomeSet()) {
-    executable = "${BuildParams.runtimeJavaHome}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
+  if (buildParams.getIsRuntimeJavaHomeSet()) {
+    executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
   } else {
     javaLauncher = javaToolchains.launcherFor {
       languageVersion = JavaLanguageVersion.of(VersionProperties.bundledJdkMajorVersion)

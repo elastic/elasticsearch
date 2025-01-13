@@ -88,3 +88,26 @@ January 20th, December 10th, and December 20th.
 }
 --------------------------------------------------
 // NOTCONSOLE
+
+==== Configuring a yearly schedule with a different time zone
+By default, the `yearly` schedule is evaluated in the UTC time zone. To use a
+different time zone, you can specify the `timezone` parameter in the schedule.
+For example, the following `yearly` schedule triggers at 3:30 PM and 8:30 PM
+on June 4th in the `Antarctica/Troll` time zone:
+
+[source,js]
+--------------------------------------------------
+{
+  "trigger" : {
+    "schedule" : {
+      "timezone" : "Antarctica/Troll",
+      "yearly" : {
+          "in" : "june",
+          "on" : 4,
+          "at" : [ 15:30, 20:30 ]
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

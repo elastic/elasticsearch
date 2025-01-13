@@ -99,7 +99,6 @@ int:integer |dbl:double
 ;
 
 lessThanMultivalue
-required_capability: mv_warn
 
 from employees | where salary_change < 1 | keep emp_no, salary_change | sort emp_no | limit 5;
 warningRegex:evaluation of \[salary_change < 1\] failed, treating result as null. Only first 20 failures recorded.
@@ -115,7 +114,6 @@ emp_no:integer |salary_change:double
 ;
 
 greaterThanMultivalue
-required_capability: mv_warn
 
 from employees | where salary_change > 1 | keep emp_no, salary_change | sort emp_no | limit 5;
 warningRegex:evaluation of \[salary_change > 1\] failed, treating result as null. Only first 20 failures recorded.
@@ -131,7 +129,6 @@ emp_no:integer |salary_change:double
 ;
 
 equalToMultivalue
-required_capability: mv_warn
 
 from employees | where salary_change == 1.19 | keep emp_no, salary_change | sort emp_no;
 warning:Line 1:24: evaluation of [salary_change == 1.19] failed, treating result as null. Only first 20 failures recorded.
@@ -143,7 +140,6 @@ emp_no:integer |salary_change:double
 ;
 
 equalToOrEqualToMultivalue
-required_capability: mv_warn
 
 from employees | where salary_change == 1.19 or salary_change == 7.58 | keep emp_no, salary_change | sort emp_no;
 warning:Line 1:24: evaluation of [salary_change] failed, treating result as null. Only first 20 failures recorded.
@@ -156,7 +152,6 @@ emp_no:integer |salary_change:double
 ;
 
 inMultivalue
-required_capability: mv_warn
 
 from employees | where salary_change in (1.19, 7.58) | keep emp_no, salary_change | sort emp_no;
 warning:Line 1:24: evaluation of [salary_change in (1.19, 7.58)] failed, treating result as null. Only first 20 failures recorded.
@@ -169,7 +164,6 @@ emp_no:integer |salary_change:double
 ;
 
 notLessThanMultivalue
-required_capability: mv_warn
 
 from employees | where not(salary_change < 1) | keep emp_no, salary_change | sort emp_no | limit 5;
 warningRegex:evaluation of \[.*salary_change < 1.*\] failed, treating result as null. Only first 20 failures recorded.
@@ -185,7 +179,6 @@ emp_no:integer |salary_change:double
 ;
 
 notGreaterThanMultivalue
-required_capability: mv_warn
 
 from employees | where not(salary_change > 1) | keep emp_no, salary_change | sort emp_no | limit 5;
 warningRegex:evaluation of \[.*salary_change > 1.*\] failed, treating result as null. Only first 20 failures recorded.
@@ -201,7 +194,6 @@ emp_no:integer |salary_change:double
 ;
 
 notEqualToMultivalue
-required_capability: mv_warn
 
 from employees | where not(salary_change == 1.19) | keep emp_no, salary_change | sort emp_no | limit 5;
 warningRegex:evaluation of \[.*salary_change == 1.19.*\] failed, treating result as null. Only first 20 failures recorded.

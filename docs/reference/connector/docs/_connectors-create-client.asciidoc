@@ -3,7 +3,7 @@
 
 To create a new {service-name} connector:
 
-. Navigate to the *Search -> Connectors* page in the Kibana UI.
+. In the Kibana UI, navigate to the *Search -> Content -> Connectors* page from the main menu, or use the {kibana-ref}/kibana-concepts-analysts.html#_finding_your_apps_and_objects[global search field].
 . Follow the instructions to create a new  *{service-name}* self-managed connector.
 
 [discrete#es-connectors-{service-name-stub}-client-create-use-the-api]

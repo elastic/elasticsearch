@@ -7,7 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.publish'
@@ -15,12 +14,12 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.mrjar'
 
 dependencies {
-  implementation project(':libs:elasticsearch-native')
-  implementation project(':libs:elasticsearch-logging')
+  implementation project(':libs:native')
+  implementation project(':libs:logging')
   implementation "org.apache.lucene:lucene-core:${versions.lucene}"
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-native'
+    exclude group: 'org.elasticsearch', module: 'native'
   }
 }
 
@@ -33,7 +32,7 @@ tasks.matching { it.name == "compileMain21Java" }.configureEach {
 }
 
 tasks.named('test').configure {
-  if (BuildParams.getRuntimeJavaVersion().majorVersion.toInteger() >= 21) {
+  if (buildParams.getRuntimeJavaVersion().map{ it.majorVersion.toInteger() }.get() >= 21) {
     jvmArgs '--add-modules=jdk.incubator.vector'
   }
 }

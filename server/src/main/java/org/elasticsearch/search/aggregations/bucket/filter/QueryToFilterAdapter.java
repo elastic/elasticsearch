@@ -14,6 +14,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
@@ -215,7 +216,7 @@ public class QueryToFilterAdapter {
             // No hits in this segment.
             return 0;
         }
-        scorer.score(counter, live);
+        scorer.score(counter, live, 0, DocIdSetIterator.NO_MORE_DOCS);
         return counter.readAndReset(ctx);
     }
 
@@ -228,7 +229,7 @@ public class QueryToFilterAdapter {
             // No hits in this segment.
             return;
         }
-        scorer.score(collector, live);
+        scorer.score(collector, live, 0, DocIdSetIterator.NO_MORE_DOCS);
     }
 
     /**

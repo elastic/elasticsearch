@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -33,8 +32,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.IndexVersions;
@@ -185,16 +182,6 @@ public class GatewayMetaState implements Closeable {
         long lastAcceptedVersion = onDiskState.lastAcceptedVersion;
         long currentTerm = onDiskState.currentTerm;
 
-        if (onDiskState.empty()) {
-            @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // legacy metadata loader is not needed anymore from v9 onwards
-            final Tuple<Manifest, Metadata> legacyState = metaStateService.loadFullState();
-            if (legacyState.v1().isEmpty() == false) {
-                metadata = legacyState.v2();
-                lastAcceptedVersion = legacyState.v1().clusterStateVersion();
-                currentTerm = legacyState.v1().currentTerm();
-            }
-        }
-
         PersistedState persistedState = null;
         boolean success = false;
         try {
@@ -308,12 +295,16 @@ public class GatewayMetaState implements Closeable {
         boolean changed = false;
         final Metadata.Builder upgradedMetadata = Metadata.builder(metadata);
         for (IndexMetadata indexMetadata : metadata) {
-            IndexMetadata newMetadata = indexMetadataVerifier.verifyIndexMetadata(indexMetadata, IndexVersions.MINIMUM_COMPATIBLE);
+            IndexMetadata newMetadata = indexMetadataVerifier.verifyIndexMetadata(
+                indexMetadata,
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE
+            );
             changed |= indexMetadata != newMetadata;
             upgradedMetadata.put(newMetadata, false);
         }
         // upgrade current templates
-        if (applyPluginUpgraders(
+        if (applyPluginTemplateUpgraders(
             metadata.getTemplates(),
             metadataUpgrader.indexTemplateMetadataUpgraders,
             upgradedMetadata::removeTemplate,
@@ -321,10 +312,23 @@ public class GatewayMetaState implements Closeable {
         )) {
             changed = true;
         }
+        // upgrade custom metadata
+        for (Map.Entry<String, UnaryOperator<Metadata.Custom>> entry : metadataUpgrader.customMetadataUpgraders.entrySet()) {
+            String type = entry.getKey();
+            Function<Metadata.Custom, Metadata.Custom> upgrader = entry.getValue();
+            Metadata.Custom original = metadata.custom(type);
+            if (original != null) {
+                Metadata.Custom upgraded = upgrader.apply(original);
+                if (upgraded.equals(original) == false) {
+                    upgradedMetadata.putCustom(type, upgraded);
+                    changed = true;
+                }
+            }
+        }
         return changed ? upgradedMetadata.build() : metadata;
     }
 
-    private static boolean applyPluginUpgraders(
+    private static boolean applyPluginTemplateUpgraders(
         Map<String, IndexTemplateMetadata> existingData,
         UnaryOperator<Map<String, IndexTemplateMetadata>> upgrader,
         Consumer<String> removeData,

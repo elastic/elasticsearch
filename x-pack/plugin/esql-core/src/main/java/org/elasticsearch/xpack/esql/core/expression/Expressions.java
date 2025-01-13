@@ -132,8 +132,16 @@ public final class Expressions {
         return e instanceof NamedExpression ne ? ne.name() : e.sourceText();
     }
 
-    public static boolean isNull(Expression e) {
-        return e.dataType() == DataType.NULL || (e.foldable() && e.fold() == null);
+    /**
+     * Is this {@linkplain Expression} <strong>guaranteed</strong> to have
+     * only the {@code null} value. {@linkplain Expression}s that
+     * {@link Expression#fold()} to {@code null} <strong>may</strong>
+     * return {@code false} here, but should <strong>eventually</strong> be folded
+     * into a {@link Literal} containing {@code null} which will return
+     * {@code true} from here.
+     */
+    public static boolean isGuaranteedNull(Expression e) {
+        return e.dataType() == DataType.NULL || (e instanceof Literal lit && lit.value() == null);
     }
 
     public static List<String> names(Collection<? extends Expression> e) {

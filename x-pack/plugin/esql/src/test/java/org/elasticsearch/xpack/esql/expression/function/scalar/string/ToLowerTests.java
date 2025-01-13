@@ -45,9 +45,9 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
         suppliers.add(supplier("keyword unicode", DataType.KEYWORD, () -> randomUnicodeOfLengthBetween(1, 10)));
         suppliers.add(supplier("text ascii", DataType.TEXT, () -> randomAlphaOfLengthBetween(1, 10)));
         suppliers.add(supplier("text unicode", DataType.TEXT, () -> randomUnicodeOfLengthBetween(1, 10)));
-
-        // add null as parameter
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers, (v, p) -> "string");
+        suppliers.add(supplier("semantic_text ascii", DataType.SEMANTIC_TEXT, () -> randomAlphaOfLengthBetween(1, 10)));
+        suppliers.add(supplier("semantic_text unicode", DataType.SEMANTIC_TEXT, () -> randomUnicodeOfLengthBetween(1, 10)));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     public void testRandomLocale() {
@@ -81,7 +81,7 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
     private static TestCaseSupplier supplier(String name, DataType type, Supplier<String> valueSupplier) {
         return new TestCaseSupplier(name, List.of(type), () -> {
             List<TestCaseSupplier.TypedData> values = new ArrayList<>();
-            String expectedToString = "ToLowerEvaluator[val=Attribute[channel=0], locale=en_US]";
+            String expectedToString = "ChangeCaseEvaluator[val=Attribute[channel=0], locale=en_US, caseType=LOWER]";
 
             String value = valueSupplier.get();
             values.add(new TestCaseSupplier.TypedData(new BytesRef(value), type, "0"));

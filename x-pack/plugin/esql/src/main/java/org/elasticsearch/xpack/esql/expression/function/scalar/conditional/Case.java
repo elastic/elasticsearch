@@ -73,7 +73,6 @@ public final class Case extends EsqlScalarFunction {
             "ip",
             "keyword",
             "long",
-            "text",
             "unsigned_long",
             "version" },
         description = """
@@ -195,12 +194,12 @@ public final class Case extends EsqlScalarFunction {
 
     private TypeResolution resolveValueType(Expression value, int position) {
         if (dataType == null || dataType == NULL) {
-            dataType = value.dataType();
+            dataType = value.dataType().noText();
             return TypeResolution.TYPE_RESOLVED;
         }
         return TypeResolutions.isType(
             value,
-            t -> t == dataType,
+            t -> t.noText() == dataType,
             sourceText(),
             TypeResolutions.ParamOrdinal.fromIndex(position),
             dataType.typeName()

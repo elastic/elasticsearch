@@ -97,6 +97,10 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
+            AzureClientProvider.EVENT_LOOP_THREAD_COUNT,
+            AzureClientProvider.MAX_OPEN_CONNECTIONS,
+            AzureClientProvider.OPEN_CONNECTION_TIMEOUT,
+            AzureClientProvider.MAX_IDLE_TIME,
             AzureStorageSettings.ACCOUNT_SETTING,
             AzureStorageSettings.KEY_SETTING,
             AzureStorageSettings.SAS_TOKEN_SETTING,

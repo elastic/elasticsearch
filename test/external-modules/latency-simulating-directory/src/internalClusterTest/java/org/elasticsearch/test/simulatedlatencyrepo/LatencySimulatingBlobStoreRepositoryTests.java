@@ -140,7 +140,7 @@ public class LatencySimulatingBlobStoreRepositoryTests extends AbstractSnapshotI
 
         logger.info("--> run a search");
         assertResponse(client.prepareSearch("test-idx").setQuery(QueryBuilders.termQuery("text", "sometext")), searchResponse -> {
-            assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), greaterThan(0L));
             assertThat(COUNTS.intValue(), greaterThan(0));
         });
     }

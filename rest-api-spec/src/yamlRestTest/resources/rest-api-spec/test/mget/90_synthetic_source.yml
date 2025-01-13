@@ -1,3 +1,9 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+---
 keyword:
   - requires:
       cluster_features: ["gte_v8.4.0"]
@@ -7,9 +13,10 @@ keyword:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -62,9 +69,9 @@ keyword with normalizer:
                   type: custom
                   filter:
                     - lowercase
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               keyword:
                 type: keyword
@@ -144,9 +151,10 @@ stored text:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               text:
                 type: text
@@ -193,9 +201,10 @@ force_synthetic_source_ok:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: stored
           mappings:
-            _source:
-              mode: stored
             properties:
               obj:
                 properties:

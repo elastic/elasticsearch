@@ -84,4 +84,14 @@ public final class VectorEncoderDecoder {
         }
     }
 
+    public static float[] getMultiMagnitudes(BytesRef magnitudes) {
+        assert magnitudes.length % Float.BYTES == 0;
+        float[] multiMagnitudes = new float[magnitudes.length / Float.BYTES];
+        ByteBuffer byteBuffer = ByteBuffer.wrap(magnitudes.bytes, magnitudes.offset, magnitudes.length).order(ByteOrder.LITTLE_ENDIAN);
+        for (int i = 0; i < magnitudes.length / Float.BYTES; i++) {
+            multiMagnitudes[i] = byteBuffer.getFloat();
+        }
+        return multiMagnitudes;
+    }
+
 }

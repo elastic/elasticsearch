@@ -12,6 +12,7 @@ package org.elasticsearch.search;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,8 +23,8 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
@@ -168,6 +169,31 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
+    DocValueFormat DENSE_VECTOR = DenseVectorDocValueFormat.INSTANCE;
+
+    /**
+     * Singleton, stateless formatter, for dense vector values, no need to actually format anything
+     */
+    class DenseVectorDocValueFormat implements DocValueFormat {
+
+        public static final DocValueFormat INSTANCE = new DenseVectorDocValueFormat();
+
+        private DenseVectorDocValueFormat() {}
+
+        @Override
+        public String getWriteableName() {
+            return "dense_vector";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {}
+
+        @Override
+        public String toString() {
+            return "dense_vector";
+        }
+    };
+
     DocValueFormat BINARY = BinaryDocValueFormat.INSTANCE;
 
     /**
@@ -235,9 +261,9 @@ public interface DocValueFormat extends NamedWriteable {
             this.formatSortValues = formatSortValues;
         }
 
-        public DateTime(StreamInput in) throws IOException {
+        private DateTime(StreamInput in) throws IOException {
             String formatterPattern = in.readString();
-            Locale locale = in.getTransportVersion().onOrAfter(TransportVersions.DATE_TIME_DOC_VALUES_LOCALES)
+            Locale locale = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
                 ? LocaleUtils.parse(in.readString())
                 : DateFieldMapper.DEFAULT_LOCALE;
             String zoneId = in.readString();
@@ -245,13 +271,6 @@ public interface DocValueFormat extends NamedWriteable {
             this.formatter = DateFormatter.forPattern(formatterPattern).withZone(this.timeZone).withLocale(locale);
             this.parser = formatter.toDateMathParser();
             this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
-            if (in.getTransportVersion().between(TransportVersions.V_7_7_0, TransportVersions.V_8_0_0)) {
-                /* when deserialising from 7.7+ nodes expect a flag indicating if a pattern is of joda style
-                   This is only used to support joda style indices in 7.x, in 8 we no longer support this.
-                   All indices in 8 should use java style pattern. Hence we can ignore this flag.
-                */
-                in.readBoolean();
-            }
             this.formatSortValues = in.readBoolean();
         }
 
@@ -260,21 +279,22 @@ public interface DocValueFormat extends NamedWriteable {
             return NAME;
         }
 
+        public static DateTime readFrom(StreamInput in) throws IOException {
+            final DateTime dateTime = new DateTime(in);
+            if (in instanceof DelayableWriteable.Deduplicator d) {
+                return d.deduplicate(dateTime);
+            }
+            return dateTime;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(formatter.pattern());
-            if (out.getTransportVersion().onOrAfter(TransportVersions.DATE_TIME_DOC_VALUES_LOCALES)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeString(formatter.locale().toString());
             }
             out.writeString(timeZone.getId());
             out.writeVInt(resolution.ordinal());
-            if (out.getTransportVersion().between(TransportVersions.V_7_7_0, TransportVersions.V_8_0_0)) {
-                /* when serializing to 7.7+  send out a flag indicating if a pattern is of joda style
-                   This is only used to support joda style indices in 7.x, in 8 we no longer support this.
-                   All indices in 8 should use java style pattern. Hence this flag is always false.
-                */
-                out.writeBoolean(false);
-            }
             out.writeBoolean(formatSortValues);
         }
 
@@ -503,13 +523,21 @@ public interface DocValueFormat extends NamedWriteable {
             this.format = new DecimalFormat(pattern, SYMBOLS);
         }
 
-        public Decimal(StreamInput in) throws IOException {
+        private Decimal(StreamInput in) throws IOException {
             this(in.readString());
         }
 
         @Override
         public String getWriteableName() {
             return NAME;
+        }
+
+        public static Decimal readFrom(StreamInput in) throws IOException {
+            final Decimal decimal = new Decimal(in);
+            if (in instanceof DelayableWriteable.Deduplicator d) {
+                return d.deduplicate(decimal);
+            }
+            return decimal;
         }
 
         @Override
@@ -704,7 +732,7 @@ public interface DocValueFormat extends NamedWriteable {
             try {
                 // NOTE: if the tsid is a map of dimension key/value pairs (as it was before introducing
                 // tsid hashing) we just decode the map and return it.
-                return TimeSeriesIdFieldMapper.decodeTsidAsMap(value);
+                return RoutingPathFields.decodeAsMap(value);
             } catch (Exception e) {
                 // NOTE: otherwise the _tsid field is just a hash and we can't decode it
                 return TimeSeriesIdFieldMapper.encodeTsid(value);
@@ -735,20 +763,20 @@ public interface DocValueFormat extends NamedWriteable {
             }
 
             Map<?, ?> m = (Map<?, ?>) value;
-            TimeSeriesIdBuilder builder = new TimeSeriesIdBuilder(null);
+            RoutingPathFields routingPathFields = new RoutingPathFields(null);
             for (Map.Entry<?, ?> entry : m.entrySet()) {
                 String f = entry.getKey().toString();
                 Object v = entry.getValue();
 
                 if (v instanceof String s) {
-                    builder.addString(f, s);
+                    routingPathFields.addString(f, s);
                 } else if (v instanceof Long l) {
-                    builder.addLong(f, l);
+                    routingPathFields.addLong(f, l);
                 } else if (v instanceof Integer i) {
-                    builder.addLong(f, i.longValue());
+                    routingPathFields.addLong(f, i.longValue());
                 } else if (v instanceof BigInteger ul) {
                     long ll = UNSIGNED_LONG_SHIFTED.parseLong(ul.toString(), false, () -> 0L);
-                    builder.addUnsignedLong(f, ll);
+                    routingPathFields.addUnsignedLong(f, ll);
                 } else {
                     throw new IllegalArgumentException("Unexpected value in tsid object [" + v + "]");
                 }
@@ -756,7 +784,7 @@ public interface DocValueFormat extends NamedWriteable {
 
             try {
                 // NOTE: we can decode the tsid only if it is not hashed (represented as a map)
-                return builder.buildLegacyTsid().toBytesRef();
+                return TimeSeriesIdFieldMapper.buildLegacyTsid(routingPathFields).toBytesRef();
             } catch (IOException e) {
                 throw new IllegalArgumentException(e);
             }

@@ -92,7 +92,6 @@ public class QueryRulesIndexService {
                 .setSettings(getIndexSettings())
                 .setAliasName(QUERY_RULES_ALIAS_NAME)
                 .setIndexFormat(QueryRulesIndexMappingVersion.latest().id)
-                .setVersionMetaKey("version")
                 .setOrigin(ENT_SEARCH_ORIGIN)
                 .setThreadPools(ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS);
 
@@ -436,7 +435,7 @@ public class QueryRulesIndexService {
         final List<QueryRulesetListItem> rulesetResults = Arrays.stream(response.getHits().getHits())
             .map(QueryRulesIndexService::hitToQueryRulesetListItem)
             .toList();
-        return new QueryRulesetResult(rulesetResults, (int) response.getHits().getTotalHits().value);
+        return new QueryRulesetResult(rulesetResults, (int) response.getHits().getTotalHits().value());
     }
 
     private static QueryRulesetListItem hitToQueryRulesetListItem(SearchHit searchHit) {
@@ -446,6 +445,7 @@ public class QueryRulesIndexService {
         final List<LinkedHashMap<?, ?>> rules = ((List<LinkedHashMap<?, ?>>) sourceMap.get(QueryRuleset.RULES_FIELD.getPreferredName()));
         final int numRules = rules.size();
         final Map<QueryRuleCriteriaType, Integer> queryRuleCriteriaTypeToCountMap = new EnumMap<>(QueryRuleCriteriaType.class);
+        final Map<QueryRule.QueryRuleType, Integer> ruleTypeToCountMap = new EnumMap<>(QueryRule.QueryRuleType.class);
         for (LinkedHashMap<?, ?> rule : rules) {
             @SuppressWarnings("unchecked")
             List<LinkedHashMap<?, ?>> criteriaList = ((List<LinkedHashMap<?, ?>>) rule.get(QueryRule.CRITERIA_FIELD.getPreferredName()));
@@ -454,9 +454,12 @@ public class QueryRulesIndexService {
                 final QueryRuleCriteriaType queryRuleCriteriaType = QueryRuleCriteriaType.type(criteriaType);
                 queryRuleCriteriaTypeToCountMap.compute(queryRuleCriteriaType, (k, v) -> v == null ? 1 : v + 1);
             }
+            final String ruleType = ((String) rule.get(QueryRule.TYPE_FIELD.getPreferredName()));
+            final QueryRule.QueryRuleType queryRuleType = QueryRule.QueryRuleType.queryRuleType(ruleType);
+            ruleTypeToCountMap.compute(queryRuleType, (k, v) -> v == null ? 1 : v + 1);
         }
 
-        return new QueryRulesetListItem(rulesetId, numRules, queryRuleCriteriaTypeToCountMap);
+        return new QueryRulesetListItem(rulesetId, numRules, queryRuleCriteriaTypeToCountMap, ruleTypeToCountMap);
     }
 
     public record QueryRulesetResult(List<QueryRulesetListItem> rulesets, long totalResults) {}

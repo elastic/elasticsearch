@@ -421,8 +421,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         execute(GetIndexTemplatesAction.INSTANCE, request, listener);
     }
 
-    public GetIndexTemplatesRequestBuilder prepareGetTemplates(String... names) {
-        return new GetIndexTemplatesRequestBuilder(this, names);
+    public GetIndexTemplatesRequestBuilder prepareGetTemplates(TimeValue masterTimeout, String... names) {
+        return new GetIndexTemplatesRequestBuilder(this, masterTimeout, names);
     }
 
     public ActionFuture<ValidateQueryResponse> validateQuery(final ValidateQueryRequest request) {

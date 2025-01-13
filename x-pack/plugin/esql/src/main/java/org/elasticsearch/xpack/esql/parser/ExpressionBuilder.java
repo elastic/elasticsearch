@@ -690,7 +690,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                     yield new WildcardLike(
                         source,
                         left,
-                        new WildcardPattern(pattern.fold(FoldContext.unbounded() /* TODO remove me */).toString())
+                        new WildcardPattern(pattern.fold(FoldContext.small() /* TODO remove me */).toString())
                     );
                 } catch (InvalidArgumentException e) {
                     throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", pattern, e.getMessage());
@@ -699,7 +699,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             case EsqlBaseParser.RLIKE -> new RLike(
                 source,
                 left,
-                new RLikePattern(pattern.fold(FoldContext.unbounded() /* TODO remove me */).toString())
+                new RLikePattern(pattern.fold(FoldContext.small() /* TODO remove me */).toString())
             );
             default -> throw new ParsingException("Invalid predicate type for [{}]", source.text());
         };

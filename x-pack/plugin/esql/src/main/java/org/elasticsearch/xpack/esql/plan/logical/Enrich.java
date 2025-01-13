@@ -146,7 +146,7 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
         out.writeNamedWriteable(policyName());
         out.writeNamedWriteable(matchField());
         if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            out.writeString(BytesRefs.toString(policyName().fold(FoldContext.unbounded() /* TODO remove me */))); // old policy name
+            out.writeString(BytesRefs.toString(policyName().fold(FoldContext.small() /* TODO remove me */))); // old policy name
         }
         policy().writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {

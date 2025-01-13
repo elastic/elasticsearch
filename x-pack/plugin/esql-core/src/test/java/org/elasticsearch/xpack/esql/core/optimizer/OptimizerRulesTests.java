@@ -105,7 +105,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
         Range r = rangeOf(fa, SIX, false, FIVE, true);
         assertTrue(r.foldable());
-        assertEquals(Boolean.FALSE, r.fold(FoldContext.unbounded()));
+        assertEquals(Boolean.FALSE, r.fold(FoldContext.small()));
     }
 
     // 6 < a <= 5.5 -> FALSE
@@ -114,7 +114,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
         Range r = rangeOf(fa, SIX, false, L(5.5d), true);
         assertTrue(r.foldable());
-        assertEquals(Boolean.FALSE, r.fold(FoldContext.unbounded()));
+        assertEquals(Boolean.FALSE, r.fold(FoldContext.small()));
     }
 
     // Conjunction

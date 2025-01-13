@@ -500,7 +500,7 @@ public class CsvTests extends ESTestCase {
         var testDatasets = testDatasets(parsed);
         LogicalPlan analyzed = analyzedPlan(parsed, testDatasets);
 
-        FoldContext foldCtx = FoldContext.unbounded();
+        FoldContext foldCtx = FoldContext.small();
         EsqlSession session = new EsqlSession(
             getTestName(),
             configuration,

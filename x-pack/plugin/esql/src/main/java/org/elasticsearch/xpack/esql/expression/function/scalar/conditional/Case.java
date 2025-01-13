@@ -228,7 +228,7 @@ public final class Case extends EsqlScalarFunction {
             if (condition.condition.foldable() == false) {
                 return false;
             }
-            if (Boolean.TRUE.equals(condition.condition.fold(FoldContext.unbounded() /* TODO remove me - use literal true?*/))) {
+            if (Boolean.TRUE.equals(condition.condition.fold(FoldContext.small() /* TODO remove me - use literal true?*/))) {
                 /*
                  * `fold` can make four things here:
                  * 1. `TRUE`

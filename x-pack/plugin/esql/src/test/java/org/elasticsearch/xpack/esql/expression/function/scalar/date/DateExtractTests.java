@@ -100,7 +100,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                 EsqlTestUtils.TEST_CFG
             );
 
-            assertThat(instance.fold(FoldContext.unbounded()), is(date.getLong(value)));
+            assertThat(instance.fold(FoldContext.small()), is(date.getLong(value)));
             assertThat(
                 DateExtract.process(epochMilli, new BytesRef(value.name()), EsqlTestUtils.TEST_CFG.zoneId()),
                 is(date.getLong(value))

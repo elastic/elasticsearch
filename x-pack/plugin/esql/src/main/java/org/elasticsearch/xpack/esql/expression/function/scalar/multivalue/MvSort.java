@@ -245,7 +245,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
                     sourceText(),
                     ASC.value(),
                     DESC.value(),
-                    ((BytesRef) order.fold(FoldContext.unbounded() /* TODO remove me */)).utf8ToString()
+                    ((BytesRef) order.fold(FoldContext.small() /* TODO remove me */)).utf8ToString()
                 )
             );
         }
@@ -254,7 +254,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     private boolean isValidOrder() {
         boolean isValidOrder = true;
         if (order != null && order.foldable()) {
-            Object obj = order.fold(FoldContext.unbounded() /* TODO remove me */);
+            Object obj = order.fold(FoldContext.small() /* TODO remove me */);
             String o = null;
             if (obj instanceof BytesRef ob) {
                 o = ob.utf8ToString();

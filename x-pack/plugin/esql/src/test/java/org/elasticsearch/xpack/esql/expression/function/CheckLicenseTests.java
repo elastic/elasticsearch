@@ -81,7 +81,7 @@ public class CheckLicenseTests extends ESTestCase {
         var plan = parser.createStatement(esql);
         plan = plan.transformDown(
             Limit.class,
-            l -> Objects.equals(l.limit().fold(FoldContext.unbounded()), 10)
+            l -> Objects.equals(l.limit().fold(FoldContext.small()), 10)
                 ? new LicensedLimit(l.source(), l.limit(), l.child(), functionLicenseFeature)
                 : l
         );

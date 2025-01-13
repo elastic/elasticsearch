@@ -215,7 +215,7 @@ public class RangeTests extends ESTestCase {
             assertEquals(
                 "failed on test " + i + ": " + Arrays.toString(test),
                 test[8],
-                range.areBoundariesInvalid(range.lower().fold(FoldContext.unbounded()), range.upper().fold(FoldContext.unbounded()))
+                range.areBoundariesInvalid(range.lower().fold(FoldContext.small()), range.upper().fold(FoldContext.small()))
             );
         }
     }

@@ -55,7 +55,7 @@ public class ToUpperTests extends AbstractConfigurationFunctionTestCase {
         String testString = randomAlphaOfLength(10);
         Configuration cfg = randomLocaleConfig();
         ToUpper func = new ToUpper(Source.EMPTY, new Literal(Source.EMPTY, testString, DataType.KEYWORD), cfg);
-        assertThat(BytesRefs.toBytesRef(testString.toUpperCase(cfg.locale())), equalTo(func.fold(FoldContext.unbounded())));
+        assertThat(BytesRefs.toBytesRef(testString.toUpperCase(cfg.locale())), equalTo(func.fold(FoldContext.small())));
     }
 
     private Configuration randomLocaleConfig() {

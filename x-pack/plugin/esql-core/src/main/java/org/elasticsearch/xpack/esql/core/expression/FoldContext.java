@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.core.QlClientException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -20,11 +21,15 @@ import java.util.Objects;
  * Context passed to {@link Expression#fold}. This is not thread safe.
  */
 public class FoldContext {
+    private static final long SMALL = MemorySizeValue.parseBytesSizeValueOrHeapRatio("5%", "small").getBytes();
+
     /**
-     * {@link Expression#fold} using any amount of memory. Only safe for tests.
+     * {@link Expression#fold} using less than 5% of heap. Fine in tests but otherwise
+     * calling this is a signal that you either, shouldn't be calling {@link Expression#fold}
+     * at all, or should pass in a shared {@link FoldContext} made by {@code Configuration}.
      */
-    public static FoldContext unbounded() {
-        return new FoldContext(Long.MAX_VALUE);
+    public static FoldContext small() {
+        return new FoldContext(SMALL);
     }
 
     private final long initialAllowedBytes;

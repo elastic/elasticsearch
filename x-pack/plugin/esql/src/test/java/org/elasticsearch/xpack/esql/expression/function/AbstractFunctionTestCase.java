@@ -542,7 +542,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
             @Override
             public FoldContext foldCtx() {
-                return FoldContext.unbounded();
+                return FoldContext.small();
             }
         };
     }
@@ -554,7 +554,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public static ExpressionEvaluator.Factory evaluator(Expression e) {
         e = new FoldNull().rule(e, unboundLogicalOptimizerContext());
         if (e.foldable()) {
-            e = new Literal(e.source(), e.fold(FoldContext.unbounded()), e.dataType());
+            e = new Literal(e.source(), e.fold(FoldContext.small()), e.dataType());
         }
         Layout.Builder builder = new Layout.Builder();
         buildLayout(builder, e);
@@ -562,7 +562,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (resolution.unresolved()) {
             throw new AssertionError("expected resolved " + resolution.message());
         }
-        return EvalMapper.toEvaluator(FoldContext.unbounded(), e, builder.build());
+        return EvalMapper.toEvaluator(FoldContext.small(), e, builder.build());
     }
 
     protected final Page row(List<Object> values) {

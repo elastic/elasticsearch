@@ -265,12 +265,12 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         assertTrue(evaluableExpression.foldable());
 
         if (testCase.foldingExceptionClass() != null) {
-            Throwable t = expectThrows(testCase.foldingExceptionClass(), () -> evaluableExpression.fold(FoldContext.unbounded()));
+            Throwable t = expectThrows(testCase.foldingExceptionClass(), () -> evaluableExpression.fold(FoldContext.small()));
             assertThat(t.getMessage(), equalTo(testCase.foldingExceptionMessage()));
             return;
         }
 
-        Object result = evaluableExpression.fold(FoldContext.unbounded());
+        Object result = evaluableExpression.fold(FoldContext.small());
         // Decode unsigned longs into BigIntegers
         if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
             result = NumericUtils.unsignedLongAsBigInteger((Long) result);

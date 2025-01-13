@@ -148,7 +148,7 @@ public final class TypeResolutions {
             return resolution;
         }
 
-        if (e.dataType() == DataType.NULL || e.fold(FoldContext.unbounded()) == null) {
+        if (e.dataType() == DataType.NULL || e.fold(FoldContext.small()) == null) {
             resolution = new TypeResolution(
                 format(
                     null,

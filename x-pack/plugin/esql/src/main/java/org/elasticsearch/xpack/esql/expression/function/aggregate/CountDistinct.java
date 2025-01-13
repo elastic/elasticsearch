@@ -213,7 +213,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         DataType type = field().dataType();
         int precision = this.precision == null
             ? DEFAULT_PRECISION
-            : ((Number) this.precision.fold(FoldContext.unbounded() /* TODO remove me */)).intValue();
+            : ((Number) this.precision.fold(FoldContext.small() /* TODO remove me */)).intValue();
         if (SUPPLIERS.containsKey(type) == false) {
             // If the type checking did its job, this should never happen
             throw EsqlIllegalArgumentException.illegalDataType(type);

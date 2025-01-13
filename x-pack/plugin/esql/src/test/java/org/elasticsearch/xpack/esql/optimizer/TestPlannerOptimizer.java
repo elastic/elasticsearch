@@ -27,7 +27,7 @@ public class TestPlannerOptimizer {
     private final Configuration config;
 
     public TestPlannerOptimizer(Configuration config, Analyzer analyzer) {
-        this(config, analyzer, new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.unbounded())));
+        this(config, analyzer, new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small())));
     }
 
     public TestPlannerOptimizer(Configuration config, Analyzer analyzer, LogicalPlanOptimizer logicalOptimizer) {
@@ -63,10 +63,10 @@ public class TestPlannerOptimizer {
         // individually hence why here the plan is kept as is
 
         var logicalTestOptimizer = new LocalLogicalPlanOptimizer(
-            new LocalLogicalOptimizerContext(config, FoldContext.unbounded(), searchStats)
+            new LocalLogicalOptimizerContext(config, FoldContext.small(), searchStats)
         );
         var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(config, FoldContext.unbounded(), searchStats),
+            new LocalPhysicalOptimizerContext(config, FoldContext.small(), searchStats),
             true
         );
         var l = PlannerUtils.localPlan(physicalPlan, logicalTestOptimizer, physicalTestOptimizer);

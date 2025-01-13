@@ -202,12 +202,12 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                         public void close() {}
                     };
                 }
-                return EvalMapper.toEvaluator(FoldContext.unbounded(), expression, layout);
+                return EvalMapper.toEvaluator(FoldContext.small(), expression, layout);
             }
 
             @Override
             public FoldContext foldCtx() {
-                return FoldContext.unbounded();
+                return FoldContext.small();
             }
         };
         try (

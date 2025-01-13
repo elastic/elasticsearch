@@ -625,7 +625,7 @@ public class ExpressionTests extends ESTestCase {
         eq = (Equals) e;
         assertThat(eq.right(), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) eq.right()).name(), equalTo("a"));
-        assertThat(eq.left().fold(FoldContext.unbounded()), equalTo(1));
+        assertThat(eq.left().fold(FoldContext.small()), equalTo(1));
 
         e = whereExpression("1 NOT IN (a)");
         assertThat(e, instanceOf(Not.class));
@@ -634,7 +634,7 @@ public class ExpressionTests extends ESTestCase {
         eq = (Equals) e;
         assertThat(eq.right(), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) eq.right()).name(), equalTo("a"));
-        assertThat(eq.left().fold(FoldContext.unbounded()), equalTo(1));
+        assertThat(eq.left().fold(FoldContext.small()), equalTo(1));
     }
 
     private Expression whereExpression(String e) {

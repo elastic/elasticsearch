@@ -72,7 +72,7 @@ public class EvalBenchmark {
         BigArrays.NON_RECYCLING_INSTANCE
     );
 
-    private static final FoldContext FOLD_CONTEXT = FoldContext.unbounded();
+    private static final FoldContext FOLD_CONTEXT = FoldContext.small();
 
     private static final int BLOCK_LENGTH = 8 * 1024;
 

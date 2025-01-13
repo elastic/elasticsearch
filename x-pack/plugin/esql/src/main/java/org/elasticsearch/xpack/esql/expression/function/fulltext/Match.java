@@ -223,7 +223,7 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     public Object queryAsObject() {
-        Object queryAsObject = query().fold(FoldContext.unbounded() /* TODO remove me */);
+        Object queryAsObject = query().fold(FoldContext.small() /* TODO remove me */);
 
         // Convert BytesRef to string for string-based values
         if (queryAsObject instanceof BytesRef bytesRef) {

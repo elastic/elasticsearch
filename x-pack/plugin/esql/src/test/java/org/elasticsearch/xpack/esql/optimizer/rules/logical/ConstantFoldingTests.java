@@ -101,11 +101,11 @@ public class ConstantFoldingTests extends ESTestCase {
     public void testConstantFoldingRange() {
         assertEquals(
             true,
-            constantFolding(rangeOf(FIVE, FIVE, true, new Literal(EMPTY, 10, DataType.INTEGER), false)).fold(FoldContext.unbounded())
+            constantFolding(rangeOf(FIVE, FIVE, true, new Literal(EMPTY, 10, DataType.INTEGER), false)).fold(FoldContext.small())
         );
         assertEquals(
             false,
-            constantFolding(rangeOf(FIVE, FIVE, false, new Literal(EMPTY, 10, DataType.INTEGER), false)).fold(FoldContext.unbounded())
+            constantFolding(rangeOf(FIVE, FIVE, false, new Literal(EMPTY, 10, DataType.INTEGER), false)).fold(FoldContext.small())
         );
     }
 

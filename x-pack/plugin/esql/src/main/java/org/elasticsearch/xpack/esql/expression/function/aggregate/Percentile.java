@@ -171,7 +171,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     }
 
     private int percentileValue() {
-        return ((Number) percentile.fold(FoldContext.unbounded() /* TODO remove me */)).intValue();
+        return ((Number) percentile.fold(FoldContext.small() /* TODO remove me */)).intValue();
     }
 
     @Override

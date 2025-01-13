@@ -61,7 +61,7 @@ public class ReplaceRegexMatchTests extends ESTestCase {
             assertEquals(Equals.class, e.getClass());
             Equals eq = (Equals) e;
             assertEquals(fa, eq.left());
-            assertEquals(s.replace("\\", StringUtils.EMPTY), eq.right().fold(FoldContext.unbounded()));
+            assertEquals(s.replace("\\", StringUtils.EMPTY), eq.right().fold(FoldContext.small()));
         }
     }
 
@@ -73,7 +73,7 @@ public class ReplaceRegexMatchTests extends ESTestCase {
         assertEquals(Equals.class, e.getClass());
         Equals eq = (Equals) e;
         assertEquals(fa, eq.left());
-        assertEquals("abc", eq.right().fold(FoldContext.unbounded()));
+        assertEquals("abc", eq.right().fold(FoldContext.small()));
     }
 
 }

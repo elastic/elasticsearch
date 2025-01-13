@@ -122,7 +122,7 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
         if (weight.foldable() == false) {
             return TypeResolution.TYPE_RESOLVED;
         }
-        Object weightVal = weight.fold(FoldContext.unbounded()/* TODO remove me*/);
+        Object weightVal = weight.fold(FoldContext.small()/* TODO remove me*/);
         if (weightVal == null || weightVal.equals(0) || weightVal.equals(0.0)) {
             return new TypeResolution(format(null, invalidWeightError, SECOND, sourceText(), weightVal));
         }

@@ -116,11 +116,11 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     }
 
     private int limitValue() {
-        return (int) limitField().fold(FoldContext.unbounded() /* TODO remove me */);
+        return (int) limitField().fold(FoldContext.small() /* TODO remove me */);
     }
 
     private String orderRawValue() {
-        return BytesRefs.toString(orderField().fold(FoldContext.unbounded() /* TODO remove me */));
+        return BytesRefs.toString(orderField().fold(FoldContext.small() /* TODO remove me */));
     }
 
     private boolean orderValue() {

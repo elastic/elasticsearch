@@ -69,7 +69,7 @@ public class CaseExtraTests extends ESTestCase {
         );
         assertThat(c.foldable(), equalTo(false));
         assertThat(
-            c.partiallyFold(FoldContext.unbounded()),
+            c.partiallyFold(FoldContext.small()),
             equalTo(new Case(Source.synthetic("case"), field("last_cond", DataType.BOOLEAN), List.of(field("last", DataType.LONG))))
         );
     }
@@ -82,7 +82,7 @@ public class CaseExtraTests extends ESTestCase {
         );
         assertThat(c.foldable(), equalTo(false));
         assertThat(
-            c.partiallyFold(FoldContext.unbounded()),
+            c.partiallyFold(FoldContext.small()),
             equalTo(new Case(Source.synthetic("case"), field("last_cond", DataType.BOOLEAN), List.of(field("last", DataType.LONG))))
         );
     }
@@ -94,7 +94,7 @@ public class CaseExtraTests extends ESTestCase {
             List.of(field("first", DataType.LONG), field("last", DataType.LONG))
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(FoldContext.unbounded()), sameInstance(c));
+        assertThat(c.partiallyFold(FoldContext.small()), sameInstance(c));
     }
 
     public void testPartialFoldFirst() {
@@ -104,7 +104,7 @@ public class CaseExtraTests extends ESTestCase {
             List.of(field("first", DataType.LONG), field("last", DataType.LONG))
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(FoldContext.unbounded()), equalTo(field("first", DataType.LONG)));
+        assertThat(c.partiallyFold(FoldContext.small()), equalTo(field("first", DataType.LONG)));
     }
 
     public void testPartialFoldFirstAfterKeepingUnknown() {
@@ -120,7 +120,7 @@ public class CaseExtraTests extends ESTestCase {
         );
         assertThat(c.foldable(), equalTo(false));
         assertThat(
-            c.partiallyFold(FoldContext.unbounded()),
+            c.partiallyFold(FoldContext.small()),
             equalTo(
                 new Case(
                     Source.synthetic("case"),
@@ -143,7 +143,7 @@ public class CaseExtraTests extends ESTestCase {
             )
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(FoldContext.unbounded()), equalTo(field("second", DataType.LONG)));
+        assertThat(c.partiallyFold(FoldContext.small()), equalTo(field("second", DataType.LONG)));
     }
 
     public void testPartialFoldSecondAfterDroppingFalse() {
@@ -158,7 +158,7 @@ public class CaseExtraTests extends ESTestCase {
             )
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(FoldContext.unbounded()), equalTo(field("second", DataType.LONG)));
+        assertThat(c.partiallyFold(FoldContext.small()), equalTo(field("second", DataType.LONG)));
     }
 
     public void testPartialFoldLast() {
@@ -173,7 +173,7 @@ public class CaseExtraTests extends ESTestCase {
             )
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(FoldContext.unbounded()), equalTo(field("last", DataType.LONG)));
+        assertThat(c.partiallyFold(FoldContext.small()), equalTo(field("last", DataType.LONG)));
     }
 
     public void testPartialFoldLastAfterKeepingUnknown() {
@@ -189,7 +189,7 @@ public class CaseExtraTests extends ESTestCase {
         );
         assertThat(c.foldable(), equalTo(false));
         assertThat(
-            c.partiallyFold(FoldContext.unbounded()),
+            c.partiallyFold(FoldContext.small()),
             equalTo(
                 new Case(
                     Source.synthetic("case"),
@@ -218,7 +218,7 @@ public class CaseExtraTests extends ESTestCase {
     public void testFoldCase() {
         testCase(caseExpr -> {
             assertTrue(caseExpr.foldable());
-            return caseExpr.fold(FoldContext.unbounded());
+            return caseExpr.fold(FoldContext.small());
         });
     }
 
@@ -270,7 +270,7 @@ public class CaseExtraTests extends ESTestCase {
         EvaluatorMapper.ToEvaluator toEvaluator = new EvaluatorMapper.ToEvaluator() {
             @Override
             public EvalOperator.ExpressionEvaluator.Factory apply(Expression expression) {
-                Object value = expression.fold(FoldContext.unbounded());
+                Object value = expression.fold(FoldContext.small());
                 if (value != null && value.equals(2)) {
                     return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
                         @Override
@@ -288,7 +288,7 @@ public class CaseExtraTests extends ESTestCase {
 
             @Override
             public FoldContext foldCtx() {
-                return FoldContext.unbounded();
+                return FoldContext.small();
             }
         };
         EvalOperator.ExpressionEvaluator evaluator = caseExpr.toEvaluator(toEvaluator).get(driveContext);

@@ -780,7 +780,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             return;
         }
         assertThat(e.foldable(), equalTo(true));
-        Object result = e.fold(FoldContext.unbounded());
+        Object result = e.fold(FoldContext.small());
         if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
             assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
         }
@@ -800,18 +800,18 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         }
         Case c = (Case) buildFieldExpression(testCase);
         if (extra().expectedPartialFold == null) {
-            assertThat(c.partiallyFold(FoldContext.unbounded()), sameInstance(c));
+            assertThat(c.partiallyFold(FoldContext.small()), sameInstance(c));
             return;
         }
         if (extra().expectedPartialFold.size() == 1) {
-            assertThat(c.partiallyFold(FoldContext.unbounded()), equalTo(extra().expectedPartialFold.get(0).asField()));
+            assertThat(c.partiallyFold(FoldContext.small()), equalTo(extra().expectedPartialFold.get(0).asField()));
             return;
         }
         Case expected = build(
             Source.synthetic("expected"),
             extra().expectedPartialFold.stream().map(TestCaseSupplier.TypedData::asField).toList()
         );
-        assertThat(c.partiallyFold(FoldContext.unbounded()), equalTo(expected));
+        assertThat(c.partiallyFold(FoldContext.small()), equalTo(expected));
     }
 
     private static Function<TestCaseSupplier.TestCase, TestCaseSupplier.TestCase> addWarnings(List<String> warnings) {

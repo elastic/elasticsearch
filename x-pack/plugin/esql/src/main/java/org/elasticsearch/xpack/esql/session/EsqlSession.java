@@ -311,7 +311,7 @@ public class EsqlSession {
         var unresolvedPolicies = preAnalysis.enriches.stream()
             .map(
                 e -> new EnrichPolicyResolver.UnresolvedPolicy(
-                    (String) e.policyName().fold(FoldContext.unbounded() /* TODO remove me*/),
+                    (String) e.policyName().fold(FoldContext.small() /* TODO remove me*/),
                     e.mode()
                 )
             )

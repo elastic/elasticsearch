@@ -353,7 +353,7 @@ public final class EsqlTestUtils {
     public static final Configuration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
 
     public static LogicalOptimizerContext unboundLogicalOptimizerContext() {
-        return new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.unbounded());
+        return new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small());
     }
 
     public static final Verifier TEST_VERIFIER = new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L));

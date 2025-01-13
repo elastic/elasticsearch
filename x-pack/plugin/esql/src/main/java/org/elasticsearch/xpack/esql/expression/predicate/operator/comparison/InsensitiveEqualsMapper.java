@@ -37,7 +37,7 @@ public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals>
         var rightEval = toEvaluator(foldCtx, bc.right(), layout);
         if (DataType.isString(leftType)) {
             if (bc.right().foldable() && DataType.isString(rightType)) {
-                BytesRef rightVal = BytesRefs.toBytesRef(bc.right().fold(FoldContext.unbounded() /* TODO remove me */));
+                BytesRef rightVal = BytesRefs.toBytesRef(bc.right().fold(FoldContext.small() /* TODO remove me */));
                 Automaton automaton = InsensitiveEquals.automaton(rightVal);
                 return dvrCtx -> new InsensitiveEqualsConstantEvaluator(
                     bc.source(),

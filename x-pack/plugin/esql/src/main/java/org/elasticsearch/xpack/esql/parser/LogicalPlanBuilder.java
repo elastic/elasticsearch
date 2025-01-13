@@ -158,7 +158,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx) {
         return p -> {
             Source source = source(ctx);
-            String pattern = visitString(ctx.string()).fold(FoldContext.unbounded() /* TODO remove me */).toString();
+            String pattern = visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */).toString();
             Grok.Parser grokParser;
             try {
                 grokParser = Grok.pattern(source, pattern);
@@ -189,7 +189,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitDissectCommand(EsqlBaseParser.DissectCommandContext ctx) {
         return p -> {
-            String pattern = visitString(ctx.string()).fold(FoldContext.unbounded() /* TODO remove me */).toString();
+            String pattern = visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */).toString();
             Map<String, Object> options = visitCommandOptions(ctx.commandOptions());
             String appendSeparator = "";
             for (Map.Entry<String, Object> item : options.entrySet()) {
@@ -244,10 +244,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         Map<String, Object> result = new HashMap<>();
         for (EsqlBaseParser.CommandOptionContext option : ctx.commandOption()) {
-            result.put(
-                visitIdentifier(option.identifier()),
-                expression(option.constant()).fold(FoldContext.unbounded() /* TODO remove me */)
-            );
+            result.put(visitIdentifier(option.identifier()), expression(option.constant()).fold(FoldContext.small() /* TODO remove me */));
         }
         return result;
     }

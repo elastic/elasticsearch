@@ -88,7 +88,7 @@ public abstract class AggregateFunction extends Function {
 
     public boolean hasFilter() {
         return filter != null
-            && (filter.foldable() == false || Boolean.TRUE.equals(filter.fold(FoldContext.unbounded() /* TODO remove me */)) == false);
+            && (filter.foldable() == false || Boolean.TRUE.equals(filter.fold(FoldContext.small() /* TODO remove me */)) == false);
     }
 
     public Expression filter() {

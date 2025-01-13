@@ -155,7 +155,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
 
     private Object foldTemporalAmount(Object val) {
         Neg neg = new Neg(Source.EMPTY, new Literal(Source.EMPTY, val, typeOf(val)));
-        return neg.fold(FoldContext.unbounded());
+        return neg.fold(FoldContext.small());
     }
 
     private static DataType typeOf(Object val) {

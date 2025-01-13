@@ -43,7 +43,7 @@ public class QueryPlanTests extends ESTestCase {
 
         assertEquals(Limit.class, transformed.getClass());
         Limit l = (Limit) transformed;
-        assertEquals(24, l.limit().fold(FoldContext.unbounded()));
+        assertEquals(24, l.limit().fold(FoldContext.small()));
     }
 
     public void testTransformWithExpressionTree() throws Exception {
@@ -54,7 +54,7 @@ public class QueryPlanTests extends ESTestCase {
         assertEquals(OrderBy.class, transformed.getClass());
         OrderBy order = (OrderBy) transformed;
         assertEquals(Limit.class, order.child().getClass());
-        assertEquals(24, ((Limit) order.child()).limit().fold(FoldContext.unbounded()));
+        assertEquals(24, ((Limit) order.child()).limit().fold(FoldContext.small()));
     }
 
     public void testTransformWithExpressionTopLevelInCollection() throws Exception {
@@ -89,7 +89,7 @@ public class QueryPlanTests extends ESTestCase {
             }
         });
 
-        assertEquals(singletonList(one.child().fold(FoldContext.unbounded())), list);
+        assertEquals(singletonList(one.child().fold(FoldContext.small())), list);
     }
 
     public void testForEachWithExpressionTree() throws Exception {
@@ -103,7 +103,7 @@ public class QueryPlanTests extends ESTestCase {
             }
         });
 
-        assertEquals(singletonList(limit.limit().fold(FoldContext.unbounded())), list);
+        assertEquals(singletonList(limit.limit().fold(FoldContext.small())), list);
     }
 
     public void testForEachWithExpressionTopLevelInCollection() throws Exception {
@@ -135,7 +135,7 @@ public class QueryPlanTests extends ESTestCase {
             }
         });
 
-        assertEquals(singletonList(one.child().fold(FoldContext.unbounded())), list);
+        assertEquals(singletonList(one.child().fold(FoldContext.small())), list);
     }
 
     public void testPlanExpressions() {

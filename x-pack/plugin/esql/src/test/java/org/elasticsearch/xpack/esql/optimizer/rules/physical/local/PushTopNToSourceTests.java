@@ -418,7 +418,7 @@ public class PushTopNToSourceTests extends ESTestCase {
 
     private static PhysicalPlan pushTopNToSource(TopNExec topNExec) {
         var configuration = EsqlTestUtils.configuration("from test");
-        var ctx = new LocalPhysicalOptimizerContext(configuration, FoldContext.unbounded(), SearchStats.EMPTY);
+        var ctx = new LocalPhysicalOptimizerContext(configuration, FoldContext.small(), SearchStats.EMPTY);
         var pushTopNToSource = new PushTopNToSource();
         return pushTopNToSource.rule(topNExec, ctx);
     }

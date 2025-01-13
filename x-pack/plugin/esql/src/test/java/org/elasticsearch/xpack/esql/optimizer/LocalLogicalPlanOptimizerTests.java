@@ -413,7 +413,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         var analyzed = analyzer.analyze(parser.createStatement(query));
         var optimized = logicalOptimizer.optimize(analyzed);
-        var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.unbounded(), searchStats);
+        var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
         var plan = new LocalLogicalPlanOptimizer(localContext).localOptimize(optimized);
 
         var project = as(plan, Project.class);
@@ -425,7 +425,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var eval = as(project.child(), Eval.class);
         var field = eval.fields().get(0);
         assertThat(Expressions.name(field), is("field005"));
-        assertThat(Alias.unwrap(field).fold(FoldContext.unbounded()), Matchers.nullValue());
+        assertThat(Alias.unwrap(field).fold(FoldContext.small()), Matchers.nullValue());
     }
 
     // InferIsNotNull
@@ -563,7 +563,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     private LogicalPlan localPlan(LogicalPlan plan, SearchStats searchStats) {
-        var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.unbounded(), searchStats);
+        var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
         // System.out.println(plan);
         var localPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(plan);
         // System.out.println(localPlan);

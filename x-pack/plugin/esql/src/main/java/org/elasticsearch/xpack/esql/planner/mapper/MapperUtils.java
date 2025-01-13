@@ -91,7 +91,7 @@ class MapperUtils {
                 enrich.mode(),
                 enrich.policy().getType(),
                 enrich.matchField(),
-                BytesRefs.toString(enrich.policyName().fold(FoldContext.unbounded() /* TODO remove me */)),
+                BytesRefs.toString(enrich.policyName().fold(FoldContext.small() /* TODO remove me */)),
                 enrich.policy().getMatchField(),
                 enrich.concreteIndices(),
                 enrich.enrichFields()

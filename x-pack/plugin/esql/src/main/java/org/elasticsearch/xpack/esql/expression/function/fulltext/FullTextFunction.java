@@ -96,7 +96,7 @@ public abstract class FullTextFunction extends Function implements TranslationAw
      * @return query expression as an object
      */
     public Object queryAsObject() {
-        Object queryAsObject = query().fold(FoldContext.unbounded() /* TODO remove me */);
+        Object queryAsObject = query().fold(FoldContext.small() /* TODO remove me */);
         if (queryAsObject instanceof BytesRef bytesRef) {
             return bytesRef.utf8ToString();
         }

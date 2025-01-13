@@ -79,8 +79,8 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
         Literal pattern = (Literal) args.get(1);
         if (args.size() > 2) {
             Literal caseInsensitive = (Literal) args.get(2);
-            assertThat(caseInsensitive.fold(FoldContext.unbounded()), equalTo(false));
+            assertThat(caseInsensitive.fold(FoldContext.small()), equalTo(false));
         }
-        return new WildcardLike(source, expression, new WildcardPattern(((BytesRef) pattern.fold(FoldContext.unbounded())).utf8ToString()));
+        return new WildcardLike(source, expression, new WildcardPattern(((BytesRef) pattern.fold(FoldContext.small())).utf8ToString()));
     }
 }

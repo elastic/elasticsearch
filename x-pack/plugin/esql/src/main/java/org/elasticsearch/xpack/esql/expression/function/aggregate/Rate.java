@@ -157,7 +157,7 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
         }
         final Object foldValue;
         try {
-            foldValue = unit.fold(FoldContext.unbounded() /* TODO remove me */);
+            foldValue = unit.fold(FoldContext.small() /* TODO remove me */);
         } catch (Exception e) {
             throw new IllegalArgumentException("function [" + sourceText() + "] has invalid unit [" + unit.sourceText() + "]");
         }

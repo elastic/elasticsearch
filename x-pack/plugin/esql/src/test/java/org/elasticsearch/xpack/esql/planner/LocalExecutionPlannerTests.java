@@ -84,7 +84,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     public void testLuceneSourceOperatorHugeRowSize() throws IOException {
         int estimatedRowSize = randomEstimatedRowSize(estimatedRowSizeIsHuge);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
-            FoldContext.unbounded(),
+            FoldContext.small(),
             new EsQueryExec(Source.EMPTY, index(), IndexMode.STANDARD, List.of(), null, null, null, estimatedRowSize)
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
@@ -100,7 +100,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         EsQueryExec.FieldSort sort = new EsQueryExec.FieldSort(sortField, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
         Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
-            FoldContext.unbounded(),
+            FoldContext.small(),
             new EsQueryExec(Source.EMPTY, index(), IndexMode.STANDARD, List.of(), null, limit, List.of(sort), estimatedRowSize)
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
@@ -116,7 +116,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         EsQueryExec.GeoDistanceSort sort = new EsQueryExec.GeoDistanceSort(sortField, Order.OrderDirection.ASC, 1, -1);
         Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
-            FoldContext.unbounded(),
+            FoldContext.small(),
             new EsQueryExec(Source.EMPTY, index(), IndexMode.STANDARD, List.of(), null, limit, List.of(sort), estimatedRowSize)
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
@@ -191,7 +191,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             );
         }
         releasables.add(searcher);
-        return new EsPhysicalOperationProviders(FoldContext.unbounded(), shardContexts, null);
+        return new EsPhysicalOperationProviders(FoldContext.small(), shardContexts, null);
     }
 
     private IndexReader reader() {

@@ -103,8 +103,8 @@ public class FoldNullTests extends ESTestCase {
     }
 
     public void testNullFoldingIsNotNull() {
-        assertEquals(true, foldNull(new IsNotNull(EMPTY, TRUE)).fold(FoldContext.unbounded()));
-        assertEquals(false, foldNull(new IsNotNull(EMPTY, NULL)).fold(FoldContext.unbounded()));
+        assertEquals(true, foldNull(new IsNotNull(EMPTY, TRUE)).fold(FoldContext.small()));
+        assertEquals(false, foldNull(new IsNotNull(EMPTY, NULL)).fold(FoldContext.small()));
     }
 
     @SuppressWarnings("unchecked")
@@ -140,8 +140,8 @@ public class FoldNullTests extends ESTestCase {
     }
 
     public void testNullFoldingIsNull() {
-        assertEquals(true, foldNull(new IsNull(EMPTY, NULL)).fold(FoldContext.unbounded()));
-        assertEquals(false, foldNull(new IsNull(EMPTY, TRUE)).fold(FoldContext.unbounded()));
+        assertEquals(true, foldNull(new IsNull(EMPTY, NULL)).fold(FoldContext.small()));
+        assertEquals(false, foldNull(new IsNull(EMPTY, TRUE)).fold(FoldContext.small()));
     }
 
     public void testGenericNullableExpression() {

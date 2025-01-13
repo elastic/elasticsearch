@@ -160,8 +160,8 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
         Expression expression = args.get(0);
         Literal pattern = (Literal) args.get(1);
         Literal caseInsensitive = args.size() > 2 ? (Literal) args.get(2) : null;
-        String patternString = ((BytesRef) pattern.fold(FoldContext.unbounded())).utf8ToString();
-        boolean caseInsensitiveBool = caseInsensitive != null ? (boolean) caseInsensitive.fold(FoldContext.unbounded()) : false;
+        String patternString = ((BytesRef) pattern.fold(FoldContext.small())).utf8ToString();
+        boolean caseInsensitiveBool = caseInsensitive != null ? (boolean) caseInsensitive.fold(FoldContext.small()) : false;
         logger.info("pattern={} caseInsensitive={}", patternString, caseInsensitiveBool);
 
         return caseInsensitiveBool

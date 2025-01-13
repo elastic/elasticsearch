@@ -123,14 +123,13 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                         if (value == null) {
                             value = new LinearRankDoc(
                                 originalScoreDocs[finalScoreIndex].doc,
-                                0,
+                                0f,
                                 originalScoreDocs[finalScoreIndex].shardIndex,
-                                rankResults.size()
+                                weights,
+                                Arrays.stream(normalizers).map(Enum::name).toArray(String[]::new)
                             );
                         }
                         value.normalizedScores[finalResult] = normalizedScoreDocs[finalScoreIndex].score;
-                        value.weights[finalResult] = weights[finalResult];
-                        value.normalizers[finalResult] = normalizers[finalResult].name();
                         value.score += weights[finalResult] * normalizedScoreDocs[finalScoreIndex].score;
                         return value;
                     }

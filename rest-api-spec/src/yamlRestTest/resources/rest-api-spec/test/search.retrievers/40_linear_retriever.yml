@@ -17,6 +17,8 @@ setup:
                 similarity: l2_norm
               keyword:
                 type: keyword
+              other_keyword:
+                type: keyword
 
   - do:
       bulk:
@@ -24,13 +26,14 @@ setup:
         index: test
         body:
           - '{"index": {"_id": 1 }}'
-          - '{"vector": [1], "keyword": "one"}'
+          - '{"vector": [1], "keyword": "one", "other_keyword": "other"}'
           - '{"index": {"_id": 2 }}'
           - '{"vector": [2], "keyword": "two"}'
           - '{"index": {"_id": 3 }}'
           - '{"vector": [3], "keyword": "three"}'
           - '{"index": {"_id": 4 }}'
-          - '{"vector": [4], "keyword": "four"}'
+          - '{"vector": [4], "keyword": "four", "other_keyword": "other"}'
+
 ---
 "basic linear weighted combination of a standard and knn retrievers":
   - do:
@@ -500,22 +503,335 @@ setup:
   - match: { hits.hits.1._id: "1" }
   - close_to: { hits.hits.1._score: { value: 1.0, error: 0.001 } }
 
-#---
-#"explain should provide info on weights and inner retrievers":
-#
-#---
-#"collapsing results":
-#
-#---
-#"highlighting results":
-#
-#---
-#"multiple nested linear retrievers":
-#
-#---
-#"linear retriever with filters":
-#
-#
-#---
-#"linear retriever with filters on nested retrievers":
-#
+---
+"explain should provide info on weights and inner retrievers":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  component: {
+                    retriever: {
+                      standard: {
+                        query: {
+                          bool: {
+                            should: [
+                              {
+                                constant_score: {
+                                  filter: {
+                                    term: {
+                                      keyword: {
+                                        value: "one"
+                                      }
+                                    }
+                                  },
+                                  boost: 10.0
+                                }
+                              },
+                              {
+                                constant_score: {
+                                  filter: {
+                                    term: {
+                                      keyword: {
+                                        value: "four"
+                                      }
+                                    }
+                                  },
+                                  boost: 1.0
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        _name: "my_standard_retriever"
+                      }
+                    },
+                    weight: 10.0,
+                    normalizer: "minmax"
+                  }
+                },
+                {
+                  component: {
+                    retriever: {
+                      knn: {
+                        field: "vector",
+                        query_vector: [ 4 ],
+                        k: 1,
+                        num_candidates: 1
+                      }
+                    },
+                    weight: 20.0
+                  }
+                }
+              ]
+          explain: true
+          size: 2
+
+  - match: { hits.hits.0._id: "4" }
+  - match: { hits.hits.0._explanation.description: "/weighted.linear.combination.score:.\\[20.0].computed.for.normalized.scores.\\[.*,.1.0\\].and.weights.\\[10.0,.20.0\\].as.sum.of.\\(weight\\[i\\].*.score\\[i\\]\\).for.each.query./"}
+  - close_to: { hits.hits.0._explanation.details.0.value: { value: 0.0, error: 0.001 } }
+  - match: { hits.hits.0._explanation.details.0.description: "/.*weighted.score.*\\[my_standard_retriever\\].*using.score.normalizer.\\[MINMAX\\].*/" }
+  - close_to: { hits.hits.0._explanation.details.1.value: { value: 20.0, error: 0.001 } }
+  - match: { hits.hits.0._explanation.details.1.description: "/.*weighted.score.*using.score.normalizer.\\[IDENTITY\\].*/" }
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.1._explanation.description: "/weighted.linear.combination.score:.\\[10.0].computed.for.normalized.scores.\\[1.0,.0.0\\].and.weights.\\[10.0,.20.0\\].as.sum.of.\\(weight\\[i\\].*.score\\[i\\]\\).for.each.query./"}
+  - close_to: { hits.hits.1._explanation.details.0.value: { value: 10.0, error: 0.001 } }
+  - match: { hits.hits.1._explanation.details.0.description: "/.*weighted.score.*using.score.normalizer.\\[MINMAX\\].*/" }
+  - close_to: { hits.hits.1._explanation.details.1.value: { value: 0.0, error: 0.001 } }
+  - match: { hits.hits.1._explanation.details.1.description: "/.*weighted.score.*result.not.found.in.query.at.index.\\[1\\]/" }
+
+---
+"collapsing results":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  component: {
+                    retriever: {
+                      standard: {
+                        query: {
+                          constant_score: {
+                            filter: {
+                              term: {
+                                keyword: {
+                                  value: "one"
+                                }
+                              }
+                            },
+                            boost: 10.0
+                          }
+                        }
+                      }
+                    },
+                    weight: 0.5
+                  }
+                },
+                {
+                  component: {
+                    retriever: {
+                      knn: {
+                        field: "vector",
+                        query_vector: [ 4 ],
+                        k: 1,
+                        num_candidates: 1
+                      }
+                    },
+                    weight: 2.0
+                  }
+                }
+              ]
+          collapse:
+            field: other_keyword
+            inner_hits: {
+              name: sub_hits,
+              sort:
+                {
+                  keyword: {
+                    order: desc
+                  }
+                }
+            }
+  - match: { hits.hits.0._id: "1" }
+  - length: { hits.hits.0.inner_hits.sub_hits.hits.hits : 2 }
+  - match: { hits.hits.0.inner_hits.sub_hits.hits.hits.0._id: "1" }
+  - match: { hits.hits.0.inner_hits.sub_hits.hits.hits.1._id: "4" }
+
+---
+"multiple nested linear retrievers":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  component: {
+                    retriever: {
+                      standard: {
+                        query: {
+                          constant_score: {
+                            filter: {
+                              term: {
+                                keyword: {
+                                  value: "one"
+                                }
+                              }
+                            },
+                            boost: 10.0
+                          }
+                        }
+                      }
+                    },
+                    weight: 0.5
+                  }
+                },
+                {
+                  component: {
+                    retriever: {
+                      linear: {
+                        retrievers: [
+                          {
+                            component: {
+                              retriever: {
+                                standard: {
+                                  query: {
+                                    constant_score: {
+                                      filter: {
+                                        term: {
+                                          keyword: {
+                                            value: "two"
+                                          }
+                                        }
+                                      },
+                                      boost: 20.0
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          {
+                            component:
+                              {
+                                retriever: {
+                                  knn: {
+                                    field: "vector",
+                                    query_vector: [ 4 ],
+                                    k: 1,
+                                    num_candidates: 1
+                                  }
+                                }
+                              }
+                          }
+                        ]
+                      }
+                    },
+                    weight: 2.0
+                  }
+                }
+              ]
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0._score: 40.0 }
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.1._score: 5.0 }
+  - match: { hits.hits.2._id: "4" }
+  - match: { hits.hits.2._score: 2.0 }
+
+---
+"linear retriever with filters":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  component: {
+                    retriever: {
+                      standard: {
+                        query: {
+                          constant_score: {
+                            filter: {
+                              term: {
+                                keyword: {
+                                  value: "one"
+                                }
+                              }
+                            },
+                            boost: 10.0
+                          }
+                        }
+                      }
+                    },
+                    weight: 0.5
+                  }
+                },
+                {
+                  component: {
+                    retriever: {
+                      knn: {
+                        field: "vector",
+                        query_vector: [ 4 ],
+                        k: 1,
+                        num_candidates: 1
+                      }
+                    },
+                    weight: 2.0
+                  }
+                }
+              ]
+              filter:
+                term:
+                  keyword: "four"
+
+
+  - match: { hits.total.value: 1 }
+  - length: {hits.hits: 1}
+  - match: { hits.hits.0._id: "4" }
+  - match: { hits.hits.0._score: 2.0 }
+
+---
+"linear retriever with filters on nested retrievers":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  component: {
+                    retriever: {
+                      standard: {
+                        query: {
+                          constant_score: {
+                            filter: {
+                              term: {
+                                keyword: {
+                                  value: "one"
+                                }
+                              }
+                            },
+                            boost: 10.0
+                          }
+                        },
+                        filter: {
+                          term: {
+                            keyword: "four"
+                          }
+                        }
+                      }
+                    },
+                    weight: 0.5
+                  }
+                },
+                {
+                  component: {
+                    retriever: {
+                      knn: {
+                        field: "vector",
+                        query_vector: [ 4 ],
+                        k: 1,
+                        num_candidates: 1
+                      }
+                    },
+                    weight: 2.0
+                  }
+                }
+              ]
+
+  - match: { hits.total.value: 1 }
+  - length: {hits.hits: 1}
+  - match: { hits.hits.0._id: "4" }
+  - match: { hits.hits.0._score: 2.0 }

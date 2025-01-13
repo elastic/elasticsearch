@@ -20,15 +20,15 @@ import java.util.Objects;
 
 public class LinearRankDoc extends RankDoc {
 
-    public float[] weights;
+    private final float[] weights;
+    private final String[] normalizers;
     public float[] normalizedScores;
-    public String[] normalizers;
 
-    public LinearRankDoc(int doc, float score, int shardIndex, int queriesCount) {
+    public LinearRankDoc(int doc, float score, int shardIndex, float[] weights, String[] normalizers) {
         super(doc, score, shardIndex);
-        this.weights = new float[queriesCount];
-        this.normalizedScores = new float[queriesCount];
-        this.normalizers = new String[queriesCount];
+        this.weights = weights;
+        this.normalizers = normalizers;
+        this.normalizedScores = new float[normalizers.length];
     }
 
     public LinearRankDoc(StreamInput in) throws IOException {
@@ -75,7 +75,7 @@ public class LinearRankDoc extends RankDoc {
                 + Arrays.toString(normalizedScores)
                 + " and weights "
                 + Arrays.toString(weights)
-                + "] as sum of (weight[i] * score[i]) for each query.",
+                + " as sum of (weight[i] * score[i]) for each query.",
             details
         );
     }

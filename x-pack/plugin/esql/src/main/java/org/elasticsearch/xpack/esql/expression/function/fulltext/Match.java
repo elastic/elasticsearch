@@ -13,11 +13,12 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
@@ -60,7 +61,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
 /**
  * Full text function that performs a {@link QueryStringQuery} .
  */
-public class Match extends FullTextFunction implements Validatable {
+public class Match extends FullTextFunction implements PostOptimizationVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
 
@@ -201,7 +202,7 @@ public class Match extends FullTextFunction implements Validatable {
     }
 
     @Override
-    public void validate(Failures failures) {
+    public void postLogicalOptimizationVerification(Failures failures) {
         Expression fieldExpression = field();
         // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
         if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
@@ -222,7 +223,7 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     public Object queryAsObject() {
-        Object queryAsObject = query().fold();
+        Object queryAsObject = query().fold(FoldContext.small() /* TODO remove me */);
 
         // Convert BytesRef to string for string-based values
         if (queryAsObject instanceof BytesRef bytesRef) {

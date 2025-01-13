@@ -242,7 +242,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         final Translog.Operation op;
         final boolean isTombstone = parallelArray.isTombStone[docIndex];
         if (isTombstone && fields.id() == null) {
-            op = new Translog.NoOp(seqNo, primaryTerm, "noop tombstone");
+            op = new Translog.NoOp(seqNo, primaryTerm, source != null ? source.utf8ToString() : "noop tombstone");
             assert version == 1L : "Noop tombstone should have version 1L; actual version [" + version + "]";
             assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + op + "]";
         } else {

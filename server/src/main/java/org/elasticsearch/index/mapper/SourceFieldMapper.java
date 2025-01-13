@@ -448,7 +448,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (mappingLookup != null
             && InferenceMetadataFieldsMapper.isEnabled(mappingLookup)
             && mappingLookup.inferenceFields().isEmpty() == false) {
-            /**
+            /*
              * Removes the {@link InferenceMetadataFieldsMapper} content from the {@code _source}.
              * This metadata is regenerated at query or snapshot recovery time using stored fields and doc values.
              *

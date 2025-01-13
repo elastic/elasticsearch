@@ -19,7 +19,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -119,7 +118,6 @@ public class MapExpression extends Expression {
         if (key instanceof Expression) {
             return map.get(key);
         } else {
-            key = key instanceof String s ? s.toLowerCase(Locale.ROOT) : key;
             // the key(literal) could be converted to BytesRef by ConvertStringToByteRef
             return keyFoldedMap.containsKey(key) ? keyFoldedMap.get(key) : keyFoldedMap.get(new BytesRef(key.toString()));
         }

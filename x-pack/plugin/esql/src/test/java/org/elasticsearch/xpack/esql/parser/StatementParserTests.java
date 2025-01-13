@@ -2853,4 +2853,45 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectError(LoggerMessageFormat.format(null, from + cmd, map), errorMessage);
         }
     }
+
+    public void testNamedFunctionArgumentWithUnsupportedNamedParameterTypes() {
+        assumeTrue(
+            "named function arguments require snapshot build",
+            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
+        );
+        Map<String, String> commands = Map.ofEntries(
+            Map.entry("eval x = {}", "29"),
+            Map.entry("where {}", "26"),
+            Map.entry("stats {}", "26"),
+            Map.entry("stats agg() by {}", "35"),
+            Map.entry("sort {}", "25"),
+            Map.entry("dissect {} \"%{bar}\"", "28"),
+            Map.entry("grok {} \"%{WORD:foo}\"", "25")
+        );
+
+        for (Map.Entry<String, String> command : commands.entrySet()) {
+            String cmd = command.getKey();
+            String error = command.getValue();
+            expectError(
+                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option1\":?n1})"),
+                List.of(paramAsIdentifier("n1", "v1")),
+                LoggerMessageFormat.format(
+                    null,
+                    "line 1:{}: {}",
+                    error,
+                    "Invalid named function argument [\"option1\":?n1], only constant value is supported"
+                )
+            );
+            expectError(
+                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option1\":?n1})"),
+                List.of(paramAsPattern("n1", "v1")),
+                LoggerMessageFormat.format(
+                    null,
+                    "line 1:{}: {}",
+                    error,
+                    "Invalid named function argument [\"option1\":?n1], only constant value is supported"
+                )
+            );
+        }
+    }
 }

@@ -629,7 +629,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         List<String> names = new ArrayList<>(ctx.entryExpression().size());
         List<EsqlBaseParser.EntryExpressionContext> kvCtx = ctx.entryExpression();
         for (EsqlBaseParser.EntryExpressionContext entry : kvCtx) {
-            String key = visitString(entry.string()).fold().toString().toLowerCase(Locale.ROOT); // make key case-insensitive
+            EsqlBaseParser.StringContext stringCtx = entry.string();
+            String key = unquote(stringCtx.QUOTED_STRING().getText()); // key is case-sensitive
             if (key.isBlank()) {
                 throw new ParsingException(
                     source(ctx),
@@ -646,7 +647,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 if (l.dataType() == NULL) {
                     throw new ParsingException(source(ctx), "Invalid named function argument [{}], NULL is not supported", entryText);
                 }
-                namedArgs.add(new Literal(source(entry.string()), key, KEYWORD));
+                namedArgs.add(new Literal(source(stringCtx), key, KEYWORD));
                 namedArgs.add(l);
                 names.add(key);
             } else {

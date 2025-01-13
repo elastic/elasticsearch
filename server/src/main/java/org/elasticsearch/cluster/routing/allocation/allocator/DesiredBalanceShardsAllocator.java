@@ -60,8 +60,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     /**
      * This is a callback to run {@link AllocationService#executeWithRoutingAllocation(ClusterState, String, RerouteStrategy)}, which
      * produces a new ClusterState with the changes made by {@link DesiredBalanceReconciler#reconcile}. The {@link RerouteStrategy} provided
-     * to the callback calls into {@link #desiredBalanceReconciler} for the changes. The {@link #masterServiceTaskQueue} will apply the
-     * cluster state update.
+     * to the callback calls into {@link #desiredBalanceReconciler} for the changes. The {@link #masterServiceTaskQueue} will publish the
+     * new cluster state after the cluster state is constructed by the {@link ReconcileDesiredBalanceExecutor}.
      */
     private final DesiredBalanceReconcilerAction reconciler;
     private final DesiredBalanceComputer desiredBalanceComputer;

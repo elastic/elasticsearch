@@ -53,10 +53,7 @@ public class QueryRuleRetrieverBuilderTests extends AbstractXContentTestCase<Que
     protected QueryRuleRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
         return (QueryRuleRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
-            new RetrieverParserContext(
-                new SearchUsage(),
-                nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED || nf == QueryRuleRetrieverBuilder.QUERY_RULE_RETRIEVERS_SUPPORTED
-            )
+            new RetrieverParserContext(new SearchUsage(), nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED)
         );
     }
 

@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -35,15 +33,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * A {@code RetrieverBuilder} for parsing and constructing a text similarity reranker retriever.
  */
 public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder<TextSimilarityRankRetrieverBuilder> {
-
-    public static final NodeFeature TEXT_SIMILARITY_RERANKER_RETRIEVER_SUPPORTED = new NodeFeature(
-        "text_similarity_reranker_retriever_supported",
-        true
-    );
-    public static final NodeFeature TEXT_SIMILARITY_RERANKER_COMPOSITION_SUPPORTED = new NodeFeature(
-        "text_similarity_reranker_retriever_composition_supported",
-        true
-    );
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
@@ -76,14 +65,6 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
 
     public static TextSimilarityRankRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context)
         throws IOException {
-        if (context.clusterSupportsFeature(TEXT_SIMILARITY_RERANKER_RETRIEVER_SUPPORTED) == false) {
-            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + TextSimilarityRankBuilder.NAME + "]");
-        }
-        if (context.clusterSupportsFeature(TEXT_SIMILARITY_RERANKER_COMPOSITION_SUPPORTED) == false) {
-            throw new IllegalArgumentException(
-                "[text_similarity_reranker] retriever composition feature is not supported by all nodes in the cluster"
-            );
-        }
         if (TextSimilarityRankBuilder.TEXT_SIMILARITY_RERANKER_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
             throw LicenseUtils.newComplianceException(TextSimilarityRankBuilder.NAME);
         }

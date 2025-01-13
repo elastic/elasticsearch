@@ -68,12 +68,7 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
     protected TextSimilarityRankRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
         return (TextSimilarityRankRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
-            new RetrieverParserContext(
-                new SearchUsage(),
-                nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED
-                    || nf == TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_RETRIEVER_SUPPORTED
-                    || nf == TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_COMPOSITION_SUPPORTED
-            )
+            new RetrieverParserContext(new SearchUsage(), nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED)
         );
     }
 

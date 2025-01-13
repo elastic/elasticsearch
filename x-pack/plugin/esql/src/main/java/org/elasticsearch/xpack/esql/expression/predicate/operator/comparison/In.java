@@ -393,8 +393,7 @@ public class In extends EsqlScalarFunction {
             if ((nulls != null && nulls.get(i)) || (mvs != null && mvs.get(i))) {
                 continue;
             }
-            Boolean compResult = DateUtils.compareNanosToMillis(lhs, rhs[i]) == 0;
-            if (compResult == Boolean.TRUE) {
+            if (DateUtils.compareNanosToMillis(lhs, rhs[i]) == 0) {
                 return true;
             }
         }

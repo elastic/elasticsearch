@@ -407,12 +407,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
   issue: https://github.com/elastic/elasticsearch/issues/116777
-- class: org.elasticsearch.xpack.ml.integration.InferenceIngestInputConfigIT
-  method: testIngestWithInputFields
-  issue: https://github.com/elastic/elasticsearch/issues/118092
-- class: org.elasticsearch.xpack.ml.integration.InferenceIngestInputConfigIT
-  method: testIngestWithMultipleInputFields
-  issue: https://github.com/elastic/elasticsearch/issues/118093
 - class: org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT
   method: testRelocation
   issue: https://github.com/elastic/elasticsearch/issues/119280
@@ -439,18 +433,6 @@ tests:
 - class: org.elasticsearch.search.profile.dfs.DfsProfilerIT
   method: testProfileDfs
   issue: https://github.com/elastic/elasticsearch/issues/119711
-- class: org.elasticsearch.xpack.ml.integration.MlJobIT
-  method: testCreateJobInCustomSharedIndexUpdatesMapping
-  issue: https://github.com/elastic/elasticsearch/issues/119660
-- class: org.elasticsearch.xpack.ml.integration.MlJobIT
-  method: testUsage
-  issue: https://github.com/elastic/elasticsearch/issues/119659
-- class: org.elasticsearch.xpack.ml.integration.MlJobIT
-  method: testOpenJob_GivenTimeout_Returns408
-  issue: https://github.com/elastic/elasticsearch/issues/119810
-- class: org.elasticsearch.xpack.ml.integration.MlJobIT
-  method: testGetJob_GivenJobExists
-  issue: https://github.com/elastic/elasticsearch/issues/119811
 - class: org.elasticsearch.xpack.security.authc.ldap.ADLdapUserSearchSessionFactoryTests
   issue: https://github.com/elastic/elasticsearch/issues/119882
 - class: org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapperTests

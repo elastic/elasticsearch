@@ -203,7 +203,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 modelSettings.get(),
                 indexOptions.get(),
                 bitSetProducer,
-                indexSettings
+                indexSettings,
+                name
             );
         }
 
@@ -868,10 +869,21 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Nullable SemanticTextField.ModelSettings modelSettings,
         @Nullable SemanticTextField.IndexOptions indexOptions,
         Function<Query, BitSetProducer> bitSetProducer,
-        IndexSettings indexSettings
+        IndexSettings indexSettings,
+        String fieldName
     ) {
         return new ObjectMapper.Builder(INFERENCE_FIELD, Optional.of(ObjectMapper.Subobjects.ENABLED)).dynamic(ObjectMapper.Dynamic.FALSE)
-            .add(createChunksField(indexVersionCreated, useLegacyFormat, modelSettings, indexOptions, bitSetProducer, indexSettings))
+            .add(
+                createChunksField(
+                    indexVersionCreated,
+                    useLegacyFormat,
+                    modelSettings,
+                    indexOptions,
+                    bitSetProducer,
+                    indexSettings,
+                    fieldName
+                )
+            )
             .build(context);
     }
 
@@ -881,7 +893,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Nullable SemanticTextField.ModelSettings modelSettings,
         @Nullable SemanticTextField.IndexOptions indexOptions,
         Function<Query, BitSetProducer> bitSetProducer,
-        IndexSettings indexSettings
+        IndexSettings indexSettings,
+        String fieldName
     ) {
         NestedObjectMapper.Builder chunksField = new NestedObjectMapper.Builder(
             SemanticTextField.CHUNKS_FIELD,
@@ -891,7 +904,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         );
         chunksField.dynamic(ObjectMapper.Dynamic.FALSE);
         if (modelSettings != null) {
-            chunksField.add(createEmbeddingsField(indexSettings.getIndexVersionCreated(), modelSettings, indexOptions, useLegacyFormat));
+            chunksField.add(
+                createEmbeddingsField(indexSettings.getIndexVersionCreated(), modelSettings, indexOptions, useLegacyFormat, fieldName)
+            );
         }
         if (useLegacyFormat) {
             var chunkTextField = new KeywordFieldMapper.Builder(TEXT_FIELD, indexVersionCreated).indexed(false).docValues(false);
@@ -906,14 +921,20 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         IndexVersion indexVersionCreated,
         SemanticTextField.ModelSettings modelSettings,
         SemanticTextField.IndexOptions indexOptions,
-        boolean useLegacyFormat
+        boolean useLegacyFormat,
+        String fieldName
     ) {
         return switch (modelSettings.taskType()) {
             case SPARSE_EMBEDDING -> {
 
+                // We allow a mapping to be created with index options until we know more about the model;
+                // however, since we do not currently support sparse vector index options, this will throw
+                // the first time we try to index a document with incompatible options.
+                // TODO - Support better validation more in line with what we do for dense vector index options,
+                // when we know more about the options we want to support.
                 if (indexOptions != null) {
                     throw new IllegalArgumentException(
-                        "Unsupported [" + INDEX_OPTIONS_FIELD + "] specified for field [" + CHUNKED_EMBEDDINGS_FIELD + "]: " + indexOptions
+                        "Unsupported [" + INDEX_OPTIONS_FIELD + "] specified for field [" + fieldName + "]: " + indexOptions
                     );
                 }
 
@@ -940,10 +961,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 denseVectorMapperBuilder.elementType(modelSettings.elementType());
 
                 if (indexOptions != null) {
-                    assert (indexOptions instanceof SemanticTextField.DenseVectorIndexOptions);
-                    DenseVectorFieldMapper.IndexOptions denseVectorIndexOptions = convertToDenseVectorIndexOptions(
-                        (SemanticTextField.DenseVectorIndexOptions) indexOptions
-                    );
+                    DenseVectorFieldMapper.IndexOptions denseVectorIndexOptions = ((SemanticTextField.DenseVectorIndexOptions) indexOptions)
+                        .parsedIndexOptions(CHUNKED_EMBEDDINGS_FIELD);
                     denseVectorMapperBuilder.indexOptions(denseVectorIndexOptions);
                 }
 
@@ -951,22 +970,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
             default -> throw new IllegalArgumentException("Invalid task_type in model_settings [" + modelSettings.taskType().name() + "]");
         };
-    }
-
-    private static DenseVectorFieldMapper.IndexOptions convertToDenseVectorIndexOptions(
-        SemanticTextField.DenseVectorIndexOptions indexOptions
-    ) {
-        if (indexOptions == null) {
-            return null;
-        }
-        Map<String, Object> vectorIndexOptions = indexOptions.asMap();
-        String type = (String) vectorIndexOptions.remove(TYPE_FIELD);
-
-        DenseVectorFieldMapper.VectorIndexType vectorIndexType = DenseVectorFieldMapper.VectorIndexType.fromString(type).orElse(null);
-        if (vectorIndexType == null) {
-            return null;
-        }
-        return vectorIndexType.parseIndexOptions(CHUNKED_EMBEDDINGS_FIELD, vectorIndexOptions);
     }
 
     private static boolean canMergeModelSettings(

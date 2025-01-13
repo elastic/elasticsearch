@@ -32,7 +32,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,6 +40,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
@@ -196,7 +196,7 @@ public record SemanticTextField(
 
     public abstract static class IndexOptions implements ToXContentObject {
 
-        protected final String type;
+        private final String type;
 
         public IndexOptions(String type) {
             this.type = type;
@@ -205,15 +205,11 @@ public record SemanticTextField(
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            asMap().forEach((key, value) -> {
-                if (value != null) {
-                    try {
-                        builder.field(key, value);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
+            for (Map.Entry<String, Object> entry : asMap().entrySet()) {
+                if (entry.getValue() != null) {
+                    builder.field(entry.getKey(), entry.getValue());
                 }
-            });
+            }
             builder.endObject();
             return builder;
         }
@@ -227,16 +223,47 @@ public record SemanticTextField(
             return asMap().toString();
         }
 
-        public abstract Map<String, Object> asMap();
+        public Map<String, Object> asMap() {
+            Map<String, Object> map = new HashMap<>();
+            if (type != null) {
+                map.put(TYPE_FIELD, type);
+            }
+
+            map.putAll(
+                addParamsToMap().entrySet()
+                    .stream()
+                    .filter(entry -> entry.getValue() != null)
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            );
+            return map;
+        }
+
+        public abstract Map<String, Object> addParamsToMap();
+
+        public abstract void validate(String fieldName);
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            IndexOptions that = (IndexOptions) o;
+            return Objects.equals(type, that.type);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(type);
+        }
     }
 
     public static class DenseVectorIndexOptions extends IndexOptions {
 
         private final Integer m;
         private final Integer efConstruction;
-        private final Integer confidenceInterval;
+        private final Float confidenceInterval;
+        private DenseVectorFieldMapper.IndexOptions parsedIndexOptions;
 
-        public DenseVectorIndexOptions(String type, Integer m, Integer efConstruction, Integer confidenceInterval) {
+        public DenseVectorIndexOptions(String type, Integer m, Integer efConstruction, Float confidenceInterval) {
             super(type);
             this.m = m;
             this.efConstruction = efConstruction;
@@ -251,15 +278,20 @@ public record SemanticTextField(
             return efConstruction;
         }
 
-        public Integer confidenceInterval() {
+        public Float confidenceInterval() {
             return confidenceInterval;
         }
 
-        public Map<String, Object> asMap() {
-            Map<String, Object> map = new HashMap<>();
-            if (type != null) {
-                map.put(TYPE_FIELD, type);
+        public DenseVectorFieldMapper.IndexOptions parsedIndexOptions(String fieldName) {
+            if (parsedIndexOptions == null) {
+                parsedIndexOptions = DenseVectorFieldMapper.parseIndexOptions(fieldName, asMap());
             }
+            return parsedIndexOptions;
+        }
+
+        @Override
+        public Map<String, Object> addParamsToMap() {
+            Map<String, Object> map = new HashMap<>();
             if (m != null) {
                 map.put(M_FIELD, m);
             }
@@ -273,11 +305,18 @@ public record SemanticTextField(
         }
 
         @Override
+        public void validate(String fieldName) {
+            // Run dense vector index options through the dense vector field mapper validation
+            // so we error on invalid options at index creation time
+            parsedIndexOptions(fieldName);
+        }
+
+        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DenseVectorIndexOptions that = (DenseVectorIndexOptions) o;
-            return Objects.equals(type, that.type)
+            return super.equals(o)
                 && Objects.equals(m, that.m)
                 && Objects.equals(efConstruction, that.efConstruction)
                 && Objects.equals(confidenceInterval, that.confidenceInterval);
@@ -285,7 +324,7 @@ public record SemanticTextField(
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, m, efConstruction, confidenceInterval);
+            return Objects.hash(super.hashCode(), m, efConstruction, confidenceInterval);
         }
     }
 
@@ -347,10 +386,8 @@ public record SemanticTextField(
             );
             IndexOptions indexOptions = INDEX_OPTIONS_PARSER.parse(parser, null);
 
-            if (indexOptions.type != null && isDenseVectorIndexType(indexOptions.type)) {
-                // Run dense vector index options through the dense vector field mapper validation
-                // so we error on invalid options at index creation time
-                DenseVectorFieldMapper.parseIndexOptions(fieldName, node);
+            if (indexOptions.type != null) {
+                indexOptions.validate(fieldName);
             }
 
             return indexOptions;
@@ -477,7 +514,7 @@ public record SemanticTextField(
             if (type != null && isDenseVectorIndexType(type)) {
                 Integer m = (Integer) args[1];
                 Integer efConstruction = (Integer) args[2];
-                Integer confidenceInterval = (Integer) args[3];
+                Float confidenceInterval = (Float) args[3];
                 return new DenseVectorIndexOptions(type, m, efConstruction, confidenceInterval);
             }
 
@@ -520,7 +557,7 @@ public record SemanticTextField(
         INDEX_OPTIONS_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(TYPE_FIELD));
         INDEX_OPTIONS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(M_FIELD));
         INDEX_OPTIONS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(EF_CONSTRUCTION_FIELD));
-        INDEX_OPTIONS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(CONFIDENCE_INTERVAL_FIELD));
+        INDEX_OPTIONS_PARSER.declareFloat(ConstructingObjectParser.optionalConstructorArg(), new ParseField(CONFIDENCE_INTERVAL_FIELD));
     }
 
     private static Map<String, List<Chunk>> parseChunksMap(XContentParser parser, ParserContext context) throws IOException {

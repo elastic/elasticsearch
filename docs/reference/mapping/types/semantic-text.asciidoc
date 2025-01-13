@@ -98,7 +98,7 @@ If not specified, the {infer} endpoint defined by `inference_id` will be used at
 
 `index_options`::
 (Optional, string) Specifies configurable index options for indexing documents.
-For dense vector models, the configuration of `index_options` models the <<dense-vector-index-options>> configuration and defaults for dense vectors.
+For dense vector models, the configuration of `index_options` uses the defined <<dense-vector-index-options>> configuration and defaults for dense vectors.
 There are currently no supported index options for sparse models.
 
 WARNING: Index options are not validated against inference IDs at index creation time.

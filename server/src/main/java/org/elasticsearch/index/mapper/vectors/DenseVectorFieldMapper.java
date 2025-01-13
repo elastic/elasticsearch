@@ -88,6 +88,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -1262,6 +1263,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public boolean supportsDimension(int dims) {
                 return true;
             }
+
+            @Override
+            public Set<String> allowedOptions() {
+                return Set.of("m", "ef_construction");
+            }
         },
         INT8_HNSW("int8_hnsw", true) {
             @Override
@@ -1294,6 +1300,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public boolean supportsDimension(int dims) {
                 return true;
             }
+
+            @Override
+            public Set<String> allowedOptions() {
+                return Set.of("m", "ef_construction", "confidence_interval");
+            }
         },
         INT4_HNSW("int4_hnsw", true) {
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
@@ -1325,6 +1336,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public boolean supportsDimension(int dims) {
                 return dims % 2 == 0;
             }
+
+            @Override
+            public Set<String> allowedOptions() {
+                return Set.of("m", "ef_construction", "confidence_interval");
+            }
         },
         FLAT("flat", false) {
             @Override
@@ -1341,6 +1357,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             @Override
             public boolean supportsDimension(int dims) {
                 return true;
+            }
+
+            @Override
+            public Set<String> allowedOptions() {
+                return Set.of();
             }
         },
         INT8_FLAT("int8_flat", true) {
@@ -1364,6 +1385,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public boolean supportsDimension(int dims) {
                 return true;
             }
+
+            @Override
+            public Set<String> allowedOptions() {
+                return Set.of("confidence_interval");
+            }
         },
         INT4_FLAT("int4_flat", true) {
             @Override
@@ -1385,6 +1411,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             @Override
             public boolean supportsDimension(int dims) {
                 return dims % 2 == 0;
+            }
+
+            @Override
+            public Set<String> allowedOptions() {
+                return Set.of("confidence_interval");
             }
         },
         BBQ_HNSW("bbq_hnsw", true) {
@@ -1413,6 +1444,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public boolean supportsDimension(int dims) {
                 return dims >= BBQ_MIN_DIMS;
             }
+
+            @Override
+            public Set<String> allowedOptions() {
+                return Set.of("m", "ef_construction");
+            }
         },
         BBQ_FLAT("bbq_flat", true) {
             @Override
@@ -1429,6 +1465,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             @Override
             public boolean supportsDimension(int dims) {
                 return dims >= BBQ_MIN_DIMS;
+            }
+
+            @Override
+            public Set<String> allowedOptions() {
+                return Set.of();
             }
         };
 
@@ -1449,6 +1490,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract boolean supportsElementType(ElementType elementType);
 
         public abstract boolean supportsDimension(int dims);
+
+        public abstract Set<String> allowedOptions();
 
         public boolean isQuantized() {
             return quantized;

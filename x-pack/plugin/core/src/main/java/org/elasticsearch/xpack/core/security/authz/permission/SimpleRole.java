@@ -215,7 +215,7 @@ public class SimpleRole implements Role {
 
         final List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
         for (RemoteIndicesPermission.RemoteIndicesGroup remoteIndicesGroup : remoteIndicesPermission.remoteIndicesGroups()) {
-            for (IndicesPermission.Group indicesGroup : remoteIndicesGroup.indicesPermissionGroups()) {
+            for (Group indicesGroup : remoteIndicesGroup.indicesPermissionGroups()) {
                 indicesPrivileges.add(toIndicesPrivileges(indicesGroup));
             }
         }
@@ -237,7 +237,7 @@ public class SimpleRole implements Role {
         );
     }
 
-    private static Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> getFieldGrantExcludeGroups(IndicesPermission.Group group) {
+    private static Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> getFieldGrantExcludeGroups(Group group) {
         if (group.getFieldPermissions().hasFieldLevelSecurity()) {
             final List<FieldPermissionsDefinition> fieldPermissionsDefinitions = group.getFieldPermissions()
                 .getFieldPermissionsDefinitions();
@@ -250,7 +250,7 @@ public class SimpleRole implements Role {
         }
     }
 
-    private static RoleDescriptor.IndicesPrivileges toIndicesPrivileges(final IndicesPermission.Group indicesGroup) {
+    private static RoleDescriptor.IndicesPrivileges toIndicesPrivileges(final Group indicesGroup) {
         final Set<BytesReference> queries = indicesGroup.getQuery();
         final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldGrantExcludeGroups = getFieldGrantExcludeGroups(indicesGroup);
         assert queries == null || queries.size() <= 1

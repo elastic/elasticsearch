@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.Group;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -124,7 +125,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role.indices().groups().length, is(2));
         assertThat(role.runAs(), is(RunAsPermission.NONE));
 
-        IndicesPermission.Group group = role.indices().groups()[0];
+        Group group = role.indices().groups()[0];
         assertThat(group.indices(), notNullValue());
         assertThat(group.indices().length, is(2));
         assertThat(group.indices()[0], equalTo("idx1"));

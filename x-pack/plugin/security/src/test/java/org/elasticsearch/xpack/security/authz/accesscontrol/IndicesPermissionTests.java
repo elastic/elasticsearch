@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.authz.permission.Group;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -341,7 +342,7 @@ public class IndicesPermissionTests extends ESTestCase {
         }
         final ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> new IndicesPermission.Group(
+            () -> new Group(
                 IndexPrivilege.ALL,
                 FieldPermissions.DEFAULT,
                 null,
@@ -747,31 +748,28 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     public void testResourceAuthorizedPredicateAnd() {
-        IsResourceAuthorizedPredicate predicate1 = new IsResourceAuthorizedPredicate(
-            (String name, IndexAbstraction abstraction) -> {
-                StringMatcher regularNames = StringMatcher.of("c", "a");
-                StringMatcher nonDatastreamNames = StringMatcher.of("b", "d");
-                if (abstraction.getType() != IndexAbstraction.Type.DATA_STREAM && abstraction.getParentDataStream() == null) {
-                    if (nonDatastreamNames.test(name)) {
-                        return IndicesPermission.AuthorizedComponents.DATA;
-                    }
+        IsResourceAuthorizedPredicate predicate1 = new IsResourceAuthorizedPredicate((String name, IndexAbstraction abstraction) -> {
+            StringMatcher regularNames = StringMatcher.of("c", "a");
+            StringMatcher nonDatastreamNames = StringMatcher.of("b", "d");
+            if (abstraction.getType() != IndexAbstraction.Type.DATA_STREAM && abstraction.getParentDataStream() == null) {
+                if (nonDatastreamNames.test(name)) {
+                    return IndicesPermission.AuthorizedComponents.DATA;
                 }
-                return regularNames.test(name) ? IndicesPermission.AuthorizedComponents.DATA : IndicesPermission.AuthorizedComponents.NONE;
-
             }
-        );
-        IsResourceAuthorizedPredicate predicate2 = new IsResourceAuthorizedPredicate(
-            (String name, IndexAbstraction abstraction) -> {
-                StringMatcher regularNames = StringMatcher.of("c", "b");
-                StringMatcher nonDatastreamNames = StringMatcher.of("a", "d");
-                if (abstraction.getType() != IndexAbstraction.Type.DATA_STREAM && abstraction.getParentDataStream() == null) {
-                    if (nonDatastreamNames.test(name)) {
-                        return IndicesPermission.AuthorizedComponents.DATA;
-                    }
+            return regularNames.test(name) ? IndicesPermission.AuthorizedComponents.DATA : IndicesPermission.AuthorizedComponents.NONE;
+
+        });
+        IsResourceAuthorizedPredicate predicate2 = new IsResourceAuthorizedPredicate((String name, IndexAbstraction abstraction) -> {
+            StringMatcher regularNames = StringMatcher.of("c", "b");
+            StringMatcher nonDatastreamNames = StringMatcher.of("a", "d");
+            if (abstraction.getType() != IndexAbstraction.Type.DATA_STREAM && abstraction.getParentDataStream() == null) {
+                if (nonDatastreamNames.test(name)) {
+                    return IndicesPermission.AuthorizedComponents.DATA;
                 }
-                return regularNames.test(name) ? IndicesPermission.AuthorizedComponents.DATA : IndicesPermission.AuthorizedComponents.NONE;
-
             }
+            return regularNames.test(name) ? IndicesPermission.AuthorizedComponents.DATA : IndicesPermission.AuthorizedComponents.NONE;
+
+        }
 
         );
         Metadata.Builder mb = Metadata.builder(

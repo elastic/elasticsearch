@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.authz.permission.Group;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
@@ -783,13 +784,13 @@ public class RBACEngine implements AuthorizationEngine {
         }
 
         final Set<GetUserPrivilegesResponse.Indices> indices = new LinkedHashSet<>();
-        for (IndicesPermission.Group group : userRole.indices().groups()) {
+        for (Group group : userRole.indices().groups()) {
             indices.add(toIndices(group));
         }
 
         final Set<GetUserPrivilegesResponse.RemoteIndices> remoteIndices = new LinkedHashSet<>();
         for (RemoteIndicesPermission.RemoteIndicesGroup remoteIndicesGroup : userRole.remoteIndices().remoteIndicesGroups()) {
-            for (IndicesPermission.Group group : remoteIndicesGroup.indicesPermissionGroups()) {
+            for (Group group : remoteIndicesGroup.indicesPermissionGroups()) {
                 remoteIndices.add(new GetUserPrivilegesResponse.RemoteIndices(toIndices(group), remoteIndicesGroup.remoteClusterAliases()));
             }
         }
@@ -831,7 +832,7 @@ public class RBACEngine implements AuthorizationEngine {
         );
     }
 
-    private static GetUserPrivilegesResponse.Indices toIndices(final IndicesPermission.Group group) {
+    private static GetUserPrivilegesResponse.Indices toIndices(final Group group) {
         final Set<BytesReference> queries = group.getQuery() == null ? Collections.emptySet() : group.getQuery();
         final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity = getFieldGrantExcludeGroups(group);
         return new GetUserPrivilegesResponse.Indices(
@@ -843,7 +844,7 @@ public class RBACEngine implements AuthorizationEngine {
         );
     }
 
-    private static Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> getFieldGrantExcludeGroups(IndicesPermission.Group group) {
+    private static Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> getFieldGrantExcludeGroups(Group group) {
         if (group.getFieldPermissions().hasFieldLevelSecurity()) {
             final List<FieldPermissionsDefinition> fieldPermissionsDefinitions = group.getFieldPermissions()
                 .getFieldPermissionsDefinitions();

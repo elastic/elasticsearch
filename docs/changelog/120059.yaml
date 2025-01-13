@@ -1,0 +1,5 @@
+pr: 120059
+summary: Lower `_source.mode` mapping attribute deprecation issue level
+area: Mapping
+type: bug
+issues: []

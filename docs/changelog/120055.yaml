@@ -1,0 +1,6 @@
+pr: 120055
+summary: Skip large parts of mappings when loading `MapperService` in `LogsdbInde`
+  `xModeSettingsProvider`
+area: "Mapping, Logs"
+type: enhancement
+issues: []

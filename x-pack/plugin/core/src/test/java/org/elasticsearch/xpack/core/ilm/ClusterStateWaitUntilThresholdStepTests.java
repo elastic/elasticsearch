@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
 
@@ -83,7 +82,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                         .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "480h")
                 )
                 .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(System.currentTimeMillis())))
-                .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+                .putCustom(CCR_METADATA_KEY, Map.of())
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .build();
@@ -107,7 +106,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                         .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "48h")
                 )
                 .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(System.currentTimeMillis())))
-                .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+                .putCustom(CCR_METADATA_KEY, Map.of())
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .build();
@@ -140,7 +139,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                     settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true")
                         .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1s")
                 )
-                .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+                .putCustom(CCR_METADATA_KEY, Map.of())
                 .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(1234L)))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
@@ -168,7 +167,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                     settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "false")
                         .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1h")
                 )
-                .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+                .putCustom(CCR_METADATA_KEY, Map.of())
                 .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(1234L)))
                 .numberOfShards(1)
                 .numberOfReplicas(0)

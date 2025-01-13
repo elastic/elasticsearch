@@ -9,6 +9,8 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import fixture.aws.imds.Ec2ImdsHttpFixture;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -34,7 +36,7 @@ public abstract class DiscoveryEc2AvailabilityZoneAttributeTestCase extends ESRe
         return ElasticsearchCluster.local()
             .plugin("discovery-ec2")
             .setting(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), "true")
-            .systemProperty("com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", imdsFixtureAddressSupplier)
+            .systemProperty(Ec2ImdsHttpFixture.ENDPOINT_OVERRIDE_SYSPROP_NAME, imdsFixtureAddressSupplier)
             .build();
     }
 

@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
@@ -39,7 +40,7 @@ public class ReindexDataStreamStatusTests extends AbstractWireSerializingTestCas
             randomNegativeInt(),
             randomBoolean(),
             nullableTestException(),
-            randomNegativeInt(),
+            randomSet(0),
             randomNegativeInt(),
             randomErrorList()
         );
@@ -68,6 +69,10 @@ public class ReindexDataStreamStatusTests extends AbstractWireSerializingTestCas
         return randomList(minSize, Math.max(minSize, 100), () -> randomAlphaOfLength(50));
     }
 
+    private Set<String> randomSet(int minSize) {
+        return randomSet(minSize, Math.max(minSize, 100), () -> randomAlphaOfLength(50));
+    }
+
     private List<Tuple<String, Exception>> randomErrorList() {
         return randomErrorList(0);
     }
@@ -83,7 +88,7 @@ public class ReindexDataStreamStatusTests extends AbstractWireSerializingTestCas
         int totalIndicesToBeUpgraded = instance.totalIndicesToBeUpgraded();
         boolean complete = instance.complete();
         Exception exception = instance.exception();
-        int inProgress = instance.inProgress();
+        Set<String> inProgress = instance.inProgress();
         int pending = instance.pending();
         List<Tuple<String, Exception>> errors = instance.errors();
         switch (randomIntBetween(0, 6)) {
@@ -91,7 +96,7 @@ public class ReindexDataStreamStatusTests extends AbstractWireSerializingTestCas
             case 1 -> totalIndices = totalIndices + 1;
             case 2 -> totalIndicesToBeUpgraded = totalIndicesToBeUpgraded + 1;
             case 3 -> complete = complete == false;
-            case 4 -> inProgress = inProgress + 1;
+            case 4 -> inProgress = randomSet(inProgress.size() + 1);
             case 5 -> pending = pending + 1;
             case 6 -> errors = randomErrorList(errors.size() + 1);
             default -> throw new UnsupportedOperationException();
@@ -115,7 +120,7 @@ public class ReindexDataStreamStatusTests extends AbstractWireSerializingTestCas
             100,
             true,
             new ElasticsearchException("the whole task failed"),
-            12,
+            randomSet(12, 12, () -> randomAlphaOfLength(50)),
             8,
             List.of(
                 Tuple.tuple("index7", new ElasticsearchException("index7 failed")),
@@ -131,8 +136,9 @@ public class ReindexDataStreamStatusTests extends AbstractWireSerializingTestCas
                     parserMap,
                     equalTo(
                         Map.ofEntries(
-                            entry("start_time", 1234),
-                            entry("total_indices", 200),
+                            entry("start_time", "1970-01-01T00:00:01.234Z"),
+                            entry("start_time_millis", 1234),
+                            entry("total_indices_in_data_stream", 200),
                             entry("total_indices_requiring_upgrade", 100),
                             entry("complete", true),
                             entry("exception", "the whole task failed"),

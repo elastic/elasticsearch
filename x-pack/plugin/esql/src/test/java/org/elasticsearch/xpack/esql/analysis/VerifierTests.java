@@ -945,6 +945,33 @@ public class VerifierTests extends ESTestCase {
 
     public void testFilterNonBoolField() {
         assertEquals("1:19: Condition expression needs to be boolean, found [INTEGER]", error("from test | where emp_no"));
+
+        assertEquals(
+            "1:19: Condition expression needs to be boolean, found [KEYWORD]",
+            error("from test | where concat(first_name, \"foobar\")")
+        );
+    }
+
+    public void testFilterNullField() {
+        // `where null` should return empty result set
+        query("from test | where null");
+
+        // Value null of type `BOOLEAN`
+        query("from test | where null::boolean");
+
+        // Provide `NULL` type in `EVAL`
+        query("from t | EVAL x = null | where x");
+
+        // `to_string(null)` is of `KEYWORD` type null, resulting in `to_string(null) == "abc"` being of `BOOLEAN`
+        query("from t | where to_string(null) == \"abc\"");
+
+        // Other DataTypes can contain null values
+        assertEquals("1:19: Condition expression needs to be boolean, found [KEYWORD]", error("from test | where null::string"));
+        assertEquals("1:19: Condition expression needs to be boolean, found [INTEGER]", error("from test | where null::integer"));
+        assertEquals(
+            "1:45: Condition expression needs to be boolean, found [DATETIME]",
+            error("from test | EVAL x = null::datetime | where x")
+        );
     }
 
     public void testFilterDateConstant() {
@@ -1166,12 +1193,14 @@ public class VerifierTests extends ESTestCase {
     public void testMatchFilter() throws Exception {
         assertEquals(
             "1:19: Invalid condition [first_name:\"Anna\" or starts_with(first_name, \"Anne\")]. "
-                + "[:] operator can't be used as part of an or condition",
+                + "Full text functions can be used in an OR condition, "
+                + "but only if just full text functions are used in the OR condition",
             error("from test | where first_name:\"Anna\" or starts_with(first_name, \"Anne\")")
         );
 
         assertEquals(
-            "1:51: Invalid condition [first_name:\"Anna\" OR new_salary > 100]. " + "[:] operator can't be used as part of an or condition",
+            "1:51: Invalid condition [first_name:\"Anna\" OR new_salary > 100]. Full text functions can be"
+                + " used in an OR condition, but only if just full text functions are used in the OR condition",
             error("from test | eval new_salary = salary + 10 | where first_name:\"Anna\" OR new_salary > 100")
         );
     }
@@ -1259,9 +1288,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testKqlFunctionsNotAllowedAfterCommands() throws Exception {
-        // Skip test if the kql function is not enabled.
-        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
-
         // Source commands
         assertEquals("1:13: [KQL] function cannot be used after SHOW", error("show info | where kql(\"8.16.0\")"));
         assertEquals("1:17: [KQL] function cannot be used after ROW", error("row a= \"Anna\" | where kql(\"Anna\")"));
@@ -1319,9 +1345,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testKqlFunctionOnlyAllowedInWhere() throws Exception {
-        // Skip test if the kql function is not enabled.
-        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
-
         assertEquals("1:9: [KQL] function is only supported in WHERE commands", error("row a = kql(\"Anna\")"));
         checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Anna\")", "function");
     }
@@ -1373,9 +1396,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testKqlFunctionArgNotNullOrConstant() throws Exception {
-        // Skip test if the kql function is not enabled.
-        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
-
         assertEquals(
             "1:19: argument of [kql(first_name)] must be a constant, received [first_name]",
             error("from test | where kql(first_name)")
@@ -1389,9 +1409,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testKqlFunctionWithDisjunctions() {
-        // Skip test if the kql function is not enabled.
-        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
-
         checkWithDisjunctions("KQL", "kql(\"first_name: Anna\")", "function");
     }
 
@@ -1409,46 +1426,52 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void checkWithDisjunctions(String functionName, String functionInvocation, String functionType) {
+        String expression = functionInvocation + " or length(first_name) > 12";
+        checkdisjunctionError("1:19", expression, functionName, functionType);
+        expression = "(" + functionInvocation + " or first_name is not null) or (length(first_name) > 12 and match(last_name, \"Smith\"))";
+        checkdisjunctionError("1:19", expression, functionName, functionType);
+        expression = functionInvocation + " or (last_name is not null and first_name is null)";
+        checkdisjunctionError("1:19", expression, functionName, functionType);
+    }
+
+    private void checkdisjunctionError(String position, String expression, String functionName, String functionType) {
         assertEquals(
             LoggerMessageFormat.format(
                 null,
-                "1:19: Invalid condition [{} or length(first_name) > 12]. "
-                    + "[{}] "
-                    + functionType
-                    + " can't be used as part of an or condition",
-                functionInvocation,
-                functionName
+                "{}: Invalid condition [{}]. Full text functions can be used in an OR condition, "
+                    + "but only if just full text functions are used in the OR condition",
+                position,
+                expression
             ),
-            error("from test | where " + functionInvocation + " or length(first_name) > 12")
+            error("from test | where " + expression)
         );
-        assertEquals(
-            LoggerMessageFormat.format(
-                null,
-                "1:19: Invalid condition [({} and first_name is not null) or (length(first_name) > 12 and first_name is null)]. "
-                    + "[{}] "
-                    + functionType
-                    + " can't be used as part of an or condition",
-                functionInvocation,
-                functionName
-            ),
-            error(
-                "from test | where ("
-                    + functionInvocation
-                    + " and first_name is not null) or (length(first_name) > 12 and first_name is null)"
-            )
-        );
-        assertEquals(
-            LoggerMessageFormat.format(
-                null,
-                "1:19: Invalid condition [({} and first_name is not null) or first_name is null]. "
-                    + "[{}] "
-                    + functionType
-                    + " can't be used as part of an or condition",
-                functionInvocation,
-                functionName
-            ),
-            error("from test | where (" + functionInvocation + " and first_name is not null) or first_name is null")
-        );
+    }
+
+    public void testFullTextFunctionsDisjunctions() {
+        checkWithFullTextFunctionsDisjunctions("MATCH", "match(last_name, \"Smith\")", "function");
+        checkWithFullTextFunctionsDisjunctions(":", "last_name : \"Smith\"", "operator");
+        checkWithFullTextFunctionsDisjunctions("QSTR", "qstr(\"last_name: Smith\")", "function");
+        checkWithFullTextFunctionsDisjunctions("KQL", "kql(\"last_name: Smith\")", "function");
+    }
+
+    private void checkWithFullTextFunctionsDisjunctions(String functionName, String functionInvocation, String functionType) {
+
+        String expression = functionInvocation + " or length(first_name) > 10";
+        checkdisjunctionError("1:19", expression, functionName, functionType);
+
+        expression = "match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)";
+        checkdisjunctionError("1:19", expression, functionName, functionType);
+
+        expression = "("
+            + functionInvocation
+            + " and length(first_name) > 0) or (match(last_name, \"Anneke\") and length(first_name) > 10)";
+        checkdisjunctionError("1:19", expression, functionName, functionType);
+
+        query("from test | where " + functionInvocation + " or match(first_name, \"Anna\")");
+        query("from test | where " + functionInvocation + " or not match(first_name, \"Anna\")");
+        query("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and length(first_name) > 10");
+        query("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and match(last_name, \"Smith\")");
+        query("from test | where " + functionInvocation + " or (match(first_name, \"Anna\") and match(last_name, \"Smith\"))");
     }
 
     public void testQueryStringFunctionWithNonBooleanFunctions() {
@@ -1456,9 +1479,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testKqlFunctionWithNonBooleanFunctions() {
-        // Skip test if the kql function is not enabled.
-        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
-
         checkFullTextFunctionsWithNonBooleanFunctions("KQL", "kql(\"first_name: Anna\")", "function");
     }
 
@@ -1869,38 +1889,35 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testCategorizeSingleGrouping() {
-        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V5.isEnabled());
-
-        query("from test | STATS COUNT(*) BY CATEGORIZE(first_name)");
-        query("from test | STATS COUNT(*) BY cat = CATEGORIZE(first_name)");
+    public void testCategorizeOnlyFirstGrouping() {
+        query("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name)");
+        query("FROM test | STATS COUNT(*) BY cat = CATEGORIZE(first_name)");
+        query("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), emp_no");
+        query("FROM test | STATS COUNT(*) BY a = CATEGORIZE(first_name), b = emp_no");
 
         assertEquals(
-            "1:31: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings",
-            error("from test | STATS COUNT(*) BY CATEGORIZE(first_name), emp_no")
-        );
-        assertEquals(
-            "1:39: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings",
+            "1:39: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression",
             error("FROM test | STATS COUNT(*) BY emp_no, CATEGORIZE(first_name)")
         );
         assertEquals(
-            "1:35: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings",
-            error("FROM test | STATS COUNT(*) BY a = CATEGORIZE(first_name), b = emp_no")
-        );
-        assertEquals(
-            "1:31: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings\n"
-                + "line 1:55: cannot use CATEGORIZE grouping function [CATEGORIZE(last_name)] with multiple groupings",
+            "1:55: CATEGORIZE grouping function [CATEGORIZE(last_name)] can only be in the first grouping expression",
             error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), CATEGORIZE(last_name)")
         );
         assertEquals(
-            "1:31: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings",
+            "1:55: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression",
             error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), CATEGORIZE(first_name)")
+        );
+        assertEquals(
+            "1:63: CATEGORIZE grouping function [CATEGORIZE(last_name)] can only be in the first grouping expression",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), emp_no, CATEGORIZE(last_name)")
+        );
+        assertEquals(
+            "1:63: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), emp_no, CATEGORIZE(first_name)")
         );
     }
 
     public void testCategorizeNestedGrouping() {
-        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V5.isEnabled());
-
         query("from test | STATS COUNT(*) BY CATEGORIZE(LENGTH(first_name)::string)");
 
         assertEquals(
@@ -1914,8 +1931,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testCategorizeWithinAggregations() {
-        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V5.isEnabled());
-
         query("from test | STATS MV_COUNT(cat), COUNT(*) BY cat = CATEGORIZE(first_name)");
         query("from test | STATS MV_COUNT(CATEGORIZE(first_name)), COUNT(*) BY cat = CATEGORIZE(first_name)");
         query("from test | STATS MV_COUNT(CATEGORIZE(first_name)), COUNT(*) BY CATEGORIZE(first_name)");
@@ -1944,8 +1959,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testCategorizeWithFilteredAggregations() {
-        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE_V5.isEnabled());
-
         query("FROM test | STATS COUNT(*) WHERE first_name == \"John\" BY CATEGORIZE(last_name)");
         query("FROM test | STATS COUNT(*) WHERE last_name == \"Doe\" BY CATEGORIZE(last_name)");
 
@@ -1971,7 +1984,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testLookupJoinDataTypeMismatch() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V4.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
 
         query("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
 
@@ -1982,7 +1995,11 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void query(String query) {
-        defaultAnalyzer.analyze(parser.createStatement(query));
+        query(query, defaultAnalyzer);
+    }
+
+    private void query(String query, Analyzer analyzer) {
+        analyzer.analyze(parser.createStatement(query));
     }
 
     private String error(String query) {

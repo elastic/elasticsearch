@@ -90,7 +90,8 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             : (this.shouldPruneTokens ? new TokenPruningConfig() : null));
         this.weightedTokensSupplier = null;
 
-        if (queryVectors == null ^ inferenceId == null == false) {
+        // Preserve BWC error messaging
+        if (queryVectors != null && inferenceId != null) {
             throw new IllegalArgumentException(
                 "["
                     + NAME
@@ -98,18 +99,24 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                     + QUERY_VECTOR_FIELD.getPreferredName()
                     + "] or ["
                     + INFERENCE_ID_FIELD.getPreferredName()
-                    + "]"
+                    + "] for "
+                    + ALLOWED_FIELD_TYPE
+                    + " fields"
             );
         }
-        if (inferenceId != null && query == null) {
+
+        // Preserve BWC error messaging
+        if ((queryVectors == null) == (query == null)) {
             throw new IllegalArgumentException(
                 "["
                     + NAME
-                    + "] requires ["
-                    + QUERY_FIELD.getPreferredName()
-                    + "] when ["
+                    + "] requires one of ["
+                    + QUERY_VECTOR_FIELD.getPreferredName()
+                    + "] or ["
                     + INFERENCE_ID_FIELD.getPreferredName()
-                    + "] is specified"
+                    + "] for "
+                    + ALLOWED_FIELD_TYPE
+                    + " fields"
             );
         }
     }
@@ -141,6 +148,14 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     public List<WeightedToken> getQueryVectors() {
         return queryVectors;
+    }
+
+    public String getInferenceId() {
+        return inferenceId;
+    }
+
+    public String getQuery() {
+        return query;
     }
 
     public boolean shouldPruneTokens() {
@@ -176,7 +191,9 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             }
             builder.endObject();
         } else {
-            builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
+            if (inferenceId != null) {
+                builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
+            }
             builder.field(QUERY_FIELD.getPreferredName(), query);
         }
         builder.field(PRUNE_FIELD.getPreferredName(), shouldPruneTokens);
@@ -228,6 +245,11 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                 shouldPruneTokens,
                 tokenPruningConfig
             );
+        } else if (inferenceId == null) {
+            // Edge case, where inference_id was not specified in the request,
+            // but we did not intercept this and rewrite to a query o field with
+            // pre-configured inference. So we trap here and output a nicer error message.
+            throw new IllegalArgumentException("inference_id required to perform vector search on query string");
         }
 
         // TODO move this to xpack core and use inference APIs

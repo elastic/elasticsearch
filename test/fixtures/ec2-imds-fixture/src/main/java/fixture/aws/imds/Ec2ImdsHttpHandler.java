@@ -14,8 +14,11 @@ import com.sun.net.httpserver.HttpHandler;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -23,6 +26,7 @@ import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -43,19 +47,39 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
     private final Set<String> validImdsTokens = ConcurrentCollections.newConcurrentSet();
 
     private final BiConsumer<String, String> newCredentialsConsumer;
-    private final Set<String> validCredentialsEndpoints = ConcurrentCollections.newConcurrentSet();
+    private final Map<String, String> instanceAddresses;
+    private final Set<String> validCredentialsEndpoints;
+    private final boolean dynamicProfileNames;
     private final Supplier<String> availabilityZoneSupplier;
+    @Nullable // if instance identity document not available
+    private final ToXContent instanceIdentityDocument;
 
     public Ec2ImdsHttpHandler(
         Ec2ImdsVersion ec2ImdsVersion,
         BiConsumer<String, String> newCredentialsConsumer,
         Collection<String> alternativeCredentialsEndpoints,
-        Supplier<String> availabilityZoneSupplier
+        Supplier<String> availabilityZoneSupplier,
+        @Nullable ToXContent instanceIdentityDocument,
+        Map<String, String> instanceAddresses
     ) {
         this.ec2ImdsVersion = Objects.requireNonNull(ec2ImdsVersion);
         this.newCredentialsConsumer = Objects.requireNonNull(newCredentialsConsumer);
-        this.validCredentialsEndpoints.addAll(alternativeCredentialsEndpoints);
+        this.instanceAddresses = instanceAddresses;
+
+        if (alternativeCredentialsEndpoints.isEmpty()) {
+            dynamicProfileNames = true;
+            validCredentialsEndpoints = ConcurrentCollections.newConcurrentSet();
+        } else if (ec2ImdsVersion == Ec2ImdsVersion.V2) {
+            throw new IllegalArgumentException(
+                Strings.format("alternative credentials endpoints %s requires IMDSv1", alternativeCredentialsEndpoints)
+            );
+        } else {
+            dynamicProfileNames = false;
+            validCredentialsEndpoints = Set.copyOf(alternativeCredentialsEndpoints);
+        }
+
         this.availabilityZoneSupplier = availabilityZoneSupplier;
+        this.instanceIdentityDocument = instanceIdentityDocument;
     }
 
     @Override
@@ -74,6 +98,8 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
                         validImdsTokens.add(token);
                         final var responseBody = token.getBytes(StandardCharsets.UTF_8);
                         exchange.getResponseHeaders().add("Content-Type", "text/plain");
+                        exchange.getResponseHeaders()
+                            .add("x-aws-ec2-metadata-token-ttl-seconds", Long.toString(TimeValue.timeValueDays(1).seconds()));
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBody.length);
                         exchange.getResponseBody().write(responseBody);
                     }
@@ -94,20 +120,17 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
             }
 
             if ("GET".equals(requestMethod)) {
-                if (path.equals(IMDS_SECURITY_CREDENTIALS_PATH)) {
+                if (path.equals(IMDS_SECURITY_CREDENTIALS_PATH) && dynamicProfileNames) {
                     final var profileName = randomIdentifier();
                     validCredentialsEndpoints.add(IMDS_SECURITY_CREDENTIALS_PATH + profileName);
-                    final byte[] response = profileName.getBytes(StandardCharsets.UTF_8);
-                    exchange.getResponseHeaders().add("Content-Type", "text/plain");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                    exchange.getResponseBody().write(response);
+                    sendStringResponse(exchange, profileName);
                     return;
                 } else if (path.equals("/latest/meta-data/placement/availability-zone")) {
                     final var availabilityZone = availabilityZoneSupplier.get();
-                    final byte[] response = availabilityZone.getBytes(StandardCharsets.UTF_8);
-                    exchange.getResponseHeaders().add("Content-Type", "text/plain");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                    exchange.getResponseBody().write(response);
+                    sendStringResponse(exchange, availabilityZone);
+                    return;
+                } else if (instanceIdentityDocument != null && path.equals("/latest/dynamic/instance-identity/document")) {
+                    sendStringResponse(exchange, Strings.toString(instanceIdentityDocument));
                     return;
                 } else if (validCredentialsEndpoints.contains(path)) {
                     final String accessKey = randomIdentifier();
@@ -132,10 +155,20 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                     exchange.getResponseBody().write(response);
                     return;
+                } else if (instanceAddresses.get(path) instanceof String instanceAddress) {
+                    sendStringResponse(exchange, instanceAddress);
+                    return;
                 }
             }
 
             ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError("not supported: " + requestMethod + " " + path));
         }
+    }
+
+    private void sendStringResponse(HttpExchange exchange, String value) throws IOException {
+        final byte[] response = value.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "text/plain");
+        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+        exchange.getResponseBody().write(response);
     }
 }

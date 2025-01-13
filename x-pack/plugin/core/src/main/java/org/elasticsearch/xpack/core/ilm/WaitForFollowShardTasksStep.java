@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 
@@ -78,7 +77,7 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
                         status.followerGlobalCheckpoint()
                     )
                 )
-                .collect(Collectors.toList());
+                .toList();
             listener.onResponse(false, new Info(shardFollowTaskInfos));
         }
     }

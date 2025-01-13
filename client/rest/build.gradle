@@ -36,7 +36,7 @@ base {
 }
 
 // LLRC is licenses under Apache 2.0
-projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
+projectLicenses.set(['The Apache Software License, Version 2.0': providers.provider(() -> 'http://www.apache.org/licenses/LICENSE-2.0')])
 licenseFile.set(rootProject.file('licenses/APACHE-LICENSE-2.0.txt'))
 
 dependencies {

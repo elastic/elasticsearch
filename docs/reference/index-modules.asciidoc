@@ -113,7 +113,7 @@ Index mode supports the following values:
 
 `standard`::: Standard indexing with default settings.
 
-`tsds`::: _(data streams only)_ Index mode optimized for storage of metrics. For more information, see <<tsds-index-settings>>.
+`time_series`::: _(data streams only)_ Index mode optimized for storage of metrics. For more information, see <<tsds-index-settings>>.
 
 `logsdb`::: _(data streams only)_ Index mode optimized for <<logs-data-stream,logs>>.
 

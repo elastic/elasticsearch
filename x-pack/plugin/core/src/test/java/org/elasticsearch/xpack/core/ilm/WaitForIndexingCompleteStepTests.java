@@ -15,7 +15,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
-import java.util.Collections;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,7 +54,7 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
     public void testConditionMet() {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Map.of())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -93,7 +93,7 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
         }
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(indexSettings)
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Map.of())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();

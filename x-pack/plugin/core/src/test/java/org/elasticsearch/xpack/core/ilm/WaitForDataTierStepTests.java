@@ -64,9 +64,7 @@ public class WaitForDataTierStepTests extends AbstractStepTestCase<WaitForDataTi
 
     public void testConditionMet() {
         String notIncludedTier = randomFrom(DataTier.ALL_DATA_TIERS);
-        List<String> otherTiers = DataTier.ALL_DATA_TIERS.stream()
-            .filter(tier -> notIncludedTier.equals(tier) == false)
-            .collect(Collectors.toList());
+        List<String> otherTiers = DataTier.ALL_DATA_TIERS.stream().filter(tier -> notIncludedTier.equals(tier) == false).toList();
         List<String> includedTiers = randomSubsetOf(between(1, otherTiers.size()), otherTiers);
         String tierPreference = String.join(",", includedTiers);
         WaitForDataTierStep step = new WaitForDataTierStep(randomStepKey(), randomStepKey(), tierPreference);

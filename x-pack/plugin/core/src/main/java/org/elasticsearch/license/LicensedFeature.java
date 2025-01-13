@@ -104,7 +104,7 @@ public abstract class LicensedFeature {
         return needsActive;
     }
 
-    /** Create a momentary feature for hte given license level */
+    /** Create a momentary feature for the given license level */
     public static Momentary momentary(String family, String name, License.OperationMode licenseLevel) {
         return new Momentary(family, name, licenseLevel, true);
     }

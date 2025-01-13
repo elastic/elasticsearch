@@ -15,10 +15,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class MockAction implements LifecycleAction {
     public static final String NAME = "TEST_ACTION";
@@ -32,7 +30,7 @@ public class MockAction implements LifecycleAction {
     }
 
     public MockAction() {
-        this(Collections.emptyList());
+        this(List.of());
     }
 
     public MockAction(List<Step> steps) {
@@ -77,7 +75,7 @@ public class MockAction implements LifecycleAction {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(steps.stream().map(MockStep::new).collect(Collectors.toList()));
+        out.writeCollection(steps.stream().map(MockStep::new).toList());
         out.writeBoolean(safe);
     }
 

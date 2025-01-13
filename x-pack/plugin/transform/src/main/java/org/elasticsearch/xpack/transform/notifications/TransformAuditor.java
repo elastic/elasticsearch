@@ -64,7 +64,7 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
         clusterService.addListener(event -> {
             if (event.metadataChanged()) {
                 boolean oldIsResetMode = isResetMode;
-                boolean newIsResetMode = TransformMetadata.getTransformMetadata(event.state()).isResetMode();
+                boolean newIsResetMode = TransformMetadata.getTransformMetadata(event.state()).resetMode();
                 if (oldIsResetMode != newIsResetMode) {
                     logger.debug("TransformAuditor has noticed change of isResetMode bit from {} to {}", oldIsResetMode, newIsResetMode);
                 }

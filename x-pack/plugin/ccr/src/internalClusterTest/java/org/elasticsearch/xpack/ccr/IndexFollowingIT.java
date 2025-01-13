@@ -485,7 +485,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertAcked(followerClient().admin().indices().aliases(request).actionGet());
         final GetAliasesResponse response = followerClient().admin()
             .indices()
-            .getAliases(new GetAliasesRequest("follower_alias"))
+            .getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT, "follower_alias"))
             .actionGet();
         assertThat(response.getAliases().keySet().size(), equalTo(1));
         assertThat(response.getAliases().keySet().iterator().next(), equalTo("follower"));
@@ -605,8 +605,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
     public void testFollowNonExistentIndex() throws Exception {
         String indexSettings = getIndexSettings(1, 0);
-        assertAcked(leaderClient().admin().indices().prepareCreate("test-leader").setSource(indexSettings, XContentType.JSON).get());
         assertAcked(
+            leaderClient().admin().indices().prepareCreate("test-leader").setSource(indexSettings, XContentType.JSON),
             followerClient().admin()
                 .indices()
                 .prepareCreate("test-follower")

@@ -71,7 +71,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -529,8 +528,7 @@ public class MetadataCreateIndexService {
                     temporaryIndexMeta.getSettings(),
                     temporaryIndexMeta.getRoutingNumShards(),
                     sourceMetadata,
-                    temporaryIndexMeta.isSystem(),
-                    currentState.getMinTransportVersion()
+                    temporaryIndexMeta.isSystem()
                 );
             } catch (Exception e) {
                 logger.info("failed to build index metadata [{}]", request.index());
@@ -1340,15 +1338,10 @@ public class MetadataCreateIndexService {
         Settings indexSettings,
         int routingNumShards,
         @Nullable IndexMetadata sourceMetadata,
-        boolean isSystem,
-        TransportVersion minClusterTransportVersion
+        boolean isSystem
     ) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
-        if (minClusterTransportVersion.before(TransportVersions.V_8_15_0)) {
-            // promote to UNKNOWN for older versions since they don't know how to handle event.ingested in cluster state
-            indexMetadataBuilder.eventIngestedRange(IndexLongFieldRange.UNKNOWN, minClusterTransportVersion);
-        }
         // now, update the mappings with the actual source
         Map<String, MappingMetadata> mappingsMetadata = new HashMap<>();
         DocumentMapper docMapper = documentMapperSupplier.get();
@@ -1675,23 +1668,11 @@ public class MetadataCreateIndexService {
             throw new IllegalStateException("unknown resize type is " + type);
         }
 
-        final Settings.Builder builder = Settings.builder();
+        final Settings.Builder builder;
         if (copySettings) {
-            // copy all settings and non-copyable settings and settings that have already been set (e.g., from the request)
-            for (final String key : sourceMetadata.getSettings().keySet()) {
-                final Setting<?> setting = indexScopedSettings.get(key);
-                if (setting == null) {
-                    assert indexScopedSettings.isPrivateSetting(key) : key;
-                } else if (setting.getProperties().contains(Setting.Property.NotCopyableOnResize)) {
-                    continue;
-                }
-                // do not override settings that have already been set (for example, from the request)
-                if (indexSettingsBuilder.keys().contains(key)) {
-                    continue;
-                }
-                builder.copy(key, sourceMetadata.getSettings());
-            }
+            builder = copySettingsFromSource(true, sourceMetadata.getSettings(), indexScopedSettings, indexSettingsBuilder);
         } else {
+            builder = Settings.builder();
             final Predicate<String> sourceSettingsPredicate = (s) -> (s.startsWith("index.similarity.")
                 || s.startsWith("index.analysis.")
                 || s.startsWith("index.sort.")
@@ -1707,6 +1688,36 @@ public class MetadataCreateIndexService {
         if (sourceMetadata.getSettings().hasValue(IndexMetadata.SETTING_VERSION_COMPATIBILITY)) {
             indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, sourceMetadata.getCompatibilityVersion());
         }
+    }
+
+    public static Settings.Builder copySettingsFromSource(
+        boolean copyPrivateSettings,
+        Settings sourceSettings,
+        IndexScopedSettings indexScopedSettings,
+        Settings.Builder indexSettingsBuilder
+    ) {
+        final Settings.Builder builder = Settings.builder();
+        for (final String key : sourceSettings.keySet()) {
+            final Setting<?> setting = indexScopedSettings.get(key);
+            if (setting == null) {
+                assert indexScopedSettings.isPrivateSetting(key) : key;
+                if (copyPrivateSettings == false) {
+                    continue;
+                }
+            } else if (setting.getProperties().contains(Setting.Property.NotCopyableOnResize)) {
+                continue;
+            } else if (setting.isPrivateIndex()) {
+                if (copyPrivateSettings == false) {
+                    continue;
+                }
+            }
+            // do not override settings that have already been set (for example, from the request)
+            if (indexSettingsBuilder.keys().contains(key)) {
+                continue;
+            }
+            builder.copy(key, sourceSettings);
+        }
+        return builder;
     }
 
     /**

@@ -66,7 +66,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.DummyQueryBuilder;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -1348,7 +1347,7 @@ public class TransportSearchActionTests extends ESTestCase {
             SearchRequestTests searchRequestTests = new SearchRequestTests();
             searchRequestTests.setUp();
             SearchRequest searchRequest = searchRequestTests.createSearchRequest();
-            searchRequest.scroll((Scroll) null);
+            searchRequest.scroll(null);
             searchRequest.searchType(SearchType.QUERY_THEN_FETCH);
             SearchSourceBuilder source = searchRequest.source();
             if (source != null) {
@@ -1744,7 +1743,9 @@ public class TransportSearchActionTests extends ESTestCase {
             NodeClient client = new NodeClient(settings, threadPool);
 
             SearchService searchService = mock(SearchService.class);
-            when(searchService.getRewriteContext(any(), any(), any())).thenReturn(new QueryRewriteContext(null, null, null, null, null));
+            when(searchService.getRewriteContext(any(), any(), any())).thenReturn(
+                new QueryRewriteContext(null, null, null, null, null, null)
+            );
             ClusterService clusterService = new ClusterService(
                 settings,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),

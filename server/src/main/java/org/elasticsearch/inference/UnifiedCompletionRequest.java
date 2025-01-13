@@ -111,20 +111,24 @@ public record UnifiedCompletionRequest(
         out.writeOptionalFloat(topP);
     }
 
-    public record Message(Content content, String role, @Nullable String name, @Nullable String toolCallId, List<ToolCall> toolCalls)
+    public record Message(Content content, String role, @Nullable String toolCallId, @Nullable List<ToolCall> toolCalls)
         implements
             Writeable {
 
         @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<Message, Void> PARSER = new ConstructingObjectParser<>(
             Message.class.getSimpleName(),
-            args -> new Message((Content) args[0], (String) args[1], (String) args[2], (String) args[3], (List<ToolCall>) args[4])
+            args -> new Message((Content) args[0], (String) args[1], (String) args[2], (List<ToolCall>) args[3])
         );
 
         static {
-            PARSER.declareField(constructorArg(), (p, c) -> parseContent(p), new ParseField("content"), ObjectParser.ValueType.VALUE_ARRAY);
+            PARSER.declareField(
+                optionalConstructorArg(),
+                (p, c) -> parseContent(p),
+                new ParseField("content"),
+                ObjectParser.ValueType.VALUE_ARRAY
+            );
             PARSER.declareString(constructorArg(), new ParseField("role"));
-            PARSER.declareString(optionalConstructorArg(), new ParseField("name"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("tool_call_id"));
             PARSER.declareObjectArray(optionalConstructorArg(), ToolCall.PARSER::apply, new ParseField("tool_calls"));
         }
@@ -143,9 +147,8 @@ public record UnifiedCompletionRequest(
 
         public Message(StreamInput in) throws IOException {
             this(
-                in.readNamedWriteable(Content.class),
+                in.readOptionalNamedWriteable(Content.class),
                 in.readString(),
-                in.readOptionalString(),
                 in.readOptionalString(),
                 in.readOptionalCollectionAsList(ToolCall::new)
             );
@@ -153,9 +156,8 @@ public record UnifiedCompletionRequest(
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeNamedWriteable(content);
+            out.writeOptionalNamedWriteable(content);
             out.writeString(role);
-            out.writeOptionalString(name);
             out.writeOptionalString(toolCallId);
             out.writeOptionalCollection(toolCalls);
         }

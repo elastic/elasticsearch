@@ -67,10 +67,7 @@ public class SegmentCountStep extends AsyncWaitStep {
                     response.getFailedShards(),
                     failures == null
                         ? "n/a"
-                        : Strings.collectionToDelimitedString(
-                            Arrays.stream(failures).map(Strings::toString).collect(Collectors.toList()),
-                            ","
-                        )
+                        : Strings.collectionToDelimitedString(Arrays.stream(failures).map(Strings::toString).toList(), ",")
                 );
                 listener.onResponse(true, new Info(-1));
             } else {

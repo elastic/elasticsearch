@@ -685,29 +685,11 @@ public final class IndexSettings {
                         );
                     }
                 }
-
-                // Verify that all nodes can handle this setting
-                var version = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
-                if (version.before(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY)
-                    && version.between(
-                        IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BACKPORT,
-                        IndexVersions.UPGRADE_TO_LUCENE_10_0_0
-                    ) == false) {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "The setting [%s] is unavailable on this cluster because some nodes are running older "
-                                + "versions that do not support it. Please upgrade all nodes to the latest version "
-                                + "and try again.",
-                            RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey()
-                        )
-                    );
-                }
             }
 
             @Override
             public Iterator<Setting<?>> settings() {
-                List<Setting<?>> res = List.of(INDEX_MAPPER_SOURCE_MODE_SETTING, SETTING_INDEX_VERSION_CREATED, MODE);
+                List<Setting<?>> res = List.of(INDEX_MAPPER_SOURCE_MODE_SETTING, MODE);
                 return res.iterator();
             }
         },
@@ -721,6 +703,29 @@ public final class IndexSettings {
     public boolean isES87TSDBCodecEnabled() {
         return es87TSDBCodecEnabled;
     }
+
+    public static final Setting<Boolean> LOGSDB_ROUTE_ON_SORT_FIELDS = Setting.boolSetting(
+        "index.logsdb.route_on_sort_fields",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    public static final Setting<Boolean> LOGSDB_ADD_HOST_NAME_FIELD = Setting.boolSetting(
+        "index.logsdb.add_host_name_field",
+        false,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.Final
+    );
+
+    public static final Setting<Boolean> LOGSDB_SORT_ON_HOST_NAME = Setting.boolSetting(
+        "index.logsdb.sort_on_host_name",
+        false,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.Final
+    );
 
     /**
      * The {@link IndexMode "mode"} of the index.
@@ -801,7 +806,7 @@ public final class IndexSettings {
         }
     }
 
-    public static final NodeFeature IGNORE_ABOVE_INDEX_LEVEL_SETTING = new NodeFeature("mapper.ignore_above_index_level_setting");
+    public static final NodeFeature IGNORE_ABOVE_INDEX_LEVEL_SETTING = new NodeFeature("mapper.ignore_above_index_level_setting", true);
 
     private final Index index;
     private final IndexVersion version;
@@ -843,6 +848,9 @@ public final class IndexSettings {
     private final boolean softDeleteEnabled;
     private volatile long softDeleteRetentionOperations;
     private final boolean es87TSDBCodecEnabled;
+    private final boolean logsdbRouteOnSortFields;
+    private final boolean logsdbSortOnHostName;
+    private final boolean logsdbAddHostNameField;
 
     private volatile long retentionLeaseMillis;
 
@@ -954,6 +962,20 @@ public final class IndexSettings {
     }
 
     /**
+     * Returns <code>true</code> if routing on sort fields is enabled for LogsDB. The default is <code>false</code>
+     */
+    public boolean logsdbRouteOnSortFields() {
+        return logsdbRouteOnSortFields;
+    }
+
+    /**
+     * Returns <code>true</code> if the index is in logsdb mode and needs a [host.name] keyword field. The default is <code>false</code>
+     */
+    public boolean logsdbAddHostNameField() {
+        return logsdbAddHostNameField;
+    }
+
+    /**
      * Creates a new {@link IndexSettings} instance. The given node settings will be merged with the settings in the metadata
      * while index level settings will overwrite node settings.
      *
@@ -1045,11 +1067,35 @@ public final class IndexSettings {
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         sourceKeepMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
+        logsdbRouteOnSortFields = scopedSettings.get(LOGSDB_ROUTE_ON_SORT_FIELDS);
+        logsdbSortOnHostName = scopedSettings.get(LOGSDB_SORT_ON_HOST_NAME);
+        logsdbAddHostNameField = scopedSettings.get(LOGSDB_ADD_HOST_NAME_FIELD);
         skipIgnoredSourceWrite = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
         skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
         indexMappingSourceMode = scopedSettings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
+        if (recoverySourceSyntheticEnabled) {
+            if (DiscoveryNode.isStateless(settings)) {
+                throw new IllegalArgumentException("synthetic recovery source is only allowed in stateful");
+            }
+            // Verify that all nodes can handle this setting
+            if (version.before(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY)
+                && version.between(
+                    IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BACKPORT,
+                    IndexVersions.UPGRADE_TO_LUCENE_10_0_0
+                ) == false) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "The setting [%s] is unavailable on this cluster because some nodes are running older "
+                            + "versions that do not support it. Please upgrade all nodes to the latest version "
+                            + "and try again.",
+                        RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey()
+                    )
+                );
+            }
+        }
 
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,

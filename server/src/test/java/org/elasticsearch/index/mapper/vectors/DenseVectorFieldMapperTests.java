@@ -1514,19 +1514,19 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
         assertEquals(
             VectorSimilarityFunction.EUCLIDEAN,
-            VectorSimilarity.L2_NORM.vectorSimilarityFunction(IndexVersionUtils.randomVersion(random()), ElementType.BYTE)
+            VectorSimilarity.L2_NORM.vectorSimilarityFunction(IndexVersionUtils.randomVersion(), ElementType.BYTE)
         );
         assertEquals(
             VectorSimilarityFunction.EUCLIDEAN,
-            VectorSimilarity.L2_NORM.vectorSimilarityFunction(IndexVersionUtils.randomVersion(random()), ElementType.FLOAT)
+            VectorSimilarity.L2_NORM.vectorSimilarityFunction(IndexVersionUtils.randomVersion(), ElementType.FLOAT)
         );
         assertEquals(
             VectorSimilarityFunction.DOT_PRODUCT,
-            VectorSimilarity.DOT_PRODUCT.vectorSimilarityFunction(IndexVersionUtils.randomVersion(random()), ElementType.BYTE)
+            VectorSimilarity.DOT_PRODUCT.vectorSimilarityFunction(IndexVersionUtils.randomVersion(), ElementType.BYTE)
         );
         assertEquals(
             VectorSimilarityFunction.DOT_PRODUCT,
-            VectorSimilarity.DOT_PRODUCT.vectorSimilarityFunction(IndexVersionUtils.randomVersion(random()), ElementType.FLOAT)
+            VectorSimilarity.DOT_PRODUCT.vectorSimilarityFunction(IndexVersionUtils.randomVersion(), ElementType.FLOAT)
         );
     }
 

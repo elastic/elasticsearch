@@ -22,7 +22,7 @@ import org.elasticsearch.index.IndexVersions;
 import java.util.List;
 
 public class DocumentMapper {
-    static final NodeFeature INDEX_SORTING_ON_NESTED = new NodeFeature("mapper.index_sorting_on_nested");
+    static final NodeFeature INDEX_SORTING_ON_NESTED = new NodeFeature("mapper.index_sorting_on_nested", true);
 
     private final String type;
     private final CompressedXContent mappingSource;

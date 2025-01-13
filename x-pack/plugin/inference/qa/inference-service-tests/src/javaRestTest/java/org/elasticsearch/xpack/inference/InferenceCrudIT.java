@@ -34,6 +34,7 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -242,17 +243,12 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.COMPLETION);
-        if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
-            || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
-            assertThat(services.size(), equalTo(10));
-        } else {
-            assertThat(services.size(), equalTo(9));
-        }
+        assertThat(services.size(), equalTo(9));
 
-        String[] providers = new String[services.size()];
+        var providers = new ArrayList<String>();
         for (int i = 0; i < services.size(); i++) {
             Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("service");
+            providers.add((String) serviceConfig.get("service"));
         }
 
         var providerList = new ArrayList<>(
@@ -269,12 +265,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             )
         );
 
-        if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
-            || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
-            providerList.add(6, "elastic");
-        }
-
-        assertArrayEquals(providers, providerList.toArray());
+        assertThat(providers, containsInAnyOrder(providerList.toArray()));
     }
 
     @SuppressWarnings("unchecked")

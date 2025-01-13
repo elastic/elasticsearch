@@ -17,9 +17,9 @@ restResources {
 }
 
 esplugin {
-  name 'x-pack-inference'
-  description 'Configuration and evaluation of inference models'
-  classname 'org.elasticsearch.xpack.inference.InferencePlugin'
+  name = 'x-pack-inference'
+  description = 'Configuration and evaluation of inference models'
+  classname ='org.elasticsearch.xpack.inference.InferencePlugin'
   extendedPlugins = ['x-pack-core']
 }
 

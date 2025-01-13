@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.BwcVersions;
+import org.elasticsearch.gradle.internal.conventions.GitInfoPlugin;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
@@ -96,6 +97,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
         this.project = project;
         project.getPlugins().apply(JvmToolchainsPlugin.class);
+        Provider<GitInfo> gitInfo = project.getPlugins().apply(GitInfoPlugin.class).getGitInfo();
+
         toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
         GradleVersion minimumGradleVersion = GradleVersion.version(getResourceContents("/minimumGradleVersion"));
         if (GradleVersion.current().compareTo(minimumGradleVersion) < 0) {
@@ -110,8 +113,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         Provider<File> actualRuntimeJavaHome = isRuntimeJavaHomeExplicitlySet
             ? explicitRuntimeJavaHome
             : resolveJavaHomeFromToolChainService(VersionProperties.getBundledJdkMajorVersion());
-
-        GitInfo gitInfo = GitInfo.gitInfo(project.getRootDir());
 
         Provider<JvmInstallationMetadata> runtimeJdkMetaData = actualRuntimeJavaHome.map(
             runtimeJavaHome -> metadataDetector.getMetadata(getJavaInstallation(runtimeJavaHome))
@@ -143,8 +144,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 minimumCompilerVersion,
                 minimumRuntimeVersion,
                 Jvm.current().getJavaVersion(),
-                gitInfo.getRevision(),
-                gitInfo.getOrigin(),
+                gitInfo.map(g -> g.getRevision()),
+                gitInfo.map(g -> g.getOrigin()),
                 getTestSeed(),
                 System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null || System.getProperty("isCI") != null,
                 ParallelDetector.findDefaultParallel(project),

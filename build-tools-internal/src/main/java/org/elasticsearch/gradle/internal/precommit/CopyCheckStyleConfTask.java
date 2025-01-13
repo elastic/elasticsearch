@@ -7,15 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.internal.test;
+package org.elasticsearch.gradle.internal.precommit;
 
-/**
- * Any object that can produce an accompanying stop task, meant to tear down
- * a previously instantiated service.
- */
-public interface Fixture {
+import org.gradle.api.DefaultTask;
+import org.gradle.api.file.FileSystemOperations;
 
-    /** A task which will stop this fixture. This should be used as a finalizedBy for any tasks that use the fixture. */
-    Object getStopTask();
+import javax.inject.Inject;
 
+public abstract class CopyCheckStyleConfTask extends DefaultTask {
+
+    @Inject
+    public abstract FileSystemOperations getFs();
 }

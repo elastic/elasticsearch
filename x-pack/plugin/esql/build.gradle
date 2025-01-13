@@ -12,9 +12,9 @@ apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
 
 esplugin {
-  name 'x-pack-esql'
-  description 'The plugin that powers ESQL for Elasticsearch'
-  classname 'org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
+  name = 'x-pack-esql'
+  description = 'The plugin that powers ESQL for Elasticsearch'
+  classname ='org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
   extendedPlugins = ['x-pack-esql-core', 'lang-painless', 'x-pack-ml']
 }
 
@@ -82,7 +82,6 @@ tasks.named("test").configure {
       }
     }
     File functionsFolder = file("build/testrun/test/temp/esql/functions")
-    File signatureFolder = file("build/testrun/test/temp/esql/functions/signature")
     File typesFolder = file("build/testrun/test/temp/esql/functions/types")
     def functionsDocFolder = file("${rootDir}/docs/reference/esql/functions")
     def effectiveProjectDir = projectDir
@@ -268,7 +267,7 @@ tasks.register("regen") {
   }
 }
 
-tasks.named("spotlessJava") { dependsOn stringTemplates }
+tasks.named("spotlessJava") { dependsOn "stringTemplates" }
 tasks.named('checkstyleMain').configure {
   excludes = [ "**/*.java.st" ]
   exclude { normalize(it.file.toString()).contains("src/main/generated-src/generated") }

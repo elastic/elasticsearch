@@ -23,6 +23,7 @@ steps:
               - rhel-8
               - rhel-9
               - almalinux-8
+              - almalinux-9
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}

@@ -55,7 +55,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
     )
     public DateFormat(
         Source source,
-        @Param(optional = true, name = "dateFormat", type = { "keyword", "text" }, description = """
+        @Param(optional = true, name = "dateFormat", type = { "keyword", "text", "date" }, description = """
             Date format (optional).  If no format is specified, the `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format is used.
             If `null`, the function returns `null`.""") Expression format,
         @Param(name = "date", type = { "date" }, description = "Date expression. If `null`, the function returns `null`.") Expression date,
@@ -147,7 +147,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
             throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
         }
         if (format.foldable()) {
-            DateFormatter formatter = toFormatter(format.fold(), configuration().locale());
+            DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()), configuration().locale());
             return new DateFormatConstantEvaluator.Factory(source(), fieldEvaluator, formatter);
         }
         var formatEvaluator = toEvaluator.apply(format);

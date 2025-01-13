@@ -13,7 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 
@@ -33,7 +33,7 @@ public class LuceneSyntheticSourceChangesSnapshotTests extends SearchBasedChange
 
     @Override
     protected Translog.Snapshot newRandomSnapshot(
-        MappingLookup mappingLookup,
+        MapperService mapperService,
         Engine.Searcher engineSearcher,
         int searchBatchSize,
         long fromSeqNo,
@@ -44,7 +44,7 @@ public class LuceneSyntheticSourceChangesSnapshotTests extends SearchBasedChange
         IndexVersion indexVersionCreated
     ) throws IOException {
         return new LuceneSyntheticSourceChangesSnapshot(
-            mappingLookup,
+            mapperService,
             engineSearcher,
             searchBatchSize,
             randomLongBetween(0, ByteSizeValue.ofBytes(Integer.MAX_VALUE).getBytes()),

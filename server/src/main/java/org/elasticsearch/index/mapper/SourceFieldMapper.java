@@ -415,7 +415,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         }
 
-        boolean enableRecoverySource = context.indexSettings().isRecoverySourceEnabled();
+        boolean enableRecoverySource = context.indexSettings().isRecoverySourceEnabled() && (sourceFilter != null || stored() == false);
         if (enableRecoverySource && originalSource != null && adaptedSource != originalSource) {
             // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
             BytesRef ref = originalSource.toBytesRef();
@@ -449,8 +449,14 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             && InferenceMetadataFieldsMapper.isEnabled(mappingLookup)
             && mappingLookup.inferenceFields().isEmpty() == false) {
             /**
-             * Removes {@link InferenceMetadataFieldsMapper} content from _source.
-             * This content is re-generated at query time (if requested) using stored fields and doc values.
+             * Removes the {@link InferenceMetadataFieldsMapper} content from the {@code _source}.
+             * This metadata is regenerated at query or snapshot recovery time using stored fields and doc values.
+             *
+             * <p>For details on how the metadata is re-added, see:</p>
+             * <ul>
+             *   <li>{@link SearchBasedChangesSnapshot#addSourceMetadata(Source, int)}</li>
+             *   <li>{@link FetchSourcePhase#getProcessor(FetchContext)}</li>
+             * </ul>
              */
             String[] modExcludes = new String[excludes != null ? excludes.length + 1 : 1];
             if (excludes != null) {

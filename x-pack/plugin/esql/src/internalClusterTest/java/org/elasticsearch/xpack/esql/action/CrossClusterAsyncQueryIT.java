@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -52,6 +53,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.waitForClus
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
@@ -82,6 +84,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         plugins.add(InternalExchangePlugin.class);
         plugins.add(SimplePauseFieldPlugin.class);
         plugins.add(FailingPauseFieldPlugin.class);
+        plugins.add(CountingPauseFieldPlugin.class);
         return plugins;
     }
 
@@ -102,6 +105,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
     public void resetPlugin() {
         SimplePauseFieldPlugin.resetPlugin();
         FailingPauseFieldPlugin.resetPlugin();
+        CountingPauseFieldPlugin.resetPlugin();
     }
 
     /**
@@ -119,7 +123,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         final String asyncExecutionId = startAsyncQuery(
             client(),
             "FROM logs-*,cluster-a:logs-*,remote-b:blocking | STATS total=sum(const) | LIMIT 10",
-            includeCCSMetadata
+            includeCCSMetadata.v1()
         );
         // wait until we know that the query against 'remote-b:blocking' has started
         SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
@@ -210,9 +214,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 
         final TimeValue waitForCompletion = TimeValue.timeValueNanos(randomFrom(1L, Long.MAX_VALUE));
         String asyncExecutionId = null;
-        try (
-            EsqlQueryResponse resp = runAsyncQuery(client(), "FROM logs*,*:logs* | LIMIT 0", requestIncludeMeta, null, waitForCompletion)
-        ) {
+        try (EsqlQueryResponse resp = runAsyncQuery(client(), "FROM logs*,*:logs* | LIMIT 0", requestIncludeMeta, waitForCompletion)) {
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             if (resp.isRunning()) {
                 asyncExecutionId = resp.asyncExecutionId().get();
@@ -263,7 +265,8 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         Map<String, Object> testClusterInfo = setupClusters(3);
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remote1NumShards = (Integer) testClusterInfo.get("remote1.num_shards");
-        populateRuntimeIndex(REMOTE_CLUSTER_2, "pause", INDEX_WITH_RUNTIME_MAPPING);
+        // Create large index so we could be sure we're stopping before the end
+        populateRuntimeIndex(REMOTE_CLUSTER_2, "pause_count", INDEX_WITH_RUNTIME_MAPPING, 100_000);
 
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         boolean responseExpectMeta = includeCCSMetadata.v2();
@@ -271,11 +274,11 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         final String asyncExecutionId = startAsyncQuery(
             client(),
             "FROM logs-*,cluster-a:logs-*,remote-b:blocking | STATS total=sum(coalesce(const,v)) | LIMIT 1",
-            includeCCSMetadata
+            includeCCSMetadata.v1()
         );
 
         // wait until we know that the query against 'remote-b:blocking' has started
-        SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
+        CountingPauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
 
         // wait until the query of 'cluster-a:logs-*' has finished (it is not blocked since we are not searching the 'blocking' index on it)
         waitForCluster(client(), REMOTE_CLUSTER_1, asyncExecutionId);
@@ -298,10 +301,13 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             }
         });
         // allow remoteB query to proceed
-        SimplePauseFieldPlugin.allowEmitting.countDown();
+        CountingPauseFieldPlugin.allowEmitting.countDown();
 
         // Since part of the query has not been stopped, we expect some result to emerge here
         try (EsqlQueryResponse asyncResponse = stopAction.actionGet(30, TimeUnit.SECONDS)) {
+            // Check that we did not process all the fields on remote-b
+            // In general, we should not be getting more than one page here, but we don't know what the page size is
+            assertThat(CountingPauseFieldPlugin.count.get(), lessThan(100_000L));
             assertThat(asyncResponse.isRunning(), is(false));
             assertThat(asyncResponse.columns().size(), equalTo(1));
             assertThat(asyncResponse.values().hasNext(), is(true));
@@ -337,7 +343,6 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 
     public void testStopQueryLocal() throws Exception {
         Map<String, Object> testClusterInfo = setupClusters(3);
-        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remote1NumShards = (Integer) testClusterInfo.get("remote1.num_shards");
         int remote2NumShards = (Integer) testClusterInfo.get("remote2.num_shards");
         populateRuntimeIndex(LOCAL_CLUSTER, "pause", INDEX_WITH_RUNTIME_MAPPING);
@@ -348,7 +353,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         final String asyncExecutionId = startAsyncQuery(
             client(),
             "FROM blocking,*:logs-* | STATS total=sum(coalesce(const,v)) | LIMIT 1",
-            includeCCSMetadata
+            includeCCSMetadata.v1()
         );
 
         // wait until we know that the query against 'remote-b:blocking' has started
@@ -419,7 +424,11 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
-        final String asyncExecutionId = startAsyncQuery(client(), "FROM blocking | STATS total=count(const) | LIMIT 1", includeCCSMetadata);
+        final String asyncExecutionId = startAsyncQuery(
+            client(),
+            "FROM blocking | STATS total=count(const) | LIMIT 1",
+            includeCCSMetadata.v1()
+        );
 
         // wait until we know that the query against 'remote-b:blocking' has started
         SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
@@ -457,7 +466,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         final String asyncExecutionId = startAsyncQuery(
             client(),
             "FROM logs-*,cluster-a:failing | STATS total=sum(const) | LIMIT 1",
-            includeCCSMetadata
+            includeCCSMetadata.v1()
         );
         // wait until we know that the query against remote has started
         FailingPauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
@@ -489,7 +498,6 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
                 client(),
                 "FROM logs-*,*:logs-* | STATS total=sum(const) | LIMIT 1",
                 randomBoolean(),
-                null,
                 TimeValue.timeValueMillis(0)
             )
         ) {
@@ -585,6 +593,10 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
     }
 
     void populateRuntimeIndex(String clusterAlias, String langName, String indexName) throws IOException {
+        populateRuntimeIndex(clusterAlias, langName, indexName, 10);
+    }
+
+    void populateRuntimeIndex(String clusterAlias, String langName, String indexName, int count) throws IOException {
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
         mapping.startObject("runtime");
         {
@@ -599,7 +611,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         mapping.endObject();
         client(clusterAlias).admin().indices().prepareCreate(indexName).setMapping(mapping).get();
         BulkRequestBuilder bulk = client(clusterAlias).prepareBulk(indexName).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < count; i++) {
             bulk.add(new IndexRequest().source("foo", i));
         }
         bulk.get();
@@ -619,4 +631,23 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         }
         remoteClient.admin().indices().prepareRefresh(indexName).get();
     }
+
+    public static class CountingPauseFieldPlugin extends SimplePauseFieldPlugin {
+        public static AtomicLong count = new AtomicLong(0);
+
+        protected String scriptTypeName() {
+            return "pause_count";
+        }
+
+        public static void resetPlugin() {
+            count.set(0);
+        }
+
+        @Override
+        public boolean onWait() throws InterruptedException {
+            count.incrementAndGet();
+            return allowEmitting.await(30, TimeUnit.SECONDS);
+        }
+    }
+
 }

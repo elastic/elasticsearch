@@ -11,8 +11,6 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
@@ -30,8 +28,8 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public final class EsqlAsyncTestUtils {
-    public static String startAsyncQuery(Client client, String q, Tuple<Boolean, Boolean> includeCCSMetadata) {
-        try (EsqlQueryResponse resp = runAsyncQuery(client, q, includeCCSMetadata.v1(), null, TimeValue.timeValueMillis(100))) {
+    public static String startAsyncQuery(Client client, String q, Boolean includeCCSMetadata) {
+        try (EsqlQueryResponse resp = runAsyncQuery(client, q, includeCCSMetadata, TimeValue.timeValueMillis(100))) {
             assertTrue(resp.isRunning());
             assertNotNull("async execution id is null", resp.asyncExecutionId());
             // executionInfo may or may not be set on the initial response when there is a relatively low wait_for_completion_timeout
@@ -40,13 +38,7 @@ public final class EsqlAsyncTestUtils {
         }
     }
 
-    public static EsqlQueryResponse runAsyncQuery(
-        Client client,
-        String query,
-        Boolean ccsMetadata,
-        QueryBuilder filter,
-        TimeValue waitCompletionTime
-    ) {
+   public static EsqlQueryResponse runAsyncQuery(Client client, String query, Boolean ccsMetadata, TimeValue waitCompletionTime) {
         EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest();
         request.query(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
@@ -57,9 +49,6 @@ public final class EsqlAsyncTestUtils {
         }
         request.waitForCompletionTimeout(waitCompletionTime);
         request.keepOnCompletion(true);
-        if (filter != null) {
-            request.filter(filter);
-        }
         return runAsyncQuery(client, request);
     }
 

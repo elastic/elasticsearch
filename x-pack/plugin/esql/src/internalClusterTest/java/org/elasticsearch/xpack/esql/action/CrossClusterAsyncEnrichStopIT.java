@@ -82,7 +82,7 @@ public class CrossClusterAsyncEnrichStopIT extends AbstractEnrichBasedCrossClust
             """, enrichHosts(Enrich.Mode.COORDINATOR), enrichVendors(Enrich.Mode.COORDINATOR));
 
         // Start the async query
-        final String asyncExecutionId = startAsyncQuery(client(), query, randomIncludeCCSMetadata());
+        final String asyncExecutionId = startAsyncQuery(client(), query, randomBoolean());
         SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS);
 
         // wait until c1 is done

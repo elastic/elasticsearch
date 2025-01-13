@@ -40,7 +40,7 @@ public class LogicalOptimizerContext {
 
     @Override
     public int hashCode() {
-        return Objects.hash(configuration);
+        return Objects.hash(configuration, foldCtx);
     }
 
     @Override

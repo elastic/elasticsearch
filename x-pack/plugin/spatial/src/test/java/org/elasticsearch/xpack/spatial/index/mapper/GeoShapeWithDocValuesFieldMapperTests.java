@@ -10,7 +10,10 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -27,19 +30,27 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldType;
 import org.elasticsearch.test.index.IndexVersionUtils;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent.MapParams;
+import org.elasticsearch.xcontent.ToXContent.Params;
+import org.elasticsearch.xpack.spatial.index.mapper.GeometricShapeSyntheticSourceSupport.FieldType;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper.DEPRECATED_PARAMETERS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
@@ -289,6 +300,64 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         );
     }
 
+    /**
+     * Test that we can parse legacy v7 "geo_shape" parameters for BWC with read-only N-2 indices
+     */
+    public void testGeoShapeLegacyParametersParsing() throws Exception {
+        // deprecated parameters needed for bwc with read-only version 7 indices
+        assertEquals(Set.of("strategy", "tree", "tree_levels", "precision", "distance_error_pct", "points_only"), DEPRECATED_PARAMETERS);
+
+        for (String deprecatedParam : DEPRECATED_PARAMETERS) {
+            Object value = switch (deprecatedParam) {
+                case "tree" -> randomFrom("quadtree", "geohash");
+                case "tree_levels" -> 6;
+                case "distance_error_pct" -> "0.01";
+                case "points_only" -> true;
+                case "strategy" -> "recursive";
+                case "precision" -> "50m";
+                default -> throw new IllegalStateException("Unexpected value: " + deprecatedParam);
+            };
+
+            // indices created before 8 should allow parameters but issue a warning
+            IndexVersion pre8version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+            MapperService m = createMapperService(
+                pre8version,
+                fieldMapping(b -> b.field("type", getFieldName()).field(deprecatedParam, value))
+            );
+
+            // check for correct field type and that a query can be created
+            MappedFieldType fieldType = m.fieldType("field");
+            assertThat(fieldType, instanceOf(GeoShapeFieldType.class));
+            GeoShapeFieldType ft = (GeoShapeFieldType) fieldType;
+
+            SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+            when(searchExecutionContext.allowExpensiveQueries()).thenReturn(true);
+            assertNotNull(
+                ft.geoShapeQuery(searchExecutionContext, "location", SpatialStrategy.TERM, ShapeRelation.INTERSECTS, new Point(-10, 10))
+            );
+            if (deprecatedParam.equals("strategy") == false) {
+                assertFieldWarnings(deprecatedParam, "strategy");
+            } else {
+                assertFieldWarnings(deprecatedParam);
+            }
+
+            // indices created after 8 should throw an error
+            IndexVersion post8version = IndexVersionUtils.randomCompatibleWriteVersion(random());
+            Exception ex = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(post8version, fieldMapping(b -> b.field("type", getFieldName()).field(deprecatedParam, value)))
+            );
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "Failed to parse mapping: using deprecated parameters ["
+                        + deprecatedParam
+                        + "] in mapper [field] of type [geo_shape] is no longer allowed"
+                )
+            );
+        }
+    }
+
     public void testGeoShapeLegacyMerge() throws Exception {
         IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
         MapperService m = createMapperService(version, fieldMapping(b -> b.field("type", getFieldName())));
@@ -409,7 +478,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
     public String toXContentString(AbstractShapeGeometryFieldMapper<?> mapper, boolean includeDefaults) {
         if (includeDefaults) {
-            ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"));
+            Params params = new MapParams(Collections.singletonMap("include_defaults", "true"));
             return Strings.toString(mapper, params);
         } else {
             return Strings.toString(mapper);
@@ -428,7 +497,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return new GeometricShapeSyntheticSourceSupport(GeometricShapeSyntheticSourceSupport.FieldType.GEO_SHAPE, ignoreMalformed);
+        return new GeometricShapeSyntheticSourceSupport(FieldType.GEO_SHAPE, ignoreMalformed);
     }
 
     @Override

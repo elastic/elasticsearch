@@ -88,11 +88,11 @@ Therefore, if the number of replicas equals or exceeds the number of nodes, some
 Shards often become unassigned when a data node leaves the cluster. This can
 occur for several reasons:
 
-* If you manually restart a node, then it will temporarily cause an unhealthy cluster until the node has recovered.
+* A manual node restart will cause a temporary unhealthy cluster state until the node recovers.
 
-* If you have a node that is overloaded or has stopped operating for any reason, then it will temporarily cause an unhealthy cluster. Nodes may disconnect because of prolonged garbage collection (GC) pauses, which can result from "out of memory" errors or high memory usage due to intensive search operations. See <<fix-cluster-status-jvm,Reduce JVM memory pressure>> for more JVM related issues.
+* When a node becomes overloaded or fails, it can temporarily disrupt the cluster’s health, leading to an unhealthy state. Prolonged garbage collection (GC) pauses, caused by out-of-memory errors or high memory usage during intensive searches, can trigger this state. See <<fix-cluster-status-jvm,Reduce JVM memory pressure>> for more JVM-related issues.
 
-* If nodes cannot reliably communicate due to networking issues, they may lose contact with one another. This can cause shards to become out of sync. You can often identify this issue by checking the logs for repeated messages about nodes leaving and rejoining the cluster.
+* Network issues can prevent reliable node communication, causing shards to become out of sync. Check the logs for repeated messages about nodes leaving and rejoining the cluster.
 
 After you resolve the issue and recover the node, it will rejoin the cluster.
 {es} will then automatically allocate any unassigned shards.

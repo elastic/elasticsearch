@@ -467,17 +467,17 @@ public class AggregatorImplementer {
 
     private void combineRawInput(MethodSpec.Builder builder, String blockVariable) {
         TypeName returnType = TypeName.get(combine.getReturnType());
-        startWarningsBlock(builder);
-        if (valuesIsBytesRef) {
-            combineRawInputForBytesRef(builder, blockVariable);
-        } else if (returnType.isPrimitive()) {
-            combineRawInputForPrimitive(returnType, builder, blockVariable);
-        } else if (returnType == TypeName.VOID) {
-            combineRawInputForVoid(builder, blockVariable);
-        } else {
-            throw new IllegalArgumentException("combine must return void or a primitive");
-        }
-        endWarningsBlock(builder);
+        warningsBlock(builder, () -> {
+            if (valuesIsBytesRef) {
+                combineRawInputForBytesRef(builder, blockVariable);
+            } else if (returnType.isPrimitive()) {
+                combineRawInputForPrimitive(returnType, builder, blockVariable);
+            } else if (returnType == TypeName.VOID) {
+                combineRawInputForVoid(builder, blockVariable);
+            } else {
+                throw new IllegalArgumentException("combine must return void or a primitive");
+            }
+        });
     }
 
     private void combineRawInputForPrimitive(TypeName returnType, MethodSpec.Builder builder, String blockVariable) {
@@ -492,9 +492,7 @@ public class AggregatorImplementer {
     }
 
     private void combineRawInputForArray(MethodSpec.Builder builder, String arrayVariable) {
-        startWarningsBlock(builder);
-        builder.addStatement("$T.combine(state, $L)", declarationType, arrayVariable);
-        endWarningsBlock(builder);
+        warningsBlock(builder, () -> builder.addStatement("$T.combine(state, $L)", declarationType, arrayVariable));
     }
 
     private void combineRawInputForVoid(MethodSpec.Builder builder, String blockVariable) {
@@ -511,13 +509,11 @@ public class AggregatorImplementer {
         builder.addStatement("$T.combine(state, $L.getBytesRef(i, scratch))", declarationType, blockVariable);
     }
 
-    private void startWarningsBlock(MethodSpec.Builder builder) {
+    private void warningsBlock(MethodSpec.Builder builder, Runnable block) {
         if (warnExceptions.isEmpty() == false) {
             builder.beginControlFlow("try");
         }
-    }
-
-    private void endWarningsBlock(MethodSpec.Builder builder) {
+        block.run();
         if (warnExceptions.isEmpty() == false) {
             String catchPattern = "catch (" + warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | ")) + " e)";
             builder.nextControlFlow(catchPattern, warnExceptions.stream().map(TypeName::get).toArray());
@@ -560,12 +556,12 @@ public class AggregatorImplementer {
                 builder.nextControlFlow("else if (seen.getBoolean(0))");
             }
 
-            startWarningsBlock(builder);
-            var state = intermediateState.get(0);
-            var s = "state.$L($T.combine(state.$L(), " + state.name() + "." + vectorAccessorName(state.elementType()) + "(0)))";
-            builder.addStatement(s, primitiveStateMethod(), declarationType, primitiveStateMethod());
-            builder.addStatement("state.seen(true)");
-            endWarningsBlock(builder);
+            warningsBlock(builder, () -> {
+                var state = intermediateState.get(0);
+                var s = "state.$L($T.combine(state.$L(), " + state.name() + "." + vectorAccessorName(state.elementType()) + "(0)))";
+                builder.addStatement(s, primitiveStateMethod(), declarationType, primitiveStateMethod());
+                builder.addStatement("state.seen(true)");
+            });
             builder.endControlFlow();
         } else {
             throw new IllegalArgumentException("Don't know how to combine intermediate input. Define combineIntermediate");
@@ -731,9 +727,6 @@ public class AggregatorImplementer {
 
     private String valueTypeString() {
         String valueTypeString = TypeName.get(valueTypeMirror()).toString();
-        if (valuesIsArray) {
-            valueTypeString = valueTypeString.substring(0, valueTypeString.length() - 2);
-        }
-        return valueTypeString;
+        return valuesIsArray ? valueTypeString.substring(0, valueTypeString.length() - 2) : valueTypeString;
     }
 }

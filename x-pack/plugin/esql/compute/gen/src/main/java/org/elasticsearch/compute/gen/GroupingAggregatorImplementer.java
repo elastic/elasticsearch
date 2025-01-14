@@ -425,21 +425,21 @@ public class GroupingAggregatorImplementer {
         TypeName valueType = valueTypeName();
         TypeName returnType = TypeName.get(combine.getReturnType());
 
-        startWarningsBlock(builder);
-        if (valuesIsBytesRef) {
-            combineRawInputForBytesRef(builder, blockVariable, offsetVariable);
-        } else if (includeTimestampVector) {
-            combineRawInputWithTimestamp(builder, offsetVariable);
-        } else if (valueType.isPrimitive() == false) {
-            throw new IllegalArgumentException("second parameter to combine must be a primitive, array or BytesRef: " + valueType);
-        } else if (returnType.isPrimitive()) {
-            combineRawInputForPrimitive(builder, blockVariable, offsetVariable);
-        } else if (returnType == TypeName.VOID) {
-            combineRawInputForVoid(builder, blockVariable, offsetVariable);
-        } else {
-            throw new IllegalArgumentException("combine must return void or a primitive");
-        }
-        endWarningsBlock(builder);
+        warningsBlock(builder, () -> {
+            if (valuesIsBytesRef) {
+                combineRawInputForBytesRef(builder, blockVariable, offsetVariable);
+            } else if (includeTimestampVector) {
+                combineRawInputWithTimestamp(builder, offsetVariable);
+            } else if (valueType.isPrimitive() == false) {
+                throw new IllegalArgumentException("second parameter to combine must be a primitive, array or BytesRef: " + valueType);
+            } else if (returnType.isPrimitive()) {
+                combineRawInputForPrimitive(builder, blockVariable, offsetVariable);
+            } else if (returnType == TypeName.VOID) {
+                combineRawInputForVoid(builder, blockVariable, offsetVariable);
+            } else {
+                throw new IllegalArgumentException("combine must return void or a primitive");
+            }
+        });
     }
 
     private void combineRawInputForPrimitive(MethodSpec.Builder builder, String blockVariable, String offsetVariable) {
@@ -453,9 +453,7 @@ public class GroupingAggregatorImplementer {
     }
 
     private void combineRawInputForArray(MethodSpec.Builder builder, String arrayVariable) {
-        startWarningsBlock(builder);
-        builder.addStatement("$T.combine(state, groupId, $L)", declarationType, arrayVariable);
-        endWarningsBlock(builder);
+        warningsBlock(builder, () -> builder.addStatement("$T.combine(state, groupId, $L)", declarationType, arrayVariable));
     }
 
     private void combineRawInputForVoid(MethodSpec.Builder builder, String blockVariable, String offsetVariable) {
@@ -488,13 +486,11 @@ public class GroupingAggregatorImplementer {
         builder.addStatement("$T.combine(state, groupId, $L.getBytesRef($L, scratch))", declarationType, blockVariable, offsetVariable);
     }
 
-    private void startWarningsBlock(MethodSpec.Builder builder) {
+    private void warningsBlock(MethodSpec.Builder builder, Runnable block) {
         if (warnExceptions.isEmpty() == false) {
             builder.beginControlFlow("try");
         }
-    }
-
-    private void endWarningsBlock(MethodSpec.Builder builder) {
+        block.run();
         if (warnExceptions.isEmpty() == false) {
             String catchPattern = "catch (" + warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | ")) + " e)";
             builder.nextControlFlow(catchPattern, warnExceptions.stream().map(TypeName::get).toArray());
@@ -559,16 +555,16 @@ public class GroupingAggregatorImplementer {
                     builder.nextControlFlow("else if (seen.getBoolean(groupPosition + positionOffset))");
                 }
 
-                startWarningsBlock(builder);
-                var name = intermediateState.get(0).name();
-                var vectorAccessor = vectorAccessorName(intermediateState.get(0).elementType());
-                builder.addStatement(
-                    "state.set(groupId, $T.combine(state.getOrDefault(groupId), $L.$L(groupPosition + positionOffset)))",
-                    declarationType,
-                    name,
-                    vectorAccessor
-                );
-                endWarningsBlock(builder);
+                warningsBlock(builder, () -> {
+                    var name = intermediateState.get(0).name();
+                    var vectorAccessor = vectorAccessorName(intermediateState.get(0).elementType());
+                    builder.addStatement(
+                        "state.set(groupId, $T.combine(state.getOrDefault(groupId), $L.$L(groupPosition + positionOffset)))",
+                        declarationType,
+                        name,
+                        vectorAccessor
+                    );
+                });
                 builder.endControlFlow();
             } else {
                 builder.addStatement("$T.combineIntermediate(state, groupId, " + intermediateStateRowAccess() + ")", declarationType);

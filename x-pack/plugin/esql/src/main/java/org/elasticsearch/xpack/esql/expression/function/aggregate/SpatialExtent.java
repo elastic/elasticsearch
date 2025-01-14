@@ -116,12 +116,12 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
             case DataType.GEO_SHAPE -> switch (fieldExtractPreference) {
                 case EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentGeoShapeDocValuesAggregatorFunctionSupplier(inputChannels);
                 case NONE -> new SpatialExtentGeoShapeSourceValuesAggregatorFunctionSupplier(inputChannels);
-                default -> throw new EsqlIllegalArgumentException("Illegal field extract preference: " + fieldExtractPreference);
+                case DOC_VALUES -> throw new EsqlIllegalArgumentException("Illegal field extract preference: " + fieldExtractPreference);
             };
             case DataType.CARTESIAN_SHAPE -> switch (fieldExtractPreference) {
                 case EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentCartesianShapeDocValuesAggregatorFunctionSupplier(inputChannels);
                 case NONE -> new SpatialExtentCartesianShapeSourceValuesAggregatorFunctionSupplier(inputChannels);
-                default -> throw new EsqlIllegalArgumentException("Illegal field extract preference: " + fieldExtractPreference);
+                case DOC_VALUES -> throw new EsqlIllegalArgumentException("Illegal field extract preference: " + fieldExtractPreference);
             };
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };

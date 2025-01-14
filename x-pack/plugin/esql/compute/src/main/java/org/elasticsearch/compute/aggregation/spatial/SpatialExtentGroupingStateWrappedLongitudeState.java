@@ -129,18 +129,17 @@ final class SpatialExtentGroupingStateWrappedLongitudeState extends AbstractArra
      * This optimization is enabled when the field has doc-values and is only used in the ST_EXTENT aggregation.
      */
     public void add(int groupId, int[] values) {
-        if (values.length == 6) {
-            // Values are stored according to the order defined in the Extent class
-            int top = values[0];
-            int bottom = values[1];
-            int negLeft = values[2];
-            int negRight = values[3];
-            int posLeft = values[4];
-            int posRight = values[5];
-            add(groupId, top, bottom, negLeft, negRight, posLeft, posRight);
-        } else {
+        if (values.length != 6) {
             throw new IllegalArgumentException("Expected 6 values, got " + values.length);
         }
+        // Values are stored according to the order defined in the Extent class
+        int top = values[0];
+        int bottom = values[1];
+        int negLeft = values[2];
+        int negRight = values[3];
+        int posLeft = values[4];
+        int posRight = values[5];
+        add(groupId, top, bottom, negLeft, negRight, posLeft, posRight);
     }
 
     public void add(int groupId, int top, int bottom, int negLeft, int negRight, int posLeft, int posRight) {

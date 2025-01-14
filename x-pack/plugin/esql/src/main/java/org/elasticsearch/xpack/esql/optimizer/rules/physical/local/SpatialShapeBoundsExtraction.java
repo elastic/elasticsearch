@@ -61,7 +61,7 @@ public class SpatialShapeBoundsExtraction extends ParameterizedOptimizerRule<Agg
         });
     }
 
-    private Set<Attribute> findSpatialShapeBoundsAttributes(AggregateExec aggregate, LocalPhysicalOptimizerContext ctx) {
+    private static Set<Attribute> findSpatialShapeBoundsAttributes(AggregateExec aggregate, LocalPhysicalOptimizerContext ctx) {
         var foundAttributes = new HashSet<Attribute>();
         aggregate.transformDown(UnaryExec.class, exec -> {
             switch (exec) {
@@ -104,13 +104,13 @@ public class SpatialShapeBoundsExtraction extends ParameterizedOptimizerRule<Agg
         return foundAttributes;
     }
 
-    private PhysicalPlan transformFieldExtractExec(FieldExtractExec fieldExtractExec, Set<Attribute> foundAttributes) {
+    private static PhysicalPlan transformFieldExtractExec(FieldExtractExec fieldExtractExec, Set<Attribute> foundAttributes) {
         var boundsAttributes = new HashSet<>(foundAttributes);
         boundsAttributes.retainAll(fieldExtractExec.attributesToExtract());
         return fieldExtractExec.withBoundsAttributes(boundsAttributes);
     }
 
-    private PhysicalPlan transformAggregateExec(AggregateExec agg, Set<Attribute> foundAttributes) {
+    private static PhysicalPlan transformAggregateExec(AggregateExec agg, Set<Attribute> foundAttributes) {
         return agg.transformExpressionsDown(
             SpatialExtent.class,
             spatialExtent -> foundAttributes.contains(spatialExtent.field())

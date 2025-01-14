@@ -117,6 +117,7 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
 
         Rectangle getResult();
 
+        /** To allow for memory optimizations through object reuse, the visitor can be reset to its initial state. */
         void reset();
     }
 
@@ -288,11 +289,9 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
             WrapLongitude wrapLongitude
         ) {
             assert Double.isFinite(top);
-            // Due to this data coming through Extent (and aggs that use the same approach), which saves values as integers,
-            // we must use posRight==-Inf for all-neg check, and negLeft==+Inf for all-pos check.
-            if (Double.isInfinite(posRight)) {
+            if (posRight == Double.NEGATIVE_INFINITY) {
                 return new Rectangle(negLeft, negRight, top, bottom);
-            } else if (Double.isInfinite(negLeft)) {
+            } else if (negLeft == Double.POSITIVE_INFINITY) {
                 return new Rectangle(posLeft, posRight, top, bottom);
             } else {
                 return switch (wrapLongitude) {

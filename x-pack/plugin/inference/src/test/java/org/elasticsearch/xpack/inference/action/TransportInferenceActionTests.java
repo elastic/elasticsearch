@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
@@ -23,6 +24,7 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
     protected BaseTransportInferenceAction<InferenceAction.Request> createAction(
         TransportService transportService,
         ActionFilters actionFilters,
+        MockLicenseState licenseState,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
@@ -31,6 +33,7 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
         return new TransportInferenceAction(
             transportService,
             actionFilters,
+            licenseState,
             modelRegistry,
             serviceRegistry,
             inferenceStats,

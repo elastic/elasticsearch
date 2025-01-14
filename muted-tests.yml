@@ -332,9 +332,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues}
   issue: https://github.com/elastic/elasticsearch/issues/116945
-- class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
-  method: testRandomDirectoryIOExceptions
-  issue: https://github.com/elastic/elasticsearch/issues/114824
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   method: testRerank {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/116973

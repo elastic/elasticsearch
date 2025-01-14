@@ -493,7 +493,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 )
             );
         }
-        throw new IndexNotFoundException(index);
+        throw new IndexNotFoundException(index, id);
     }
 
     public SortedMap<String, IndexAbstraction> getIndicesLookup() {

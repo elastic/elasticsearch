@@ -55,7 +55,7 @@ public class CreateIndexClusterStateUpdateRequest {
     /**
      * @deprecated project id ought always be specified
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     public CreateIndexClusterStateUpdateRequest(String cause, String index, String providedName) {
         this(cause, Metadata.DEFAULT_PROJECT_ID, index, providedName);
     }

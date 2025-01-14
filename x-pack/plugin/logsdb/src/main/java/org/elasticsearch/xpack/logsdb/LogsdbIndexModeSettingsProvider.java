@@ -242,13 +242,13 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                     // The _doc._source.mode is needed to determine synthetic source usage.
                     // The _doc.properties.host* is needed to determine whether host.name field can be injected.
                     // The _doc.subobjects is needed to determine whether subobjects is enabled.
-                    List<CompressedXContent> processedTemplateMappings = new ArrayList<>(combinedTemplateMappings.size());
+                    List<CompressedXContent> filteredMappings = new ArrayList<>(combinedTemplateMappings.size());
                     for (CompressedXContent mappingSource : combinedTemplateMappings) {
                         var ref = mappingSource.compressedReference();
                         var map = XContentHelper.convertToMap(ref, true, XContentType.JSON, MAPPING_INCLUDES, Set.of()).v2();
-                        processedTemplateMappings.add(new CompressedXContent(map));
+                        filteredMappings.add(new CompressedXContent(map));
                     }
-                    combinedTemplateMappings = processedTemplateMappings;
+                    combinedTemplateMappings = filteredMappings;
                 }
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
                 Mapper hostName = mapperService.mappingLookup().getMapper("host.name");

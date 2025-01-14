@@ -37,7 +37,8 @@ public class PolicyParser {
     private static final Map<String, Class<?>> EXTERNAL_ENTITLEMENTS = Stream.of(
         FileEntitlement.class,
         CreateClassLoaderEntitlement.class,
-        SetHttpsConnectionPropertiesEntitlement.class
+        SetHttpsConnectionPropertiesEntitlement.class,
+        NetworkEntitlement.class
     ).collect(Collectors.toUnmodifiableMap(PolicyParser::getEntitlementTypeName, Function.identity()));
 
     protected final XContentParser policyParser;

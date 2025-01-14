@@ -221,8 +221,12 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         }
     }
 
-    public static String generateDestIndexName(String sourceIndex) {
-        return "migrated-" + sourceIndex;
+    static String generateDestIndexName(String sourceIndex) {
+        String prefix = "migrated-";
+        if (sourceIndex.startsWith(".")) {
+            return "." + prefix + sourceIndex.substring(1);
+        }
+        return prefix + sourceIndex;
     }
 
     private static <U extends AcknowledgedResponse> ActionListener<U> failIfNotAcknowledged(

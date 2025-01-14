@@ -248,9 +248,7 @@ public class TransformIT extends TransformRestTestCase {
 
         // index more docs so the checkpoint tries to run, wait until transform stops
         indexDoc(42, sourceIndexName);
-        assertBusy(() -> {
-            assertEquals(TransformStats.State.WAITING.value(), getTransformState(transformId));
-        }, 30, TimeUnit.SECONDS);
+        assertBusy(() -> { assertEquals(TransformStats.State.WAITING.value(), getTransformState(transformId)); }, 30, TimeUnit.SECONDS);
 
         // unblock index
         request = new Request("PUT", destIndexName + "/_settings");
@@ -284,9 +282,7 @@ public class TransformIT extends TransformRestTestCase {
 
         // index more docs so the checkpoint tries to run, wait until transform stops
         indexDoc(42, sourceIndexName);
-        assertBusy(() -> {
-            assertEquals(TransformStats.State.WAITING.value(), getTransformState(transformId));
-        }, 30, TimeUnit.SECONDS);
+        assertBusy(() -> { assertEquals(TransformStats.State.WAITING.value(), getTransformState(transformId)); }, 30, TimeUnit.SECONDS);
 
         // change destination index
         var update = format("""

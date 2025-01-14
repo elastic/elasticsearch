@@ -26,7 +26,7 @@ public class Rerank extends UnaryPlan {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Rerank", Rerank::new);
 
-    private static Literal DEFAULT_WINDOW_SIZE = new Literal(Source.EMPTY, 20, DataType.INTEGER);
+    private static final Literal DEFAULT_WINDOW_SIZE = new Literal(Source.EMPTY, 20, DataType.INTEGER);
 
     private final Expression queryText;
     private final Expression input;

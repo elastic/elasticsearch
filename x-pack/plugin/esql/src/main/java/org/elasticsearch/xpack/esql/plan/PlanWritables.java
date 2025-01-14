@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SubqueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -107,6 +108,7 @@ public class PlanWritables {
             MvExpandExec.ENTRY,
             OrderExec.ENTRY,
             ProjectExec.ENTRY,
+            RerankExec.ENTRY,
             ShowExec.ENTRY,
             SubqueryExec.ENTRY,
             TopNExec.ENTRY

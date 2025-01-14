@@ -2146,6 +2146,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         // Default window size is 20
         assertThat(rerank.windowSize().fold(), equalTo(20));
+
+        // TODO: add more tests (using params, window size, ...).
     }
 
     public void testInlineConvertUnsupportedType() {

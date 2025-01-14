@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
@@ -187,10 +186,6 @@ public class LocalExecutionPlanner {
                 context.driverParallelism().get()
             )
         );
-
-        if (exchangeSinkHandler != null && exchangeSourceHandler != null) {
-            exchangeSinkHandler.addCompletionListener(ActionListener.running(() -> exchangeSourceHandler.finishEarly(true, ActionListener.noop())));
-        }
 
         return new LocalExecutionPlan(context.driverFactories);
     }

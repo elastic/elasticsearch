@@ -417,7 +417,9 @@ public class OpenAiService extends SenderService {
 
                 configurationMap.put(
                     URL,
-                    new SettingsConfiguration.Builder().setDefaultValue("https://api.openai.com/v1/chat/completions")
+                    new SettingsConfiguration.Builder(List.of(TaskType.TEXT_EMBEDDING, TaskType.CHAT_COMPLETION)).setDefaultValue(
+                        "https://api.openai.com/v1/chat/completions"
+                    )
                         .setDescription(
                             "The OpenAI API endpoint URL. For more information on the URL, refer to the "
                                 + "https://platform.openai.com/docs/api-reference."

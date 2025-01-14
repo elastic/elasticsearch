@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -50,6 +51,7 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
     private final boolean sensitive;
     private final boolean updatable;
     private final SettingsConfigurationFieldType type;
+    private final List<TaskType> supportedTaskTypes;
 
     /**
      * Constructs a new {@link SettingsConfiguration} instance with specified properties.
@@ -61,6 +63,7 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
      * @param sensitive      A boolean indicating whether the configuration contains sensitive information.
      * @param updatable      A boolean indicating whether the configuration can be updated.
      * @param type           The type of the configuration field, defined by {@link SettingsConfigurationFieldType}.
+     * @param supportedTaskTypes The task types that support this field.
      */
     private SettingsConfiguration(
         Object defaultValue,
@@ -69,7 +72,8 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
         boolean required,
         boolean sensitive,
         boolean updatable,
-        SettingsConfigurationFieldType type
+        SettingsConfigurationFieldType type,
+        List<TaskType> supportedTaskTypes
     ) {
         this.defaultValue = defaultValue;
         this.description = description;
@@ -78,6 +82,7 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
         this.sensitive = sensitive;
         this.updatable = updatable;
         this.type = type;
+        this.supportedTaskTypes = supportedTaskTypes;
     }
 
     public SettingsConfiguration(StreamInput in) throws IOException {
@@ -88,6 +93,7 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
         this.sensitive = in.readBoolean();
         this.updatable = in.readBoolean();
         this.type = in.readEnum(SettingsConfigurationFieldType.class);
+        this.supportedTaskTypes = in.readCollectionAsImmutableList(TaskType::fromStream);
     }
 
     static final ParseField DEFAULT_VALUE_FIELD = new ParseField("default_value");
@@ -97,20 +103,20 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
     static final ParseField SENSITIVE_FIELD = new ParseField("sensitive");
     static final ParseField UPDATABLE_FIELD = new ParseField("updatable");
     static final ParseField TYPE_FIELD = new ParseField("type");
+    static final ParseField SUPPORTED_TASK_TYPES = new ParseField("available_for_task_types");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<SettingsConfiguration, Void> PARSER = new ConstructingObjectParser<>(
         "service_configuration",
         true,
         args -> {
-            int i = 0;
-            return new SettingsConfiguration.Builder().setDefaultValue(args[i++])
-                .setDescription((String) args[i++])
-                .setLabel((String) args[i++])
-                .setRequired((Boolean) args[i++])
-                .setSensitive((Boolean) args[i++])
-                .setUpdatable((Boolean) args[i++])
-                .setType((SettingsConfigurationFieldType) args[i++])
+            return new SettingsConfiguration.Builder((List<TaskType>) args[7]).setDefaultValue(args[0])
+                .setDescription((String) args[1])
+                .setLabel((String) args[2])
+                .setRequired((Boolean) args[3])
+                .setSensitive((Boolean) args[4])
+                .setUpdatable((Boolean) args[5])
+                .setType((SettingsConfigurationFieldType) args[6])
                 .build();
         }
     );
@@ -139,6 +145,7 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
             TYPE_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
+        PARSER.declareStringArray(optionalConstructorArg(), SUPPORTED_TASK_TYPES);
     }
 
     public Object getDefaultValue() {
@@ -169,28 +176,8 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
         return type;
     }
 
-    /**
-     * Parses a configuration value from a parser context.
-     * This method can parse strings, numbers, booleans, objects, and null values, matching the types commonly
-     * supported in {@link SettingsConfiguration}.
-     *
-     * @param p the {@link org.elasticsearch.xcontent.XContentParser} instance from which to parse the configuration value.
-     */
-    public static Object parseConfigurationValue(XContentParser p) throws IOException {
-
-        if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-            return p.text();
-        } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-            return p.numberValue();
-        } else if (p.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
-            return p.booleanValue();
-        } else if (p.currentToken() == XContentParser.Token.START_OBJECT) {
-            // Crawler expects the value to be an object
-            return p.map();
-        } else if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
-            return null;
-        }
-        throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
+    public List<TaskType> getSupportedTaskTypes() {
+        return supportedTaskTypes;
     }
 
     @Override
@@ -267,12 +254,13 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
             && Objects.equals(defaultValue, that.defaultValue)
             && Objects.equals(description, that.description)
             && Objects.equals(label, that.label)
-            && type == that.type;
+            && type == that.type
+            && Objects.equals(supportedTaskTypes, that.supportedTaskTypes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(defaultValue, description, label, required, sensitive, updatable, type);
+        return Objects.hash(defaultValue, description, label, required, sensitive, updatable, type, supportedTaskTypes);
     }
 
     public static class Builder {
@@ -284,6 +272,11 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
         private boolean sensitive;
         private boolean updatable;
         private SettingsConfigurationFieldType type;
+        private final List<TaskType> supportedTaskTypes;
+
+        public Builder(List<TaskType> supportedTaskTypes) {
+            this.supportedTaskTypes = Objects.requireNonNull(supportedTaskTypes);
+        }
 
         public Builder setDefaultValue(Object defaultValue) {
             this.defaultValue = defaultValue;
@@ -321,7 +314,7 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
         }
 
         public SettingsConfiguration build() {
-            return new SettingsConfiguration(defaultValue, description, label, required, sensitive, updatable, type);
+            return new SettingsConfiguration(defaultValue, description, label, required, sensitive, updatable, type, supportedTaskTypes);
         }
     }
 }

@@ -62,7 +62,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
             }
         }
         if (size < 0) {
-            throw new IllegalArgumentException("Negative values are not supported: " + size + unit.getSuffix());
+            throw new IllegalArgumentException("Values less than -1 bytes are not supported: " + size + unit.getSuffix());
         }
         if (size > Long.MAX_VALUE / unit.toBytes(1)) {
             throw new IllegalArgumentException(

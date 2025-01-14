@@ -194,13 +194,13 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         ByteSizeUnit unit2 = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
         long size2 = -1L;
         exception = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.of(size2, unit2));
-        assertEquals("Negative values are not supported: " + size2 + unit2.getSuffix(), exception.getMessage());
+        assertEquals("Values less than -1 bytes are not supported: " + size2 + unit2.getSuffix(), exception.getMessage());
 
         // Make sure for any unit a size < -1 throws an exception
         ByteSizeUnit unit3 = randomFrom(ByteSizeUnit.values());
         long size3 = -1L * randomNonNegativeLong() - 1L;
         exception = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.of(size3, unit3));
-        assertEquals("Negative values are not supported: " + size3 + unit3.getSuffix(), exception.getMessage());
+        assertEquals("Values less than -1 bytes are not supported: " + size3 + unit3.getSuffix(), exception.getMessage());
     }
 
     public void testConversionHashCode() {

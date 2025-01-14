@@ -162,13 +162,10 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
         EvalOperator.ExpressionEvaluator.Factory fieldEvaluator,
         DateFormatter formatter
     ) {
-        if (dateType == DATETIME) {
-            return new DateFormatMillisConstantEvaluator.Factory(source(), fieldEvaluator, formatter);
-        }
         if (dateType == DATE_NANOS) {
             return new DateFormatNanosConstantEvaluator.Factory(source(), fieldEvaluator, formatter);
         }
-        throw new UnsupportedOperationException("Somehow we made it to toEvaluator with an unsupported date type [" + dateType + "]");
+        return new DateFormatMillisConstantEvaluator.Factory(source(), fieldEvaluator, formatter);
     }
 
     private ExpressionEvaluator.Factory getEvaluator(
@@ -176,13 +173,10 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
         EvalOperator.ExpressionEvaluator.Factory fieldEvaluator,
         EvalOperator.ExpressionEvaluator.Factory formatEvaluator
     ) {
-        if (dateType == DATETIME) {
-            return new DateFormatMillisEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, configuration().locale());
-        }
         if (dateType == DATE_NANOS) {
             return new DateFormatNanosEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, configuration().locale());
         }
-        throw new UnsupportedOperationException("Somehow we made it to toEvaluator with an unsupported date type [" + dateType + "]");
+        return new DateFormatMillisEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, configuration().locale());
     }
 
     @Override

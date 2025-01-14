@@ -11,7 +11,6 @@ package org.elasticsearch.action.datastreams;
 
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -24,16 +23,6 @@ import java.util.List;
 import java.util.SortedMap;
 
 public class DataStreamsActionUtil {
-
-    @Deprecated
-    public static List<String> getDataStreamNames(
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ClusterState currentState,
-        String[] names,
-        IndicesOptions indicesOptions
-    ) {
-        return getDataStreamNames(indexNameExpressionResolver, currentState.metadata().getProject(), names, indicesOptions);
-    }
 
     /**
      * Gets data streams names, expanding wildcards using {@link IndicesOptions} provided.

@@ -11,7 +11,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadProjectAction;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -70,7 +69,7 @@ public class TransportGetAutoFollowPatternAction extends TransportMasterNodeRead
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetAutoFollowPatternAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetAutoFollowPatternAction.Request request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 

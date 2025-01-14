@@ -11,12 +11,13 @@ package org.elasticsearch.datastreams.options.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.DataStreamsActionUtil;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadProjectAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.SystemIndices;
@@ -34,7 +35,7 @@ import java.util.Objects;
  * Collects the data streams from the cluster state and then returns for each data stream its name and its
  * data stream options. Currently, data stream options include only the failure store configuration.
  */
-public class TransportGetDataStreamOptionsAction extends TransportMasterNodeReadAction<
+public class TransportGetDataStreamOptionsAction extends TransportMasterNodeReadProjectAction<
     GetDataStreamOptionsAction.Request,
     GetDataStreamOptionsAction.Response> {
 
@@ -46,6 +47,7 @@ public class TransportGetDataStreamOptionsAction extends TransportMasterNodeRead
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices
     ) {
@@ -56,6 +58,7 @@ public class TransportGetDataStreamOptionsAction extends TransportMasterNodeRead
             threadPool,
             actionFilters,
             GetDataStreamOptionsAction.Request::new,
+            projectResolver,
             indexNameExpressionResolver,
             GetDataStreamOptionsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
@@ -67,16 +70,16 @@ public class TransportGetDataStreamOptionsAction extends TransportMasterNodeRead
     protected void masterOperation(
         Task task,
         GetDataStreamOptionsAction.Request request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<GetDataStreamOptionsAction.Response> listener
     ) {
         List<String> requestedDataStreams = DataStreamsActionUtil.getDataStreamNames(
             indexNameExpressionResolver,
-            state,
+            state.metadata(),
             request.getNames(),
             request.indicesOptions()
         );
-        Map<String, DataStream> dataStreams = state.metadata().getProject().dataStreams();
+        Map<String, DataStream> dataStreams = state.metadata().dataStreams();
         for (String name : requestedDataStreams) {
             systemIndices.validateDataStreamAccess(name, threadPool.getThreadContext());
         }
@@ -98,7 +101,7 @@ public class TransportGetDataStreamOptionsAction extends TransportMasterNodeRead
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetDataStreamOptionsAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetDataStreamOptionsAction.Request request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

@@ -268,6 +268,8 @@ tests:
 - class: org.elasticsearch.xpack.ilm.actions.SearchableSnapshotActionIT
   method: testUpdatePolicyToAddPhasesYieldsInvalidActionsToBeSkipped
   issue: https://github.com/elastic/elasticsearch/issues/118406
+- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
+  issue: https://github.com/elastic/elasticsearch/issues/120088
 
 # Examples:
 #

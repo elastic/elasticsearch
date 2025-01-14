@@ -44,7 +44,7 @@ import javax.net.ssl.SSLSocketFactory;
 @SuppressWarnings("unused") // Called from instrumentation code inserted by the Entitlements agent
 public interface EntitlementChecker {
 
-    /// /////////////////
+    ////////////////////
     //
     // Exit the JVM process
     //
@@ -55,7 +55,7 @@ public interface EntitlementChecker {
 
     void check$java_lang_System$$exit(Class<?> callerClass, int status);
 
-    /// /////////////////
+    ////////////////////
     //
     // ClassLoader ctor
     //
@@ -66,7 +66,7 @@ public interface EntitlementChecker {
 
     void check$java_lang_ClassLoader$(Class<?> callerClass, String name, ClassLoader parent);
 
-    /// /////////////////
+    ////////////////////
     //
     // SecureClassLoader ctor
     //
@@ -77,7 +77,7 @@ public interface EntitlementChecker {
 
     void check$java_security_SecureClassLoader$(Class<?> callerClass, String name, ClassLoader parent);
 
-    /// /////////////////
+    ////////////////////
     //
     // URLClassLoader constructors
     //
@@ -92,7 +92,7 @@ public interface EntitlementChecker {
 
     void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory);
 
-    /// /////////////////
+    ////////////////////
     //
     // "setFactory" methods
     //
@@ -105,7 +105,7 @@ public interface EntitlementChecker {
 
     void check$javax_net_ssl_SSLContext$$setDefault(Class<?> callerClass, SSLContext context);
 
-    /// /////////////////
+    ////////////////////
     //
     // Process creation
     //
@@ -114,7 +114,7 @@ public interface EntitlementChecker {
 
     void check$java_lang_ProcessBuilder$$startPipeline(Class<?> callerClass, List<ProcessBuilder> builders);
 
-    /// /////////////////
+    ////////////////////
     //
     // JVM-wide state changes
     //
@@ -183,7 +183,7 @@ public interface EntitlementChecker {
 
     void check$java_net_URLConnection$$setContentHandlerFactory(Class<?> callerClass, ContentHandlerFactory fac);
 
-    /// /////////////////
+    ////////////////////
     //
     // Network access
     //

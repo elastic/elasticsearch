@@ -673,3 +673,40 @@ from semantic_text
 host:keyword | semantic_text_field:text
 "host1"      | live long and prosper
 ;
+
+testMatchWithOptionsFuzziness
+required_capability: match_function_options
+
+from books 
+| where match(title, "Pings", {"fuzziness": 1})  
+| keep book_no;
+ignoreOrder:true
+
+book_no:keyword
+2714
+2675
+4023
+7140
+;
+
+testMatchWithOptionsOperator
+required_capability: match_function_options
+
+from books 
+| where match(title, "Hobbit Back Again", {"operator": "AND"})
+| keep title;
+
+title:text
+The Hobbit or There and Back Again
+;
+
+testMatchWithOptionsMinimumShouldMatch
+required_capability: match_function_options
+
+from books 
+| where match(title, "Hobbit Back Again", {"minimum_should_match": 2})
+| keep title;
+
+title:text
+The Hobbit or There and Back Again
+;

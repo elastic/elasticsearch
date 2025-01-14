@@ -13,8 +13,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -246,13 +244,13 @@ public class Match extends FullTextFunction implements Validatable, OptionalArgu
     }
 
     private Map<String, Object> parseOptions() throws InvalidArgumentException {
-        if (options() == null) {
-            return Map.of();
-        }
-
-        Map<String, Object> options = new HashMap<>();
+        Map<String, Object> matchOptions = new HashMap<>();
         // Match is lenient by default to avoid failing on incompatible types
-        options.put(LENIENT_FIELD.getPreferredName(), true);
+        matchOptions.put(LENIENT_FIELD.getPreferredName(), true);
+
+        if (options() == null) {
+            return matchOptions;
+        }
 
         for (EntryExpression entry : ((MapExpression) options()).entryExpressions()) {
             Expression optionExpr = entry.key();
@@ -279,7 +277,7 @@ public class Match extends FullTextFunction implements Validatable, OptionalArgu
                 );
             }
             try {
-                options.put(optionName, DataTypeConverter.convert(optionValue, dataType));
+                matchOptions.put(optionName, DataTypeConverter.convert(optionValue, dataType));
             } catch (InvalidArgumentException e) {
                 throw new InvalidArgumentException(
                     format(null, "Invalid option [{}] in [{}], {}", optionName, sourceText(), e.getMessage())
@@ -287,7 +285,7 @@ public class Match extends FullTextFunction implements Validatable, OptionalArgu
             }
         }
 
-        return options;
+        return matchOptions;
     }
 
     @Override

@@ -101,10 +101,13 @@ public class EntitlementInitialization {
             List.of(
                 new Scope("org.elasticsearch.base", List.of(new CreateClassLoaderEntitlement())),
                 new Scope("org.elasticsearch.xcontent", List.of(new CreateClassLoaderEntitlement())),
-                new Scope("org.elasticsearch.server", List.of(
-                    new ExitVMEntitlement(),
-                    new CreateClassLoaderEntitlement(),
-                    new NetworkEntitlement(LISTEN_ACTION | CONNECT_ACTION | ACCEPT_ACTION))
+                new Scope(
+                    "org.elasticsearch.server",
+                    List.of(
+                        new ExitVMEntitlement(),
+                        new CreateClassLoaderEntitlement(),
+                        new NetworkEntitlement(LISTEN_ACTION | CONNECT_ACTION | ACCEPT_ACTION)
+                    )
                 )
             )
         );

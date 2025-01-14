@@ -257,6 +257,9 @@ tests:
 - class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
   method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
   issue: https://github.com/elastic/elasticsearch/issues/120127
+- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
+  method: testOldRepoAccess
+  issue: https://github.com/elastic/elasticsearch/issues/120148
 
 # Examples:
 #

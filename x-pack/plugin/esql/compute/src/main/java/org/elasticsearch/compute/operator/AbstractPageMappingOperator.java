@@ -37,6 +37,14 @@ public abstract class AbstractPageMappingOperator implements Operator {
      * Count of pages that have been processed by this operator.
      */
     private int pagesProcessed;
+    /**
+     * Count of rows this operator has received.
+     */
+    private int rowsReceived;
+    /**
+     * Count of rows this operator has emitted.
+     */
+    private int rowsEmitted;
 
     protected abstract Page process(Page page);
 
@@ -52,6 +60,7 @@ public abstract class AbstractPageMappingOperator implements Operator {
     public final void addInput(Page page) {
         assert prev == null : "has pending input page";
         prev = page;
+        rowsReceived += page.getPositionCount();
     }
 
     @Override
@@ -75,6 +84,9 @@ public abstract class AbstractPageMappingOperator implements Operator {
         long start = System.nanoTime();
         Page p = process(prev);
         pagesProcessed++;
+        if (p != null) {
+            rowsEmitted += p.getPositionCount();
+        }
         processNanos += System.nanoTime() - start;
         prev = null;
         return p;
@@ -82,11 +94,11 @@ public abstract class AbstractPageMappingOperator implements Operator {
 
     @Override
     public final Status status() {
-        return status(processNanos, pagesProcessed);
+        return status(processNanos, pagesProcessed, rowsReceived, rowsEmitted);
     }
 
-    protected Status status(long processNanos, int pagesProcessed) {
-        return new Status(processNanos, pagesProcessed);
+    protected Status status(long processNanos, int pagesProcessed, int rowsReceived, int rowsEmitted) {
+        return new Status(processNanos, pagesProcessed, rowsReceived, rowsEmitted);
     }
 
     @Override
@@ -105,15 +117,26 @@ public abstract class AbstractPageMappingOperator implements Operator {
 
         private final long processNanos;
         private final int pagesProcessed;
+        private final int rowsReceived;
+        private final int rowsEmitted;
 
-        public Status(long processNanos, int pagesProcessed) {
+        public Status(long processNanos, int pagesProcessed, int rowsReceived, int rowsEmitted) {
             this.processNanos = processNanos;
             this.pagesProcessed = pagesProcessed;
+            this.rowsReceived = rowsReceived;
+            this.rowsEmitted = rowsEmitted;
         }
 
         protected Status(StreamInput in) throws IOException {
             processNanos = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
             pagesProcessed = in.readVInt();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                rowsReceived = in.readVInt();
+                rowsEmitted = in.readVInt();
+            } else {
+                rowsReceived = 0;
+                rowsEmitted = 0;
+            }
         }
 
         @Override
@@ -122,6 +145,10 @@ public abstract class AbstractPageMappingOperator implements Operator {
                 out.writeVLong(processNanos);
             }
             out.writeVInt(pagesProcessed);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                out.writeVInt(rowsReceived);
+                out.writeVInt(rowsEmitted);
+            }
         }
 
         @Override
@@ -131,6 +158,14 @@ public abstract class AbstractPageMappingOperator implements Operator {
 
         public int pagesProcessed() {
             return pagesProcessed;
+        }
+
+        public int rowsReceived() {
+            return rowsReceived;
+        }
+
+        public int rowsEmitted() {
+            return rowsEmitted;
         }
 
         public long processNanos() {
@@ -153,7 +188,7 @@ public abstract class AbstractPageMappingOperator implements Operator {
             if (builder.humanReadable()) {
                 builder.field("process_time", TimeValue.timeValueNanos(processNanos));
             }
-            return builder.field("pages_processed", pagesProcessed);
+            return builder.field("pages_processed", pagesProcessed).field("rows_received", rowsReceived).field("rows_emitted", rowsEmitted);
         }
 
         @Override
@@ -161,12 +196,15 @@ public abstract class AbstractPageMappingOperator implements Operator {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Status status = (Status) o;
-            return processNanos == status.processNanos && pagesProcessed == status.pagesProcessed;
+            return processNanos == status.processNanos
+                && pagesProcessed == status.pagesProcessed
+                && rowsReceived == status.rowsReceived
+                && rowsEmitted == status.rowsEmitted;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(processNanos, pagesProcessed);
+            return Objects.hash(processNanos, pagesProcessed, rowsReceived, rowsEmitted);
         }
 
         @Override

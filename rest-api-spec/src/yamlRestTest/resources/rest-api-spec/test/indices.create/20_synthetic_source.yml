@@ -6,7 +6,7 @@ setup:
 ---
 object with unmapped fields:
   - requires:
-      cluster_features: ["mapper.track_ignored_source", "mapper.bwc_workaround_9_0"]
+      cluster_features: ["mapper.track_ignored_source"]
       reason: requires tracking ignored source
 
   - do:
@@ -103,7 +103,7 @@ unmapped arrays:
 ---
 nested object with unmapped fields:
   - requires:
-      cluster_features: ["mapper.track_ignored_source", "mapper.bwc_workaround_9_0"]
+      cluster_features: ["mapper.track_ignored_source"]
       reason: requires tracking ignored source
 
   - do:
@@ -154,7 +154,7 @@ nested object with unmapped fields:
 ---
 empty object with unmapped fields:
   - requires:
-      cluster_features: ["mapper.track_ignored_source", "mapper.bwc_workaround_9_0"]
+      cluster_features: ["mapper.track_ignored_source"]
       reason: requires tracking ignored source
 
   - do:
@@ -441,7 +441,7 @@ mixed disabled and enabled objects:
 ---
 object with dynamic override:
   - requires:
-      cluster_features: ["mapper.ignored_source.dont_expand_dots", "mapper.bwc_workaround_9_0"]
+      cluster_features: ["mapper.ignored_source.dont_expand_dots"]
       reason: requires tracking ignored source
 
   - do:
@@ -915,7 +915,7 @@ doubly nested object:
 ---
 subobjects auto:
   - requires:
-      cluster_features: ["mapper.subobjects_auto", "mapper.bwc_workaround_9_0"]
+      cluster_features: ["mapper.subobjects_auto"]
       reason: requires tracking ignored source and supporting subobjects auto setting
 
   - do:

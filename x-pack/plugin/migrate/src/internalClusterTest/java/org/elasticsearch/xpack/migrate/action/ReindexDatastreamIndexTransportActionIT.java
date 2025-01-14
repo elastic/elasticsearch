@@ -96,10 +96,24 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         assertHitCount(prepareSearch(destIndex).setSize(0), 0);
     }
 
-    public void testDestIndexNameSet() throws Exception {
+    public void testDestIndexNameSet_noDotPrefix() throws Exception {
         assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
 
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
+
+        // call reindex
+        var response = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+            .actionGet();
+
+        var expectedDestIndexName = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
+        assertEquals(expectedDestIndexName, response.getDestIndex());
+    }
+
+    public void testDestIndexNameSet_withDotPrefix() throws Exception {
+        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
+
+        var sourceIndex = "." + randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
 
         // call reindex
@@ -199,7 +213,8 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             .actionGet()
             .getDestIndex();
 
-        var mappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest().indices(sourceIndex, destIndex)).actionGet();
+        var mappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(sourceIndex, destIndex))
+            .actionGet();
         Map<String, MappingMetadata> mappings = mappingsResponse.mappings();
         var destMappings = mappings.get(destIndex).sourceAsMap();
         var sourceMappings = mappings.get(sourceIndex).sourceAsMap();
@@ -305,7 +320,8 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
         // verify mappings from templates copied to dest index
         {
-            var mappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest().indices(sourceIndex, destIndex)).actionGet();
+            var mappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(sourceIndex, destIndex))
+                .actionGet();
             var destMappings = mappingsResponse.mappings().get(destIndex).sourceAsMap();
             var sourceMappings = mappingsResponse.mappings().get(sourceIndex).sourceAsMap();
             assertEquals(sourceMappings, destMappings);
@@ -445,5 +461,33 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             .getSettings()
             .get(index)
             .get(IndexMetadata.SETTING_INDEX_UUID);
+    }
+
+    public void testGenerateDestIndexName_noDotPrefix() {
+        String sourceIndex = "sourceindex";
+        String expectedDestIndex = "migrated-sourceindex";
+        String actualDestIndex = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
+        assertEquals(expectedDestIndex, actualDestIndex);
+    }
+
+    public void testGenerateDestIndexName_withDotPrefix() {
+        String sourceIndex = ".sourceindex";
+        String expectedDestIndex = ".migrated-sourceindex";
+        String actualDestIndex = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
+        assertEquals(expectedDestIndex, actualDestIndex);
+    }
+
+    public void testGenerateDestIndexName_withHyphen() {
+        String sourceIndex = "source-index";
+        String expectedDestIndex = "migrated-source-index";
+        String actualDestIndex = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
+        assertEquals(expectedDestIndex, actualDestIndex);
+    }
+
+    public void testGenerateDestIndexName_withUnderscore() {
+        String sourceIndex = "source_index";
+        String expectedDestIndex = "migrated-source_index";
+        String actualDestIndex = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
+        assertEquals(expectedDestIndex, actualDestIndex);
     }
 }

@@ -45,6 +45,11 @@ final class TransportHandshaker {
      * as the transport protocols of v6.8.0, v7.17.0, and v8.18.0. This node only sends v7170099 requests, but it can send a valid response
      * to any v6080099 or v8800000 requests that it receives.
      *
+     * Note that these are not really TransportVersion constants as used elsewhere in ES, they're independent things that just happen to be
+     * stored in the same location in the message header and which roughly match the same ID numbering scheme. Older versions of ES did
+     * rely on them matching the real transport protocol (which itself matched the release version numbers), but these days that's no longer
+     * true.
+     *
      * Here are some example messages, broken down to show their structure:
      *
      * ## v6080099 Request:

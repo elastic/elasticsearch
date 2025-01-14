@@ -99,8 +99,10 @@ public class TopNOperatorStatus implements Operator.Status {
             return false;
         }
         TopNOperatorStatus that = (TopNOperatorStatus) o;
-        return occupiedRows == that.occupiedRows && ramBytesUsed == that.ramBytesUsed
-            && pagesReceived == that.pagesReceived&& pagesEmitted == that.pagesEmitted;
+        return occupiedRows == that.occupiedRows
+            && ramBytesUsed == that.ramBytesUsed
+            && pagesReceived == that.pagesReceived
+            && pagesEmitted == that.pagesEmitted;
     }
 
     @Override

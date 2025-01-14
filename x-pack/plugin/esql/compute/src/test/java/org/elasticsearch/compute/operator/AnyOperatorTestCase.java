@@ -8,10 +8,20 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matcher;
 
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.matchesPattern;
 
 /**
@@ -71,6 +81,34 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
     public final void testSimpleToString() {
         try (Operator operator = simple().get(driverContext())) {
             assertThat(operator.toString(), expectedToStringOfSimple());
+        }
+    }
+
+    /**
+     * Ensures that the Operator.Status of this operator has the required fields.
+     */
+    public void testOperatorStatus() throws IOException {
+        DriverContext driverContext = driverContext();
+        try (var operator = simple().get(driverContext)) {
+            Operator.Status status = operator.status();
+
+            assumeTrue("Operator does not provide a status", status != null);
+
+            var xContent = XContentType.JSON.xContent();
+            try (var xContentBuilder = XContentBuilder.builder(xContent)) {
+                status.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+
+                var bytesReference = BytesReference.bytes(xContentBuilder);
+                var map = XContentHelper.convertToMap(bytesReference, false, xContentBuilder.contentType()).v2();
+
+                if (operator instanceof SourceOperator) {
+                    assertThat(map, hasKey("pages_emitted"));
+                } else if (operator instanceof SinkOperator) {
+                    assertThat(map, hasKey("pages_received"));
+                } else {
+                    assertThat(map, either(hasKey("pages_processed")).or(both(hasKey("pages_received")).and(hasKey("pages_emitted"))));
+                }
+            }
         }
     }
 

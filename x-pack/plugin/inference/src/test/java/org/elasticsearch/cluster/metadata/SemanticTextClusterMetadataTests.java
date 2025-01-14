@@ -15,7 +15,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;

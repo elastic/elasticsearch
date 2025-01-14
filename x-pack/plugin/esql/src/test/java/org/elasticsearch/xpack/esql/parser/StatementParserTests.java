@@ -2370,26 +2370,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // functions can be in eval/where/stats/sort/dissect/grok commands, commands in snapshot are not covered
         // positive
         // In eval and where clause as function arguments
-        LinkedHashMap<String, Object> expectedMap1 = new LinkedHashMap<>(2);
+        LinkedHashMap<String, Object> expectedMap1 = new LinkedHashMap<>(4);
         expectedMap1.put("option1", "string");
         expectedMap1.put("option2", 1);
         expectedMap1.put("option3", List.of(2.0, 3.0, 4.0));
         expectedMap1.put("option4", List.of(true, false));
-        LinkedHashMap<String, Object> expectedMap2 = new LinkedHashMap<>(2);
+        LinkedHashMap<String, Object> expectedMap2 = new LinkedHashMap<>(4);
         expectedMap2.put("option1", List.of("string1", "string2"));
         expectedMap2.put("option2", List.of(1, 2, 3));
         expectedMap2.put("option3", 2.0);
         expectedMap2.put("option4", true);
-        LinkedHashMap<String, Object> expectedMap3 = new LinkedHashMap<>(2);
+        LinkedHashMap<String, Object> expectedMap3 = new LinkedHashMap<>(4);
         expectedMap3.put("option1", "string");
         expectedMap3.put("option2", 2.0);
         expectedMap3.put("option3", List.of(1, 2, 3));
         expectedMap3.put("option4", List.of(true, false));
-        LinkedHashMap<String, Object> expectedMap4 = new LinkedHashMap<>(2);
-        expectedMap4.put("option1", 1);
-        expectedMap4.put("option2", true);
-        expectedMap4.put("option3", List.of("string1", "string2"));
-        expectedMap4.put("option4", List.of(2.0, 3.0, 4.0));
 
         assertEquals(
             new Filter(
@@ -2605,6 +2600,51 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(List.of(referenceAttribute("bar", KEYWORD)), dissect.extractedFields());
         ur = as(dissect.child(), UnresolvedRelation.class);
         assertEquals(ur, relation("test"));
+    }
+
+    public void testNamedFunctionArgumentWithCaseSensitiveKeys() {
+        assumeTrue(
+            "named function arguments require snapshot build",
+            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
+        );
+        LinkedHashMap<String, Object> expectedMap1 = new LinkedHashMap<>(3);
+        expectedMap1.put("option", "string");
+        expectedMap1.put("Option", 1);
+        expectedMap1.put("oPtion", List.of(2.0, 3.0, 4.0));
+        LinkedHashMap<String, Object> expectedMap2 = new LinkedHashMap<>(3);
+        expectedMap2.put("option", List.of("string1", "string2"));
+        expectedMap2.put("Option", List.of(1, 2, 3));
+        expectedMap2.put("oPtion", 2.0);
+
+        assertEquals(
+            new Filter(
+                EMPTY,
+                new Eval(
+                    EMPTY,
+                    relation("test"),
+                    List.of(
+                        new Alias(
+                            EMPTY,
+                            "x",
+                            function(
+                                "fn1",
+                                List.of(attribute("f1"), new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap1))
+                            )
+                        )
+                    )
+                ),
+                new Equals(
+                    EMPTY,
+                    attribute("y"),
+                    function("fn2", List.of(new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap2)))
+                )
+            ),
+            statement("""
+                from test
+                | eval x = fn1(f1, "testString", {"option":"string","Option":1,"oPtion":[2.0,3.0,4.0]})
+                | where y == fn2("testString", {"option":["string1","string2"],"Option":[1,2,3],"oPtion":2.0})
+                """)
+        );
     }
 
     public void testMultipleNamedFunctionArgumentsNotAllowed() {

@@ -73,8 +73,16 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
 
     @Override
     public IntBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
+        if (block.areAllValuesNull()) {
+            for (int p = beginInclusive; p < endExclusive; p++) {
+                appendNull();
+            }
+            return this;
+        }
         return copyFrom((IntBlock) block, beginInclusive, endExclusive);
     }
+
+    // NOCOMMIT it's slow to check if all values are null for single position copies.
 
     /**
      * Copy the values in {@code block} from {@code beginInclusive} to

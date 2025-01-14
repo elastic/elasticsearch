@@ -309,94 +309,94 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
         public final void close() {
             Releasables.closeExpectNoException(() -> Releasables.close(evaluators));
         }
-    }
 
-    /**
-     * Evaluates {@code COALESCE} eagerly per position if entire-block evaluation fails.
-     * First we evaluate all remaining evaluators, and then we pluck the first non-null
-     * value from each one. This is <strong>much</strong> faster than
-     * {@link CoalesceLazyEvaluator} but will include spurious warnings if any of the
-     * evaluators make them so we only use it for evaluators that are
-     * {@link ExpressionEvaluator.Factory#eagerEvalSafeInLazy safe} to evaluate eagerly
-     * in a lazy environment.
-     */
-    private static final class CoalesceEagerEvaluator extends AbstractCoalesceEvaluator {
-        CoalesceEagerEvaluator(DriverContext driverContext, ElementType resultType, List<ExpressionEvaluator> evaluators) {
-            super(driverContext, resultType, evaluators);
-        }
-
-        @Override
-        protected Block perPosition(Page page, Block lastFullBlock, int firstToEvaluate) {
-            int positionCount = page.getPositionCount();
-            Block[] flatten = new Block[evaluators.size() - firstToEvaluate + 1];
-            try {
-                flatten[0] = lastFullBlock;
-                for (int f = 1; f < flatten.length; f++) {
-                    flatten[f] = evaluators.get(firstToEvaluate + f - 1).eval(page);
-                }
-                try (Block.Builder result = resultType.newBlockBuilder(positionCount, driverContext.blockFactory())) {
-                    position: for (int p = 0; p < positionCount; p++) {
-                        for (Block f : flatten) {
-                            if (false == f.isNull(p)) {
-                                result.copyFrom(f, p, p + 1);
-                                continue position;
-                            }
-                        }
-                        result.appendNull();
-                    }
-                    return result.build();
-                }
-            } finally {
-                Releasables.close(flatten);
+        /**
+         * Evaluates {@code COALESCE} eagerly per position if entire-block evaluation fails.
+         * First we evaluate all remaining evaluators, and then we pluck the first non-null
+         * value from each one. This is <strong>much</strong> faster than
+         * {@link CoalesceLazyEvaluator} but will include spurious warnings if any of the
+         * evaluators make them so we only use it for evaluators that are
+         * {@link ExpressionEvaluator.Factory#eagerEvalSafeInLazy safe} to evaluate eagerly
+         * in a lazy environment.
+         */
+        private static final class CoalesceEagerEvaluator extends AbstractCoalesceEvaluator {
+            CoalesceEagerEvaluator(DriverContext driverContext, ElementType resultType, List<ExpressionEvaluator> evaluators) {
+                super(driverContext, resultType, evaluators);
             }
-        }
-    }
 
-    /**
-     * Evaluates {@code COALESCE} lazily per position if entire-block evaluation fails.
-     * For each position we either:
-     * <ul>
-     *     <li>Take the non-null values from the {@code lastFullBlock}</li>
-     *     <li>
-     *         Evaluator the remaining evaluators one at a time, keeping
-     *         the first non-null value.
-     *     </li>
-     * </ul>
-     */
-    private static final class CoalesceLazyEvaluator extends AbstractCoalesceEvaluator {
-        CoalesceLazyEvaluator(DriverContext driverContext, ElementType resultType, List<ExpressionEvaluator> evaluators) {
-            super(driverContext, resultType, evaluators);
-        }
-
-        @Override
-        protected Block perPosition(Page page, Block lastFullBlock, int firstToEvaluate) {
-            int positionCount = page.getPositionCount();
-            try (Block.Builder result = resultType.newBlockBuilder(positionCount, driverContext.blockFactory())) {
-                position: for (int p = 0; p < positionCount; p++) {
-                    if (lastFullBlock.isNull(p) == false) {
-                        result.copyFrom(lastFullBlock, p, p + 1);
-                        continue;
+            @Override
+            protected Block perPosition(Page page, Block lastFullBlock, int firstToEvaluate) {
+                int positionCount = page.getPositionCount();
+                Block[] flatten = new Block[evaluators.size() - firstToEvaluate + 1];
+                try {
+                    flatten[0] = lastFullBlock;
+                    for (int f = 1; f < flatten.length; f++) {
+                        flatten[f] = evaluators.get(firstToEvaluate + f - 1).eval(page);
                     }
-                    int[] positions = new int[] { p };
-                    Page limited = new Page(
-                        1,
-                        IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
-                    );
-                    try (Releasable ignored = limited::releaseBlocks) {
-                        for (int e = firstToEvaluate; e < evaluators.size(); e++) {
-                            try (Block block = evaluators.get(e).eval(limited)) {
-                                if (false == block.isNull(0)) {
-                                    result.copyFrom(block, 0, 1);
+                    try (Block.Builder result = resultType.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+                        position: for (int p = 0; p < positionCount; p++) {
+                            for (Block f : flatten) {
+                                if (false == f.isNull(p)) {
+                                    result.copyFrom(f, p, p + 1);
                                     continue position;
                                 }
                             }
+                            result.appendNull();
                         }
-                        result.appendNull();
+                        return result.build();
                     }
+                } finally {
+                    Releasables.close(flatten);
                 }
-                return result.build();
-            } finally {
-                lastFullBlock.close();
+            }
+        }
+
+        /**
+         * Evaluates {@code COALESCE} lazily per position if entire-block evaluation fails.
+         * For each position we either:
+         * <ul>
+         *     <li>Take the non-null values from the {@code lastFullBlock}</li>
+         *     <li>
+         *         Evaluator the remaining evaluators one at a time, keeping
+         *         the first non-null value.
+         *     </li>
+         * </ul>
+         */
+        private static final class CoalesceLazyEvaluator extends AbstractCoalesceEvaluator {
+            CoalesceLazyEvaluator(DriverContext driverContext, ElementType resultType, List<ExpressionEvaluator> evaluators) {
+                super(driverContext, resultType, evaluators);
+            }
+
+            @Override
+            protected Block perPosition(Page page, Block lastFullBlock, int firstToEvaluate) {
+                int positionCount = page.getPositionCount();
+                try (Block.Builder result = resultType.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+                    position: for (int p = 0; p < positionCount; p++) {
+                        if (lastFullBlock.isNull(p) == false) {
+                            result.copyFrom(lastFullBlock, p, p + 1);
+                            continue;
+                        }
+                        int[] positions = new int[] { p };
+                        Page limited = new Page(
+                            1,
+                            IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
+                        );
+                        try (Releasable ignored = limited::releaseBlocks) {
+                            for (int e = firstToEvaluate; e < evaluators.size(); e++) {
+                                try (Block block = evaluators.get(e).eval(limited)) {
+                                    if (false == block.isNull(0)) {
+                                        result.copyFrom(block, 0, 1);
+                                        continue position;
+                                    }
+                                }
+                            }
+                            result.appendNull();
+                        }
+                    }
+                    return result.build();
+                } finally {
+                    lastFullBlock.close();
+                }
             }
         }
     }

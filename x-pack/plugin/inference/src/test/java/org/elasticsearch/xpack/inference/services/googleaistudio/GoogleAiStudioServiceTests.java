@@ -1123,59 +1123,33 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         try (var service = createGoogleAiStudioService()) {
             String content = XContentHelper.stripWhitespace("""
                 {
-                       "provider": "googleaistudio",
-                       "task_types": [
-                            {
-                                "task_type": "text_embedding",
-                                "configuration": {}
-                            },
-                            {
-                                "task_type": "completion",
-                                "configuration": {}
-                            }
-                       ],
-                       "configuration": {
+                       "service": "googleaistudio",
+                       "name": "Google AI Studio",
+                       "task_types": ["text_embedding", "completion"],
+                       "configurations": {
                            "api_key": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "textbox",
+                               "description": "API Key for the provider you're connecting to.",
                                "label": "API Key",
-                               "order": 1,
                                "required": true,
                                "sensitive": true,
-                               "tooltip": "API Key for the provider you're connecting to.",
-                               "type": "str",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "updatable": true,
+                               "type": "str"
                            },
                            "rate_limit.requests_per_minute": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "numeric",
+                               "description": "Minimize the number of rate limit errors.",
                                "label": "Rate Limit",
-                               "order": 6,
                                "required": false,
                                "sensitive": false,
-                               "tooltip": "Minimize the number of rate limit errors.",
-                               "type": "int",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "updatable": false,
+                               "type": "int"
                            },
                            "model_id": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "textbox",
+                               "description": "ID of the LLM you're using.",
                                "label": "Model ID",
-                               "order": 2,
                                "required": true,
                                "sensitive": false,
-                               "tooltip": "ID of the LLM you're using.",
-                               "type": "str",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "updatable": false,
+                               "type": "str"
                            }
                        }
                    }

@@ -1413,7 +1413,6 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         return index.get(TIMEOUT_SECONDS, TimeUnit.SECONDS).getId();
     }
 
-
     /**
      * Test plugin to register the {@link ConnectorSyncJobIndexService} system index descriptor.
      */

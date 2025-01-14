@@ -9,6 +9,8 @@
 
 package org.elasticsearch.entitlement.qa.common;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -18,43 +20,43 @@ import java.net.Socket;
 
 class NetworkAccessCheckActions {
 
-    static void serverSocketAccept() {
-        try (ServerSocket socket = new DummyImplementations.DummyServerSocket()) {
-            socket.accept();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+    static void serverSocketAccept() throws IOException {
+        try (ServerSocket socket = new DummyImplementations.DummyBoundServerSocket()) {
+            try {
+                socket.accept();
+            } catch (IOException e) {
+                // Our dummy socket cannot accept connections unless we tell the JDK how to create a socket for it.
+                // But Socket.setSocketImplFactory(); is one of the methods we always forbid, so we cannot use it.
+                // Still, we can check accept is called (allowed/denied), we don't care if it fails later for this
+                // known reason.
+                assert e.getMessage().contains("client socket implementation factory not set");
+            }
         }
     }
 
-    static void serverSocketBind() {
+    static void serverSocketBind() throws IOException {
         try (ServerSocket socket = new DummyImplementations.DummyServerSocket()) {
             socket.bind(null);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
 
-    static void createSocketWithProxy() {
+    @SuppressForbidden(reason = "Testing entitlement check on forbidden action")
+    static void createSocketWithProxy() throws IOException {
         try (Socket socket = new Socket(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(0)))) {
             assert socket.isBound() == false;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
 
-    static void socketBind() {
+    static void socketBind() throws IOException {
         try (Socket socket = new DummyImplementations.DummySocket()) {
             socket.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
 
-    static void socketConnect() {
+    @SuppressForbidden(reason = "Testing entitlement check on forbidden action")
+    static void socketConnect() throws IOException {
         try (Socket socket = new DummyImplementations.DummySocket()) {
             socket.connect(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
 }

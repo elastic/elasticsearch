@@ -365,6 +365,17 @@ class DummyImplementations {
         }
     }
 
+    static class DummyBoundServerSocket extends ServerSocket {
+        DummyBoundServerSocket() {
+            super(new DummySocketImpl());
+        }
+
+        @Override
+        public boolean isBound() {
+            return true;
+        }
+    }
+
     static class DummySSLSocketFactory extends SSLSocketFactory {
         @Override
         public Socket createSocket(String host, int port) {

@@ -10,6 +10,8 @@
 package org.elasticsearch.search.rank;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -20,8 +22,10 @@ import java.util.Objects;
 
 public class LinearRankDoc extends RankDoc {
 
-    private final float[] weights;
-    private final String[] normalizers;
+    public static final String NAME = "linear_rank_doc";
+
+    final float[] weights;
+    final String[] normalizers;
     public float[] normalizedScores;
 
     public LinearRankDoc(int doc, float score, int shardIndex, float[] weights, String[] normalizers) {
@@ -29,10 +33,11 @@ public class LinearRankDoc extends RankDoc {
         this.weights = weights;
         this.normalizers = normalizers;
         this.normalizedScores = new float[normalizers.length];
+        Arrays.fill(normalizedScores, 0f);
     }
 
     public LinearRankDoc(StreamInput in) throws IOException {
-        super(in.readVInt(), in.readFloat(), in.readVInt());
+        super(in);
         weights = in.readFloatArray();
         normalizedScores = in.readFloatArray();
         normalizers = in.readStringArray();
@@ -104,7 +109,17 @@ public class LinearRankDoc extends RankDoc {
 
     @Override
     public int doHashCode() {
-        int result = Objects.hash(Arrays.hashCode(weights), Arrays.hashCode(normalizedScores) + Arrays.hashCode(normalizers));
+        int result = Objects.hash(Arrays.hashCode(weights), Arrays.hashCode(normalizedScores), Arrays.hashCode(normalizers));
         return 31 * result;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.LINEAR_RETRIEVER_SUPPORT;
     }
 }

@@ -15,8 +15,8 @@ apply plugin: 'elasticsearch.test.fixtures'
 final Project fixture = project(':test:fixtures:url-fixture')
 
 esplugin {
-  description 'Module for URL repository'
-  classname 'org.elasticsearch.plugin.repository.url.URLRepositoryPlugin'
+  description = 'Module for URL repository'
+  classname ='org.elasticsearch.plugin.repository.url.URLRepositoryPlugin'
 }
 
 restResources {

@@ -9,8 +9,8 @@ apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Lucene expressions integration for Elasticsearch'
-  classname 'org.elasticsearch.script.expression.ExpressionPlugin'
+  description = 'Lucene expressions integration for Elasticsearch'
+  classname ='org.elasticsearch.script.expression.ExpressionPlugin'
 }
 
 dependencies {

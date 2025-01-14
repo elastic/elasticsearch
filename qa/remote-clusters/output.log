@@ -1,0 +1,125 @@
+Using gradle at '/Users/rene/dev/elastic/elasticsearch/gradlew' to run buildfile '/Users/rene/dev/elastic/elasticsearch/qa/remote-clusters/build.gradle':
+
+Starting a Gradle Daemon (subsequent builds will be faster)
+Calculating task graph as no cached configuration is available for tasks: check
+
+> Task :build-conventions:compileJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: /Users/rene/dev/elastic/elasticsearch/build-conventions/src/main/java/org/elasticsearch/gradle/internal/conventions/LicensingPlugin.java uses unchecked or unsafe operations.
+Note: Recompile with -Xlint:unchecked for details.
+
+> Task :build-conventions:pluginDescriptors
+> Task :build-conventions:processResources
+> Task :build-conventions:classes
+> Task :build-conventions:jar
+> Task :build-tools:reaper:compileJava FROM-CACHE
+> Task :build-tools:reaper:processResources NO-SOURCE
+> Task :build-tools:reaper:classes UP-TO-DATE
+> Task :build-tools-internal:extractPluginRequests FROM-CACHE
+> Task :build-tools:reaper:jar
+> Task :build-tools-internal:generatePluginAdapters FROM-CACHE
+> Task :build-tools-internal:pluginDescriptors
+> Task :build-tools:compileJava FROM-CACHE
+> Task :build-tools:compileGroovy NO-SOURCE
+> Task :build-tools:generateVersionProperties FROM-CACHE
+> Task :build-tools:pluginDescriptors
+> Task :build-tools:processResources
+> Task :build-tools:classes
+> Task :build-tools:jar
+> Task :build-tools-internal:processResources
+
+> Task :build-tools-internal:compileJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some input files use unchecked or unsafe operations.
+Note: Recompile with -Xlint:unchecked for details.
+
+> Task :build-tools-internal:compileGroovy
+> Task :build-tools-internal:compileGroovyPlugins
+> Task :build-tools-internal:classes
+> Task :build-tools-internal:jar
+=======================================
+Elasticsearch Build Hamster says Hello!
+  Gradle Version        : 8.12
+  OS Info               : Mac OS X 15.2 (aarch64)
+  JDK Version           : 21.0.5+9-LTS-239 (Oracle)
+  JAVA_HOME             : /Users/rene/.sdkman/candidates/java/21.0.5-oracle
+  Random Testing Seed   : 8D9A9CFD8E09C560
+  In FIPS 140 mode      : false
+=======================================
+> Task :qa:remote-clusters:processTestResources
+> Task :server:generateModulesList
+> Task :server:generatePluginsList
+> Task :qa:remote-clusters:copyCheckstyleConf
+> Task :qa:remote-clusters:filepermissions
+> Task :client:sniffer:processResources NO-SOURCE
+> Task :libs:core:processResources NO-SOURCE
+> Task :libs:cli:processResources NO-SOURCE
+> Task :libs:entitlement:processResources NO-SOURCE
+> Task :libs:entitlement:bridge:processResources NO-SOURCE
+> Task :libs:entitlement:asm-provider:processResources
+> Task :libs:entitlement:processMain23Resources NO-SOURCE
+> Task :libs:entitlement:bridge:processMain23Resources NO-SOURCE
+> Task :libs:geo:processResources NO-SOURCE
+> Task :libs:logging:processResources NO-SOURCE
+> Task :libs:lz4:processResources NO-SOURCE
+> Task :libs:native:processResources NO-SOURCE
+> Task :libs:native:processMain22Resources NO-SOURCE
+> Task :libs:plugin-analysis-api:processResources NO-SOURCE
+> Task :libs:plugin-api:processResources NO-SOURCE
+> Task :libs:secure-sm:processResources NO-SOURCE
+> Task :libs:simdvec:processResources NO-SOURCE
+> Task :libs:simdvec:processMain21Resources NO-SOURCE
+> Task :libs:simdvec:processMain22Resources NO-SOURCE
+> Task :client:rest:processResources
+> Task :libs:tdigest:processResources NO-SOURCE
+> Task :libs:x-content:impl:processResources
+> Task :libs:x-content:processResources NO-SOURCE
+> Task :modules:transport-netty4:processResources NO-SOURCE
+> Task :server:processResources
+> Task :libs:ssl-config:processResources NO-SOURCE
+> Task :test:yaml-rest-runner:processResources NO-SOURCE
+> Task :qa:remote-clusters:forbiddenApisResources
+> Task :qa:remote-clusters:forbiddenPatterns
+> Task :qa:remote-clusters:licenseHeaders
+> Task :test:logger-usage:processResources NO-SOURCE
+> Task :libs:grok:processResources
+> Task :qa:remote-clusters:testingConventions UP-TO-DATE
+> Task :qa:remote-clusters:copyNodeKeyMaterial FAILED
+> Task :spotlessInternalRegisterDependencies
+> Task :test:framework:processResources
+> Task :libs:plugin-api:compileJava
+> Task :libs:logging:compileJava
+> Task :libs:entitlement:bridge:compileJava
+
+> Task :libs:secure-sm:compileJava
+Note: Some input files use or override a deprecated API that is marked for removal.
+Note: Recompile with -Xlint:removal for details.
+
+> Task :test:logger-usage:compileJava
+> Task :qa:remote-clusters:spotlessJava
+> Task :libs:grok:compileJava
+> Task :libs:geo:compileJava
+> Task :client:rest:compileJava
+> Task :qa:remote-clusters:checkstyleTest
+
+[Incubating] Problems report is available at: file:///Users/rene/dev/elastic/elasticsearch/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* Where:
+Build file '/Users/rene/dev/elastic/elasticsearch/qa/remote-clusters/build.gradle' line: 27
+
+* What went wrong:
+Execution failed for task ':qa:remote-clusters:copyNodeKeyMaterial'.
+> Cannot reference a Gradle script object from a Groovy closure as these are not supported with the configuration cache.
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 1m 4s
+45 actionable tasks: 40 executed, 5 from cache
+Configuration cache entry stored.

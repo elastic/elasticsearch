@@ -6,8 +6,10 @@
  * Side Public License, v 1.
  */
 
-esplugin {
-  description = 'Integrates Elasticsearch with systemd'
-  classname ='org.elasticsearch.systemd.SystemdPlugin'
-}
+package org.elasticsearch.gradle.internal.util;
 
+public class CiUtils {
+    public static String safeName(String input) {
+        return input.replaceAll("[^a-zA-Z0-9_\\-\\.]+", " ").trim().replaceAll(" ", "_").toLowerCase();
+    }
+}

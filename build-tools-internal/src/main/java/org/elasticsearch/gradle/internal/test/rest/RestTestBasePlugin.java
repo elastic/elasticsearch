@@ -39,6 +39,7 @@ import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.internal.artifacts.dependencies.ProjectDependencyInternal;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.ClasspathNormalizer;
 import org.gradle.api.tasks.PathSensitivity;
@@ -277,11 +278,12 @@ public class RestTestBasePlugin implements Plugin<Project> {
                 for (Iterator<Dependency> iterator = dependencies.iterator(); iterator.hasNext();) {
                     Dependency dependency = iterator.next();
                     if (dependency instanceof ProjectDependency projectDependency) {
-                        Project dependencyProject = projectDependency.getDependencyProject();
+                        Project dependencyProject = project.project(
+                            ((ProjectDependencyInternal) projectDependency).getIdentityPath().getPath()
+                        );
                         List<String> extendedPlugins = dependencyProject.getExtensions()
                             .getByType(PluginPropertiesExtension.class)
                             .getExtendedPlugins();
-
                         // Replace project dependency with task artifact dependency so the unzip artifact transform will work
                         iterator.remove();
                         additionalDependencies.add(

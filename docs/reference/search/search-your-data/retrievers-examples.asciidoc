@@ -19,7 +19,10 @@ PUT retrievers_example
                "type": "dense_vector",
                "dims": 3,
                "similarity": "l2_norm",
-               "index": true
+               "index": true,
+               "index_options": {
+                    "type": "flat"
+               }
            },
            "text": {
                "type": "text"

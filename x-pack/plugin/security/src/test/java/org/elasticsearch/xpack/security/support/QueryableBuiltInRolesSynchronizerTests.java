@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.support;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -45,8 +46,11 @@ import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronizer.QUERYABLE_BUILT_IN_ROLES_FEATURE;
@@ -164,6 +168,7 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
         verify(clusterService, times(3)).state();
         verifyNoMoreInteractions(nativeRolesStore, featureService, taskQueue, reservedRolesProvider, threadPool, clusterService);
         assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
+        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(0));
     }
 
     public void testNotMaster() {
@@ -384,6 +389,156 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
         verifyNoMoreInteractions(nativeRolesStore, featureService, taskQueue, reservedRolesProvider, threadPool, clusterService);
     }
 
+    public void testUnexpectedSyncFailures() {
+        assertInitialState();
+
+        ClusterState clusterState = markShardsAvailable(createClusterStateWithOpenSecurityIndex()).nodes(localNodeMaster())
+            .blocks(emptyClusterBlocks())
+            .build();
+
+        when(clusterService.state()).thenReturn(clusterState);
+        when(featureService.clusterHasFeature(any(), eq(QUERYABLE_BUILT_IN_ROLES_FEATURE))).thenReturn(true);
+
+        final Set<String> roles = randomReservedRoles(randomIntBetween(1, QueryableBuiltInRolesSynchronizer.MAX_FAILED_SYNC_ATTEMPTS - 1));
+        final QueryableBuiltInRoles builtInRoles = buildQueryableBuiltInRoles(
+            roles.stream().map(ReservedRolesStore::roleDescriptor).collect(Collectors.toSet())
+        );
+        when(reservedRolesProvider.getRoles()).thenReturn(builtInRoles);
+        mockNativeRolesStoreWithFailure(builtInRoles.roleDescriptors(), Set.of(), new IllegalStateException("unexpected failure"));
+        assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
+
+        // the first sync attempt should fail
+        synchronizer.clusterChanged(event(clusterState));
+        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(roles.size()));
+
+        verify(nativeRolesStore, times(1)).isEnabled();
+        verify(featureService, times(1)).clusterHasFeature(any(), eq(QUERYABLE_BUILT_IN_ROLES_FEATURE));
+        verify(reservedRolesProvider, times(1)).getRoles();
+        verify(nativeRolesStore, times(1)).putRoles(
+            eq(WriteRequest.RefreshPolicy.IMMEDIATE),
+            eq(builtInRoles.roleDescriptors()),
+            eq(false),
+            any()
+        );
+        verify(clusterService, times(1)).state();
+        verifyNoMoreInteractions(nativeRolesStore, featureService, taskQueue, reservedRolesProvider, threadPool, clusterService);
+        assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
+
+        // the next cluster change event should trigger a sync since the previous sync did not reach the max number of failed attempts
+        synchronizer.clusterChanged(event(clusterState));
+        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(roles.size() * 2));
+
+        verify(nativeRolesStore, times(2)).isEnabled();
+        verify(featureService, times(2)).clusterHasFeature(any(), eq(QUERYABLE_BUILT_IN_ROLES_FEATURE));
+        verify(reservedRolesProvider, times(2)).getRoles();
+        verify(nativeRolesStore, times(2)).putRoles(
+            eq(WriteRequest.RefreshPolicy.IMMEDIATE),
+            eq(builtInRoles.roleDescriptors()),
+            eq(false),
+            any()
+        );
+        verify(clusterService, times(2)).state();
+        verifyNoMoreInteractions(nativeRolesStore, featureService, taskQueue, reservedRolesProvider, threadPool, clusterService);
+        assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
+    }
+
+    public void testMaxUnexpectedSyncFailureAttempts() {
+        assertInitialState();
+
+        ClusterState clusterState = markShardsAvailable(createClusterStateWithOpenSecurityIndex()).nodes(localNodeMaster())
+            .blocks(emptyClusterBlocks())
+            .build();
+
+        when(clusterService.state()).thenReturn(clusterState);
+        when(featureService.clusterHasFeature(any(), eq(QUERYABLE_BUILT_IN_ROLES_FEATURE))).thenReturn(true);
+
+        final Set<String> roles = randomReservedRoles(QueryableBuiltInRolesSynchronizer.MAX_FAILED_SYNC_ATTEMPTS);
+        final QueryableBuiltInRoles builtInRoles = buildQueryableBuiltInRoles(
+            roles.stream().map(ReservedRolesStore::roleDescriptor).collect(Collectors.toSet())
+        );
+        when(reservedRolesProvider.getRoles()).thenReturn(builtInRoles);
+        mockNativeRolesStoreWithFailure(builtInRoles.roleDescriptors(), Set.of(), new IllegalStateException("unexpected failure"));
+        assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
+
+        synchronizer.clusterChanged(event(clusterState));
+
+        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(QueryableBuiltInRolesSynchronizer.MAX_FAILED_SYNC_ATTEMPTS));
+
+        verify(nativeRolesStore, times(1)).isEnabled();
+        verify(featureService, times(1)).clusterHasFeature(any(), eq(QUERYABLE_BUILT_IN_ROLES_FEATURE));
+        verify(reservedRolesProvider, times(1)).getRoles();
+        verify(nativeRolesStore, times(1)).putRoles(
+            eq(WriteRequest.RefreshPolicy.IMMEDIATE),
+            eq(builtInRoles.roleDescriptors()),
+            eq(false),
+            any()
+        );
+        verify(clusterService, times(1)).state();
+        verifyNoMoreInteractions(nativeRolesStore, featureService, taskQueue, reservedRolesProvider, threadPool, clusterService);
+        assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
+
+        // the next cluster change event should not trigger a sync since the max number of failed attempts has been reached in previous sync
+        synchronizer.clusterChanged(event(clusterState));
+        verifyNoMoreInteractions(nativeRolesStore, featureService, taskQueue, reservedRolesProvider, threadPool, clusterService);
+        assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
+        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(QueryableBuiltInRolesSynchronizer.MAX_FAILED_SYNC_ATTEMPTS));
+    }
+
+    public void testExpectedSyncFailuresAreNotCounted() {
+        assertInitialState();
+
+        ClusterState clusterState = markShardsAvailable(createClusterStateWithOpenSecurityIndex()).nodes(localNodeMaster())
+            .blocks(emptyClusterBlocks())
+            .build();
+
+        when(clusterService.state()).thenReturn(clusterState);
+        when(featureService.clusterHasFeature(any(), eq(QUERYABLE_BUILT_IN_ROLES_FEATURE))).thenReturn(true);
+
+        final Set<String> roles = randomReservedRoles(randomIntBetween(1, QueryableBuiltInRolesSynchronizer.MAX_FAILED_SYNC_ATTEMPTS));
+        final QueryableBuiltInRoles builtInRoles = buildQueryableBuiltInRoles(
+            roles.stream().map(ReservedRolesStore::roleDescriptor).collect(Collectors.toSet())
+        );
+        when(reservedRolesProvider.getRoles()).thenReturn(builtInRoles);
+        mockNativeRolesStoreWithFailure(builtInRoles.roleDescriptors(), Set.of(), new UnavailableShardsException(null, "expected failure"));
+        assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
+
+        synchronizer.clusterChanged(event(clusterState));
+
+        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(0));
+
+        verify(nativeRolesStore, times(1)).isEnabled();
+        verify(featureService, times(1)).clusterHasFeature(any(), eq(QUERYABLE_BUILT_IN_ROLES_FEATURE));
+        verify(reservedRolesProvider, times(1)).getRoles();
+        verify(nativeRolesStore, times(1)).putRoles(
+            eq(WriteRequest.RefreshPolicy.IMMEDIATE),
+            eq(builtInRoles.roleDescriptors()),
+            eq(false),
+            any()
+        );
+        verify(clusterService, times(1)).state();
+        verifyNoMoreInteractions(nativeRolesStore, featureService, taskQueue, reservedRolesProvider, threadPool, clusterService);
+        assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
+    }
+
+    private Set<String> randomReservedRoles(int count) {
+        assert count >= 0;
+        if (count == 0) {
+            return Set.of();
+        }
+        if (count == 1) {
+            return Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
+        }
+
+        final Set<String> reservedRoles = new HashSet<>();
+        reservedRoles.add(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
+        final Set<String> allReservedRolesExceptSuperuser = ReservedRolesStore.names()
+            .stream()
+            .filter(role -> false == role.equals(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()))
+            .collect(Collectors.toSet());
+        reservedRoles.addAll(randomUnique(() -> randomFrom(allReservedRolesExceptSuperuser), count - 1));
+        return Collections.unmodifiableSet(reservedRoles);
+    }
+
     private static ClusterState.Builder markShardsAvailable(ClusterState.Builder clusterStateBuilder) {
         final ClusterState cs = clusterStateBuilder.build();
         return ClusterState.builder(cs)
@@ -502,6 +657,31 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
                 new BulkRolesResponse(
                     rolesToDelete.stream().map(role -> BulkRolesResponse.Item.success(role, DocWriteResponse.Result.DELETED)).toList()
                 )
+            );
+            return null;
+        }).when(nativeRolesStore)
+            .deleteRoles(eq(rolesToDelete), eq(WriteRequest.RefreshPolicy.IMMEDIATE), eq(false), any(ActionListener.class));
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private void mockNativeRolesStoreWithFailure(
+        final Collection<RoleDescriptor> rolesToUpsert,
+        final Collection<String> rolesToDelete,
+        Exception failure
+    ) {
+        when(nativeRolesStore.isEnabled()).thenReturn(true);
+        doAnswer(i -> {
+            assertThat(synchronizer.isSynchronizationInProgress(), equalTo(true));
+            ((ActionListener) i.getArgument(3)).onResponse(
+                new BulkRolesResponse(rolesToUpsert.stream().map(role -> BulkRolesResponse.Item.failure(role.getName(), failure)).toList())
+            );
+            return null;
+        }).when(nativeRolesStore)
+            .putRoles(eq(WriteRequest.RefreshPolicy.IMMEDIATE), eq(rolesToUpsert), eq(false), any(ActionListener.class));
+
+        doAnswer(i -> {
+            ((ActionListener) i.getArgument(3)).onResponse(
+                new BulkRolesResponse(rolesToDelete.stream().map(role -> BulkRolesResponse.Item.failure(role, failure)).toList())
             );
             return null;
         }).when(nativeRolesStore)

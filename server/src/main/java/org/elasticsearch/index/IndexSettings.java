@@ -654,6 +654,32 @@ public final class IndexSettings {
         Property.Final
     );
 
+    /**
+     * The {@link IndexMode "mode"} of the index.
+     */
+    public static final Setting<IndexMode> MODE = Setting.enumSetting(
+        IndexMode.class,
+        "index.mode",
+        IndexMode.STANDARD,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(IndexMode value) {}
+
+            @Override
+            public void validate(IndexMode value, Map<Setting<?>, Object> settings) {
+                value.validateWithOtherSettings(settings);
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return IndexMode.VALIDATE_WITH_SETTINGS.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
     public static final Setting<SourceFieldMapper.Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(
         SourceFieldMapper.Mode.class,
         settings -> {
@@ -736,32 +762,6 @@ public final class IndexSettings {
         Property.IndexScope,
         Property.PrivateIndex,
         Property.Final
-    );
-
-    /**
-     * The {@link IndexMode "mode"} of the index.
-     */
-    public static final Setting<IndexMode> MODE = Setting.enumSetting(
-        IndexMode.class,
-        "index.mode",
-        IndexMode.STANDARD,
-        new Setting.Validator<>() {
-            @Override
-            public void validate(IndexMode value) {}
-
-            @Override
-            public void validate(IndexMode value, Map<Setting<?>, Object> settings) {
-                value.validateWithOtherSettings(settings);
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                return IndexMode.VALIDATE_WITH_SETTINGS.iterator();
-            }
-        },
-        Property.IndexScope,
-        Property.Final,
-        Property.ServerlessPublic
     );
 
     /**

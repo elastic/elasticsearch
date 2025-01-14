@@ -1179,7 +1179,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     @SuppressWarnings("unchecked")
     private void assertDownsampleIndex(String sourceIndex, String downsampleIndex, DownsampleConfig config) throws Exception {
         // Retrieve field information for the metric fields
-        final GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(sourceIndex).get();
+        final GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, sourceIndex).get();
         final Map<String, Object> sourceIndexMappings = getMappingsResponse.mappings()
             .entrySet()
             .stream()
@@ -1221,8 +1221,9 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         assertFieldMappings(config, metricFields, mappings);
 
-        GetMappingsResponse indexMappings = indicesAdmin().getMappings(new GetMappingsRequest().indices(downsampleIndex, sourceIndex))
-            .actionGet();
+        GetMappingsResponse indexMappings = indicesAdmin().getMappings(
+            new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(downsampleIndex, sourceIndex)
+        ).actionGet();
         Map<String, String> downsampleIndexProperties = (Map<String, String>) indexMappings.mappings()
             .get(downsampleIndex)
             .sourceAsMap()

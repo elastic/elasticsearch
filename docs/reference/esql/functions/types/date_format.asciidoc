@@ -5,6 +5,7 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 dateFormat | date | result
+date | | keyword
 keyword | date | keyword
 text | date | keyword
 |===

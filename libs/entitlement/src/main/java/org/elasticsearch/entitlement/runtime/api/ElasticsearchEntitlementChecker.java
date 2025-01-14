@@ -31,6 +31,12 @@ import java.net.SocketImplFactory;
 import java.net.URL;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
+import java.nio.channels.AsynchronousServerSocketChannel;
+import java.nio.channels.AsynchronousSocketChannel;
+import java.nio.channels.CompletionHandler;
+import java.nio.channels.DatagramChannel;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
 import java.util.List;
 
 import javax.net.ssl.HostnameVerifier;
@@ -419,5 +425,103 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void check$java_net_MulticastSocket$send(Class<?> callerClass, MulticastSocket that, DatagramPacket p, byte ttl) {
         policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_nio_channels_AsynchronousServerSocketChannel$bind(
+        Class<?> callerClass,
+        AsynchronousServerSocketChannel that,
+        SocketAddress local
+    ) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION);
+    }
+
+    @Override
+    public void check$sun_nio_ch_AsynchronousServerSocketChannelImpl$bind(
+        Class<?> callerClass,
+        AsynchronousServerSocketChannel that,
+        SocketAddress local,
+        int backlog
+    ) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION);
+    }
+
+    @Override
+    public void check$sun_nio_ch_AsynchronousSocketChannelImpl$bind(
+        Class<?> callerClass,
+        AsynchronousSocketChannel that,
+        SocketAddress local
+    ) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION);
+    }
+
+    @Override
+    public void check$sun_nio_ch_DatagramChannelImpl$bind(Class<?> callerClass, DatagramChannel that, SocketAddress local) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION);
+    }
+
+    @Override
+    public void check$java_nio_channels_ServerSocketChannel$bind(Class<?> callerClass, ServerSocketChannel that, SocketAddress local) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION);
+    }
+
+    @Override
+    public void check$sun_nio_ch_ServerSocketChannelImpl$bind(
+        Class<?> callerClass,
+        ServerSocketChannel that,
+        SocketAddress local,
+        int backlog
+    ) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION);
+    }
+
+    @Override
+    public void check$sun_nio_ch_SocketChannelImpl$bind(Class<?> callerClass, SocketChannel that, SocketAddress local) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION);
+    }
+
+    @Override
+    public void check$sun_nio_ch_SocketChannelImpl$connect(Class<?> callerClass, SocketChannel that, SocketAddress remote) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
+    }
+
+    @Override
+    public void check$sun_nio_ch_AsynchronousSocketChannelImpl$connect(
+        Class<?> callerClass,
+        AsynchronousSocketChannel that,
+        SocketAddress remote
+    ) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
+    }
+
+    @Override
+    public void check$sun_nio_ch_AsynchronousSocketChannelImpl$connect(
+        Class<?> callerClass,
+        AsynchronousSocketChannel that,
+        SocketAddress remote,
+        Object attachment,
+        CompletionHandler<Void, Object> handler
+    ) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
+    }
+
+    @Override
+    public void check$sun_nio_ch_ServerSocketChannelImpl$accept(Class<?> callerClass, ServerSocketChannel that) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$sun_nio_ch_AsynchronousServerSocketChannelImpl$accept(Class<?> callerClass, AsynchronousServerSocketChannel that) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$sun_nio_ch_AsynchronousServerSocketChannelImpl$accept(
+        Class<?> callerClass,
+        AsynchronousServerSocketChannel that,
+        Object attachment,
+        CompletionHandler<AsynchronousSocketChannel, Object> handler
+    ) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.ACCEPT_ACTION);
     }
 }

@@ -27,6 +27,12 @@ import java.net.SocketImplFactory;
 import java.net.URL;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
+import java.nio.channels.AsynchronousServerSocketChannel;
+import java.nio.channels.AsynchronousSocketChannel;
+import java.nio.channels.CompletionHandler;
+import java.nio.channels.DatagramChannel;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
 import java.util.List;
 
 import javax.net.ssl.HostnameVerifier;
@@ -38,7 +44,7 @@ import javax.net.ssl.SSLSocketFactory;
 @SuppressWarnings("unused") // Called from instrumentation code inserted by the Entitlements agent
 public interface EntitlementChecker {
 
-    ////////////////////
+    /// /////////////////
     //
     // Exit the JVM process
     //
@@ -49,7 +55,7 @@ public interface EntitlementChecker {
 
     void check$java_lang_System$$exit(Class<?> callerClass, int status);
 
-    ////////////////////
+    /// /////////////////
     //
     // ClassLoader ctor
     //
@@ -60,7 +66,7 @@ public interface EntitlementChecker {
 
     void check$java_lang_ClassLoader$(Class<?> callerClass, String name, ClassLoader parent);
 
-    ////////////////////
+    /// /////////////////
     //
     // SecureClassLoader ctor
     //
@@ -71,7 +77,7 @@ public interface EntitlementChecker {
 
     void check$java_security_SecureClassLoader$(Class<?> callerClass, String name, ClassLoader parent);
 
-    ////////////////////
+    /// /////////////////
     //
     // URLClassLoader constructors
     //
@@ -86,7 +92,7 @@ public interface EntitlementChecker {
 
     void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory);
 
-    ////////////////////
+    /// /////////////////
     //
     // "setFactory" methods
     //
@@ -99,7 +105,7 @@ public interface EntitlementChecker {
 
     void check$javax_net_ssl_SSLContext$$setDefault(Class<?> callerClass, SSLContext context);
 
-    ////////////////////
+    /// /////////////////
     //
     // Process creation
     //
@@ -108,7 +114,7 @@ public interface EntitlementChecker {
 
     void check$java_lang_ProcessBuilder$$startPipeline(Class<?> callerClass, List<ProcessBuilder> builders);
 
-    ////////////////////
+    /// /////////////////
     //
     // JVM-wide state changes
     //
@@ -177,7 +183,7 @@ public interface EntitlementChecker {
 
     void check$java_net_URLConnection$$setContentHandlerFactory(Class<?> callerClass, ContentHandlerFactory fac);
 
-    ////////////////////
+    /// /////////////////
     //
     // Network access
     //
@@ -219,4 +225,66 @@ public interface EntitlementChecker {
     void check$java_net_MulticastSocket$leaveGroup(Class<?> callerClass, MulticastSocket that, SocketAddress addr, NetworkInterface ni);
 
     void check$java_net_MulticastSocket$send(Class<?> callerClass, MulticastSocket that, DatagramPacket p, byte ttl);
+
+    /* NIO
+     * For NIO, we are sometime able to check a method on the public surface/interface (e.g. AsynchronousServerSocketChannel#bind)
+     * but most of the time these methods are abstract in the public classes/interfaces (e.g. ServerSocketChannel#accept,
+     * NetworkChannel#bind), so we are forced to implement the "impl" classes.
+     * You can distinguish the 2 cases form the namespaces: java_nio_channels for the public ones, sun_nio_ch for the implementation
+     * classes. When you see a check on a sun_nio_ch class/method, this means the matching method on the public class is abstract
+     * (not instrumentable).
+     */
+
+    // bind
+
+    void check$java_nio_channels_AsynchronousServerSocketChannel$bind(
+        Class<?> callerClass,
+        AsynchronousServerSocketChannel that,
+        SocketAddress local
+    );
+
+    void check$sun_nio_ch_AsynchronousServerSocketChannelImpl$bind(
+        Class<?> callerClass,
+        AsynchronousServerSocketChannel that,
+        SocketAddress local,
+        int backlog
+    );
+
+    void check$sun_nio_ch_AsynchronousSocketChannelImpl$bind(Class<?> callerClass, AsynchronousSocketChannel that, SocketAddress local);
+
+    void check$sun_nio_ch_DatagramChannelImpl$bind(Class<?> callerClass, DatagramChannel that, SocketAddress local);
+
+    void check$java_nio_channels_ServerSocketChannel$bind(Class<?> callerClass, ServerSocketChannel that, SocketAddress local);
+
+    void check$sun_nio_ch_ServerSocketChannelImpl$bind(Class<?> callerClass, ServerSocketChannel that, SocketAddress local, int backlog);
+
+    void check$sun_nio_ch_SocketChannelImpl$bind(Class<?> callerClass, SocketChannel that, SocketAddress local);
+
+    // connect
+
+    void check$sun_nio_ch_SocketChannelImpl$connect(Class<?> callerClass, SocketChannel that, SocketAddress remote);
+
+    void check$sun_nio_ch_AsynchronousSocketChannelImpl$connect(Class<?> callerClass, AsynchronousSocketChannel that, SocketAddress remote);
+
+    void check$sun_nio_ch_AsynchronousSocketChannelImpl$connect(
+        Class<?> callerClass,
+        AsynchronousSocketChannel that,
+        SocketAddress remote,
+        Object attachment,
+        CompletionHandler<Void, Object> handler
+    );
+
+    // accept
+
+    void check$sun_nio_ch_ServerSocketChannelImpl$accept(Class<?> callerClass, ServerSocketChannel that);
+
+    void check$sun_nio_ch_AsynchronousServerSocketChannelImpl$accept(Class<?> callerClass, AsynchronousServerSocketChannel that);
+
+    void check$sun_nio_ch_AsynchronousServerSocketChannelImpl$accept(
+        Class<?> callerClass,
+        AsynchronousServerSocketChannel that,
+        Object attachment,
+        CompletionHandler<AsynchronousSocketChannel, Object> handler
+    );
+
 }

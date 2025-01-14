@@ -58,6 +58,10 @@ public class NetworkEntitlement implements Entitlement {
         this.actions = actionsInt;
     }
 
+    public NetworkEntitlement(int actions) {
+        this.actions = actions;
+    }
+
     public static Object printActions(int actions) {
         var joiner = new StringJoiner(",");
         for (var entry : ACTION_MAP.entrySet()) {

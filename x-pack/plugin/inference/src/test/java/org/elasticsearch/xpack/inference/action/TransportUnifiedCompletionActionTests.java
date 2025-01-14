@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
@@ -36,6 +37,7 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
     protected BaseTransportInferenceAction<UnifiedCompletionAction.Request> createAction(
         TransportService transportService,
         ActionFilters actionFilters,
+        MockLicenseState licenseState,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
@@ -44,6 +46,7 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
         return new TransportUnifiedCompletionInferenceAction(
             transportService,
             actionFilters,
+            licenseState,
             modelRegistry,
             serviceRegistry,
             inferenceStats,

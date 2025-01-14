@@ -655,6 +655,36 @@ public final class IndexSettings {
     );
 
     /**
+     * Returns <code>true</code> if TSDB encoding is enabled. The default is <code>true</code>
+     */
+    public boolean isES87TSDBCodecEnabled() {
+        return es87TSDBCodecEnabled;
+    }
+
+    public static final Setting<Boolean> LOGSDB_ROUTE_ON_SORT_FIELDS = Setting.boolSetting(
+        "index.logsdb.route_on_sort_fields",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    public static final Setting<Boolean> LOGSDB_ADD_HOST_NAME_FIELD = Setting.boolSetting(
+        "index.logsdb.add_host_name_field",
+        false,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.Final
+    );
+
+    public static final Setting<Boolean> LOGSDB_SORT_ON_HOST_NAME = Setting.boolSetting(
+        "index.logsdb.sort_on_host_name",
+        false,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.Final
+    );
+
+    /**
      * The {@link IndexMode "mode"} of the index.
      */
     public static final Setting<IndexMode> MODE = Setting.enumSetting(
@@ -708,14 +738,14 @@ public final class IndexSettings {
                 // Verify if synthetic source is enabled on the index; fail if it is not
                 var indexMode = (IndexMode) settings.get(MODE);
                 if (indexMode.defaultSourceMode() != SourceFieldMapper.Mode.SYNTHETIC) {
-                    var sourceMode = (SourceFieldMapper.Mode) settings.get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING);
+                    var sourceMode = (SourceFieldMapper.Mode) settings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
                     if (sourceMode != SourceFieldMapper.Mode.SYNTHETIC) {
                         throw new IllegalArgumentException(
                             String.format(
                                 Locale.ROOT,
                                 "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
                                 RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(),
-                                IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+                                INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
                                 SourceFieldMapper.Mode.SYNTHETIC.name(),
                                 sourceMode.name()
                             )
@@ -731,36 +761,6 @@ public final class IndexSettings {
             }
         },
         Property.IndexScope,
-        Property.Final
-    );
-
-    /**
-     * Returns <code>true</code> if TSDB encoding is enabled. The default is <code>true</code>
-     */
-    public boolean isES87TSDBCodecEnabled() {
-        return es87TSDBCodecEnabled;
-    }
-
-    public static final Setting<Boolean> LOGSDB_ROUTE_ON_SORT_FIELDS = Setting.boolSetting(
-        "index.logsdb.route_on_sort_fields",
-        false,
-        Property.IndexScope,
-        Property.Final
-    );
-
-    public static final Setting<Boolean> LOGSDB_ADD_HOST_NAME_FIELD = Setting.boolSetting(
-        "index.logsdb.add_host_name_field",
-        false,
-        Property.IndexScope,
-        Property.PrivateIndex,
-        Property.Final
-    );
-
-    public static final Setting<Boolean> LOGSDB_SORT_ON_HOST_NAME = Setting.boolSetting(
-        "index.logsdb.sort_on_host_name",
-        false,
-        Property.IndexScope,
-        Property.PrivateIndex,
         Property.Final
     );
 

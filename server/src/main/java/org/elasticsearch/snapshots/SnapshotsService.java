@@ -4003,7 +4003,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final CreateSnapshotRequest request = createSnapshotTask.createSnapshotRequest;
             // Store newSnapshot here to be processed in clusterStateProcessed
             Map<Boolean, List<String>> requestedIndices = Arrays.stream(
-                indexNameExpressionResolver.concreteIndexNames(currentState, request)
+                indexNameExpressionResolver.concreteIndexNamesWithFailureStore(currentState, request)
             ).collect(Collectors.partitioningBy(systemIndices::isSystemIndex));
 
             List<String> requestedSystemIndices = requestedIndices.get(true);
@@ -4137,9 +4137,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 request.partial(),
                 indexIds,
                 CollectionUtils.concatLists(
-                    // It's ok to just get the data stream names here because we have already resolved every concrete index that will be
-                    // in the snapshot, and thus already resolved any selectors that might be present. We now only care about which data
-                    // streams we're packing up in the resulting snapshot, not what their contents are.
                     indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices()),
                     systemDataStreamNames
                 ),

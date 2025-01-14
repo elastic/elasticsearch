@@ -31,13 +31,11 @@ import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteCom
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
-import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.index.Index;
@@ -341,13 +339,13 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(rolloverResponse.getNewIndex(), equalTo(DataStream.getDefaultBackingIndexName("ds", 3)));
     }
 
-    public void testFailureStoreSnapshotAndRestore() throws Exception {
+    public void testFailureStoreSnapshotAndRestore() {
         String dataStreamName = "with-fs";
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
             .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
             .setWaitForCompletion(true)
-            .setIndices(IndexNameExpressionResolver.combineSelector(dataStreamName, IndexComponentSelector.ALL_APPLICABLE))
+            .setIndices(dataStreamName)
             .setIncludeGlobalState(false)
             .get();
 
@@ -395,6 +393,49 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             assertEquals(1, dataStreamInfos.get(0).getDataStream().getIndices().size());
             assertEquals(fs2BackingIndexName, dataStreamInfos.get(0).getDataStream().getIndices().get(0).getName());
             assertEquals(fs2FailureIndexName, dataStreamInfos.get(0).getDataStream().getFailureIndices().getIndices().get(0).getName());
+        }
+    }
+
+    public void testSelectorsNotAllowedInSnapshotAndRestore() {
+        String dataStreamName = "with-fs";
+        try {
+            client.admin()
+                .cluster()
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
+                .setWaitForCompletion(true)
+                .setIndices(dataStreamName + "::data")
+                .setIncludeGlobalState(false)
+                .get();
+            fail("Should have failed because selectors are not allowed in snapshot creation");
+        } catch (IllegalArgumentException e) {
+            assertThat(
+                e.getMessage(),
+                containsString("Index component selectors are not supported in this context but found selector in expression")
+            );
+        }
+        CreateSnapshotResponse createSnapshotResponse = client.admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .setIncludeGlobalState(false)
+            .get();
+
+        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+        assertEquals(RestStatus.OK, status);
+        try {
+            RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+                .cluster()
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
+                .setWaitForCompletion(true)
+                .setIndices(dataStreamName + "::data")
+                .get();
+            fail("Should have failed because selectors are not allowed in snapshot restore");
+        } catch (IllegalArgumentException e) {
+            assertThat(
+                e.getMessage(),
+                containsString("Index component selectors are not supported in this context but found selector in expression")
+            );
         }
     }
 

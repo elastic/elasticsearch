@@ -37,6 +37,16 @@ public class LimitOperator implements Operator {
      */
     private int pagesProcessed;
 
+    /**
+     * Count of rows this operator has received.
+     */
+    private int rowsReceived;
+
+    /**
+     * Count of rows this operator has emitted.
+     */
+    private int rowsEmitted;
+
     private Page lastInput;
 
     private boolean finished;
@@ -67,6 +77,7 @@ public class LimitOperator implements Operator {
     public void addInput(Page page) {
         assert lastInput == null : "has pending input page";
         lastInput = page;
+        rowsReceived += page.getPositionCount();
     }
 
     @Override
@@ -117,13 +128,14 @@ public class LimitOperator implements Operator {
         }
         lastInput = null;
         pagesProcessed++;
+        rowsEmitted += result.getPositionCount();
 
         return result;
     }
 
     @Override
     public Status status() {
-        return new Status(limit, limitRemaining, pagesProcessed);
+        return new Status(limit, limitRemaining, pagesProcessed, rowsReceived, rowsEmitted);
     }
 
     @Override
@@ -160,16 +172,35 @@ public class LimitOperator implements Operator {
          */
         private final int pagesProcessed;
 
-        protected Status(int limit, int limitRemaining, int pagesProcessed) {
+        /**
+         * Count of rows this operator has received.
+         */
+        private final int rowsReceived;
+
+        /**
+         * Count of rows this operator has emitted.
+         */
+        private final int rowsEmitted;
+
+        protected Status(int limit, int limitRemaining, int pagesProcessed, int rowsReceived, int rowsEmitted) {
             this.limit = limit;
             this.limitRemaining = limitRemaining;
             this.pagesProcessed = pagesProcessed;
+            this.rowsReceived = rowsReceived;
+            this.rowsEmitted = rowsEmitted;
         }
 
         protected Status(StreamInput in) throws IOException {
             limit = in.readVInt();
             limitRemaining = in.readVInt();
             pagesProcessed = in.readVInt();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                rowsReceived = in.readVInt();
+                rowsEmitted = in.readVInt();
+            } else {
+                rowsReceived = 0;
+                rowsEmitted = 0;
+            }
         }
 
         @Override
@@ -177,6 +208,10 @@ public class LimitOperator implements Operator {
             out.writeVInt(limit);
             out.writeVInt(limitRemaining);
             out.writeVInt(pagesProcessed);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                out.writeVInt(rowsReceived);
+                out.writeVInt(rowsEmitted);
+            }
         }
 
         @Override
@@ -205,12 +240,28 @@ public class LimitOperator implements Operator {
             return pagesProcessed;
         }
 
+        /**
+         * Count of rows this operator has received.
+         */
+        public int rowsReceived() {
+            return rowsReceived;
+        }
+
+        /**
+         * Count of rows this operator has emitted.
+         */
+        public int rowsEmitted() {
+            return rowsEmitted;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("limit", limit);
             builder.field("limit_remaining", limitRemaining);
             builder.field("pages_processed", pagesProcessed);
+            builder.field("rows_received", rowsReceived);
+            builder.field("rows_emitted", rowsEmitted);
             return builder.endObject();
         }
 
@@ -219,12 +270,16 @@ public class LimitOperator implements Operator {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Status status = (Status) o;
-            return limit == status.limit && limitRemaining == status.limitRemaining && pagesProcessed == status.pagesProcessed;
+            return limit == status.limit
+                && limitRemaining == status.limitRemaining
+                && pagesProcessed == status.pagesProcessed
+                && rowsReceived == status.rowsReceived
+                && rowsEmitted == status.rowsEmitted;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(limit, limitRemaining, pagesProcessed);
+            return Objects.hash(limit, limitRemaining, pagesProcessed, rowsReceived, rowsEmitted);
         }
 
         @Override

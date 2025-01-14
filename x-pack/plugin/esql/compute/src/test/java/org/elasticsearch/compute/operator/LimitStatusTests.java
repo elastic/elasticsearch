@@ -17,8 +17,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class LimitStatusTests extends AbstractWireSerializingTestCase<LimitOperator.Status> {
     public void testToXContent() {
-        assertThat(Strings.toString(new LimitOperator.Status(10, 1, 1)), equalTo("""
-            {"limit":10,"limit_remaining":1,"pages_processed":1}"""));
+        assertThat(Strings.toString(new LimitOperator.Status(10, 1, 1, 111, 222)), equalTo("""
+            {"limit":10,"limit_remaining":1,"pages_processed":1,"rows_received":111,"rows_emitted":222}"""));
     }
 
     @Override
@@ -28,7 +28,13 @@ public class LimitStatusTests extends AbstractWireSerializingTestCase<LimitOpera
 
     @Override
     protected LimitOperator.Status createTestInstance() {
-        return new LimitOperator.Status(between(0, Integer.MAX_VALUE), between(0, Integer.MAX_VALUE), between(0, Integer.MAX_VALUE));
+        return new LimitOperator.Status(
+            between(0, Integer.MAX_VALUE),
+            between(0, Integer.MAX_VALUE),
+            between(0, Integer.MAX_VALUE),
+            between(0, Integer.MAX_VALUE),
+            between(0, Integer.MAX_VALUE)
+        );
     }
 
     @Override
@@ -36,7 +42,9 @@ public class LimitStatusTests extends AbstractWireSerializingTestCase<LimitOpera
         int limit = instance.limit();
         int limitRemaining = instance.limitRemaining();
         int pagesProcessed = instance.pagesProcessed();
-        switch (between(0, 2)) {
+        int rowsReceived = instance.rowsReceived();
+        int rowsEmitted = instance.rowsEmitted();
+        switch (between(0, 4)) {
             case 0:
                 limit = randomValueOtherThan(limit, () -> between(0, Integer.MAX_VALUE));
                 break;
@@ -46,9 +54,15 @@ public class LimitStatusTests extends AbstractWireSerializingTestCase<LimitOpera
             case 2:
                 pagesProcessed = randomValueOtherThan(pagesProcessed, () -> between(0, Integer.MAX_VALUE));
                 break;
+            case 3:
+                rowsReceived = randomValueOtherThan(rowsReceived, () -> between(0, Integer.MAX_VALUE));
+                break;
+            case 4:
+                rowsEmitted = randomValueOtherThan(rowsEmitted, () -> between(0, Integer.MAX_VALUE));
+                break;
             default:
                 throw new IllegalArgumentException();
         }
-        return new LimitOperator.Status(limit, limitRemaining, pagesProcessed);
+        return new LimitOperator.Status(limit, limitRemaining, pagesProcessed, rowsReceived, rowsEmitted);
     }
 }

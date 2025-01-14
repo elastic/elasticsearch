@@ -29,12 +29,16 @@ public class TopNOperatorStatus implements Operator.Status {
     private final long ramBytesUsed;
     private final int pagesReceived;
     private final int pagesEmitted;
+    private final int rowsReceived;
+    private final int rowsEmitted;
 
-    public TopNOperatorStatus(int occupiedRows, long ramBytesUsed, int pagesReceived, int pagesEmitted) {
+    public TopNOperatorStatus(int occupiedRows, long ramBytesUsed, int pagesReceived, int pagesEmitted, int rowsReceived, int rowsEmitted) {
         this.occupiedRows = occupiedRows;
         this.ramBytesUsed = ramBytesUsed;
         this.pagesReceived = pagesReceived;
         this.pagesEmitted = pagesEmitted;
+        this.rowsReceived = rowsReceived;
+        this.rowsEmitted = rowsEmitted;
     }
 
     TopNOperatorStatus(StreamInput in) throws IOException {
@@ -44,9 +48,13 @@ public class TopNOperatorStatus implements Operator.Status {
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
             this.pagesReceived = in.readVInt();
             this.pagesEmitted = in.readVInt();
+            this.rowsReceived = in.readVInt();
+            this.rowsEmitted = in.readVInt();
         } else {
             this.pagesReceived = 0;
             this.pagesEmitted = 0;
+            this.rowsReceived = 0;
+            this.rowsEmitted = 0;
         }
     }
 
@@ -58,6 +66,8 @@ public class TopNOperatorStatus implements Operator.Status {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
             out.writeVInt(pagesReceived);
             out.writeVInt(pagesEmitted);
+            out.writeVInt(rowsReceived);
+            out.writeVInt(rowsEmitted);
         }
     }
 
@@ -82,6 +92,14 @@ public class TopNOperatorStatus implements Operator.Status {
         return pagesEmitted;
     }
 
+    public int rowsReceived() {
+        return rowsReceived;
+    }
+
+    public int rowsEmitted() {
+        return rowsEmitted;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -90,6 +108,8 @@ public class TopNOperatorStatus implements Operator.Status {
         builder.field("ram_used", ByteSizeValue.ofBytes(ramBytesUsed));
         builder.field("pages_received", pagesReceived);
         builder.field("pages_emitted", pagesEmitted);
+        builder.field("rows_received", rowsReceived);
+        builder.field("rows_emitted", rowsEmitted);
         return builder.endObject();
     }
 
@@ -102,12 +122,14 @@ public class TopNOperatorStatus implements Operator.Status {
         return occupiedRows == that.occupiedRows
             && ramBytesUsed == that.ramBytesUsed
             && pagesReceived == that.pagesReceived
-            && pagesEmitted == that.pagesEmitted;
+            && pagesEmitted == that.pagesEmitted
+            && rowsReceived == that.rowsReceived
+            && rowsEmitted == that.rowsEmitted;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(occupiedRows, ramBytesUsed, pagesReceived, pagesEmitted);
+        return Objects.hash(occupiedRows, ramBytesUsed, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
     }
 
     @Override

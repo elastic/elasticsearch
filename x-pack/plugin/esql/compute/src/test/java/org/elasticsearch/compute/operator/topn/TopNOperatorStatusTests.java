@@ -16,8 +16,17 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<TopNOperatorStatus> {
     public void testToXContent() {
-        assertThat(Strings.toString(new TopNOperatorStatus(10, 2000, 123, 123)), equalTo("""
-            {"occupied_rows":10,"ram_bytes_used":2000,"ram_used":"1.9kb","pages_received":123,"pages_emitted":123}"""));
+        assertThat(Strings.toString(new TopNOperatorStatus(10, 2000, 123, 123, 111, 222)), equalTo("""
+                {
+                    "occupied_rows":10,
+                    "ram_bytes_used":2000,
+                    "ram_used":"1.9kb",
+                    "pages_received":123,
+                    "pages_emitted":123,
+                    "rows_received":111,
+                    "rows_emitted":222
+                }
+            """));
     }
 
     @Override
@@ -27,7 +36,14 @@ public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<Top
 
     @Override
     protected TopNOperatorStatus createTestInstance() {
-        return new TopNOperatorStatus(randomNonNegativeInt(), randomNonNegativeLong(), randomNonNegativeInt(), randomNonNegativeInt());
+        return new TopNOperatorStatus(
+            randomNonNegativeInt(),
+            randomNonNegativeLong(),
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
+            randomNonNegativeInt()
+        );
     }
 
     @Override
@@ -36,7 +52,9 @@ public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<Top
         long ramBytesUsed = instance.ramBytesUsed();
         int pagesReceived = instance.pagesReceived();
         int pagesEmitted = instance.pagesEmitted();
-        switch (between(0, 3)) {
+        int rowsReceived = instance.rowsReceived();
+        int rowsEmitted = instance.rowsEmitted();
+        switch (between(0, 5)) {
             case 0:
                 occupiedRows = randomValueOtherThan(occupiedRows, ESTestCase::randomNonNegativeInt);
                 break;
@@ -49,9 +67,15 @@ public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<Top
             case 3:
                 pagesEmitted = randomValueOtherThan(pagesEmitted, ESTestCase::randomNonNegativeInt);
                 break;
+            case 4:
+                rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeInt);
+                break;
+            case 5:
+                rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeInt);
+                break;
             default:
                 throw new IllegalArgumentException();
         }
-        return new TopNOperatorStatus(occupiedRows, ramBytesUsed, pagesReceived, pagesEmitted);
+        return new TopNOperatorStatus(occupiedRows, ramBytesUsed, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
     }
 }

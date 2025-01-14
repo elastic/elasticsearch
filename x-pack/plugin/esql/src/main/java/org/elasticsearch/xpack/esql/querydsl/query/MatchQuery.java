@@ -38,16 +38,16 @@ public class MatchQuery extends Query {
         // appliers.put("zero_terms_query", (qb, s) -> qb.zeroTermsQuery(s));
         BUILDER_APPLIERS = Map.ofEntries(
             entry(ANALYZER_FIELD.getPreferredName(), (qb, s) -> qb.analyzer(s.toString())),
-            entry(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), (qb, b) -> qb.autoGenerateSynonymsPhraseQuery((Boolean)b)),
+            entry(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), (qb, b) -> qb.autoGenerateSynonymsPhraseQuery((Boolean) b)),
             entry(Fuzziness.FIELD.getPreferredName(), (qb, s) -> qb.fuzziness(Fuzziness.fromString(s.toString()))),
-            entry(AbstractQueryBuilder.BOOST_FIELD.getPreferredName(), (qb, s) -> qb.boost((Float)s)),
-            entry(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), (qb, s) -> qb.fuzzyTranspositions((Boolean)s)),
-            entry(FUZZY_REWRITE_FIELD.getPreferredName(),  (qb, s) -> qb.fuzzyRewrite(s.toString())),
-            entry(MatchQueryBuilder.LENIENT_FIELD.getPreferredName(), (qb, s) -> qb.lenient((Boolean)s)),
-            entry(MAX_EXPANSIONS_FIELD.getPreferredName(), (qb, s) -> qb.maxExpansions((Integer)s)),
+            entry(AbstractQueryBuilder.BOOST_FIELD.getPreferredName(), (qb, s) -> qb.boost((Float) s)),
+            entry(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), (qb, s) -> qb.fuzzyTranspositions((Boolean) s)),
+            entry(FUZZY_REWRITE_FIELD.getPreferredName(), (qb, s) -> qb.fuzzyRewrite(s.toString())),
+            entry(MatchQueryBuilder.LENIENT_FIELD.getPreferredName(), (qb, s) -> qb.lenient((Boolean) s)),
+            entry(MAX_EXPANSIONS_FIELD.getPreferredName(), (qb, s) -> qb.maxExpansions((Integer) s)),
             entry(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), (qb, s) -> qb.minimumShouldMatch(s.toString())),
             entry(OPERATOR_FIELD.getPreferredName(), (qb, s) -> qb.operator(Operator.fromString(s.toString()))),
-            entry(PREFIX_LENGTH_FIELD.getPreferredName(), (qb, s) -> qb.prefixLength((Integer)s))
+            entry(PREFIX_LENGTH_FIELD.getPreferredName(), (qb, s) -> qb.prefixLength((Integer) s))
         );
     }
 

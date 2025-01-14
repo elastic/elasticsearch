@@ -128,7 +128,7 @@ public class Match extends FullTextFunction implements Validatable, OptionalArgu
         entry(Fuzziness.FIELD.getPreferredName(), KEYWORD),
         entry(BOOST_FIELD.getPreferredName(), FLOAT),
         entry(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), BOOLEAN),
-        entry(FUZZY_REWRITE_FIELD.getPreferredName(),  KEYWORD),
+        entry(FUZZY_REWRITE_FIELD.getPreferredName(), KEYWORD),
         entry(LENIENT_FIELD.getPreferredName(), BOOLEAN),
         entry(MAX_EXPANSIONS_FIELD.getPreferredName(), INTEGER),
         entry(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), KEYWORD),
@@ -169,7 +169,7 @@ public class Match extends FullTextFunction implements Validatable, OptionalArgu
             optional = true
         ) Expression options
     ) {
-        this(source, field, matchQuery, options,null);
+        this(source, field, matchQuery, options, null);
     }
 
     public Match(Source source, Expression field, Expression matchQuery, Expression options, QueryBuilder queryBuilder) {
@@ -267,13 +267,7 @@ public class Match extends FullTextFunction implements Validatable, OptionalArgu
             DataType dataType = ALLOWED_OPTIONS.get(optionName);
             if (dataType == null) {
                 throw new InvalidArgumentException(
-                    format(
-                        null,
-                        "Invalid option [{}] in [{}], expected one of {}",
-                        optionName,
-                        sourceText(),
-                        ALLOWED_OPTIONS.keySet()
-                    )
+                    format(null, "Invalid option [{}] in [{}], expected one of {}", optionName, sourceText(), ALLOWED_OPTIONS.keySet())
                 );
             }
             try {

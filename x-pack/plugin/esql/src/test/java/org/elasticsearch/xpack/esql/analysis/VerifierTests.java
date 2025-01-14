@@ -2025,8 +2025,12 @@ public class VerifierTests extends ESTestCase {
 
         // Check all data types for available options
         DataType[] optionTypes = new DataType[] {
-            DataType.INTEGER, DataType.LONG, DataType.FLOAT, DataType.DOUBLE, DataType.KEYWORD, DataType.BOOLEAN
-        };
+            DataType.INTEGER,
+            DataType.LONG,
+            DataType.FLOAT,
+            DataType.DOUBLE,
+            DataType.KEYWORD,
+            DataType.BOOLEAN };
         for (Map.Entry<String, DataType> allowedOptions : Match.ALLOWED_OPTIONS.entrySet()) {
             String optionName = allowedOptions.getKey();
             DataType optionType = allowedOptions.getValue();
@@ -2052,8 +2056,17 @@ public class VerifierTests extends ESTestCase {
                     query(query);
                 } catch (InvalidArgumentException e) {
                     assertEquals(
-                        "1:19: Invalid option [" + optionName + "] in [match(first_name, \"Jean\", {\"" + optionName + "\": "
-                            + queryOptionValue + "})], cannot cast [" + optionValue + "] to [" + optionType.typeName() + "]",
+                        "1:19: Invalid option ["
+                            + optionName
+                            + "] in [match(first_name, \"Jean\", {\""
+                            + optionName
+                            + "\": "
+                            + queryOptionValue
+                            + "})], cannot cast ["
+                            + optionValue
+                            + "] to ["
+                            + optionType.typeName()
+                            + "]",
                         error(query)
                     );
                 }
@@ -2062,8 +2075,9 @@ public class VerifierTests extends ESTestCase {
 
         assertThat(
             error("FROM test | WHERE match(first_name, \"Jean\", {\"unknown_option\": true})"),
-            containsString("1:19: Invalid option [unknown_option] in [match(first_name, \"Jean\", {\"unknown_option\": true})]," +
-                " expected one of ")
+            containsString(
+                "1:19: Invalid option [unknown_option] in [match(first_name, \"Jean\", {\"unknown_option\": true})]," + " expected one of "
+            )
         );
     }
 

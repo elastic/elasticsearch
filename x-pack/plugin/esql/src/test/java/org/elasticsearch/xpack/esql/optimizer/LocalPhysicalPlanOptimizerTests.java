@@ -1593,8 +1593,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var actualLuceneQuery = as(fieldExtract.child(), EsQueryExec.class).query();
 
         Source filterSource = new Source(4, 8, "emp_no > 10000");
-        var expectedLuceneQuery = new MatchQueryBuilder("first_name", "Anna")
-            .fuzziness(Fuzziness.AUTO)
+        var expectedLuceneQuery = new MatchQueryBuilder("first_name", "Anna").fuzziness(Fuzziness.AUTO)
             .prefixLength(3)
             .maxExpansions(10)
             .fuzzyTranspositions(false)

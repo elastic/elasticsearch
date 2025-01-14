@@ -322,7 +322,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
             });
             // Additional update task to make sure all previous logging made it to the loggerName
             // We don't check logging for this on since there is no guarantee that it will occur before our check
-            clusterApplierService.runOnApplierThread("test5", Priority.HIGH, currentState -> {}, new ActionListener<>() {
+            clusterApplierService.runOnApplierThread("test6", Priority.HIGH, currentState -> {}, new ActionListener<>() {
                 @Override
                 public void onResponse(Void ignored) {
                     latch.countDown();

@@ -12,7 +12,6 @@ import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 
 import java.io.IOException;
-import java.util.Objects;
 import java.util.function.Supplier;
 
 /**

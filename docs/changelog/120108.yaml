@@ -1,12 +1,13 @@
 pr: 120108
-summary: Unregister `FrozenEngine` in plugin
+summary: Remove the ability to read frozen indices
 area: Indices APIs
 type: breaking
 issues: []
 breaking:
-  title: Unregister `FrozenEngine` in plugin
-  area: Indices APIs
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  title: Remove the ability to read frozen indices
+  area: Index setting
+  details: >-
+    The ability to read frozen indices has been removed. (Frozen indices are no longer useful due to improvements in
+    heap memory usage. The ability to freeze indices was removed in 8.0.)
+  impact: Users must unfreeze any frozen indices before upgrading.
   notable: false

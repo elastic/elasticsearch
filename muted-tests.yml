@@ -265,6 +265,9 @@ tests:
 - class: org.elasticsearch.entitlement.qa.EntitlementsDeniedIT
   method: testCheckThrows {pathPrefix=denied_nonmodular actionName=sslSessionImpl_getSessionContext}
   issue: https://github.com/elastic/elasticsearch/issues/120054
+- class: org.elasticsearch.xpack.ilm.actions.SearchableSnapshotActionIT
+  method: testUpdatePolicyToAddPhasesYieldsInvalidActionsToBeSkipped
+  issue: https://github.com/elastic/elasticsearch/issues/118406
 
 # Examples:
 #

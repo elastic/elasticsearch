@@ -67,7 +67,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -181,8 +180,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     private static @Nullable MultiTypeEsField findUnionTypes(Attribute attr) {
         if (attr instanceof FieldAttribute fa) {
             EsField field = fa.field();
-            if (Objects.requireNonNull(field) instanceof UnmappedEsField unmapped
-                && unmapped.getState() instanceof UnmappedEsField.MultiType mt) {
+            if (field instanceof UnmappedEsField unmapped && unmapped.getState() instanceof UnmappedEsField.MultiType mt) {
                 return mt.multiTypeEsField();
             } else if (field instanceof MultiTypeEsField multiTypeEsField) {
                 return multiTypeEsField;

@@ -1322,11 +1322,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    /// Removes INSIST clauses by pushing down the output attributes to the EsRelation.
+    /** Removes INSIST clauses by pushing down the output attributes to the EsRelation. */
     private static class PushdownInsists extends Rule<LogicalPlan, LogicalPlan> {
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformUp(Insist.class, insist -> { return ((EsRelation) insist.child()).withAttributes(insist.output()); });
+            return plan.transformUp(Insist.class, insist -> ((EsRelation) insist.child()).withAttributes(insist.output()));
         }
     }
 

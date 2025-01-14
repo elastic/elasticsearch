@@ -2605,7 +2605,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         EsRelation relation = as(limit.child(), EsRelation.class);
         var attribute = (FieldAttribute) relation.output().get(expectedIndex);
-        assertThat(attribute.field(), is(equalTo(UnmappedEsField.fromField(new EsField("first_name", KEYWORD, Map.of(), true)))));
+        assertThat(attribute.field(), is(UnmappedEsField.fromField(new EsField("first_name", KEYWORD, Map.of(), true))));
     }
 
     public void testPushdownInsist_fieldDoesNotExist_updatesRelationWithNewField() {
@@ -2614,7 +2614,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var relation = as(limit.child(), EsRelation.class);
         assertThat(relation.output(), hasSize(optimizedPlan("FROM test").output().size() + 1));
-        assertThat(((FieldAttribute) relation.output().getLast()).field(), is(equalTo(UnmappedEsField.fromStandalone("foo"))));
+        assertThat(((FieldAttribute) relation.output().getLast()).field(), is(UnmappedEsField.fromStandalone("foo")));
     }
 
     public void testPushdownInsist_multiIndexFieldExistsWithSingleTypeButIsNotKeywordAndMissingCast_failsWithInsistMessage() {
@@ -2636,7 +2636,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 c.accept(mf);
             }
         }).toList());
-        assertThat(insistedField.getDataType(), is(equalTo(LONG)));
+        assertThat(insistedField.getDataType(), is(LONG));
         var resolution = ((UnmappedEsField.SimpleResolution) insistedField.getState());
         // The asserts in the constructor handle the other cases.
         assertThat(resolution.mappedConversion().dataType(), is(LONG));
@@ -2645,9 +2645,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testPushdownInsist_multiIndexFieldExistsWithMultiTypes_createsTheCorrectUnmappedField() {
         var plan = planMultiIndex("""
-            FROM multi_index |\
-            INSIST multi_type_without_keyword |\
-            EVAL multi_type_without_keyword = multi_type_without_keyword :: DATETIME |\
+            FROM multi_index |
+            INSIST multi_type_without_keyword |
+            EVAL multi_type_without_keyword = multi_type_without_keyword :: DATETIME |
             SORT multi_type_without_keyword""");
         var project = as(plan, Project.class);
         var topN = as(project.child(), TopN.class);
@@ -2657,7 +2657,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 c.accept(mf);
             }
         }).toList());
-        assertThat(insistedField.getDataType(), is(equalTo(DATETIME)));
+        assertThat(insistedField.getDataType(), is(DATETIME));
         var multiTypeConversion = ((UnmappedEsField.MultiType) insistedField.getState());
         var conversionFromKeyword = multiTypeConversion.conversionFromKeyword();
         assertThat(conversionFromKeyword.dataType(), is(DATETIME));

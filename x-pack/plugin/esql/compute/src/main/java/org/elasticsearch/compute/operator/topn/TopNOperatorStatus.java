@@ -27,21 +27,38 @@ public class TopNOperatorStatus implements Operator.Status {
     );
     private final int occupiedRows;
     private final long ramBytesUsed;
+    private final int pagesReceived;
+    private final int pagesEmitted;
 
-    public TopNOperatorStatus(int occupiedRows, long ramBytesUsed) {
+    public TopNOperatorStatus(int occupiedRows, long ramBytesUsed, int pagesReceived, int pagesEmitted) {
         this.occupiedRows = occupiedRows;
         this.ramBytesUsed = ramBytesUsed;
+        this.pagesReceived = pagesReceived;
+        this.pagesEmitted = pagesEmitted;
     }
 
     TopNOperatorStatus(StreamInput in) throws IOException {
         this.occupiedRows = in.readVInt();
         this.ramBytesUsed = in.readVLong();
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+            this.pagesReceived = in.readVInt();
+            this.pagesEmitted = in.readVInt();
+        } else {
+            this.pagesReceived = 0;
+            this.pagesEmitted = 0;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(occupiedRows);
         out.writeVLong(ramBytesUsed);
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+            out.writeVInt(pagesReceived);
+            out.writeVInt(pagesEmitted);
+        }
     }
 
     @Override
@@ -57,12 +74,22 @@ public class TopNOperatorStatus implements Operator.Status {
         return ramBytesUsed;
     }
 
+    public int pagesReceived() {
+        return pagesReceived;
+    }
+
+    public int pagesEmitted() {
+        return pagesEmitted;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("occupied_rows", occupiedRows);
         builder.field("ram_bytes_used", ramBytesUsed);
         builder.field("ram_used", ByteSizeValue.ofBytes(ramBytesUsed));
+        builder.field("pages_received", pagesReceived);
+        builder.field("pages_emitted", pagesEmitted);
         return builder.endObject();
     }
 
@@ -72,12 +99,13 @@ public class TopNOperatorStatus implements Operator.Status {
             return false;
         }
         TopNOperatorStatus that = (TopNOperatorStatus) o;
-        return occupiedRows == that.occupiedRows && ramBytesUsed == that.ramBytesUsed;
+        return occupiedRows == that.occupiedRows && ramBytesUsed == that.ramBytesUsed
+            && pagesReceived == that.pagesReceived&& pagesEmitted == that.pagesEmitted;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(occupiedRows, ramBytesUsed);
+        return Objects.hash(occupiedRows, ramBytesUsed, pagesReceived, pagesEmitted);
     }
 
     @Override

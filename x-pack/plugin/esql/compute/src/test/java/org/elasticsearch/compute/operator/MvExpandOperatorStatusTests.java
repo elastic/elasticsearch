@@ -21,7 +21,7 @@ public class MvExpandOperatorStatusTests extends AbstractWireSerializingTestCase
 
     public static String simpleToJson() {
         return """
-            {"pages_in":10,"pages_out":15,"noops":9}""";
+            {"pages_received":10,"pages_emitted":15,"noops":9}""";
     }
 
     public void testToXContent() {

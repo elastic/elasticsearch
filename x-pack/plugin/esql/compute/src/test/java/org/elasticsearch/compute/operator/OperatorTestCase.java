@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
@@ -28,20 +30,29 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.XContentDataHelper;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.BreakerTestUtil;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.LongStream;
 
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.in;
 
 /**
@@ -212,7 +223,8 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         // Clone the input so that the operator can close it, then, later, we can read it again to build the assertion.
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
 
-        List<Page> results = drive(simple().get(context), input.iterator(), context);
+        var operator = simple().get(context);
+        List<Page> results = drive(operator, input.iterator(), context);
         assertSimpleOutput(origInput, results);
         assertThat(context.breaker().getUsed(), equalTo(0L));
 
@@ -249,6 +261,37 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             operator.finish();
         }
         assertThat(driverContext.blockFactory().breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testOperatorStatus() throws IOException {
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 1));
+        assert input.size() == 1 : "Expected single page, got: " + input;
+        Page page = input.get(0);
+        Operator.Status status;
+        try (var operator = simple().get(driverContext)) {
+            assert operator.needsInput();
+            operator.addInput(page);
+            operator.finish();
+
+            status = operator.status();
+        }
+
+        assumeTrue("Operator does not provide a status", status != null);
+
+        var xContent = XContentType.JSON.xContent();
+        try (var xContentBuilder = XContentBuilder.builder(xContent)) {
+            status.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+
+            var bytesReference = BytesReference.bytes(xContentBuilder);
+            var map = XContentHelper.convertToMap(bytesReference, false, xContentBuilder.contentType()).v2();
+
+            assertThat(
+                map,
+                either(hasKey("pages_processed"))
+                    .or(both(hasKey("pages_received")).and(hasKey("pages_emitted")))
+            );
+        }
     }
 
     protected final List<Page> drive(Operator operator, Iterator<Page> input, DriverContext driverContext) {

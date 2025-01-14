@@ -280,8 +280,8 @@ public class MvExpandOperator implements Operator {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("pages_in", pagesIn);
-            builder.field("pages_out", pagesOut);
+            builder.field("pages_received", pagesIn);
+            builder.field("pages_emitted", pagesOut);
             builder.field("noops", noops);
             return builder.endObject();
         }

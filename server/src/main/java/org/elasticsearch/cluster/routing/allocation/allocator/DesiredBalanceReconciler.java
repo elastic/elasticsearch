@@ -180,9 +180,7 @@ public class DesiredBalanceReconciler {
                 allocation.clusterInfo(),
                 desiredBalance
             );
-            Map<DiscoveryNode, NodeAllocationStatsAndWeight> nodeToStatsAndWeights = new HashMap<>(
-                nodeIDsToStatsAndWeights.size()
-            );
+            Map<DiscoveryNode, NodeAllocationStatsAndWeight> nodeToStatsAndWeights = new HashMap<>(nodeIDsToStatsAndWeights.size());
             for (var nodeStatsAndWeight : nodeIDsToStatsAndWeights.entrySet()) {
                 var node = allocation.nodes().get(nodeStatsAndWeight.getKey());
                 assert node != null;

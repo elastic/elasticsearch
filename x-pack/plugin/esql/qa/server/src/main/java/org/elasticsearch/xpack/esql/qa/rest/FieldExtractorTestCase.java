@@ -17,8 +17,8 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
@@ -1457,7 +1457,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         STORED {
             @Override
             void sourceMapping(Settings.Builder builder) throws IOException {
-                builder.put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "stored");
+                builder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "stored");
             }
 
             @Override
@@ -1481,7 +1481,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         SYNTHETIC {
             @Override
             void sourceMapping(Settings.Builder builder) throws IOException {
-                builder.put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
+                builder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
             }
 
             @Override

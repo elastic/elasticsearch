@@ -32,6 +32,8 @@ import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -120,7 +122,8 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         // 3 -> [] -> []
         // 4 -> [a1] -> [3]
         // 5 -> [] -> []
-        EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(blockFactory, 128, queryList, reader);
+        var warnings = Warnings.createWarnings(DriverContext.WarningsMode.IGNORE, 0, 0, "test enrich");
+        EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(blockFactory, 128, queryList, reader, warnings);
         Page p0 = queryOperator.getOutput();
         assertNotNull(p0);
         assertThat(p0.getPositionCount(), equalTo(6));
@@ -187,7 +190,8 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         MappedFieldType uidField = new KeywordFieldMapper.KeywordFieldType("uid");
         var queryList = QueryList.rawTermQueryList(uidField, mock(SearchExecutionContext.class), inputTerms);
         int maxPageSize = between(1, 256);
-        EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(blockFactory, maxPageSize, queryList, reader);
+        var warnings = Warnings.createWarnings(DriverContext.WarningsMode.IGNORE, 0, 0, "test enrich");
+        EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(blockFactory, maxPageSize, queryList, reader, warnings);
         Map<Integer, Set<Integer>> actualPositions = new HashMap<>();
         while (queryOperator.isFinished() == false) {
             Page page = queryOperator.getOutput();

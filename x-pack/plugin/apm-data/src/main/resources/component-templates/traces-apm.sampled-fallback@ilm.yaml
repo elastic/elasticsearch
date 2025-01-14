@@ -8,4 +8,3 @@ template:
     index:
       lifecycle:
         name: traces-apm.sampled_traces-default_policy
-        prefer_ilm: false

@@ -116,6 +116,12 @@ A "match" is determined based on a condition defined by a combination of "field"
 
 The `Field` column should be used to define which field on a given document should be considered.
 
+[NOTE]
+====
+Only top-level fields are supported.
+Nested/object fields cannot be referenced with "dot notation". 
+====
+
 The following rules are available in the `Rule` column:
 
 * `equals` - The field value is equal to the specified value.

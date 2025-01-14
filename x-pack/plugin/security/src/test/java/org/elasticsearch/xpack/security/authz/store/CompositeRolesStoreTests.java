@@ -1158,7 +1158,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertHasRemoteIndexGroupsForClusters(forRemote, Set.of("*"), indexGroup("remote-idx-2-*"));
         assertValidRemoteClusterPermissions(role.remoteCluster(), new String[] { "remote-*" });
         assertThat(
-            role.remoteCluster().privilegeNames("remote-foobar", TransportVersion.current()),
+            role.remoteCluster().collapseAndRemoveUnsupportedPrivileges("remote-foobar", TransportVersion.current()),
             equalTo(RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]))
         );
     }
@@ -3322,12 +3322,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     private void assertValidRemoteClusterPermissionsParent(RemoteClusterPermissions permissions, String[] aliases) {
-        assertTrue(permissions.hasPrivileges());
+        assertTrue(permissions.hasAnyPrivileges());
         for (String alias : aliases) {
-            assertTrue(permissions.hasPrivileges(alias));
-            assertFalse(permissions.hasPrivileges(randomValueOtherThan(alias, () -> randomAlphaOfLength(5))));
+            assertTrue(permissions.hasAnyPrivileges(alias));
+            assertFalse(permissions.hasAnyPrivileges(randomValueOtherThan(alias, () -> randomAlphaOfLength(5))));
             assertThat(
-                permissions.privilegeNames(alias, TransportVersion.current()),
+                permissions.collapseAndRemoveUnsupportedPrivileges(alias, TransportVersion.current()),
                 arrayContaining(RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]))
             );
         }

@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
@@ -36,7 +37,8 @@ public final class LookupFromIndexOperator extends AsyncOperator {
         DataType inputDataType,
         String lookupIndex,
         String matchField,
-        List<NamedExpression> loadFields
+        List<NamedExpression> loadFields,
+        Source source
     ) implements OperatorFactory {
         @Override
         public String describe() {
@@ -63,7 +65,8 @@ public final class LookupFromIndexOperator extends AsyncOperator {
                 inputDataType,
                 lookupIndex,
                 matchField,
-                loadFields
+                loadFields,
+                source
             );
         }
     }
@@ -76,6 +79,7 @@ public final class LookupFromIndexOperator extends AsyncOperator {
     private final String lookupIndex;
     private final String matchField;
     private final List<NamedExpression> loadFields;
+    private final Source source;
     private long totalTerms = 0L;
 
     public LookupFromIndexOperator(
@@ -88,7 +92,8 @@ public final class LookupFromIndexOperator extends AsyncOperator {
         DataType inputDataType,
         String lookupIndex,
         String matchField,
-        List<NamedExpression> loadFields
+        List<NamedExpression> loadFields,
+        Source source
     ) {
         super(driverContext, maxOutstandingRequests);
         this.sessionId = sessionId;
@@ -99,6 +104,7 @@ public final class LookupFromIndexOperator extends AsyncOperator {
         this.lookupIndex = lookupIndex;
         this.matchField = matchField;
         this.loadFields = loadFields;
+        this.source = source;
     }
 
     @Override
@@ -111,7 +117,8 @@ public final class LookupFromIndexOperator extends AsyncOperator {
             inputDataType,
             matchField,
             new Page(inputBlock),
-            loadFields
+            loadFields,
+            source
         );
         lookupService.lookupAsync(request, parentTask, listener.map(inputPage::appendPage));
     }

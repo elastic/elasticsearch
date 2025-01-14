@@ -98,7 +98,7 @@ public class BulkRequest extends ActionRequest
         for (DocWriteRequest<?> request : requests) {
             indices.add(Objects.requireNonNull(request.index(), "request index must not be null"));
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.BULK_INCREMENTAL_STATE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             incrementalState = new BulkRequest.IncrementalState(in);
         } else {
             incrementalState = BulkRequest.IncrementalState.EMPTY;
@@ -454,7 +454,7 @@ public class BulkRequest extends ActionRequest
         out.writeCollection(requests, DocWriteRequest::writeDocumentRequest);
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.BULK_INCREMENTAL_STATE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             incrementalState.writeTo(out);
         }
     }

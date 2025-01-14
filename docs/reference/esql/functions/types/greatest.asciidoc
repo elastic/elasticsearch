@@ -8,6 +8,7 @@ first | rest | result
 boolean | boolean | boolean
 boolean | | boolean
 date | date | date
+date_nanos | date_nanos | date_nanos
 double | double | double
 integer | integer | integer
 integer | | integer

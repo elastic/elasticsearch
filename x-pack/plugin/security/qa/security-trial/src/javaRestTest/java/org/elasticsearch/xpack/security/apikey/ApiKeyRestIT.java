@@ -828,7 +828,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertOK(response);
         assertAPIKeyWithRemoteClusterPermissions(apiKeyId, includeRemoteCluster, false, null, new String[] { "foo", "bar" });
 
-        // create API key as the remote user which does remote_cluster limited_by permissions
+        // create API key as the remote user which has all remote_cluster permissions via limited_by
         response = sendRequestAsRemoteUser(createApiKeyRequest);
         apiKeyId = ObjectPath.createFromResponse(response).evaluate("id");
         assertThat(apiKeyId, notNullValue());
@@ -922,7 +922,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             assertNotNull(limitedByRole);
 
             List<Map<String, List<String>>> remoteCluster = (List<Map<String, List<String>>>) limitedByRole.get("remote_cluster");
-            assertThat(remoteCluster.get(0).get("privileges"), containsInAnyOrder("monitor_enrich"));
+            assertThat(remoteCluster.get(0).get("privileges"), containsInAnyOrder("monitor_stats", "monitor_enrich"));
             assertThat(remoteCluster.get(0).get("clusters"), containsInAnyOrder("remote"));
         } else {
             // no limited by permissions

@@ -1,5 +1,11 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.internal.BwcVersions
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -31,7 +37,7 @@ tasks.register("copyTestNodeKeyMaterial", Copy) {
   into outputDir
 }
 
-BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   String oldVersion = bwcVersion.toString()
 
   // SearchableSnapshotsRollingUpgradeIT uses a specific repository to not interfere with other tests
@@ -41,7 +47,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     testDistribution = "DEFAULT"
     versions = [oldVersion, project.version]
     numberOfNodes = 3
-
+    systemProperty 'es.queryable_built_in_roles_enabled', 'true'
     systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
     //we don't want to hit real service from each test
     systemProperty 'ingest.geoip.downloader.endpoint.default', 'http://invalid.endpoint'

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -36,11 +37,7 @@ public abstract class MetricsAggregator extends AggregatorBase {
     public abstract InternalAggregation buildAggregation(long owningBucketOrd) throws IOException;
 
     @Override
-    public final InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            results[ordIdx] = buildAggregation(owningBucketOrds[ordIdx]);
-        }
-        return results;
+    public final InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+        return buildAggregations(Math.toIntExact(owningBucketOrds.size()), ordIdx -> buildAggregation(owningBucketOrds.get(ordIdx)));
     }
 }

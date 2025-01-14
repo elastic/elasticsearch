@@ -577,10 +577,10 @@ public class HighlightBuilderTests extends ESTestCase {
     public void testInvalidMaxAnalyzedOffset() throws IOException {
         XContentParseException e = expectParseThrows(
             XContentParseException.class,
-            "{ \"max_analyzed_offset\" : " + randomIntBetween(-100, 0) + "}"
+            "{ \"max_analyzed_offset\" : " + randomIntBetween(-100, -2) + "}"
         );
         assertThat(e.getMessage(), containsString("[highlight] failed to parse field [" + MAX_ANALYZED_OFFSET_FIELD.toString() + "]"));
-        assertThat(e.getCause().getMessage(), containsString("[max_analyzed_offset] must be a positive integer"));
+        assertThat(e.getCause().getMessage(), containsString("[max_analyzed_offset] must be a positive integer, or -1"));
     }
 
     /**
@@ -605,17 +605,6 @@ public class HighlightBuilderTests extends ESTestCase {
                 assertThat(in.readVInt(), equalTo(1));
             }
         }
-    }
-
-    public void testForceSourceDeprecation() throws IOException {
-        String highlightJson = """
-            { "fields" : { }, "force_source" : true }
-            """;
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightJson)) {
-            HighlightBuilder.fromXContent(parser);
-        }
-
-        assertWarnings("Deprecated field [force_source] used, this field is unused and will be removed entirely");
     }
 
     protected static XContentBuilder toXContent(HighlightBuilder highlight, XContentType contentType) throws IOException {

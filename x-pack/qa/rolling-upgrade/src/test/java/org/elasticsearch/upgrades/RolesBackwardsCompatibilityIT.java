@@ -158,8 +158,8 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testRolesWithManageRoles() throws Exception {
         assumeTrue(
-            "The manage roles privilege is supported after transport version: " + TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE,
-            minimumTransportVersion().before(TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE)
+            "The manage roles privilege is supported after transport version: " + TransportVersions.V_8_16_0,
+            minimumTransportVersion().before(TransportVersions.V_8_16_0)
         );
         switch (CLUSTER_TYPE) {
             case OLD -> {
@@ -190,7 +190,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }
             case MIXED -> {
                 try {
-                    this.createClientsByVersion(TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE);
+                    this.createClientsByVersion(TransportVersions.V_8_16_0);
                     // succeed when role manage roles is not provided
                     final String initialRole = randomRoleDescriptorSerialized();
                     createRole(client(), "my-valid-mixed-role", initialRole);
@@ -232,7 +232,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                             e.getMessage(),
                             containsString(
                                 "all nodes must have version ["
-                                    + TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
+                                    + TransportVersions.V_8_16_0.toReleaseVersion()
                                     + "] or higher to support the manage roles privilege"
                             )
                         );
@@ -246,7 +246,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                             e.getMessage(),
                             containsString(
                                 "all nodes must have version ["
-                                    + TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
+                                    + TransportVersions.V_8_16_0.toReleaseVersion()
                                     + "] or higher to support the manage roles privilege"
                             )
                         );

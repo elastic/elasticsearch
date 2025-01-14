@@ -1,5 +1,0 @@
-pr: 111948
-summary: Upgrade xcontent to Jackson 2.17.0
-area: Infra/Core
-type: upgrade
-issues: []

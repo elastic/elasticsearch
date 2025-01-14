@@ -110,7 +110,7 @@ import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 public class SystemIndices {
     public static final String SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY = "_system_index_access_allowed";
     public static final String EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY = "_external_system_index_access_origin";
-    public static final String UPGRADED_INDEX_SUFFIX = "-reindexed-for-8";
+    public static final String UPGRADED_INDEX_SUFFIX = "-reindexed-for-9";
 
     private static final Automaton EMPTY = Automata.makeEmpty();
 

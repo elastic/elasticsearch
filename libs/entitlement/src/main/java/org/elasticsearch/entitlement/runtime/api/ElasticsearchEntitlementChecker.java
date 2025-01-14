@@ -10,12 +10,34 @@
 package org.elasticsearch.entitlement.runtime.api;
 
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
+import org.elasticsearch.entitlement.runtime.policy.NetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
-import java.util.Optional;
+import java.io.InputStream;
+import java.io.PrintStream;
+import java.io.PrintWriter;
+import java.net.ContentHandlerFactory;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.DatagramSocketImplFactory;
+import java.net.FileNameMap;
+import java.net.InetAddress;
+import java.net.MulticastSocket;
+import java.net.NetworkInterface;
+import java.net.ProxySelector;
+import java.net.ResponseCache;
+import java.net.SocketAddress;
+import java.net.SocketImplFactory;
+import java.net.URL;
+import java.net.URLStreamHandler;
+import java.net.URLStreamHandlerFactory;
+import java.util.List;
 
-import static org.elasticsearch.entitlement.runtime.internals.EntitlementInternals.isActive;
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSocketFactory;
 
 /**
  * Implementation of the {@link EntitlementChecker} interface, providing additional
@@ -23,63 +45,379 @@ import static org.elasticsearch.entitlement.runtime.internals.EntitlementInterna
  * The trampoline module loads this object via SPI.
  */
 public class ElasticsearchEntitlementChecker implements EntitlementChecker {
-    private static final Logger logger = LogManager.getLogger(ElasticsearchEntitlementChecker.class);
 
-    /**
-     * Causes entitlements to be enforced.
-     */
-    public void activate() {
-        isActive = true;
+    private final PolicyManager policyManager;
+
+    public ElasticsearchEntitlementChecker(PolicyManager policyManager) {
+        this.policyManager = policyManager;
     }
 
     @Override
-    public void checkSystemExit(Class<?> callerClass, int status) {
-        var requestingModule = requestingModule(callerClass);
-        if (isTriviallyAllowed(requestingModule)) {
-            return;
-        }
-        // Hard-forbidden until we develop the permission granting scheme
-        throw new NotEntitledException("Missing entitlement for " + requestingModule);
+    public void check$java_lang_Runtime$exit(Class<?> callerClass, Runtime runtime, int status) {
+        policyManager.checkExitVM(callerClass);
     }
 
-    private static Module requestingModule(Class<?> callerClass) {
-        if (callerClass != null) {
-            Module callerModule = callerClass.getModule();
-            if (callerModule.getLayer() != ModuleLayer.boot()) {
-                // fast path
-                return callerModule;
-            }
-        }
-        int framesToSkip = 1  // getCallingClass (this method)
-            + 1  // the checkXxx method
-            + 1  // the runtime config method
-            + 1  // the instrumented method
-        ;
-        Optional<Module> module = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
-            .walk(
-                s -> s.skip(framesToSkip)
-                    .map(f -> f.getDeclaringClass().getModule())
-                    .filter(m -> m.getLayer() != ModuleLayer.boot())
-                    .findFirst()
-            );
-        return module.orElse(null);
+    @Override
+    public void check$java_lang_Runtime$halt(Class<?> callerClass, Runtime runtime, int status) {
+        policyManager.checkExitVM(callerClass);
     }
 
-    private static boolean isTriviallyAllowed(Module requestingModule) {
-        if (isActive == false) {
-            logger.debug("Trivially allowed: entitlements are inactive");
-            return true;
-        }
-        if (requestingModule == null) {
-            logger.debug("Trivially allowed: Entire call stack is in the boot module layer");
-            return true;
-        }
-        if (requestingModule == System.class.getModule()) {
-            logger.debug("Trivially allowed: Caller is in {}", System.class.getModule().getName());
-            return true;
-        }
-        logger.trace("Not trivially allowed");
-        return false;
+    @Override
+    public void check$java_lang_System$$exit(Class<?> callerClass, int status) {
+        policyManager.checkExitVM(callerClass);
     }
 
+    @Override
+    public void check$java_lang_ClassLoader$(Class<?> callerClass) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ClassLoader$(Class<?> callerClass, ClassLoader parent) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ClassLoader$(Class<?> callerClass, String name, ClassLoader parent) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_security_SecureClassLoader$(Class<?> callerClass) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_security_SecureClassLoader$(Class<?> callerClass, ClassLoader parent) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_security_SecureClassLoader$(Class<?> callerClass, String name, ClassLoader parent) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls, ClassLoader parent) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_net_URLClassLoader$(
+        Class<?> callerClass,
+        String name,
+        URL[] urls,
+        ClassLoader parent,
+        URLStreamHandlerFactory factory
+    ) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ProcessBuilder$start(Class<?> callerClass, ProcessBuilder processBuilder) {
+        policyManager.checkStartProcess(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ProcessBuilder$$startPipeline(Class<?> callerClass, List<ProcessBuilder> builders) {
+        policyManager.checkStartProcess(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_System$$setIn(Class<?> callerClass, InputStream in) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_System$$setOut(Class<?> callerClass, PrintStream out) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_System$$setErr(Class<?> callerClass, PrintStream err) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Runtime$addShutdownHook(Class<?> callerClass, Runtime runtime, Thread hook) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Runtime$removeShutdownHook(Class<?> callerClass, Runtime runtime, Thread hook) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$jdk_tools_jlink_internal_Jlink$(Class<?> callerClass) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$jdk_tools_jlink_internal_Main$$run(Class<?> callerClass, PrintWriter out, PrintWriter err, String... args) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$jdk_vm_ci_services_JVMCIServiceLocator$$getProviders(Class<?> callerClass, Class<?> service) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$jdk_vm_ci_services_Services$$load(Class<?> callerClass, Class<?> service) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$jdk_vm_ci_services_Services$$loadSingle(Class<?> callerClass, Class<?> service, boolean required) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$com_sun_tools_jdi_VirtualMachineManagerImpl$$virtualMachineManager(Class<?> callerClass) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$$setDefaultUncaughtExceptionHandler(Class<?> callerClass, Thread.UncaughtExceptionHandler ueh) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_util_spi_LocaleServiceProvider$(Class<?> callerClass) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_text_spi_BreakIteratorProvider$(Class<?> callerClass) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_text_spi_CollatorProvider$(Class<?> callerClass) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_text_spi_DateFormatProvider$(Class<?> callerClass) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_text_spi_DateFormatSymbolsProvider$(Class<?> callerClass) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_text_spi_DecimalFormatSymbolsProvider$(Class<?> callerClass) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_text_spi_NumberFormatProvider$(Class<?> callerClass) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_util_spi_CalendarDataProvider$(Class<?> callerClass) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_util_spi_CalendarNameProvider$(Class<?> callerClass) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_util_spi_CurrencyNameProvider$(Class<?> callerClass) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_util_spi_LocaleNameProvider$(Class<?> callerClass) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_util_spi_TimeZoneNameProvider$(Class<?> callerClass) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_LogManager$(Class<?> callerClass) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_net_DatagramSocket$$setDatagramSocketImplFactory(Class<?> callerClass, DatagramSocketImplFactory fac) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_net_HttpURLConnection$$setFollowRedirects(Class<?> callerClass, boolean set) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_net_ServerSocket$$setSocketFactory(Class<?> callerClass, SocketImplFactory fac) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_net_Socket$$setSocketImplFactory(Class<?> callerClass, SocketImplFactory fac) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_net_URL$$setURLStreamHandlerFactory(Class<?> callerClass, URLStreamHandlerFactory fac) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_net_URLConnection$$setFileNameMap(Class<?> callerClass, FileNameMap map) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_net_URLConnection$$setContentHandlerFactory(Class<?> callerClass, ContentHandlerFactory fac) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$javax_net_ssl_HttpsURLConnection$setSSLSocketFactory(
+        Class<?> callerClass,
+        HttpsURLConnection connection,
+        SSLSocketFactory sf
+    ) {
+        policyManager.checkSetHttpsConnectionProperties(callerClass);
+    }
+
+    @Override
+    public void check$javax_net_ssl_HttpsURLConnection$$setDefaultSSLSocketFactory(Class<?> callerClass, SSLSocketFactory sf) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$javax_net_ssl_HttpsURLConnection$$setDefaultHostnameVerifier(Class<?> callerClass, HostnameVerifier hv) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$javax_net_ssl_SSLContext$$setDefault(Class<?> callerClass, SSLContext context) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_net_ProxySelector$$setDefault(Class<?> callerClass, ProxySelector ps) {
+        policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_net_ResponseCache$$setDefault(Class<?> callerClass, ResponseCache rc) {
+        policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_net_spi_InetAddressResolverProvider$(Class<?> callerClass) {
+        policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_net_spi_URLStreamHandlerProvider$(Class<?> callerClass) {
+        policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_net_URL$(Class<?> callerClass, String protocol, String host, int port, String file, URLStreamHandler handler) {
+        policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_net_URL$(Class<?> callerClass, URL context, String spec, URLStreamHandler handler) {
+        policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
+    public void check$sun_security_ssl_SSLSessionImpl$getSessionContext(Class<?> callerClass, SSLSession sslSession) {
+        policyManager.checkReadSensitiveNetworkInformation(callerClass);
+    }
+
+    @Override
+    public void check$java_net_DatagramSocket$bind(Class<?> callerClass, DatagramSocket that, SocketAddress addr) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION);
+    }
+
+    @Override
+    public void check$java_net_DatagramSocket$connect(Class<?> callerClass, DatagramSocket that, InetAddress addr) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_DatagramSocket$connect(Class<?> callerClass, DatagramSocket that, SocketAddress addr) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_DatagramSocket$send(Class<?> callerClass, DatagramSocket that, DatagramPacket p) {
+        var actions = NetworkEntitlement.CONNECT_ACTION;
+        if (p.getAddress().isMulticastAddress()) {
+            actions |= NetworkEntitlement.ACCEPT_ACTION;
+        }
+        policyManager.checkNetworkAccess(callerClass, actions);
+    }
+
+    @Override
+    public void check$java_net_DatagramSocket$receive(Class<?> callerClass, DatagramSocket that, DatagramPacket p) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_DatagramSocket$joinGroup(Class<?> caller, DatagramSocket that, SocketAddress addr, NetworkInterface ni) {
+        policyManager.checkNetworkAccess(caller, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_DatagramSocket$leaveGroup(Class<?> caller, DatagramSocket that, SocketAddress addr, NetworkInterface ni) {
+        policyManager.checkNetworkAccess(caller, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_MulticastSocket$joinGroup(Class<?> callerClass, MulticastSocket that, InetAddress addr) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_MulticastSocket$joinGroup(Class<?> caller, MulticastSocket that, SocketAddress addr, NetworkInterface ni) {
+        policyManager.checkNetworkAccess(caller, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_MulticastSocket$leaveGroup(Class<?> caller, MulticastSocket that, InetAddress addr) {
+        policyManager.checkNetworkAccess(caller, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_MulticastSocket$leaveGroup(Class<?> caller, MulticastSocket that, SocketAddress addr, NetworkInterface ni) {
+        policyManager.checkNetworkAccess(caller, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_MulticastSocket$send(Class<?> callerClass, MulticastSocket that, DatagramPacket p, byte ttl) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
+    }
 }

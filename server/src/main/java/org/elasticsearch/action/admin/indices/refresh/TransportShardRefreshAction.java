@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
@@ -120,27 +119,18 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             ActionListener<Void> listener
         ) {
             assert replicaRequest.primaryRefreshResult.refreshed() : "primary has not refreshed";
-            boolean fastRefresh = IndexSettings.INDEX_FAST_REFRESH_SETTING.get(
-                clusterService.state().metadata().index(indexShardRoutingTable.shardId().getIndex()).getSettings()
+            UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
+                indexShardRoutingTable,
+                replicaRequest.primaryRefreshResult.primaryTerm(),
+                replicaRequest.primaryRefreshResult.generation(),
+                false
             );
-
-            // Indices marked with fast refresh do not rely on refreshing the unpromotables
-            if (fastRefresh) {
-                listener.onResponse(null);
-            } else {
-                UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
-                    indexShardRoutingTable,
-                    replicaRequest.primaryRefreshResult.primaryTerm(),
-                    replicaRequest.primaryRefreshResult.generation(),
-                    false
-                );
-                transportService.sendRequest(
-                    transportService.getLocalNode(),
-                    TransportUnpromotableShardRefreshAction.NAME,
-                    unpromotableReplicaRequest,
-                    new ActionListenerResponseHandler<>(listener.safeMap(r -> null), in -> ActionResponse.Empty.INSTANCE, refreshExecutor)
-                );
-            }
+            transportService.sendRequest(
+                transportService.getLocalNode(),
+                TransportUnpromotableShardRefreshAction.NAME,
+                unpromotableReplicaRequest,
+                new ActionListenerResponseHandler<>(listener.safeMap(r -> null), in -> ActionResponse.Empty.INSTANCE, refreshExecutor)
+            );
         }
     }
 }

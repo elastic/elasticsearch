@@ -39,7 +39,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
     public void testEnglishFilterFactory() throws IOException {
         int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
-            IndexVersion v = IndexVersionUtils.randomVersion(random());
+            IndexVersion v = IndexVersionUtils.randomVersion();
             Settings settings = Settings.builder()
                 .put("index.analysis.filter.my_english.type", "stemmer")
                 .put("index.analysis.filter.my_english.language", "english")
@@ -66,7 +66,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
         int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
 
-            IndexVersion v = IndexVersionUtils.randomVersion(random());
+            IndexVersion v = IndexVersionUtils.randomVersion();
             Settings settings = Settings.builder()
                 .put("index.analysis.filter.my_porter2.type", "stemmer")
                 .put("index.analysis.filter.my_porter2.language", "porter2")
@@ -90,7 +90,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testMultipleLanguagesThrowsException() throws IOException {
-        IndexVersion v = IndexVersionUtils.randomVersion(random());
+        IndexVersion v = IndexVersionUtils.randomVersion();
         Settings settings = Settings.builder()
             .put("index.analysis.filter.my_english.type", "stemmer")
             .putList("index.analysis.filter.my_english.language", "english", "light_english")
@@ -142,7 +142,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testKpDeprecation() throws IOException {
-        IndexVersion v = IndexVersionUtils.randomVersion(random());
+        IndexVersion v = IndexVersionUtils.randomVersion();
         Settings settings = Settings.builder()
             .put("index.analysis.filter.my_kp.type", "stemmer")
             .put("index.analysis.filter.my_kp.language", "kp")
@@ -155,7 +155,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testLovinsDeprecation() throws IOException {
-        IndexVersion v = IndexVersionUtils.randomVersion(random());
+        IndexVersion v = IndexVersionUtils.randomVersion();
         Settings settings = Settings.builder()
             .put("index.analysis.filter.my_lovins.type", "stemmer")
             .put("index.analysis.filter.my_lovins.language", "lovins")

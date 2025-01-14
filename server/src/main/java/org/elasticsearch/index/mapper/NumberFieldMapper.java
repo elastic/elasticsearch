@@ -89,8 +89,6 @@ public class NumberFieldMapper extends FieldMapper {
         return (NumberFieldMapper) in;
     }
 
-    private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
-
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed;
@@ -1378,16 +1376,8 @@ public class NumberFieldMapper extends FieldMapper {
         NumberType(String name, NumericType numericType) {
             this.name = name;
             this.numericType = numericType;
-            this.parser = new TypeParser(
-                (n, c) -> new Builder(
-                    n,
-                    this,
-                    c.scriptCompiler(),
-                    c.getSettings(),
-                    c.indexVersionCreated(),
-                    c.getIndexSettings().getMode()
-                ),
-                MINIMUM_COMPATIBILITY_VERSION
+            this.parser = createTypeParserWithLegacySupport(
+                (n, c) -> new Builder(n, this, c.scriptCompiler(), c.getSettings(), c.indexVersionCreated(), c.getIndexSettings().getMode())
             );
         }
 
@@ -1991,7 +1981,7 @@ public class NumberFieldMapper extends FieldMapper {
      */
     public void indexValue(DocumentParserContext context, Number numericValue) {
         if (dimension && numericValue != null) {
-            context.getDimensions().addLong(fieldType().name(), numericValue.longValue()).validate(context.indexSettings());
+            context.getRoutingFields().addLong(fieldType().name(), numericValue.longValue());
         }
         fieldType().type.addFields(context.doc(), fieldType().name(), numericValue, indexed, hasDocValues, stored);
 

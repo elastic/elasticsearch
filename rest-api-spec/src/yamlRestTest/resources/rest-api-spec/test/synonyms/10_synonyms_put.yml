@@ -17,7 +17,10 @@ setup:
 
   - do:
       cluster.health:
-        wait_for_no_initializing_shards: true
+        index: .synonyms-2
+        timeout: 2s
+        wait_for_status: green
+        ignore: 408
 
   - do:
       synonyms.get_synonym:
@@ -64,7 +67,10 @@ setup:
 
   - do:
       cluster.health:
-        wait_for_no_initializing_shards: true
+        index: .synonyms-2
+        timeout: 2s
+        wait_for_status: green
+        ignore: 408
 
   - do:
       synonyms.get_synonym:

@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -96,8 +97,12 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         }
 
         logger.info("Executing search");
+        // we have to explicitly set error_trace=true for the later exception check for `TimeSeriesIndexSearcher`
+        Client client = client();
+        client.threadPool().getThreadContext().putHeader("error_trace", "true");
         TimeSeriesAggregationBuilder timeSeriesAggregationBuilder = new TimeSeriesAggregationBuilder("test_agg");
-        ActionFuture<SearchResponse> searchResponse = prepareSearch("test").setQuery(matchAllQuery())
+        ActionFuture<SearchResponse> searchResponse = client.prepareSearch("test")
+            .setQuery(matchAllQuery())
             .addAggregation(
                 timeSeriesAggregationBuilder.subAggregation(
                     new ScriptedMetricAggregationBuilder("sub_agg").initScript(

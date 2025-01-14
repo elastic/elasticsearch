@@ -135,6 +135,7 @@ public class CohereServiceMixedIT extends BaseMixedTestCase {
 
         final String inferenceId = "mixed-cluster-rerank";
 
+        cohereRerankServer.enqueue(new MockResponse().setResponseCode(200).setBody(rerankResponse()));
         put(inferenceId, rerankConfig(getUrl(cohereRerankServer)), TaskType.RERANK);
         assertRerank(inferenceId);
 

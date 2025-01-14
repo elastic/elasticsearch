@@ -10,15 +10,14 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
@@ -29,65 +28,39 @@ public class AutoCreateIndexIT extends ESIntegTestCase {
         final var masterNodeClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         final var barrier = new CyclicBarrier(2);
         masterNodeClusterService.createTaskQueue("block", Priority.NORMAL, batchExecutionContext -> {
-            barrier.await(10, TimeUnit.SECONDS);
-            barrier.await(10, TimeUnit.SECONDS);
+            safeAwait(barrier);
+            safeAwait(barrier);
             batchExecutionContext.taskContexts().forEach(c -> c.success(() -> {}));
             return batchExecutionContext.initialState();
-        }).submitTask("block", e -> { assert false : e; }, null);
+        }).submitTask("block", ESTestCase::fail, null);
 
-        barrier.await(10, TimeUnit.SECONDS);
+        safeAwait(barrier);
 
         final var countDownLatch = new CountDownLatch(2);
 
         final var client = client();
-        client.prepareIndex("no-dot").setSource("{}", XContentType.JSON).execute(new ActionListener<>() {
-            @Override
-            public void onResponse(DocWriteResponse indexResponse) {
-                try {
-                    final var warningHeaders = client.threadPool().getThreadContext().getResponseHeaders().get("Warning");
-                    if (warningHeaders != null) {
-                        assertThat(
-                            warningHeaders,
-                            not(
-                                hasItems(
-                                    containsString("index names starting with a dot are reserved for hidden indices and system indices")
-                                )
-                            )
-                        );
-                    }
-                } finally {
-                    countDownLatch.countDown();
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                countDownLatch.countDown();
-                assert false : e;
-            }
-        });
-
-        client.prepareIndex(".has-dot").setSource("{}", XContentType.JSON).execute(new ActionListener<>() {
-            @Override
-            public void onResponse(DocWriteResponse indexResponse) {
-                try {
-                    final var warningHeaders = client.threadPool().getThreadContext().getResponseHeaders().get("Warning");
-                    assertNotNull(warningHeaders);
+        client.prepareIndex("no-dot")
+            .setSource("{}", XContentType.JSON)
+            .execute(ActionListener.releaseAfter(ActionTestUtils.assertNoFailureListener(indexResponse -> {
+                final var warningHeaders = client.threadPool().getThreadContext().getResponseHeaders().get("Warning");
+                if (warningHeaders != null) {
                     assertThat(
                         warningHeaders,
-                        hasItems(containsString("index names starting with a dot are reserved for hidden indices and system indices"))
+                        not(hasItems(containsString("index names starting with a dot are reserved for hidden indices and system indices")))
                     );
-                } finally {
-                    countDownLatch.countDown();
                 }
-            }
+            }), countDownLatch::countDown));
 
-            @Override
-            public void onFailure(Exception e) {
-                countDownLatch.countDown();
-                assert false : e;
-            }
-        });
+        client.prepareIndex(".has-dot")
+            .setSource("{}", XContentType.JSON)
+            .execute(ActionListener.releaseAfter(ActionTestUtils.assertNoFailureListener(indexResponse -> {
+                final var warningHeaders = client.threadPool().getThreadContext().getResponseHeaders().get("Warning");
+                assertNotNull(warningHeaders);
+                assertThat(
+                    warningHeaders,
+                    hasItems(containsString("index names starting with a dot are reserved for hidden indices and system indices"))
+                );
+            }), countDownLatch::countDown));
 
         assertBusy(
             () -> assertThat(
@@ -100,7 +73,7 @@ public class AutoCreateIndexIT extends ESIntegTestCase {
             )
         );
 
-        barrier.await(10, TimeUnit.SECONDS);
-        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        safeAwait(barrier);
+        safeAwait(countDownLatch);
     }
 }

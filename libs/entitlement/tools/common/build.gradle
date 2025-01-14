@@ -7,9 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-plugins {
-  id 'java'
+apply plugin: 'elasticsearch.build'
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
 }
-
-group = 'org.elasticsearch.entitlement.tools'
-

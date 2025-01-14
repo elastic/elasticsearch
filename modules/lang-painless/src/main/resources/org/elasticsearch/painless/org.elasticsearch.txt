@@ -123,6 +123,11 @@ class org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues {
     float getMagnitude()
 }
 
+class org.elasticsearch.index.mapper.vectors.RankVectorsScriptDocValues {
+    Iterator getVectorValues()
+    float[] getMagnitudes()
+}
+
 class org.apache.lucene.util.BytesRef {
   byte[] bytes
   int offset

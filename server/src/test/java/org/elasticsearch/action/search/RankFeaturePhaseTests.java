@@ -155,6 +155,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 rankFeaturePhase.rankPhaseResults.close();
             }
         } finally {
+            mockSearchPhaseContext.results.close();
             if (mockSearchPhaseContext.searchResponse.get() != null) {
                 mockSearchPhaseContext.searchResponse.get().decRef();
             }
@@ -281,6 +282,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 rankFeaturePhase.rankPhaseResults.close();
             }
         } finally {
+            mockSearchPhaseContext.results.close();
             if (mockSearchPhaseContext.searchResponse.get() != null) {
                 mockSearchPhaseContext.searchResponse.get().decRef();
             }
@@ -385,6 +387,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 rankFeaturePhase.rankPhaseResults.close();
             }
         } finally {
+            mockSearchPhaseContext.results.close();
             if (mockSearchPhaseContext.searchResponse.get() != null) {
                 mockSearchPhaseContext.searchResponse.get().decRef();
             }
@@ -480,6 +483,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 rankFeaturePhase.rankPhaseResults.close();
             }
         } finally {
+            mockSearchPhaseContext.results.close();
             if (mockSearchPhaseContext.searchResponse.get() != null) {
                 mockSearchPhaseContext.searchResponse.get().decRef();
             }
@@ -626,6 +630,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 rankFeaturePhase.rankPhaseResults.close();
             }
         } finally {
+            mockSearchPhaseContext.results.close();
             if (mockSearchPhaseContext.searchResponse.get() != null) {
                 mockSearchPhaseContext.searchResponse.get().decRef();
             }
@@ -762,6 +767,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 rankFeaturePhase.rankPhaseResults.close();
             }
         } finally {
+            mockSearchPhaseContext.results.close();
             if (mockSearchPhaseContext.searchResponse.get() != null) {
                 mockSearchPhaseContext.searchResponse.get().decRef();
             }

@@ -1,5 +1,0 @@
-pr: 112210
-summary: Expose global retention settings via data stream lifecycle API
-area: Data streams
-type: enhancement
-issues: []

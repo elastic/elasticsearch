@@ -11,6 +11,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -35,6 +36,11 @@ public abstract class LogsIndexModeRestTestIT extends ESRestTestCase {
         throws IOException {
         final Request request = new Request("PUT", "/_component_template/" + componentTemplate);
         request.setJsonEntity(contends);
+        if (isSyntheticSourceConfiguredInTemplate(contends) && SourceFieldMapper.onOrAfterDeprecateModeVersion(minimumIndexVersion())) {
+            request.setOptions(
+                expectVersionSpecificWarnings((VersionSensitiveWarningsHandler v) -> v.current(SourceFieldMapper.DEPRECATION_WARNING))
+            );
+        }
         return client.performRequest(request);
     }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
@@ -102,7 +104,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             return null;
         }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
-        var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP);
+        var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP, new XPackLicenseState(() -> 0L));
         var enrichResolver = mockEnrichResolver();
 
         var request = new EsqlQueryRequest();
@@ -118,10 +120,12 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request,
             randomAlphaOfLength(10),
             EsqlTestUtils.TEST_CFG,
+            FoldContext.small(),
             enrichResolver,
             new EsqlExecutionInfo(randomBoolean()),
             groupIndicesByCluster,
             runPhase,
+            EsqlTestUtils.MOCK_QUERY_BUILDER_RESOLVER,
             new ActionListener<>() {
                 @Override
                 public void onResponse(Result result) {
@@ -147,10 +151,12 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request,
             randomAlphaOfLength(10),
             EsqlTestUtils.TEST_CFG,
+            FoldContext.small(),
             enrichResolver,
             new EsqlExecutionInfo(randomBoolean()),
             groupIndicesByCluster,
             runPhase,
+            EsqlTestUtils.MOCK_QUERY_BUILDER_RESOLVER,
             new ActionListener<>() {
                 @Override
                 public void onResponse(Result result) {}

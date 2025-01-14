@@ -62,7 +62,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "boolean";
 
-    static final NodeFeature BOOLEAN_DIMENSION = new NodeFeature("mapper.boolean_dimension");
+    static final NodeFeature BOOLEAN_DIMENSION = new NodeFeature("mapper.boolean_dimension", true);
 
     public static class Values {
         public static final BytesRef TRUE = new BytesRef("T");
@@ -182,11 +182,8 @@ public class BooleanFieldMapper extends FieldMapper {
         }
     }
 
-    private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
-
-    public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.scriptCompiler(), IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.indexVersionCreated()),
-        MINIMUM_COMPATIBILITY_VERSION
+    public static final TypeParser PARSER = createTypeParserWithLegacySupport(
+        (n, c) -> new Builder(n, c.scriptCompiler(), IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.indexVersionCreated())
     );
 
     public static final class BooleanFieldType extends TermBasedFieldType {
@@ -499,7 +496,7 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         if (fieldType().isDimension()) {
-            context.getDimensions().addBoolean(fieldType().name(), value).validate(context.indexSettings());
+            context.getRoutingFields().addBoolean(fieldType().name(), value);
         }
         if (indexed) {
             context.doc().add(new StringField(fieldType().name(), value ? Values.TRUE : Values.FALSE, Field.Store.NO));

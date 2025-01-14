@@ -54,7 +54,6 @@ public class OpenAIServiceMixedIT extends BaseMixedTestCase {
         openAiChatCompletionsServer.close();
     }
 
-    @AwaitsFix(bugUrl = "Backport #112074 to 8.16")
     @SuppressWarnings("unchecked")
     public void testOpenAiEmbeddings() throws IOException {
         var openAiEmbeddingsSupported = bwcVersion.onOrAfter(Version.fromString(OPEN_AI_EMBEDDINGS_ADDED));

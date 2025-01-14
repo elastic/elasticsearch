@@ -190,11 +190,11 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                     () -> "[" + request.getDeploymentId() + "] creating new assignment for model [" + request.getModelId() + "] failed",
                     e
                 );
-                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException resourceAlreadyExistsException) {
                     e = new ElasticsearchStatusException(
                         "Cannot start deployment [{}] because it has already been started",
                         RestStatus.CONFLICT,
-                        e,
+                        resourceAlreadyExistsException,
                         request.getDeploymentId()
                     );
                 }

@@ -89,6 +89,9 @@ public class TransformMessages {
     public static final String INVALID_ID = "Invalid {0}; ''{1}'' can contain lowercase alphanumeric (a-z and 0-9), hyphens or "
         + "underscores; must start and end with alphanumeric";
 
+    public static final String MAX_PAGE_SEARCH_SIZE_MIGRATION =
+        "Automatically migrating [max_page_search_size] from the pivot to the transform setting.";
+
     private TransformMessages() {}
 
     /**

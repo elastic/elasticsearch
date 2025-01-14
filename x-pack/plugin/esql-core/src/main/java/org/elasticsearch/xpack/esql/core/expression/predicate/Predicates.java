@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.predicate;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 
@@ -59,7 +61,7 @@ public abstract class Predicates {
      *
      * using the given combiner.
      *
-     * While a bit longer, this method creates a balanced tree as oppose to a plain
+     * While a bit longer, this method creates a balanced tree as opposed to a plain
      * recursive approach which creates an unbalanced one (either to the left or right).
      */
     private static Expression combine(List<Expression> exps, BiFunction<Expression, Expression, Expression> combiner) {
@@ -112,5 +114,44 @@ public abstract class Predicates {
             }
         }
         return diff.isEmpty() ? emptyList() : diff;
+    }
+
+    /**
+     * Given a list of expressions of predicates, extract a new expression of
+     * all the common ones and return it, along the original list with the
+     * common ones removed.
+     * <p>
+     * Example: for ['field1 > 0 AND field2 > 0', 'field1 > 0 AND field3 > 0',
+     * 'field1 > 0'], the function will return 'field1 > 0' as the common
+     * predicate expression and ['field2 > 0', 'field3 > 0', Literal.TRUE] as
+     * the left predicates list.
+     *
+     * @param expressions list of expressions to extract common predicates from.
+     * @return a tuple having as the first element an expression of the common
+     * predicates and as the second element the list of expressions with the
+     * common predicates removed. If there are no common predicates, `null` will
+     * be returned as the first element and the original list as the second. If
+     * for one of the expressions in the input list, nothing is left after
+     * trimming the common predicates, it will be replaced with Literal.TRUE.
+     */
+    public static Tuple<Expression, List<Expression>> extractCommon(List<Expression> expressions) {
+        List<Expression> common = null;
+        List<List<Expression>> splitAnds = new ArrayList<>(expressions.size());
+        for (var expression : expressions) {
+            var split = splitAnd(expression);
+            common = common == null ? split : inCommon(split, common);
+            if (common.isEmpty()) {
+                return Tuple.tuple(null, expressions);
+            }
+            splitAnds.add(split);
+        }
+
+        List<Expression> trimmed = new ArrayList<>(expressions.size());
+        final List<Expression> finalCommon = common;
+        splitAnds.forEach(split -> {
+            var subtracted = subtract(split, finalCommon);
+            trimmed.add(subtracted.isEmpty() ? Literal.TRUE : combineAnd(subtracted));
+        });
+        return Tuple.tuple(combineAnd(common), trimmed);
     }
 }

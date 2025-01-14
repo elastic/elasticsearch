@@ -35,7 +35,6 @@ import java.util.function.Function;
  */
 public abstract class InternalAggregation implements Aggregation, NamedWriteable {
     protected final String name;
-
     protected final Map<String, Object> metadata;
 
     /**
@@ -53,12 +52,14 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      */
     protected InternalAggregation(StreamInput in) throws IOException {
         final String name = in.readString();
+        final Map<String, Object> metadata = in.readGenericMap();
         if (in instanceof DelayableWriteable.Deduplicator d) {
             this.name = d.deduplicate(name);
+            this.metadata = metadata == null || metadata.isEmpty() ? metadata : d.deduplicate(metadata);
         } else {
             this.name = name;
+            this.metadata = metadata;
         }
-        metadata = in.readGenericMap();
     }
 
     @Override

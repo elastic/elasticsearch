@@ -12,7 +12,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,32 +33,27 @@ public final class XPackRestTestHelper {
      * @throws InterruptedException If the wait is interrupted
      */
     @SuppressWarnings("unchecked")
-    public static void waitForTemplates(RestClient client, List<String> expectedTemplates, boolean clusterUnderstandsComposableTemplates)
-        throws Exception {
+    public static void waitForTemplates(RestClient client, List<String> expectedTemplates) throws Exception {
         // TODO: legacy support can be removed once all X-Pack plugins use only composable
         // templates in the oldest version we test upgrades from
         assertBusy(() -> {
             Map<String, Object> response;
-            if (clusterUnderstandsComposableTemplates) {
-                final Request request = new Request("GET", "_index_template");
-                request.addParameter("error_trace", "true");
+            final Request request = new Request("GET", "_index_template");
+            request.addParameter("error_trace", "true");
 
-                String string = EntityUtils.toString(client.performRequest(request).getEntity());
-                List<Map<String, Object>> templateList = (List<Map<String, Object>>) XContentHelper.convertToMap(
-                    JsonXContent.jsonXContent,
-                    string,
-                    false
-                ).get("index_templates");
-                response = templateList.stream().collect(Collectors.toMap(m -> (String) m.get("name"), m -> m.get("index_template")));
-            } else {
-                response = Collections.emptyMap();
-            }
+            String string = EntityUtils.toString(client.performRequest(request).getEntity());
+            List<Map<String, Object>> templateList = (List<Map<String, Object>>) XContentHelper.convertToMap(
+                JsonXContent.jsonXContent,
+                string,
+                false
+            ).get("index_templates");
+            response = templateList.stream().collect(Collectors.toMap(m -> (String) m.get("name"), m -> m.get("index_template")));
             final Set<String> templates = new TreeSet<>(response.keySet());
 
             final Request legacyRequest = new Request("GET", "_template");
             legacyRequest.addParameter("error_trace", "true");
 
-            String string = EntityUtils.toString(client.performRequest(legacyRequest).getEntity());
+            string = EntityUtils.toString(client.performRequest(legacyRequest).getEntity());
             Map<String, Object> legacyResponse = XContentHelper.convertToMap(JsonXContent.jsonXContent, string, false);
 
             final Set<String> legacyTemplates = new TreeSet<>(legacyResponse.keySet());

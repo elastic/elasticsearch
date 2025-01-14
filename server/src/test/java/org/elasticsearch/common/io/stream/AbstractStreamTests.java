@@ -11,6 +11,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -53,8 +54,6 @@ import java.util.stream.Stream;
 
 import static java.time.Instant.ofEpochSecond;
 import static java.time.ZonedDateTime.ofInstant;
-import static org.elasticsearch.TransportVersions.ZDT_NANOS_SUPPORT;
-import static org.elasticsearch.TransportVersions.ZDT_NANOS_SUPPORT_BROKEN;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
@@ -729,15 +728,11 @@ public abstract class AbstractStreamTests extends ESTestCase {
     }
 
     public void testZonedDateTimeSerialization() throws IOException {
-        checkZonedDateTimeSerialization(ZDT_NANOS_SUPPORT);
-    }
-
-    public void testZonedDateTimeMillisBwcSerializationV1() throws IOException {
-        checkZonedDateTimeSerialization(TransportVersionUtils.getPreviousVersion(ZDT_NANOS_SUPPORT_BROKEN));
+        checkZonedDateTimeSerialization(TransportVersions.V_8_16_0);
     }
 
     public void testZonedDateTimeMillisBwcSerialization() throws IOException {
-        checkZonedDateTimeSerialization(TransportVersionUtils.getPreviousVersion(ZDT_NANOS_SUPPORT));
+        checkZonedDateTimeSerialization(TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_16_0));
     }
 
     public void checkZonedDateTimeSerialization(TransportVersion tv) throws IOException {
@@ -745,12 +740,12 @@ public abstract class AbstractStreamTests extends ESTestCase {
         assertGenericRoundtrip(ofInstant(ofEpochSecond(1), randomZone()), tv);
         // just want to test a large number that will use 5+ bytes
         long maxEpochSecond = Integer.MAX_VALUE;
-        long minEpochSecond = tv.between(ZDT_NANOS_SUPPORT_BROKEN, ZDT_NANOS_SUPPORT) ? 0 : Integer.MIN_VALUE;
+        long minEpochSecond = Integer.MIN_VALUE;
         assertGenericRoundtrip(ofInstant(ofEpochSecond(maxEpochSecond), randomZone()), tv);
         assertGenericRoundtrip(ofInstant(ofEpochSecond(randomLongBetween(minEpochSecond, maxEpochSecond)), randomZone()), tv);
         assertGenericRoundtrip(ofInstant(ofEpochSecond(randomLongBetween(minEpochSecond, maxEpochSecond), 1_000_000), randomZone()), tv);
         assertGenericRoundtrip(ofInstant(ofEpochSecond(randomLongBetween(minEpochSecond, maxEpochSecond), 999_000_000), randomZone()), tv);
-        if (tv.onOrAfter(ZDT_NANOS_SUPPORT)) {
+        if (tv.onOrAfter(TransportVersions.V_8_16_0)) {
             assertGenericRoundtrip(
                 ofInstant(ofEpochSecond(randomLongBetween(minEpochSecond, maxEpochSecond), 999_999_999), randomZone()),
                 tv

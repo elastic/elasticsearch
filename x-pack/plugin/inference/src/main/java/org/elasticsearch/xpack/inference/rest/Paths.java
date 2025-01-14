@@ -30,6 +30,12 @@ public final class Paths {
         + "}/{"
         + INFERENCE_ID
         + "}/_stream";
+    static final String UNIFIED_INFERENCE_ID_PATH = "_inference/{" + TASK_TYPE_OR_INFERENCE_ID + "}/_unified";
+    static final String UNIFIED_TASK_TYPE_INFERENCE_ID_PATH = "_inference/{"
+        + TASK_TYPE_OR_INFERENCE_ID
+        + "}/{"
+        + INFERENCE_ID
+        + "}/_unified";
 
     private Paths() {
 

@@ -43,6 +43,7 @@ public abstract class AsyncOperator implements Operator {
 
     private final int maxOutstandingRequests;
     private final LongAdder totalTimeInNanos = new LongAdder();
+
     private boolean finished = false;
     private volatile boolean closed = false;
 

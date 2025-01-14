@@ -44,3 +44,4 @@ FORMING_SINGLE_NODE_CLUSTERS                                    modules-discover
 CIRCUIT_BREAKER_ERRORS                                          circuit-breaker-errors.html
 ALLOCATION_EXPLAIN_NO_COPIES                                    cluster-allocation-explain.html#no-valid-shard-copy
 ALLOCATION_EXPLAIN_MAX_RETRY                                    cluster-allocation-explain.html#maximum-number-of-retries-exceeded
+SECURE_SETTINGS                                                 secure-settings.html

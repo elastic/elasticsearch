@@ -55,7 +55,7 @@ public class TransportPostStartTrialAction extends TransportMasterNodeAction<Pos
         ClusterState state,
         ActionListener<PostStartTrialResponse> listener
     ) throws Exception {
-        if (state.nodes().getMaxNodeVersion().after(state.nodes().getSmallestNonClientNodeVersion())) {
+        if (state.nodes().isMixedVersionCluster()) {
             throw new IllegalStateException(
                 "Please ensure all nodes are on the same version before starting your trial, the highest node version in this cluster is ["
                     + state.nodes().getMaxNodeVersion()

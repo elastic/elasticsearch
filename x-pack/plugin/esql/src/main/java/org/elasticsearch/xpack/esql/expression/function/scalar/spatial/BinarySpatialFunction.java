@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.geometry.Geometry;
@@ -22,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -40,9 +38,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
  * and of compatible CRS. For example geo_point and geo_shape can be compared, but not geo_point and cartesian_point.
  */
 public abstract class BinarySpatialFunction extends BinaryScalarFunction implements SpatialEvaluatorFactory.SpatialSourceResolution {
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(SpatialContains.ENTRY, SpatialDisjoint.ENTRY, SpatialIntersects.ENTRY, SpatialWithin.ENTRY, StDistance.ENTRY);
-    }
 
     private final SpatialTypeResolver spatialTypeResolver;
     private SpatialCrsType crsType;

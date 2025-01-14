@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.rest.RestStatus;
@@ -31,10 +32,12 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -45,6 +48,10 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * the results of the child retrievers according to the implementation of {@code combineQueryPhaseResults}.
  */
 public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilder<T>> extends RetrieverBuilder {
+
+    public static final NodeFeature INNER_RETRIEVERS_FILTER_SUPPORT = new NodeFeature("inner_retrievers_filter_support");
+
+    public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
 
     public record RetrieverSource(RetrieverBuilder retriever, SearchSourceBuilder source) {}
 
@@ -64,9 +71,9 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
 
     /**
      * Returns a clone of the original retriever, replacing the sub-retrievers with
-     * the provided {@code newChildRetrievers}.
+     * the provided {@code newChildRetrievers} and the filters with the {@code newPreFilterQueryBuilders}.
      */
-    protected abstract T clone(List<RetrieverSource> newChildRetrievers);
+    protected abstract T clone(List<RetrieverSource> newChildRetrievers, List<QueryBuilder> newPreFilterQueryBuilders);
 
     /**
      * Combines the provided {@code rankResults} to return the final top documents.
@@ -78,6 +85,14 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         return true;
     }
 
+    /**
+     * Retrieves the {@link ParseField} used to configure the {@link CompoundRetrieverBuilder#rankWindowSize}
+     * at the REST layer.
+     */
+    public ParseField getRankWindowSizeField() {
+        return RANK_WINDOW_SIZE_FIELD;
+    }
+
     @Override
     public final RetrieverBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         if (ctx.getPointInTimeBuilder() == null) {
@@ -85,13 +100,25 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         }
 
         // Rewrite prefilters
-        boolean hasChanged = false;
+        // We eagerly rewrite prefilters, because some of the innerRetrievers
+        // could be compound too, so we want to propagate all the necessary filter information to them
+        // and have it available as part of their own rewrite step
         var newPreFilters = rewritePreFilters(ctx);
-        hasChanged |= newPreFilters != preFilterQueryBuilders;
+        if (newPreFilters != preFilterQueryBuilders) {
+            return clone(innerRetrievers, newPreFilters);
+        }
 
+        boolean hasChanged = false;
         // Rewrite retriever sources
         List<RetrieverSource> newRetrievers = new ArrayList<>();
         for (var entry : innerRetrievers) {
+            // we propagate the filters only for compound retrievers as they won't be attached through
+            // the createSearchSourceBuilder.
+            // We could remove this check, but we would end up adding the same filters
+            // multiple times in case an inner retriever rewrites itself, when we re-enter to rewrite
+            if (entry.retriever.isCompound() && false == preFilterQueryBuilders.isEmpty()) {
+                entry.retriever.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
+            }
             RetrieverBuilder newRetriever = entry.retriever.rewrite(ctx);
             if (newRetriever != entry.retriever) {
                 newRetrievers.add(new RetrieverSource(newRetriever, null));
@@ -106,7 +133,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             }
         }
         if (hasChanged) {
-            return clone(newRetrievers);
+            return clone(newRetrievers, newPreFilters);
         }
 
         // execute searches
@@ -166,12 +193,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             });
         });
 
-        return new RankDocsRetrieverBuilder(
-            rankWindowSize,
-            newRetrievers.stream().map(s -> s.retriever).toList(),
-            results::get,
-            newPreFilters
-        );
+        return new RankDocsRetrieverBuilder(rankWindowSize, newRetrievers.stream().map(s -> s.retriever).toList(), results::get);
     }
 
     @Override
@@ -199,14 +221,14 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         validationException = super.validate(source, validationException, isScroll, allowPartialSearchResults);
         if (source.size() > rankWindowSize) {
             validationException = addValidationError(
-                "["
-                    + this.getName()
-                    + "] requires [rank_window_size: "
-                    + rankWindowSize
-                    + "]"
-                    + " be greater than or equal to [size: "
-                    + source.size()
-                    + "]",
+                String.format(
+                    Locale.ROOT,
+                    "[%s] requires [%s: %d] be greater than or equal to [size: %d]",
+                    getName(),
+                    getRankWindowSizeField().getPreferredName(),
+                    rankWindowSize,
+                    source.size()
+                ),
                 validationException
             );
         }
@@ -221,6 +243,21 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         }
         for (RetrieverSource innerRetriever : innerRetrievers) {
             validationException = innerRetriever.retriever().validate(source, validationException, isScroll, allowPartialSearchResults);
+            if (innerRetriever.retriever() instanceof CompoundRetrieverBuilder<?> compoundChild) {
+                if (rankWindowSize > compoundChild.rankWindowSize) {
+                    String errorMessage = String.format(
+                        Locale.ROOT,
+                        "[%s] requires [%s: %d] to be smaller than or equal to its sub retriever's %s [%s: %d]",
+                        this.getName(),
+                        getRankWindowSizeField().getPreferredName(),
+                        rankWindowSize,
+                        compoundChild.getName(),
+                        compoundChild.getRankWindowSizeField(),
+                        compoundChild.rankWindowSize
+                    );
+                    validationException = addValidationError(errorMessage, validationException);
+                }
+            }
         }
         return validationException;
     }
@@ -236,7 +273,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         return Objects.hash(innerRetrievers);
     }
 
-    protected SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {
+    protected final SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {
         var sourceBuilder = new SearchSourceBuilder().pointInTimeBuilder(pit)
             .trackTotalHits(false)
             .storedFields(new StoredFieldsContext(false))
@@ -254,6 +291,11 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         }
         sortBuilders.add(new FieldSortBuilder(FieldSortBuilder.SHARD_DOC_FIELD_NAME));
         sourceBuilder.sort(sortBuilders);
+        sourceBuilder.skipInnerHits(true);
+        return finalizeSourceBuilder(sourceBuilder);
+    }
+
+    protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
         return sourceBuilder;
     }
 

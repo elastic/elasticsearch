@@ -194,7 +194,7 @@ public class PrecompiledCharMapNormalizer extends BaseCharFilter {
                     if (charDelta < 0) {
                         // normalised form is shorter
                         int lastDiff = getLastCumulativeDiff();
-                        addOffCorrectMap(normalizedCharPos, lastDiff + charDelta);
+                        addOffCorrectMap(normalizedCharPos, lastDiff - charDelta);
                     } else if (charDelta > 0) {
                         // inserted chars, add the offset in the output stream
                         int lastDiff = getLastCumulativeDiff();

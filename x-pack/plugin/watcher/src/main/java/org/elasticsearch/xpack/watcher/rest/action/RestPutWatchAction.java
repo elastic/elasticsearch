@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
@@ -42,19 +43,24 @@ public class RestPutWatchAction extends BaseRestHandler implements RestRequestFi
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) {
-        PutWatchRequest putWatchRequest = new PutWatchRequest(request.param("id"), request.content(), request.getXContentType());
+        var content = request.content();
+        PutWatchRequest putWatchRequest = new PutWatchRequest(request.param("id"), content, request.getXContentType());
         putWatchRequest.setVersion(request.paramAsLong("version", Versions.MATCH_ANY));
         putWatchRequest.setIfSeqNo(request.paramAsLong("if_seq_no", putWatchRequest.getIfSeqNo()));
         putWatchRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", putWatchRequest.getIfPrimaryTerm()));
         putWatchRequest.setActive(request.paramAsBoolean("active", putWatchRequest.isActive()));
-        return channel -> client.execute(PutWatchAction.INSTANCE, putWatchRequest, new RestBuilderListener<>(channel) {
-            @Override
-            public RestResponse buildResponse(PutWatchResponse response, XContentBuilder builder) throws Exception {
-                response.toXContent(builder, request);
-                RestStatus status = response.isCreated() ? CREATED : OK;
-                return new RestResponse(status, builder);
-            }
-        });
+        return channel -> client.execute(
+            PutWatchAction.INSTANCE,
+            putWatchRequest,
+            ActionListener.withRef(new RestBuilderListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(PutWatchResponse response, XContentBuilder builder) throws Exception {
+                    response.toXContent(builder, request);
+                    RestStatus status = response.isCreated() ? CREATED : OK;
+                    return new RestResponse(status, builder);
+                }
+            }, content)
+        );
     }
 
     private static final Set<String> FILTERED_FIELDS = Set.of(

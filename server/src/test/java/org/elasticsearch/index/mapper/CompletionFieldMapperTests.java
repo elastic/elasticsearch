@@ -34,6 +34,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -60,6 +61,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.mapper.CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -757,7 +759,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             .startObject("suggest")
             .field("type", "completion")
             .startArray("contexts");
-        for (int i = 0; i < CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT + 1; i++) {
+        for (int i = 0; i < COMPLETION_CONTEXTS_LIMIT + 1; i++) {
             mappingBuilder.startObject();
             mappingBuilder.field("name", Integer.toString(i));
             mappingBuilder.field("type", "category");
@@ -769,7 +771,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
             b.field("type", "completion");
             b.startArray("contexts");
-            for (int i = 0; i < CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT + 1; i++) {
+            for (int i = 0; i < COMPLETION_CONTEXTS_LIMIT + 1; i++) {
                 b.startObject();
                 b.field("name", Integer.toString(i));
                 b.field("type", "category");
@@ -779,8 +781,29 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         })));
         assertTrue(
             e.getMessage(),
-            e.getMessage()
-                .contains("Limit of completion field contexts [" + CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT + "] has been exceeded")
+            e.getMessage().contains("Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded")
+        );
+
+        // test pre-8 deprecation warnings
+        createDocumentMapper(IndexVersions.V_7_0_0, fieldMapping(b -> {
+            b.field("type", "completion");
+            b.startArray("contexts");
+            for (int i = 0; i < COMPLETION_CONTEXTS_LIMIT + 1; i++) {
+                b.startObject();
+                b.field("name", Integer.toString(i));
+                b.field("type", "category");
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        assertCriticalWarnings(
+            "You have defined more than ["
+                + COMPLETION_CONTEXTS_LIMIT
+                + "] completion contexts"
+                + " in the mapping for field [field]. The maximum allowed number of completion contexts in a mapping will be limited to "
+                + "["
+                + COMPLETION_CONTEXTS_LIMIT
+                + "] starting in version [8.0]."
         );
     }
 

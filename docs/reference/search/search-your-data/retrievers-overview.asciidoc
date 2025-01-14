@@ -1,5 +1,5 @@
 [[retrievers-overview]]
-=== Retrievers
+== Retrievers
 
 A retriever is an abstraction that was added to the Search API in *8.14.0* and was made generally available in *8.16.0*.
 This abstraction enables the configuration of multi-stage retrieval pipelines within a single `_search` call.
@@ -11,7 +11,7 @@ For implementation details, including notable restrictions, check out the
 
 [discrete]
 [[retrievers-overview-types]]
-==== Retriever types
+=== Retriever types
 
 Retrievers come in various types, each tailored for different search operations.
 The following retrievers are currently available:
@@ -34,7 +34,8 @@ Used for <<semantic-reranking,semantic reranking>>.
 Requires first creating a `rerank` task using the <<put-inference-api,{es} Inference API>>.
 
 [discrete]
-==== What makes retrievers useful?
+[[retrievers-overview-why-are-they-useful]]
+=== What makes retrievers useful?
 
 Here's an overview of what makes retrievers useful and how they differ from regular queries.
 
@@ -66,65 +67,90 @@ When using compound retrievers, only the query element is allowed, which enforce
 
 [discrete]
 [[retrievers-overview-example]]
-==== Example
+=== Example
 
-The following example demonstrates the powerful queries that we can now compose, and how retrievers simplify this process.
-We can use any combination of retrievers we want, propagating the results of a nested retriever to its parent.
-In this scenario, we'll make use of 4 of our currently available retrievers, i.e. `standard`, `knn`, `text_similarity_reranker` and `rrf`.
-See <<retrievers-overview-types>> for the complete list of available retrievers.
-
-We'll first combine the results of a `semantic` query using the `standard` retriever, and that of a `knn` search on a dense vector field, using `rrf` to get the top 100 results.
-Finally, we'll then rerank the top-50 results of `rrf` using the `text_similarity_reranker`
+The following example demonstrates how using retrievers simplify the composability of queries for RRF ranking.
 
 [source,js]
 ----
 GET example-index/_search
 {
   "retriever": {
-    "text_similarity_reranker": {
-      "retriever": {
-        "rrf": {
-          "retrievers": [
-            {
-                "standard": {
-                  "query": {
-                    "semantic": {
-                      "field": "inference_field",
-                      "query": "state of the art vector database"
-                    }
-                  }
-                }
-            },
-            {
-              "knn": {
-                "query_vector": [
-                  0.54,
-                  ...,
-                  0.245
-                ],
-                "field": "embedding",
-                "k": 10,
-                "num_candidates": 15
+    "rrf": {
+      "retrievers": [
+        {
+          "standard": {
+            "query": {
+              "sparse_vector": {
+                "field": "vector.tokens",
+                "inference_id": "my-elser-endpoint",
+                "query": "What blue shoes are on sale?"
               }
             }
-          ],
-          "rank_window_size": 100,
-          "rank_constant": 10
+          }
+        },
+        {
+          "standard": {
+            "query": {
+              "match": {
+                "text": "blue shoes sale"
+              }
+            }
+          }
         }
-      },
-      "rank_window_size": 50,
-      "field": "description",
-      "inference_text": "what's the best way to create complex pipelines and retrieve documents?",
-      "inference_id": "my-awesome-rerank-model"
+      ]
     }
   }
 }
 ----
 //NOTCONSOLE
 
+This example demonstrates how you can combine different retrieval strategies into a single `retriever` pipeline.
+
+Compare to `RRF` with `sub_searches` approach (which is deprecated as of 8.16.0):
+
+.*Expand* for example
+[%collapsible]
+==============
+
+[source,js]
+----
+GET example-index/_search
+{
+  "sub_searches":[
+    {
+      "query":{
+        "match":{
+          "text":"blue shoes sale"
+        }
+      }
+    },
+    {
+      "query":{
+        "sparse_vector": {
+            "field": "vector.tokens",
+            "inference_id": "my-elser-endoint",
+            "query": "What blue shoes are on sale?"
+          }
+        }
+      }
+  ],
+  "rank":{
+    "rrf":{
+      "rank_window_size":50,
+      "rank_constant":20
+    }
+  }
+}
+----
+//NOTCONSOLE
+==============
+
+For more examples on how to use retrievers, please refer to <<retrievers-examples,retriever examples>>.
+
 [discrete]
 [[retrievers-overview-glossary]]
-==== Glossary
+=== Glossary
 
 Here are some important terms:
 
@@ -143,7 +169,7 @@ Special compound retrievers that reorder hits and may adjust the number of hits,
 
 [discrete]
 [[retrievers-overview-play-in-search]]
-==== Retrievers in action
+=== Retrievers in action
 
 The Search Playground builds Elasticsearch queries using the retriever abstraction.
 It automatically detects the fields and types in your index and builds a retriever tree based on your selections.
@@ -154,6 +180,9 @@ Refer to the {kibana-ref}/playground.html[Playground documentation] for more inf
 
 [discrete]
 [[retrievers-overview-api-reference]]
-==== API reference
+=== API reference
 
 For implementation details, including notable restrictions, check out the <<retriever,reference documentation>> in the Search API docs.
+
+
+include::retrievers-examples.asciidoc[]

@@ -24,7 +24,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -176,9 +176,9 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
     }
 
     private static BytesReference tsid(String dim) throws IOException {
-        TimeSeriesIdFieldMapper.TimeSeriesIdBuilder idBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
-        idBuilder.addString("dim", dim);
-        return idBuilder.buildTsidHash();
+        var routingFields = new RoutingPathFields(null);
+        routingFields.addString("dim", dim);
+        return routingFields.buildHash();
     }
 
     private Document doc(long timestamp, BytesReference tsid, long counterValue, String dim) {

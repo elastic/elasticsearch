@@ -137,7 +137,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
         // However, the folder can be arbitrarily nest so, a == a1/a2/a3, and the test name can include forward slashes, so c == c1/c2/c3
         // So we also need to support a1/a2/a3/b/c1/c2/c3
 
-        String[] testParts = fullTestName.split("/");
+        String[] testParts = fullTestName.split("/", 3);
         if (testParts.length < 3) {
             throw new IllegalArgumentException(
                 "To skip tests, all 3 parts [folder/file/test name] must be defined. found [" + fullTestName + "]"

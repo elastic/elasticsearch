@@ -238,11 +238,6 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     }
 
     @Override
-    public void process(IndexRouting indexRouting) {
-        // Nothing to do
-    }
-
-    @Override
     public int route(IndexRouting indexRouting) {
         return indexRouting.deleteShard(id, routing);
     }

@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.kql.parser;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.NestedQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+
+import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -35,11 +38,18 @@ public class KqlParserExistsQueryTests extends AbstractKqlParserTestCase {
 
     public void testParseExistsQueryWithASingleField() {
         for (String fieldName : searchableFields()) {
-            ExistsQueryBuilder parsedQuery = asInstanceOf(ExistsQueryBuilder.class, parseKqlQuery(kqlExistsQuery(fieldName)));
-            assertThat(parsedQuery.fieldName(), equalTo(fieldName));
+            QueryBuilder parsedQuery = parseKqlQuery(kqlExistsQuery(fieldName));
 
             // Using quotes to wrap the field name does not change the result.
             assertThat(parseKqlQuery(kqlExistsQuery("\"" + fieldName + "\"")), equalTo(parsedQuery));
+
+            long nestingLevel = Pattern.compile("[.]").splitAsStream(fieldName).takeWhile(s -> s.equals(NESTED_FIELD_NAME)).count();
+            for (int i = 0; i < nestingLevel; i++) {
+                parsedQuery = asInstanceOf(NestedQueryBuilder.class, parsedQuery).query();
+            }
+
+            ExistsQueryBuilder existsQuery = asInstanceOf(ExistsQueryBuilder.class, parsedQuery);
+            assertThat(existsQuery.fieldName(), equalTo(fieldName));
         }
     }
 
@@ -53,7 +63,9 @@ public class KqlParserExistsQueryTests extends AbstractKqlParserTestCase {
 
         assertThat(
             parsedQuery.should(),
-            containsInAnyOrder(searchableFields(fieldNamePattern).stream().map(QueryBuilders::existsQuery).toArray())
+            containsInAnyOrder(
+                searchableFields(fieldNamePattern).stream().map(fieldName -> parseKqlQuery(kqlExistsQuery(fieldName))).toArray()
+            )
         );
     }
 

@@ -79,6 +79,7 @@ public abstract class LuceneOperator extends SourceOperator {
         protected final DataPartitioning dataPartitioning;
         protected final int taskConcurrency;
         protected final int limit;
+        protected final ScoreMode scoreMode;
         protected final LuceneSliceQueue sliceQueue;
 
         /**
@@ -95,6 +96,7 @@ public abstract class LuceneOperator extends SourceOperator {
             ScoreMode scoreMode
         ) {
             this.limit = limit;
+            this.scoreMode = scoreMode;
             this.dataPartitioning = dataPartitioning;
             var weightFunction = weightFunction(queryFunction, scoreMode);
             this.sliceQueue = LuceneSliceQueue.create(contexts, weightFunction, dataPartitioning, taskConcurrency);
@@ -438,7 +440,8 @@ public abstract class LuceneOperator extends SourceOperator {
             final var query = queryFunction.apply(ctx);
             final var searcher = ctx.searcher();
             try {
-                return searcher.createWeight(searcher.rewrite(new ConstantScoreQuery(query)), scoreMode, 1);
+                Query actualQuery = scoreMode.needsScores() ? query : new ConstantScoreQuery(query);
+                return searcher.createWeight(searcher.rewrite(actualQuery), scoreMode, 1);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

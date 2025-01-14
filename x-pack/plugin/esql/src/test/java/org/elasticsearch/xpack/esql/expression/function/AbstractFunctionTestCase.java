@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
@@ -44,6 +45,8 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
@@ -96,6 +99,7 @@ import java.util.stream.Stream;
 import static java.util.Map.entry;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.endsWith;
@@ -130,7 +134,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         entry("mod", Mod.class),
         entry("neg", Neg.class),
         entry("is_null", IsNull.class),
-        entry("is_not_null", IsNotNull.class)
+        entry("is_not_null", IsNotNull.class),
+        // Match operator is both a function and an operator
+        entry("match_operator", Match.class)
     );
 
     private static EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry().snapshotRegistry();
@@ -188,7 +194,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         ExpectedType expectedType,
         ExpectedEvaluatorToString evaluatorToString
     ) {
-        typesRequired(testCaseSuppliers);
         List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
         suppliers.addAll(testCaseSuppliers);
 
@@ -226,7 +231,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         oc.getExpectedTypeError(),
                         null,
                         null,
-                        null
+                        null,
+                        oc.canBuildEvaluator()
                     );
                 }));
 
@@ -257,7 +263,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                                 oc.getExpectedTypeError(),
                                 null,
                                 null,
-                                null
+                                null,
+                                oc.canBuildEvaluator()
                             );
                         }));
                     }
@@ -269,7 +276,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     @FunctionalInterface
-    protected interface PositionalErrorMessageSupplier {
+    public interface PositionalErrorMessageSupplier {
         /**
          * This interface defines functions to supply error messages for incorrect types in specific positions. Functions which have
          * the same type requirements for all positions can simplify this with a lambda returning a string constant.
@@ -286,7 +293,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Adds test cases containing unsupported parameter types that assert
      * that they throw type errors.
+     * @deprecated make a subclass of {@link ErrorsForCasesWithoutExamplesTestCase} instead
      */
+    @Deprecated
     protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(
         List<TestCaseSupplier> testCaseSuppliers,
         PositionalErrorMessageSupplier positionalErrorMessageSupplier
@@ -326,11 +335,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         String apply(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types);
     }
 
+    /**
+     * @deprecated make a subclass of {@link ErrorsForCasesWithoutExamplesTestCase} instead
+     */
+    @Deprecated
     protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(
         List<TestCaseSupplier> testCaseSuppliers,
         TypeErrorMessageSupplier typeErrorMessageSupplier
     ) {
-        typesRequired(testCaseSuppliers);
         List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
         suppliers.addAll(testCaseSuppliers);
 
@@ -341,7 +353,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             .map(s -> s.types().size())
             .collect(Collectors.toSet())
             .stream()
-            .flatMap(count -> allPermutations(count))
+            .flatMap(AbstractFunctionTestCase::allPermutations)
             .filter(types -> valid.contains(types) == false)
             /*
              * Skip any cases with more than one null. Our tests don't generate
@@ -359,10 +371,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         longer.addAll(orig);
         longer.add(extra);
         return longer;
-    }
-
-    protected static Stream<DataType> representable() {
-        return DataType.types().stream().filter(DataType::isRepresentable);
     }
 
     protected static TestCaseSupplier typeErrorSupplier(
@@ -393,7 +401,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         );
     }
 
-    private static List<Set<DataType>> validPerPosition(Set<List<DataType>> valid) {
+    static List<Set<DataType>> validPerPosition(Set<List<DataType>> valid) {
         int max = valid.stream().mapToInt(List::size).max().getAsInt();
         List<Set<DataType>> result = new ArrayList<>(max);
         for (int i = 0; i < max; i++) {
@@ -525,14 +533,28 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return build(testCase.getSource(), testCase.getDataAsLiterals());
     }
 
+    public static EvaluatorMapper.ToEvaluator toEvaluator() {
+        return new EvaluatorMapper.ToEvaluator() {
+            @Override
+            public ExpressionEvaluator.Factory apply(Expression expression) {
+                return evaluator(expression);
+            }
+
+            @Override
+            public FoldContext foldCtx() {
+                return FoldContext.small();
+            }
+        };
+    }
+
     /**
      * Convert an {@link Expression} tree into a {@link ExpressionEvaluator.Factory}
      * for {@link ExpressionEvaluator}s in the same way as our planner.
      */
     public static ExpressionEvaluator.Factory evaluator(Expression e) {
-        e = new FoldNull().rule(e);
+        e = new FoldNull().rule(e, unboundLogicalOptimizerContext());
         if (e.foldable()) {
-            e = new Literal(e.source(), e.fold(), e.dataType());
+            e = new Literal(e.source(), e.fold(FoldContext.small()), e.dataType());
         }
         Layout.Builder builder = new Layout.Builder();
         buildLayout(builder, e);
@@ -540,7 +562,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (resolution.unresolved()) {
             throw new AssertionError("expected resolved " + resolution.message());
         }
-        return EvalMapper.toEvaluator(e, builder.build());
+        return EvalMapper.toEvaluator(FoldContext.small(), e, builder.build());
     }
 
     protected final Page row(List<Object> values) {
@@ -645,18 +667,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 return typedData.withData(tryRandomizeBytesRefOffset(typedData.data()));
             }).toList();
 
-            return new TestCaseSupplier.TestCase(
-                newData,
-                testCase.evaluatorToString(),
-                testCase.expectedType(),
-                testCase.getMatcher(),
-                testCase.getExpectedWarnings(),
-                testCase.getExpectedBuildEvaluatorWarnings(),
-                testCase.getExpectedTypeError(),
-                testCase.foldingExceptionClass(),
-                testCase.foldingExceptionMessage(),
-                testCase.extra()
-            );
+            return testCase.withData(newData);
         })).toList();
     }
 
@@ -745,7 +756,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
             log.info("{}: tested {} vs annotated {}", arg.name(), signatureTypes, annotationTypes);
             assertEquals(
-                "Missmatch between actual and declared parameter types. You probably need to update your @params annotations.",
+                "Mismatch between actual and declared param type for ["
+                    + arg.name()
+                    + "]. "
+                    + "You probably need to update your @params annotations or add test cases to your test.",
                 signatureTypes,
                 annotationTypes
             );
@@ -813,6 +827,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (unaryOperator != null) {
             return RailRoadDiagram.unaryOperator(unaryOperator);
         }
+        String searchOperator = searchOperator(name);
+        if (searchOperator != null) {
+            return RailRoadDiagram.searchOperator(searchOperator);
+        }
         FunctionDefinition definition = definition(name);
         if (definition != null) {
             return RailRoadDiagram.functionSignature(definition);
@@ -862,7 +880,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return;
         }
         String name = functionName();
-        if (binaryOperator(name) != null || unaryOperator(name) != null || likeOrInOperator(name)) {
+        if (binaryOperator(name) != null || unaryOperator(name) != null || searchOperator(name) != null || likeOrInOperator(name)) {
             renderDocsForOperators(name);
             return;
         }
@@ -879,8 +897,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     "elseValue",
                     trueValue.type(),
                     "The value that's returned when no condition evaluates to `true`.",
-                    true,
-                    EsqlFunctionRegistry.getTargetType(trueValue.type())
+                    true
                 );
                 description = new EsqlFunctionRegistry.FunctionDescription(
                     description.name(),
@@ -1085,8 +1102,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
                 String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
                 boolean optional = paramInfo == null ? false : paramInfo.optional();
-                DataType targetDataType = EsqlFunctionRegistry.getTargetType(type);
-                args.add(new EsqlFunctionRegistry.ArgSignature(paramName, type, desc, optional, targetDataType));
+                args.add(new EsqlFunctionRegistry.ArgSignature(paramName, type, desc, optional));
             }
         }
         renderKibanaFunctionDefinition(name, functionInfo, args, likeOrInOperator(name));
@@ -1261,6 +1277,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     /**
+     * If this test is a for a search operator return its symbol, otherwise return {@code null}.
+     */
+    private static String searchOperator(String name) {
+        return switch (name) {
+            case "match_operator" -> ":";
+            default -> null;
+        };
+    }
+
+    /**
      * If this tests is for a unary operator return its symbol, otherwise return {@code null}.
      * This is functionally the reverse of {@link ExpressionBuilder#visitArithmeticUnary}.
      */
@@ -1315,17 +1341,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public void allMemoryReleased() {
         for (CircuitBreaker breaker : breakers) {
             assertThat(breaker.getUsed(), equalTo(0L));
-        }
-    }
-
-    /**
-     * Validate that we know the types for all the test cases already created
-     * @param suppliers - list of suppliers before adding in the illegal type combinations
-     */
-    protected static void typesRequired(List<TestCaseSupplier> suppliers) {
-        String bad = suppliers.stream().filter(s -> s.types() == null).map(s -> s.name()).collect(Collectors.joining("\n"));
-        if (bad.equals("") == false) {
-            throw new IllegalArgumentException("types required but not found for these tests:\n" + bad);
         }
     }
 

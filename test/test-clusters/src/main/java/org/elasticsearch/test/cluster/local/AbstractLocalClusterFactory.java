@@ -26,6 +26,8 @@ import org.elasticsearch.test.cluster.util.ProcessReaper;
 import org.elasticsearch.test.cluster.util.ProcessUtils;
 import org.elasticsearch.test.cluster.util.Retry;
 import org.elasticsearch.test.cluster.util.Version;
+import org.elasticsearch.test.cluster.util.resource.MutableResource;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
@@ -49,6 +51,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
@@ -59,6 +62,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.function.Predicate.not;
 import static org.elasticsearch.test.cluster.local.distribution.DistributionType.DEFAULT;
 import static org.elasticsearch.test.cluster.util.OS.WINDOWS;
 
@@ -113,6 +117,9 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         private Version currentVersion;
         private Process process = null;
         private DistributionDescriptor distributionDescriptor;
+        private Set<String> extraConfigListeners = new HashSet<>();
+        private Set<String> keystoreFileListeners = new HashSet<>();
+        private Set<Resource> roleFileListeners = new HashSet<>();
 
         public Node(Path baseWorkingDir, DistributionResolver distributionResolver, LocalNodeSpec spec) {
             this(baseWorkingDir, distributionResolver, spec, null, false);
@@ -434,6 +441,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
         private void copyExtraConfigFiles() {
             spec.getExtraConfigFiles().forEach((fileName, resource) -> {
+                if (fileName.equals("roles.yml")) {
+                    throw new IllegalArgumentException("Security roles should be configured via 'rolesFile()' method.");
+                }
+
                 final Path target = configDir.resolve(fileName);
                 final Path directory = target.getParent();
                 if (Files.exists(directory) == false) {
@@ -444,6 +455,14 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     }
                 }
                 resource.writeTo(target);
+
+                // Register and update listener for this config file
+                if (resource instanceof MutableResource && extraConfigListeners.add(fileName)) {
+                    ((MutableResource) resource).addUpdateListener(updated -> {
+                        LOGGER.info("Updating config file '{}'", fileName);
+                        updated.writeTo(target);
+                    });
+                }
             });
         }
 
@@ -472,6 +491,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
         private void addKeystoreSettings() {
             spec.resolveKeystore().forEach((key, value) -> {
+                Objects.requireNonNull(value, "keystore setting for '" + key + "' may not be null");
                 String input = spec.getKeystorePassword() == null || spec.getKeystorePassword().isEmpty()
                     ? value
                     : spec.getKeystorePassword() + "\n" + value;
@@ -482,27 +502,37 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
         private void addKeystoreFiles() {
             spec.getKeystoreFiles().forEach((key, file) -> {
-                try {
-                    Path path = Files.createTempFile(tempDir, key, null);
-                    file.writeTo(path);
-
-                    ProcessUtils.exec(
-                        spec.getKeystorePassword(),
-                        workingDir,
-                        OS.conditional(
-                            c -> c.onWindows(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore.bat"))
-                                .onUnix(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore"))
-                        ),
-                        getEnvironmentVariables(),
-                        false,
-                        "add-file",
-                        key,
-                        path.toString()
-                    ).waitFor();
-                } catch (InterruptedException | IOException e) {
-                    throw new RuntimeException(e);
+                addKeystoreFile(key, file);
+                if (file instanceof MutableResource && keystoreFileListeners.add(key)) {
+                    ((MutableResource) file).addUpdateListener(updated -> {
+                        LOGGER.info("Updating keystore file '{}'", key);
+                        addKeystoreFile(key, updated);
+                    });
                 }
             });
+        }
+
+        private void addKeystoreFile(String key, Resource file) {
+            try {
+                Path path = Files.createTempFile(tempDir, key, null);
+                file.writeTo(path);
+
+                ProcessUtils.exec(
+                    spec.getKeystorePassword(),
+                    workingDir,
+                    OS.conditional(
+                        c -> c.onWindows(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore.bat"))
+                            .onUnix(() -> distributionDir.resolve("bin").resolve("elasticsearch-keystore"))
+                    ),
+                    getEnvironmentVariables(),
+                    false,
+                    "add-file",
+                    key,
+                    path.toString()
+                ).waitFor();
+            } catch (InterruptedException | IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         private void writeSecureSecretsFile() {
@@ -532,16 +562,20 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             if (spec.isSecurityEnabled()) {
                 if (spec.getUsers().isEmpty() == false) {
                     LOGGER.info("Setting up roles.yml for node '{}'", name);
-
-                    Path destination = workingDir.resolve("config").resolve("roles.yml");
-                    spec.getRolesFiles().forEach(rolesFile -> {
-                        try (
-                            Writer writer = Files.newBufferedWriter(destination, StandardOpenOption.APPEND);
-                            Reader reader = new BufferedReader(new InputStreamReader(rolesFile.asStream()))
-                        ) {
-                            reader.transferTo(writer);
-                        } catch (IOException e) {
-                            throw new UncheckedIOException("Failed to append roles file " + rolesFile + " to " + destination, e);
+                    writeRolesFile();
+                    spec.getRolesFiles().forEach(resource -> {
+                        if (resource instanceof MutableResource && roleFileListeners.add(resource)) {
+                            ((MutableResource) resource).addUpdateListener(updated -> {
+                                LOGGER.info("Updating roles.yml for node '{}'", name);
+                                Path rolesFile = workingDir.resolve("config").resolve("roles.yml");
+                                try {
+                                    Files.delete(rolesFile);
+                                    Files.copy(distributionDir.resolve("config").resolve("roles.yml"), rolesFile);
+                                    writeRolesFile();
+                                } catch (IOException e) {
+                                    throw new UncheckedIOException(e);
+                                }
+                            });
                         }
                     });
                 }
@@ -591,6 +625,20 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     }
                 }
             }
+        }
+
+        private void writeRolesFile() {
+            Path destination = workingDir.resolve("config").resolve("roles.yml");
+            spec.getRolesFiles().forEach(rolesFile -> {
+                try (
+                    Writer writer = Files.newBufferedWriter(destination, StandardOpenOption.APPEND);
+                    Reader reader = new BufferedReader(new InputStreamReader(rolesFile.asStream()))
+                ) {
+                    reader.transferTo(writer);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Failed to append roles file " + rolesFile + " to " + destination, e);
+                }
+            });
         }
 
         private void installPlugins() {
@@ -755,18 +803,16 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
 
             String heapSize = System.getProperty("tests.heap.size", "512m");
-            final String esJavaOpts = Stream.of(
-                "-Xms" + heapSize,
-                "-Xmx" + heapSize,
-                "-ea",
-                "-esa",
-                System.getProperty("tests.jvm.argline", ""),
-                featureFlagProperties,
-                systemProperties,
-                jvmArgs,
-                debugArgs
-            ).filter(s -> s.isEmpty() == false).collect(Collectors.joining(" "));
+            List<String> serverOpts = List.of("-Xms" + heapSize, "-Xmx" + heapSize, debugArgs, featureFlagProperties);
+            List<String> commonOpts = List.of("-ea", "-esa", System.getProperty("tests.jvm.argline", ""), systemProperties, jvmArgs);
+
+            String esJavaOpts = Stream.concat(serverOpts.stream(), commonOpts.stream())
+                .filter(not(String::isEmpty))
+                .collect(Collectors.joining(" "));
+            String cliJavaOpts = commonOpts.stream().filter(not(String::isEmpty)).collect(Collectors.joining(" "));
+
             environment.put("ES_JAVA_OPTS", esJavaOpts);
+            environment.put("CLI_JAVA_OPTS", cliJavaOpts);
 
             return environment;
         }

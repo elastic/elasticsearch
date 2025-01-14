@@ -1,5 +1,0 @@
-pr: 111445
-summary: Support booleans in routing path
-area: TSDB
-type: enhancement
-issues: []

@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
@@ -54,8 +53,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         IndexMetadata originalIndexMeta = metadata.index(index);
 
         if (originalIndexMeta == null) {
-            String errorMessage = String.format(
-                Locale.ROOT,
+            String errorMessage = Strings.format(
                 "[%s] lifecycle action for index [%s] executed but index no longer exists",
                 getKey().action(),
                 index.getName()
@@ -67,8 +65,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
 
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(originalIndexMeta.getSettings());
         if (indexingComplete) {
-            String message = String.format(
-                Locale.ROOT,
+            String message = Strings.format(
                 "index [%s] has lifecycle complete set, skipping [%s]",
                 originalIndexMeta.getIndex().getName(),
                 WaitForActiveShardsStep.NAME
@@ -148,8 +145,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
     }
 
     private static Result getErrorResultOnNullMetadata(StepKey key, Index originalIndex) {
-        String errorMessage = String.format(
-            Locale.ROOT,
+        String errorMessage = Strings.format(
             "unable to find the index that was rolled over from [%s] as part of lifecycle action [%s]",
             originalIndex.getName(),
             key.action()

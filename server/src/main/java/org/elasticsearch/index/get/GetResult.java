@@ -18,7 +18,6 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
@@ -42,7 +41,6 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class GetResult implements Writeable, Iterable<DocumentField>, ToXContentObject {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GetResult.class);
 
     public static final String _INDEX = "_index";
     public static final String _ID = "_id";

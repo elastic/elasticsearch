@@ -36,7 +36,7 @@ import java.util.function.BiFunction;
 final class FetchSearchPhase extends SearchPhase {
     private final AtomicArray<SearchPhaseResult> searchPhaseShardResults;
     private final BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
-    private final SearchPhaseContext context;
+    private final AbstractSearchAsyncAction<?> context;
     private final Logger logger;
     private final SearchProgressListener progressListener;
     private final AggregatedDfs aggregatedDfs;
@@ -47,7 +47,7 @@ final class FetchSearchPhase extends SearchPhase {
     FetchSearchPhase(
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
         AggregatedDfs aggregatedDfs,
-        SearchPhaseContext context,
+        AbstractSearchAsyncAction<?> context,
         @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
         this(
@@ -66,7 +66,7 @@ final class FetchSearchPhase extends SearchPhase {
     FetchSearchPhase(
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
         AggregatedDfs aggregatedDfs,
-        SearchPhaseContext context,
+        AbstractSearchAsyncAction<?> context,
         @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory
     ) {
@@ -271,7 +271,7 @@ final class FetchSearchPhase extends SearchPhase {
     ) {
         context.executeNextPhase(this, () -> {
             var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
-            context.addReleasable(resp::decRef);
+            context.addReleasable(resp);
             return nextPhaseFactory.apply(resp, searchPhaseShardResults);
         });
     }

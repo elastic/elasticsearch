@@ -86,7 +86,7 @@ public final class SpecReader {
                 lineNumber++;
             }
             if (testName != null) {
-                throw new IllegalStateException("Read a test without a body at the end of [" + fileName + "].");
+                throw new IllegalStateException("Read a test [" + testName + "] without a body at the end of [" + fileName + "].");
             }
         }
         assertNull("Cannot find spec for test " + testName, testName);

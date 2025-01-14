@@ -58,6 +58,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -167,7 +168,7 @@ public final class IndexModule {
     private final Map<String, TriFunction<Settings, IndexVersion, ScriptService, Similarity>> similarities = new HashMap<>();
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
     private final SetOnce<BiFunction<IndexSettings, IndicesQueryCache, QueryCache>> forceQueryCacheProvider = new SetOnce<>();
-    private final List<SearchOperationListener> searchOperationListeners = new ArrayList<>();
+    private final List<SearchOperationListener> searchOperationListeners;
     private final List<IndexingOperationListener> indexOperationListeners = new ArrayList<>();
     private final IndexNameExpressionResolver expressionResolver;
     private final AtomicBoolean frozen = new AtomicBoolean(false);
@@ -194,13 +195,17 @@ public final class IndexModule {
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         final SlowLogFieldProvider slowLogFieldProvider,
-        final MapperMetrics mapperMetrics
+        final MapperMetrics mapperMetrics,
+        final List<SearchOperationListener> searchOperationListeners
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
-        this.searchOperationListeners.add(new SearchSlowLog(indexSettings, slowLogFieldProvider));
-        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, slowLogFieldProvider));
+        // Need to have a mutable arraylist for plugins to add listeners to it
+        this.searchOperationListeners = new ArrayList<>(searchOperationListeners);
+        SlowLogFields slowLogFields = slowLogFieldProvider.create(indexSettings);
+        this.searchOperationListeners.add(new SearchSlowLog(indexSettings, slowLogFields));
+        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, slowLogFields));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
@@ -475,7 +480,8 @@ public final class IndexModule {
         IdFieldMapper idFieldMapper,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
-        Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers
+        Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers,
+        QueryRewriteInterceptor queryRewriteInterceptor
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -537,7 +543,8 @@ public final class IndexModule {
                 indexFoldersDeletionListener,
                 snapshotCommitSupplier,
                 indexCommitListener.get(),
-                mapperMetrics
+                mapperMetrics,
+                queryRewriteInterceptor
             );
             success = true;
             return indexService;

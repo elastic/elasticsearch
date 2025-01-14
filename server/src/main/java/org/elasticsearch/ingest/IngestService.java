@@ -519,7 +519,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             && currentIngestMetadata.getPipelines().containsKey(request.getId())) {
             var pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
             var currentPipeline = currentIngestMetadata.getPipelines().get(request.getId());
-            if (currentPipeline.getConfigAsMap().equals(pipelineConfig)) {
+            if (currentPipeline.getConfig().equals(pipelineConfig)) {
                 return true;
             }
         }
@@ -1292,7 +1292,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             try {
                 Pipeline newPipeline = Pipeline.create(
                     newConfiguration.getId(),
-                    newConfiguration.getConfigAsMap(),
+                    newConfiguration.getConfig(false),
                     processorFactories,
                     scriptService
                 );
@@ -1416,7 +1416,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     public synchronized void reloadPipeline(String id) throws Exception {
         PipelineHolder holder = pipelines.get(id);
-        Pipeline updatedPipeline = Pipeline.create(id, holder.configuration.getConfigAsMap(), processorFactories, scriptService);
+        Pipeline updatedPipeline = Pipeline.create(id, holder.configuration.getConfig(false), processorFactories, scriptService);
         Map<String, PipelineHolder> updatedPipelines = new HashMap<>(this.pipelines);
         updatedPipelines.put(id, new PipelineHolder(holder.configuration, updatedPipeline));
         this.pipelines = Map.copyOf(updatedPipelines);

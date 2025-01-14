@@ -1,6 +1,0 @@
-pr: 112055
-summary: "ESQL: `mv_median_absolute_deviation` function"
-area: ES|QL
-type: feature
-issues:
- - 111590

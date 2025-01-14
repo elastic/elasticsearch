@@ -1,0 +1,5 @@
+pr: 117243
+summary: Bump major version for feature migration system indices
+area: Infra/Core
+type: upgrade
+issues: []

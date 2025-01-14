@@ -8,8 +8,9 @@ When this happens, {ilm-init} moves the index to an `ERROR` step.
 If {ilm-init} cannot resolve the error automatically, execution is halted  
 until you resolve the underlying issues with the policy, index, or cluster.
 
-See this https://www.youtube.com/watch?v=VCIqkji3IwY[{ilm-init} health video] 
-for example troubleshooting walkthrough.
+See https://www.youtube.com/watch?v=VCIqkji3IwY[this video] 
+for a walkthrough of troubleshooting current {ilm-init} health issues, and https://www.youtube.com/watch?v=onrnnwjYWSQ[this video]
+for a walkthrough of troubleshooting historical {ilm-init} issues.
 
 For example, you might have a `shrink-index` policy that shrinks an index to four shards once it
 is at least five days old: 

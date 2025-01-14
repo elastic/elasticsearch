@@ -9,10 +9,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Weight;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -30,7 +26,6 @@ public class RandomSamplerAggregatorFactory extends AggregatorFactory {
     private final Integer shardSeed;
     private final double probability;
     private final SamplingContext samplingContext;
-    private Weight weight;
 
     RandomSamplerAggregatorFactory(
         String name,
@@ -57,41 +52,6 @@ public class RandomSamplerAggregatorFactory extends AggregatorFactory {
     @Override
     public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
-        return new RandomSamplerAggregator(
-            name,
-            seed,
-            shardSeed,
-            probability,
-            this::getWeight,
-            factories,
-            context,
-            parent,
-            cardinality,
-            metadata
-        );
+        return new RandomSamplerAggregator(name, seed, shardSeed, probability, factories, context, parent, cardinality, metadata);
     }
-
-    /**
-     * This creates the query weight which will be used in the aggregator.
-     *
-     * This weight is a boolean query between {@link RandomSamplingQuery} and the configured top level query of the search. This allows
-     * the aggregation to iterate the documents directly, thus sampling in the background instead of the foreground.
-     * @return weight to be used, is cached for additional usages
-     * @throws IOException when building the weight or queries fails;
-     */
-    private Weight getWeight() throws IOException {
-        if (weight == null) {
-            RandomSamplingQuery query = new RandomSamplingQuery(
-                probability,
-                seed,
-                shardSeed == null ? context.shardRandomSeed() : shardSeed
-            );
-            BooleanQuery booleanQuery = new BooleanQuery.Builder().add(query, BooleanClause.Occur.FILTER)
-                .add(context.query(), BooleanClause.Occur.FILTER)
-                .build();
-            weight = context.searcher().createWeight(context.searcher().rewrite(booleanQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
-        }
-        return weight;
-    }
-
 }

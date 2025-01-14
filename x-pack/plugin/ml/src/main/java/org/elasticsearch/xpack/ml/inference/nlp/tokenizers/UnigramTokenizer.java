@@ -367,8 +367,10 @@ public final class UnigramTokenizer extends Tokenizer {
                         new DelimitedToken.Encoded(
                             Strings.format("<0x%02X>", bytes[i]),
                             pieces[i],
+                            // even though we are changing the number of characters in the output, we don't
+                            // need to change the offsets. The offsets refer to the input characters
                             offsetCorrection.apply(node.startsAtCharPos),
-                            offsetCorrection.apply(startsAtBytes + i)
+                            offsetCorrection.apply(endsAtChars)
                         )
                     );
                 }

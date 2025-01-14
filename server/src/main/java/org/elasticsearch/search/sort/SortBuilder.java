@@ -18,8 +18,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -51,12 +49,6 @@ public abstract class SortBuilder<T extends SortBuilder<T>>
 
     // parse fields common to more than one SortBuilder
     public static final ParseField ORDER_FIELD = new ParseField("order");
-
-    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS) // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7
-    public static final ParseField NESTED_FILTER_FIELD = new ParseField("nested_filter").withAllDeprecated()
-        .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
-    public static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path").withAllDeprecated()
-        .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
 
     private static final Map<String, Parser<?>> PARSERS = Map.of(
         ScriptSortBuilder.NAME,
@@ -158,6 +150,11 @@ public abstract class SortBuilder<T extends SortBuilder<T>>
     }
 
     public static Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders, SearchExecutionContext context) throws IOException {
+        return buildSort(sortBuilders, context, true);
+    }
+
+    public static Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders, SearchExecutionContext context, boolean optimize)
+        throws IOException {
         List<SortField> sortFields = new ArrayList<>(sortBuilders.size());
         List<DocValueFormat> sortFormats = new ArrayList<>(sortBuilders.size());
         for (SortBuilder<?> builder : sortBuilders) {
@@ -172,9 +169,13 @@ public abstract class SortBuilder<T extends SortBuilder<T>>
             if (sortFields.size() > 1) {
                 sort = true;
             } else {
-                SortField sortField = sortFields.get(0);
-                if (sortField.getType() == SortField.Type.SCORE && sortField.getReverse() == false) {
-                    sort = false;
+                if (optimize) {
+                    SortField sortField = sortFields.get(0);
+                    if (sortField.getType() == SortField.Type.SCORE && sortField.getReverse() == false) {
+                        sort = false;
+                    } else {
+                        sort = true;
+                    }
                 } else {
                     sort = true;
                 }

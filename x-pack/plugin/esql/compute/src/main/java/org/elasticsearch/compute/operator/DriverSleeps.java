@@ -76,7 +76,7 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
     static final int RECORDS = 10;
 
     public static DriverSleeps read(StreamInput in) throws IOException {
-        if (in.getTransportVersion().before(TransportVersions.ESQL_PROFILE_SLEEPS)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_16_0)) {
             return empty();
         }
         return new DriverSleeps(
@@ -88,7 +88,7 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.ESQL_PROFILE_SLEEPS)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_16_0)) {
             return;
         }
         out.writeMap(counts, StreamOutput::writeVLong);

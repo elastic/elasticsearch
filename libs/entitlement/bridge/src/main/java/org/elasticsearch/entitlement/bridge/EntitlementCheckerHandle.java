@@ -9,9 +9,6 @@
 
 package org.elasticsearch.entitlement.bridge;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-
 /**
  * Makes the {@link EntitlementChecker} available to injected bytecode.
  */
@@ -35,27 +32,7 @@ public class EntitlementCheckerHandle {
          * The {@code EntitlementInitialization} class is what actually instantiates it and makes it available;
          * here, we copy it into a static final variable for maximum performance.
          */
-        private static final EntitlementChecker instance;
-        static {
-            String initClazz = "org.elasticsearch.entitlement.initialization.EntitlementInitialization";
-            final Class<?> clazz;
-            try {
-                clazz = ClassLoader.getSystemClassLoader().loadClass(initClazz);
-            } catch (ClassNotFoundException e) {
-                throw new AssertionError("java.base cannot find entitlement initialziation", e);
-            }
-            final Method checkerMethod;
-            try {
-                checkerMethod = clazz.getMethod("checker");
-            } catch (NoSuchMethodException e) {
-                throw new AssertionError("EntitlementInitialization is missing checker() method", e);
-            }
-            try {
-                instance = (EntitlementChecker) checkerMethod.invoke(null);
-            } catch (IllegalAccessException | InvocationTargetException e) {
-                throw new AssertionError(e);
-            }
-        }
+        private static final EntitlementChecker instance = HandleLoader.load(EntitlementChecker.class);
     }
 
     // no construction

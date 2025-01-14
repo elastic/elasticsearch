@@ -11,8 +11,6 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MultiMatchQueryPredicate;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
@@ -23,10 +21,8 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.core.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.ExistsQuery;
-import org.elasticsearch.xpack.esql.core.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
-import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RegexQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -73,30 +69,6 @@ public final class ExpressionTranslators {
         }
     }
 
-    public static class StringQueries extends ExpressionTranslator<StringQueryPredicate> {
-
-        @Override
-        protected Query asQuery(StringQueryPredicate q, TranslatorHandler handler) {
-            return doTranslate(q, handler);
-        }
-
-        public static Query doTranslate(StringQueryPredicate q, TranslatorHandler handler) {
-            return new QueryStringQuery(q.source(), q.query(), q.fields(), q);
-        }
-    }
-
-    public static class MultiMatches extends ExpressionTranslator<MultiMatchQueryPredicate> {
-
-        @Override
-        protected Query asQuery(MultiMatchQueryPredicate q, TranslatorHandler handler) {
-            return doTranslate(q, handler);
-        }
-
-        public static Query doTranslate(MultiMatchQueryPredicate q, TranslatorHandler handler) {
-            return new MultiMatchQuery(q.source(), q.query(), q.fields(), q);
-        }
-    }
-
     public static class BinaryLogic extends ExpressionTranslator<
         org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic> {
 
@@ -121,9 +93,7 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(Not not, TranslatorHandler handler) {
-            Query wrappedQuery = handler.asQuery(not.field());
-            Query q = wrappedQuery.negate(not.source());
-            return q;
+            return handler.asQuery(not.field()).negate(not.source());
         }
     }
 

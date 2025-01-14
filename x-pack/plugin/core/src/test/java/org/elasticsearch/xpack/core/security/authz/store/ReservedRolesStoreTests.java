@@ -832,6 +832,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(mockIndexAbstraction(index)),
                 is(true)
             );
+            assertWarnings(
+                "the index privilege [write] allowed the update mapping action [indices:admin/mapping/put] on index ["
+                    + index
+                    + "], this privilege will not permit mapping updates in the next major release - users who require access to update "
+                    + "mappings must be granted explicit privileges"
+            ); // ATHE double check that this is real
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(mockIndexAbstraction(index)), is(true));
             // Privileges needed for installing current ILM policy with delete action
             assertThat(

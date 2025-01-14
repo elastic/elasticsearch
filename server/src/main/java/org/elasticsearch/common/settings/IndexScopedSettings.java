@@ -36,7 +36,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
@@ -184,12 +183,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
         IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING,
         IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS,
+        IndexSettings.LOGSDB_SORT_ON_HOST_NAME,
+        IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD,
         IndexSettings.PREFER_ILM_SETTING,
         DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION_SETTING,
         FieldMapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING,
         IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING,
         IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING,
-        SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING,
+        IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING,
         IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING,
         InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT,
 

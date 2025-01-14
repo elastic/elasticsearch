@@ -421,17 +421,20 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         } else {
             throw new IllegalArgumentException("Encountered unexpected token [" + parser.currentToken() + "].");
         }
+
+        if (values.isEmpty()) {
+            return;
+        }
+
         int i = 0;
         int[] counts = new int[values.size()];
         for (Map.Entry<String, Integer> value : values.entrySet()) {
             context.doc().add(new KeywordFieldMapper.KeywordField(fullPath(), new BytesRef(value.getKey()), fieldType));
             counts[i++] = value.getValue();
         }
-        if (counts.length > 0) {
-            BytesStreamOutput streamOutput = new BytesStreamOutput();
-            streamOutput.writeVIntArray(counts);
-            context.doc().add(new BinaryDocValuesField(countFieldMapper.fullPath(), streamOutput.bytes().toBytesRef()));
-        }
+        BytesStreamOutput streamOutput = new BytesStreamOutput();
+        streamOutput.writeVIntArray(counts);
+        context.doc().add(new BinaryDocValuesField(countFieldMapper.fullPath(), streamOutput.bytes().toBytesRef()));
     }
 
     private void parseArray(DocumentParserContext context, SortedMap<String, Integer> values) throws IOException {
@@ -489,7 +492,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         var keepMode = sourceKeepMode();
-        if (keepMode.isPresent() && (keepMode.get() == SourceKeepMode.ARRAYS || keepMode.get() == SourceKeepMode.ALL)) {
+        if (keepMode.isPresent() && keepMode.get() != SourceKeepMode.NONE) {
             return super.syntheticSourceSupport();
         }
 

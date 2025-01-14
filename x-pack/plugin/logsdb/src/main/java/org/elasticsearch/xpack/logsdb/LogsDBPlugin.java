@@ -69,7 +69,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
         logsdbIndexModeSettingsProvider.init(
             parameters.mapperServiceFactory(),
-            () -> parameters.clusterService().state().nodes().getMinSupportedIndexVersion(),
+            () -> parameters.clusterService().state().nodes().getMaxDataNodeCompatibleIndexVersion(),
             DiscoveryNode.isStateless(settings) == false
         );
         return List.of(logsdbIndexModeSettingsProvider);

@@ -28,10 +28,11 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
@@ -82,6 +83,7 @@ public class Reindexer {
     private static final Logger logger = LogManager.getLogger(Reindexer.class);
 
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
     private final Client client;
     private final ThreadPool threadPool;
     private final ScriptService scriptService;
@@ -90,6 +92,7 @@ public class Reindexer {
 
     Reindexer(
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         Client client,
         ThreadPool threadPool,
         ScriptService scriptService,
@@ -97,6 +100,7 @@ public class Reindexer {
         @Nullable ReindexMetrics reindexMetrics
     ) {
         this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
         this.client = client;
         this.threadPool = threadPool;
         this.scriptService = scriptService;
@@ -128,7 +132,7 @@ public class Reindexer {
                     assigningBulkClient,
                     threadPool,
                     scriptService,
-                    clusterService.state(),
+                    projectResolver.getProjectState(clusterService.state()),
                     reindexSslConfig,
                     request,
                     ActionListener.runAfter(listener, () -> {
@@ -220,7 +224,7 @@ public class Reindexer {
             ParentTaskAssigningClient bulkClient,
             ThreadPool threadPool,
             ScriptService scriptService,
-            ClusterState state,
+            ProjectState state,
             ReindexSslConfig sslConfig,
             ReindexRequest request,
             ActionListener<BulkByScrollResponse> listener
@@ -245,8 +249,8 @@ public class Reindexer {
             this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperWithoutFieldData();
         }
 
-        private IndexMode destinationIndexMode(ClusterState state) {
-            ProjectMetadata projectMetadata = state.metadata().getProject();
+        private IndexMode destinationIndexMode(ProjectState state) {
+            ProjectMetadata projectMetadata = state.metadata();
             IndexMetadata destMeta = projectMetadata.index(mainRequest.getDestination().index());
             if (destMeta != null) {
                 return IndexSettings.MODE.get(destMeta.getSettings());

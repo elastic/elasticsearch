@@ -469,7 +469,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     public ProjectMetadata getProject(ProjectId projectId) {
         ProjectMetadata metadata = projectMetadata.get(projectId);
         if (metadata == null) {
-            throw new IllegalArgumentException("project [" + projectId + "] not found");
+            throw new IllegalArgumentException("project [" + projectId + "] not found in metadata version [" + this.version() + "]");
         }
         return metadata;
     }

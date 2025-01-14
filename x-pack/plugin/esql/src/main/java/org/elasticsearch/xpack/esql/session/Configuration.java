@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
@@ -181,6 +182,13 @@ public class Configuration implements Writeable {
      */
     public long getQueryStartTimeNanos() {
         return queryStartTimeNanos;
+    }
+
+    /**
+     * Create a new {@link FoldContext} with the limit configured in the {@link QueryPragmas}.
+     */
+    public FoldContext newFoldContext() {
+        return new FoldContext(pragmas.foldLimit().getBytes());
     }
 
     /**

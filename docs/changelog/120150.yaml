@@ -1,0 +1,5 @@
+pr: 120150
+summary: Adds a new field `available_for_task_types` in the configuration response
+area: Machine Learning
+type: feature
+issues: []

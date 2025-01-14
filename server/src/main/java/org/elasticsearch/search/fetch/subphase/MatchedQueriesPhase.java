@@ -55,6 +55,7 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
         }
         return new FetchSubPhaseProcessor() {
             record ScorerAndIterator(Scorer scorer, DocIdSetIterator approximation, TwoPhaseIterator twoPhase) {}
+
             final Map<String, ScorerAndIterator> matchingIterators = new HashMap<>();
 
             @Override

@@ -42,7 +42,9 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMergeContext;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -83,6 +85,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -119,12 +122,22 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     public static final TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(n, c::bitSetProducer, c.getIndexSettings()),
-        List.of(notInMultiFields(CONTENT_TYPE), notFromDynamicTemplates(CONTENT_TYPE))
+        List.of(validateParserContext(CONTENT_TYPE))
     );
+
+    public static BiConsumer<String, MappingParserContext> validateParserContext(String type) {
+        return (n, c) -> {
+            if (InferenceMetadataFieldsMapper.isEnabled(c.getIndexSettings().getSettings()) == false && c.isWithinMultiField()) {
+                throw new MapperParsingException("Field [" + n + "] of type [" + type + "] can't be used in multifields");
+            }
+            if (c.isFromDynamicTemplate()) {
+                throw new MapperParsingException("Field [" + n + "] of type [" + type + "] can't be used in dynamic templates");
+            }
+        };
+    }
 
     public static class Builder extends FieldMapper.Builder {
         private final boolean useLegacyFormat;
-        private final IndexVersion indexVersionCreated;
 
         private final Parameter<String> inferenceId = Parameter.stringParam(
             INFERENCE_ID_FIELD,
@@ -178,7 +191,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         public Builder(String name, Function<Query, BitSetProducer> bitSetProducer, IndexSettings indexSettings) {
             super(name);
-            this.indexVersionCreated = indexSettings.getIndexVersionCreated();
             this.useLegacyFormat = InferenceMetadataFieldsMapper.isEnabled(indexSettings.getSettings()) == false;
             this.inferenceFieldBuilder = c -> createInferenceField(
                 c,
@@ -225,10 +237,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         public SemanticTextFieldMapper build(MapperBuilderContext context) {
-            if (copyTo.copyToFields().isEmpty() == false) {
+            if (useLegacyFormat && copyTo.copyToFields().isEmpty() == false) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support [copy_to]");
             }
-            if (multiFieldsBuilder.hasMultiFields()) {
+            if (useLegacyFormat && multiFieldsBuilder.hasMultiFields()) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support multi-fields");
             }
             final String fullName = context.buildFullName(leafName());
@@ -247,7 +259,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     searchInferenceId.getValue(),
                     modelSettings.getValue(),
                     inferenceField,
-                    indexVersionCreated,
                     useLegacyFormat,
                     meta.getValue()
                 ),
@@ -277,13 +288,33 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     private SemanticTextFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
         super(simpleName, mappedFieldType, builderParams);
+        ensureMultiFields(builderParams.multiFields().iterator());
+    }
+
+    private void ensureMultiFields(Iterator<FieldMapper> mappers) {
+        while (mappers.hasNext()) {
+            var mapper = mappers.next();
+            if (mapper.leafName().equals(CHUNKED_EMBEDDINGS_FIELD)) {
+                throw new IllegalArgumentException(
+                    "Field ["
+                        + mapper.fullPath()
+                        + "] is already used by another field ["
+                        + fullPath()
+                        + "] internally. Please choose a different name."
+                );
+            }
+        }
     }
 
     @Override
     public Iterator<Mapper> iterator() {
-        List<Mapper> subIterators = new ArrayList<>();
-        subIterators.add(fieldType().getInferenceField());
-        return subIterators.iterator();
+        List<Mapper> mappers = new ArrayList<>();
+        Iterator<Mapper> m = super.iterator();
+        while (m.hasNext()) {
+            mappers.add(m.next());
+        }
+        mappers.add(fieldType().getInferenceField());
+        return mappers.iterator();
     }
 
     @Override
@@ -352,20 +383,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         final SemanticTextFieldMapper mapper;
         if (fieldType().getModelSettings() == null) {
-            context.path().remove();
-            Builder builder = (Builder) new Builder(
-                leafName(),
-                fieldType().getChunksField().bitsetProducer(),
-                fieldType().getChunksField().indexSettings()
-            ).init(this);
-            try {
-                mapper = builder.setModelSettings(field.inference().modelSettings())
-                    .setInferenceId(field.inference().inferenceId())
-                    .build(context.createDynamicMapperBuilderContext());
-                context.addDynamicMapper(mapper);
-            } finally {
-                context.path().add(leafName());
-            }
+            mapper = addDynamicUpdate(context, field);
         } else {
             Conflicts conflicts = new Conflicts(fullFieldName);
             canMergeModelSettings(fieldType().getModelSettings(), field.inference().modelSettings(), conflicts);
@@ -440,6 +458,32 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
     }
 
+    private SemanticTextFieldMapper addDynamicUpdate(DocumentParserContext context, SemanticTextField field) {
+        context.path().remove();
+        Builder builder = (Builder) getMergeBuilder();
+        try {
+            builder.setModelSettings(field.inference().modelSettings()).setInferenceId(field.inference().inferenceId());
+            if (context.mappingLookup().isMultiField(fullPath())) {
+                // The field is part of a multi-field, so the parent field must also be updated accordingly.
+                var fieldName = context.path().remove();
+                try {
+                    var parentMapper = ((FieldMapper) context.mappingLookup().getMapper(context.mappingLookup().parentField(fullPath())))
+                        .getMergeBuilder();
+                    context.addDynamicMapper(parentMapper.addMultiField(builder).build(context.createDynamicMapperBuilderContext()));
+                    return builder.build(context.createDynamicMapperBuilderContext());
+                } finally {
+                    context.path().add(fieldName);
+                }
+            } else {
+                var mapper = builder.build(context.createDynamicMapperBuilderContext());
+                context.addDynamicMapper(mapper);
+                return mapper;
+            }
+        } finally {
+            context.path().add(leafName());
+        }
+    }
+
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
@@ -460,11 +504,14 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     @Override
     protected void doValidate(MappingLookup mappers) {
-        int parentPathIndex = fullPath().lastIndexOf(leafName());
+        String fullPath = mappers.isMultiField(fullPath()) ? mappers.parentField(fullPath()) : fullPath();
+        String leafName = mappers.getMapper(fullPath).leafName();
+        int parentPathIndex = fullPath.lastIndexOf(leafName);
         if (parentPathIndex > 0) {
+            String parentName = fullPath.substring(0, parentPathIndex - 1);
             // Check that the parent object field allows subobjects.
             // Subtract one from the parent path index to omit the trailing dot delimiter.
-            ObjectMapper parentMapper = mappers.objectMappers().get(fullPath().substring(0, parentPathIndex - 1));
+            ObjectMapper parentMapper = mappers.objectMappers().get(parentName);
             if (parentMapper == null) {
                 throw new IllegalStateException(CONTENT_TYPE + " field [" + fullPath() + "] does not have a parent object mapper");
             }
@@ -482,7 +529,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         private final String searchInferenceId;
         private final SemanticTextField.ModelSettings modelSettings;
         private final ObjectMapper inferenceField;
-        private final IndexVersion indexVersionCreated;
         private final boolean useLegacyFormat;
 
         public SemanticTextFieldType(
@@ -491,7 +537,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             String searchInferenceId,
             SemanticTextField.ModelSettings modelSettings,
             ObjectMapper inferenceField,
-            IndexVersion indexVersionCreated,
             boolean useLegacyFormat,
             Map<String, String> meta
         ) {
@@ -500,7 +545,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             this.searchInferenceId = searchInferenceId;
             this.modelSettings = modelSettings;
             this.inferenceField = inferenceField;
-            this.indexVersionCreated = indexVersionCreated;
             this.useLegacyFormat = useLegacyFormat;
         }
 

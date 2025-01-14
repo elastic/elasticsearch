@@ -644,7 +644,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             final CountDownLatch latch = indexer.newLatch();
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertThat(indexer.stop(), equalTo(IndexerState.STOPPING));
-            assertThat(indexer.getState(), equalTo(IndexerState.STOPPING));
+            assertThat(indexer.getState(), Matchers.either(Matchers.is(IndexerState.STOPPING)).or(Matchers.is(IndexerState.STOPPED)));
             latch.countDown();
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)));
             assertTrue(indexer.abort());

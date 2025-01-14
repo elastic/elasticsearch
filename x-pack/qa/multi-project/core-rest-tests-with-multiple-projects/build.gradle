@@ -13,12 +13,14 @@ dependencies {
   clusterModules project(':modules:data-streams')
   clusterModules project(':modules:multi-project')
   clusterModules project(':modules:lang-mustache')
+  clusterModules project(':modules:parent-join')
   clusterModules project(xpackModule('stack'))
   clusterModules project(xpackModule('ilm'))
   clusterModules project(xpackModule('mapper-constant-keyword'))
   clusterModules project(xpackModule('wildcard'))
   restTestConfig project(path: ':modules:data-streams', configuration: "basicRestSpecs")
   restTestConfig project(path: ':modules:ingest-common', configuration: "basicRestSpecs")
+  restTestConfig project(path: ':modules:reindex', configuration: "basicRestSpecs")
 }
 
 // let the yamlRestTests see the classpath of test
@@ -52,6 +54,7 @@ tasks.named("yamlRestTest").configure {
     '^data_stream/150_tsdb/*',
     '^data_stream/170_modify_data_stream/*',
     '^data_stream/180_simulate_existing_data_stream/*',
+    '^delete_by_query/50_wait_for_active_shards/*',
     '^health/10_basic/*',
     '^health/40_diagnosis/*',
     '^indices.clone/*/*',
@@ -64,6 +67,7 @@ tasks.named("yamlRestTest").configure {
     '^indices.simulate_index_template/*/*',
     '^indices.simulate_template/*/*',
     '^indices.split/*/*',
+    '^reindex/30_search/Sorting deprecated wait_for_completion false',
     '^test/ingest/15_info_ingest/*', // uses cluster info API
     '^test/ingest/70_bulk/Test bulk request with default pipeline', // uses stats API
     '^test/ingest/70_bulk/Test bulk request without default pipeline', // uses stats API
@@ -85,11 +89,18 @@ tasks.named("yamlRestTest").configure {
     '^synonyms/*/*',
     '^tsdb/30_snapshot/*',
     '^tsdb/80_index_resize/*',
+    '^update_by_query/50_consistency/*',
+    '^update_by_query/80_scripting/Update all docs with one deletion and one noop using a stored script',
 
     // The following tests are muted because the functionality that they are testing is not available in a multi-project setup
 
     // The node removal prevalidation is only available for a Stateful deployment.
-    '^cluster.prevalidate_node_removal/*/*'
+    '^cluster.prevalidate_node_removal/*/*',
+
+    // Reindex from remote is not supported on Serverless and required additional testing setup
+    '^reindex/60_wait_for_active_shards/can override wait_for_active_shards', // <- Requires a single shard
+    '^reindex/90_remote/*',
+    '^reindex/95_parent_join/Reindex from remote*'
   ];
   if (buildParams.isSnapshotBuild() == false) {
     blacklist += [];

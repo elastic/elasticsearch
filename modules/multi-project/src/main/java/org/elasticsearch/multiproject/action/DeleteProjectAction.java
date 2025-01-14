@@ -34,6 +34,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -44,6 +46,8 @@ public class DeleteProjectAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteProjectAction INSTANCE = new DeleteProjectAction();
     public static final String NAME = "cluster:admin/projects/delete";
+
+    private static final Logger logger = LogManager.getLogger(DeleteProjectAction.class);
 
     public DeleteProjectAction() {
         super(NAME);
@@ -116,6 +120,13 @@ public class DeleteProjectAction extends ActionType<AcknowledgedResponse> {
                     }
                     metadataBuilder.removeProject(projectId);
                     routingTableBuilder.removeProject(projectId);
+                    logger.info(
+                        "Deleted project ["
+                            + projectId
+                            + "] from cluster state version ["
+                            + batchExecutionContext.initialState().version()
+                            + "]"
+                    );
                     taskContext.success(() -> taskContext.getTask().listener.onResponse(AcknowledgedResponse.TRUE));
                 } catch (Exception e) {
                     taskContext.onFailure(e);

@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -50,6 +51,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver,
         ClusterService clusterService,
         ScriptService scriptService,
         AutoCreateIndex autoCreateIndex,
@@ -64,6 +66,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             threadPool,
             actionFilters,
             indexNameExpressionResolver,
+            projectResolver,
             clusterService,
             scriptService,
             autoCreateIndex,
@@ -80,6 +83,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver,
         ClusterService clusterService,
         ScriptService scriptService,
         AutoCreateIndex autoCreateIndex,
@@ -90,8 +94,14 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     ) {
         super(name, transportService, actionFilters, ReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
-        this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
-        this.reindexer = new Reindexer(clusterService, client, threadPool, scriptService, sslConfig, reindexMetrics);
+        this.reindexValidator = new ReindexValidator(
+            settings,
+            clusterService,
+            indexNameExpressionResolver,
+            projectResolver,
+            autoCreateIndex
+        );
+        this.reindexer = new Reindexer(clusterService, projectResolver, client, threadPool, scriptService, sslConfig, reindexMetrics);
     }
 
     @Override

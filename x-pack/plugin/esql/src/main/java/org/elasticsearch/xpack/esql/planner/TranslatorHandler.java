@@ -15,20 +15,22 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.esql.core.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 
 import java.util.function.Supplier;
 
-public final class EsqlTranslatorHandler implements TranslatorHandler {
+/**
+ * Parameterized handler used during query translation.
+ *
+ * Provides contextual utilities for an individual query to be performed.
+ */
+public final class TranslatorHandler {
 
-    @Override
     public Query asQuery(Expression e) {
-        return EsqlExpressionTranslators.toQuery(e, this);
+        return ExpressionTranslators.toQuery(e, this);
     }
 
-    @Override
     public Query wrapFunctionQuery(ScalarFunction sf, Expression field, Supplier<Query> querySupplier) {
         if (field instanceof FieldAttribute fa) {
             if (fa.getExactInfo().hasExact()) {
@@ -50,7 +52,6 @@ public final class EsqlTranslatorHandler implements TranslatorHandler {
         throw new EsqlIllegalArgumentException("Expected a FieldAttribute or MetadataAttribute but received [" + field + "]");
     }
 
-    @Override
     public String nameOf(Expression e) {
         return Expressions.name(e);
     }

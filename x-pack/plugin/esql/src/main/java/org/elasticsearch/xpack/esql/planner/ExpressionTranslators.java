@@ -16,25 +16,36 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.TranslationAware;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
-import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslators;
-import org.elasticsearch.xpack.esql.core.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.core.querydsl.query.BoolQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.RegexQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
@@ -64,13 +75,13 @@ import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
-import static org.elasticsearch.xpack.esql.core.planner.ExpressionTranslators.or;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -81,19 +92,19 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
-public final class EsqlExpressionTranslators {
+public final class ExpressionTranslators {
 
-    public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
+    private static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
         new EqualsIgnoreCaseTranslator(),
         new BinaryComparisons(),
         new SpatialRelatesTranslator(),
         new InComparisons(),
         new Ranges(), // Create Range in PushFiltersToSource for qualified pushable filters on the same field.
-        new ExpressionTranslators.BinaryLogic(),
-        new ExpressionTranslators.IsNulls(),
-        new ExpressionTranslators.IsNotNulls(),
-        new ExpressionTranslators.Nots(),
-        new ExpressionTranslators.Likes(),
+        new BinaryLogic(),
+        new IsNulls(),
+        new IsNotNulls(),
+        new Nots(),
+        new Likes(),
         new MultiMatches(),
         new MatchFunctionTranslator(),
         new QueryStringFunctionTranslator(),
@@ -118,7 +129,7 @@ public final class EsqlExpressionTranslators {
         throw new QlIllegalArgumentException("Don't know how to translate {} {}", e.nodeName(), e);
     }
 
-    public static class EqualsIgnoreCaseTranslator extends ExpressionTranslator<InsensitiveEquals> {
+    private static class EqualsIgnoreCaseTranslator extends ExpressionTranslator<InsensitiveEquals> {
 
         @Override
         protected Query asQuery(InsensitiveEquals bc, TranslatorHandler handler) {
@@ -165,7 +176,7 @@ public final class EsqlExpressionTranslators {
      *  that an earlier pass through the query has rearranged things so that the foldable value will be the right hand side
      *  input to the operation.
      */
-    public static class BinaryComparisons extends ExpressionTranslator<BinaryComparison> {
+    private static class BinaryComparisons extends ExpressionTranslator<BinaryComparison> {
         @Override
         protected Query asQuery(BinaryComparison bc, TranslatorHandler handler) {
             Check.isTrue(
@@ -359,7 +370,7 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    public static class Scalars extends ExpressionTranslator<ScalarFunction> {
+    private static class Scalars extends ExpressionTranslator<ScalarFunction> {
         @Override
         protected Query asQuery(ScalarFunction f, TranslatorHandler handler) {
             return doTranslate(f, handler);
@@ -382,7 +393,7 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    public static class SpatialRelatesTranslator extends ExpressionTranslator<SpatialRelatesFunction> {
+    private static class SpatialRelatesTranslator extends ExpressionTranslator<SpatialRelatesFunction> {
 
         @Override
         protected Query asQuery(SpatialRelatesFunction bc, TranslatorHandler handler) {
@@ -428,7 +439,7 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    public static class InComparisons extends ExpressionTranslator<In> {
+    private static class InComparisons extends ExpressionTranslator<In> {
 
         @Override
         protected Query asQuery(In in, TranslatorHandler handler) {
@@ -475,7 +486,7 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    public static class Ranges extends ExpressionTranslator<Range> {
+    private static class Ranges extends ExpressionTranslator<Range> {
 
         @Override
         protected Query asQuery(Range r, TranslatorHandler handler) {
@@ -539,7 +550,7 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    public static class MultiMatches extends ExpressionTranslator<MultiMatchQueryPredicate> {
+    private static class MultiMatches extends ExpressionTranslator<MultiMatchQueryPredicate> {
 
         @Override
         protected Query asQuery(MultiMatchQueryPredicate q, TranslatorHandler handler) {
@@ -551,6 +562,7 @@ public final class EsqlExpressionTranslators {
         }
     }
 
+    // TODO: private
     public static class MatchFunctionTranslator extends ExpressionTranslator<Match> {
         @Override
         protected Query asQuery(Match match, TranslatorHandler handler) {
@@ -573,6 +585,7 @@ public final class EsqlExpressionTranslators {
         }
     }
 
+    // TODO: private
     public static class QueryStringFunctionTranslator extends ExpressionTranslator<QueryString> {
         @Override
         protected Query asQuery(QueryString queryString, TranslatorHandler handler) {
@@ -580,13 +593,14 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    public static class KqlFunctionTranslator extends ExpressionTranslator<Kql> {
+    private static class KqlFunctionTranslator extends ExpressionTranslator<Kql> {
         @Override
         protected Query asQuery(Kql kqlFunction, TranslatorHandler handler) {
             return new KqlQuery(kqlFunction.source(), (String) kqlFunction.queryAsObject());
         }
     }
 
+    // TODO: private
     public static class TermFunctionTranslator extends ExpressionTranslator<Term> {
         @Override
         protected Query asQuery(Term term, TranslatorHandler handler) {
@@ -594,4 +608,130 @@ public final class EsqlExpressionTranslators {
         }
     }
 
+    // TODO: see whether escaping is needed
+    @SuppressWarnings("rawtypes")
+    private static class Likes extends ExpressionTranslator<RegexMatch> {
+
+        @Override
+        protected Query asQuery(RegexMatch e, TranslatorHandler handler) {
+            return doTranslate(e, handler);
+        }
+
+        public static Query doTranslate(RegexMatch e, TranslatorHandler handler) {
+            Query q;
+            Expression field = e.field();
+
+            if (field instanceof FieldAttribute fa) {
+                return handler.wrapFunctionQuery(e, fa, () -> translateField(e, handler.nameOf(fa.exactAttribute())));
+            } else if (field instanceof MetadataAttribute ma) {
+                q = translateField(e, handler.nameOf(ma));
+            } else {
+                throw new QlIllegalArgumentException("Cannot translate query for " + e);
+            }
+
+            return q;
+        }
+
+        private static Query translateField(RegexMatch e, String targetFieldName) {
+            if (e instanceof WildcardLike l) {
+                return new WildcardQuery(e.source(), targetFieldName, l.pattern().asLuceneWildcard(), l.caseInsensitive());
+            }
+            if (e instanceof RLike rl) {
+                return new RegexQuery(e.source(), targetFieldName, rl.pattern().asJavaRegex(), rl.caseInsensitive());
+            }
+            return null;
+        }
+    }
+
+    public static class BinaryLogic extends ExpressionTranslator<
+        org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic> {
+
+        @Override
+        protected Query asQuery(org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic e, TranslatorHandler handler) {
+            if (e instanceof And) {
+                return and(e.source(), handler.asQuery(e.left()), handler.asQuery(e.right()));
+            }
+            if (e instanceof Or) {
+                return or(e.source(), handler.asQuery(e.left()), handler.asQuery(e.right()));
+            }
+
+            return null;
+        }
+    }
+
+    private static class Nots extends ExpressionTranslator<Not> {
+
+        @Override
+        protected Query asQuery(Not not, TranslatorHandler handler) {
+            return doTranslate(not, handler);
+        }
+
+        public static Query doTranslate(Not not, TranslatorHandler handler) {
+            return handler.asQuery(not.field()).negate(not.source());
+        }
+    }
+
+    private static class IsNotNulls extends ExpressionTranslator<IsNotNull> {
+
+        @Override
+        protected Query asQuery(IsNotNull isNotNull, TranslatorHandler handler) {
+            return doTranslate(isNotNull, handler);
+        }
+
+        public static Query doTranslate(IsNotNull isNotNull, TranslatorHandler handler) {
+            return handler.wrapFunctionQuery(isNotNull, isNotNull.field(), () -> translate(isNotNull, handler));
+        }
+
+        private static Query translate(IsNotNull isNotNull, TranslatorHandler handler) {
+            return new ExistsQuery(isNotNull.source(), handler.nameOf(isNotNull.field()));
+        }
+    }
+
+    private static class IsNulls extends ExpressionTranslator<IsNull> {
+
+        @Override
+        protected Query asQuery(IsNull isNull, TranslatorHandler handler) {
+            return doTranslate(isNull, handler);
+        }
+
+        public static Query doTranslate(IsNull isNull, TranslatorHandler handler) {
+            return handler.wrapFunctionQuery(isNull, isNull.field(), () -> translate(isNull, handler));
+        }
+
+        private static Query translate(IsNull isNull, TranslatorHandler handler) {
+            return new NotQuery(isNull.source(), new ExistsQuery(isNull.source(), handler.nameOf(isNull.field())));
+        }
+    }
+
+    private static Query or(Source source, Query left, Query right) {
+        return boolQuery(source, left, right, false);
+    }
+
+    private static Query and(Source source, Query left, Query right) {
+        return boolQuery(source, left, right, true);
+    }
+
+    private static Query boolQuery(Source source, Query left, Query right, boolean isAnd) {
+        Check.isTrue(left != null || right != null, "Both expressions are null");
+        if (left == null) {
+            return right;
+        }
+        if (right == null) {
+            return left;
+        }
+        List<Query> queries;
+        // check if either side is already a bool query to an extra bool query
+        if (left instanceof BoolQuery leftBool && leftBool.isAnd() == isAnd) {
+            if (right instanceof BoolQuery rightBool && rightBool.isAnd() == isAnd) {
+                queries = CollectionUtils.combine(leftBool.queries(), rightBool.queries());
+            } else {
+                queries = CollectionUtils.combine(leftBool.queries(), right);
+            }
+        } else if (right instanceof BoolQuery bool && bool.isAnd() == isAnd) {
+            queries = CollectionUtils.combine(bool.queries(), left);
+        } else {
+            queries = Arrays.asList(left, right);
+        }
+        return new BoolQuery(source, isAnd, queries);
+    }
 }

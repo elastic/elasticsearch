@@ -64,7 +64,7 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFi
 
 public class PlannerUtils {
 
-    public static final EsqlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
+    public static final TranslatorHandler TRANSLATOR_HANDLER = new TranslatorHandler();
 
     public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, Configuration config) {
         var dataNodePlan = new Holder<PhysicalPlan>();

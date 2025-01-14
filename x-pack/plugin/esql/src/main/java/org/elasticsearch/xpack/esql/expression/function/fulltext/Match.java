@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
-import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
+import org.elasticsearch.xpack.esql.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.planner.EsqlExpressionTranslators;
+import org.elasticsearch.xpack.esql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -271,7 +271,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
 
     @Override
     protected ExpressionTranslator<Match> translator() {
-        return new EsqlExpressionTranslators.MatchFunctionTranslator();
+        return new ExpressionTranslators.MatchFunctionTranslator();
     }
 
     @Override

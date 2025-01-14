@@ -166,7 +166,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
 
         GetMappingsResponse response = client().filterWithHeader(
             singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD))
-        ).admin().indices().prepareGetMappings("logstash-*").get();
+        ).admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, "logstash-*").get();
         Map<String, MappingMetadata> mappingsMap = response.getMappings();
         assertNotNull(mappingsMap);
         assertNotNull(mappingsMap.get(index));

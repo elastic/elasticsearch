@@ -97,7 +97,7 @@ public class HiddenIndexIT extends ESIntegTestCase {
 
         assertAcked(indicesAdmin().prepareCreate("a_hidden_index").setSettings(Settings.builder().put("index.hidden", true).build()));
 
-        GetMappingsResponse mappingsResponse = indicesAdmin().prepareGetMappings("a_hidden_index").get();
+        GetMappingsResponse mappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "a_hidden_index").get();
         assertThat(mappingsResponse.mappings().size(), is(1));
         MappingMetadata mappingMetadata = mappingsResponse.mappings().get("a_hidden_index");
         assertNotNull(mappingMetadata);

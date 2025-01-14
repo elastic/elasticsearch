@@ -29,8 +29,6 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.application.LogsDBFeatureSetUsage;
 
-import static org.elasticsearch.index.mapper.SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING;
-
 public class LogsDBUsageTransportAction extends XPackUsageFeatureTransportAction {
     private final ClusterService clusterService;
     private final FeatureService featureService;
@@ -71,7 +69,7 @@ public class LogsDBUsageTransportAction extends XPackUsageFeatureTransportAction
         for (IndexMetadata indexMetadata : state.metadata()) {
             if (indexMetadata.getIndexMode() == IndexMode.LOGSDB) {
                 numIndices++;
-                if (INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexMetadata.getSettings()) == SourceFieldMapper.Mode.SYNTHETIC) {
+                if (IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexMetadata.getSettings()) == SourceFieldMapper.Mode.SYNTHETIC) {
                     numIndicesWithSyntheticSources++;
                 }
             }

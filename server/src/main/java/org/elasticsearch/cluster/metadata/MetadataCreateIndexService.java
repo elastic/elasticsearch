@@ -69,7 +69,6 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
@@ -1583,7 +1582,7 @@ public class MetadataCreateIndexService {
 
     private static final Set<String> UNMODIFIABLE_SETTINGS_DURING_RESIZE = Set.of(
         IndexSettings.MODE.getKey(),
-        SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+        IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
         IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(),
         IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(),
         IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(),

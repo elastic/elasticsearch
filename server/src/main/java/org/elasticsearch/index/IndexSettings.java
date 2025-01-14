@@ -52,7 +52,6 @@ import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
-import static org.elasticsearch.index.mapper.SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING;
 
 /**
  * This class encapsulates all index level settings and handles settings updates.
@@ -655,6 +654,18 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final Setting<SourceFieldMapper.Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(
+        SourceFieldMapper.Mode.class,
+        settings -> {
+            final IndexMode indexMode = IndexSettings.MODE.get(settings);
+            return indexMode.defaultSourceMode().name();
+        },
+        "index.mapping.source.mode",
+        value -> {},
+        Setting.Property.Final,
+        Setting.Property.IndexScope
+    );
+
     public static final Setting<Boolean> RECOVERY_USE_SYNTHETIC_SOURCE_SETTING = Setting.boolSetting(
         "index.recovery.use_synthetic_source",
         false,
@@ -671,14 +682,14 @@ public final class IndexSettings {
                 // Verify if synthetic source is enabled on the index; fail if it is not
                 var indexMode = (IndexMode) settings.get(MODE);
                 if (indexMode.defaultSourceMode() != SourceFieldMapper.Mode.SYNTHETIC) {
-                    var sourceMode = (SourceFieldMapper.Mode) settings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
+                    var sourceMode = (SourceFieldMapper.Mode) settings.get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING);
                     if (sourceMode != SourceFieldMapper.Mode.SYNTHETIC) {
                         throw new IllegalArgumentException(
                             String.format(
                                 Locale.ROOT,
                                 "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
                                 RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(),
-                                INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+                                IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
                                 SourceFieldMapper.Mode.SYNTHETIC.name(),
                                 sourceMode.name()
                             )

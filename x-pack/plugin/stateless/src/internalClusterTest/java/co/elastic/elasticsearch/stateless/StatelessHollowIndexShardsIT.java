@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
+import co.elastic.elasticsearch.stateless.engine.HollowIndexEngineTestUtils;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
 import org.elasticsearch.ExceptionsHelper;
@@ -55,6 +56,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -95,6 +97,25 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         return super.nodeSettings().put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
             .put(DATA_STREAM_LIFECYCLE_POLL_INTERVAL, TimeValue.timeValueSeconds(1))
             .put(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
+    }
+
+    @After
+    @Override
+    public void tearDown() throws Exception {
+        releasePrimaryPermitsForHollowShards();
+        super.tearDown();
+    }
+
+    private static void releasePrimaryPermitsForHollowShards() {
+        var indices = resolveIndices();
+        for (var entry : indices.entrySet()) {
+            for (int shardId = 0; shardId < entry.getValue(); shardId++) {
+                var indexShard = findIndexShard(entry.getKey(), shardId);
+                if (indexShard.getEngineOrNull() instanceof HollowIndexEngine hollowIndexEngine) {
+                    HollowIndexEngineTestUtils.releasePrimaryPermits(hollowIndexEngine);
+                }
+            }
+        }
     }
 
     public void testHollowIndexShardsEnabledSetting() {
@@ -327,6 +348,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             if (hollowShardIds.contains(i)) {
                 // After recovery, hollow shards switch to HollowIndexEngine
                 assertThat(engine, instanceOf(HollowIndexEngine.class));
+                HollowIndexEngine hollowIndexEngine = (HollowIndexEngine) engine;
+                assertTrue(hollowIndexEngine.arePrimaryPermitsHeld());
             } else {
                 assertThat(engine, instanceOf(IndexEngine.class));
             }

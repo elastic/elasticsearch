@@ -12,10 +12,13 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -36,6 +39,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMappin
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -2004,18 +2008,10 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchOptions() {
-        assumeTrue("Match options are not available", EsqlCapabilities.Cap.MATCH_OPTIONS.isEnabled());
-
-        assertEquals(
-            "1:19: Invalid option [boost] in [match(first_name, \"Jean\", {\"boost\": true})], cannot cast [true] to [float]",
-            error("FROM test | WHERE match(first_name, \"Jean\", {\"boost\": true})")
-        );
-
-        // TODO Check all possible types for each option????
+        assumeTrue("Match options are not available", EsqlCapabilities.Cap.MATCH_FUNCTION_OPTIONS.isEnabled());
 
         // Check positive cases
         query("FROM test | WHERE match(first_name, \"Jean\", {\"analyzer\": \"standard\"})");
-        query("FROM test | WHERE match(first_name, \"Jean\", {\"auto_generate_synonyms_phrase_query\": true})");
         query("FROM test | WHERE match(first_name, \"Jean\", {\"boost\": 2.1})");
         query("FROM test | WHERE match(first_name, \"Jean\", {\"fuzziness\": 2})");
         query("FROM test | WHERE match(first_name, \"Jean\", {\"fuzziness\": \"AUTO\"})");
@@ -2026,6 +2022,43 @@ public class VerifierTests extends ESTestCase {
         query("FROM test | WHERE match(first_name, \"Jean\", {\"operator\": \"AND\"})");
         query("FROM test | WHERE match(first_name, \"Jean\", {\"prefix_length\": 2})");
         query("FROM test | WHERE match(first_name, \"Jean\", {\"auto_generate_synonyms_phrase_query\": true})");
+
+        // Check all data types for available options
+        DataType[] optionTypes = new DataType[] {
+            DataType.INTEGER, DataType.LONG, DataType.FLOAT, DataType.DOUBLE, DataType.KEYWORD, DataType.BOOLEAN
+        };
+        for (Map.Entry<String, DataType> allowedOptions : Match.ALLOWED_OPTIONS.entrySet()) {
+            String optionName = allowedOptions.getKey();
+            DataType optionType = allowedOptions.getValue();
+            for (DataType currentType : optionTypes) {
+                String optionValue = switch (currentType) {
+                    case BOOLEAN -> String.valueOf(randomBoolean());
+                    case INTEGER -> String.valueOf(randomIntBetween(0, 100000));
+                    case LONG -> String.valueOf(randomLong());
+                    case FLOAT -> String.valueOf(randomFloat());
+                    case DOUBLE -> String.valueOf(randomDouble());
+                    case KEYWORD -> randomAlphaOfLength(10);
+                    default -> throw new IllegalArgumentException("Unsupported option type: " + currentType);
+                };
+                String queryOptionValue = optionValue;
+                if (currentType == KEYWORD) {
+                    queryOptionValue = "\"" + optionValue + "\"";
+                }
+
+                String query = "FROM test | WHERE match(first_name, \"Jean\", {\"" + optionName + "\": " + queryOptionValue + "})";
+                // Check conversion is possible
+                try {
+                    DataTypeConverter.convert(optionValue, optionType);
+                    query(query);
+                } catch (InvalidArgumentException e) {
+                    assertEquals(
+                        "1:19: Invalid option [" + optionName + "] in [match(first_name, \"Jean\", {\"" + optionName + "\": "
+                            + queryOptionValue + "})], cannot cast [" + optionValue + "] to [" + optionType.typeName() + "]",
+                        error(query)
+                    );
+                }
+            }
+        }
 
         assertThat(
             error("FROM test | WHERE match(first_name, \"Jean\", {\"unknown_option\": true})"),
@@ -2067,7 +2100,11 @@ public class VerifierTests extends ESTestCase {
                 throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
             }
         }
-        Throwable e = expectThrows(exception, () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters))));
+        Throwable e = expectThrows(
+            exception,
+            "Expected error for query [" + query + "] but no error was raised",
+            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters)))
+        );
         assertThat(e, instanceOf(exception));
 
         String message = e.getMessage();

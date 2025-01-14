@@ -4529,4 +4529,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
+    public void resetEngine() throws IOException {
+        assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED : "must hold permits to reset the engine";
+        var engineConfig = newEngineConfig(replicationTracker);
+        synchronized (engineMutex) {
+            IOUtils.close(currentEngineReference.get());
+            var newEngine = createEngine(engineConfig);
+            currentEngineReference.set(newEngine);
+            onNewEngine(newEngine);
+            active.set(true);
+        }
+        onSettingsChanged();
+        checkAndCallWaitForEngineOrClosedShardListeners();
+    }
+
 }

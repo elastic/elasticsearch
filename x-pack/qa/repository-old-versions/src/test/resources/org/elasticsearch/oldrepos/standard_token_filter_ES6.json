@@ -1,0 +1,8 @@
+"doc": {
+  "properties": {
+    "content": {
+      "type": "text",
+      "analyzer": "custom_analyzer"
+    }
+  }
+}

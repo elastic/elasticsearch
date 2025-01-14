@@ -3242,6 +3242,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         when(mock.getType()).thenReturn(
             randomFrom(IndexAbstraction.Type.CONCRETE_INDEX, IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM)
         );
+        when(mock.getParentDataStream()).thenReturn(null);
         return mock;
     }
 

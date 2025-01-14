@@ -167,8 +167,7 @@ public class Group {
                     case ALIAS -> group.checkMultiIndexAbstraction(isReadAction, actionMatches, resource);
                     case DATA_STREAM -> group.checkMultiIndexAbstraction(isReadAction, actionMatches, resource);
                     case CONCRETE_INDEX -> {
-                        IndexAbstraction.ConcreteIndex index = (IndexAbstraction.ConcreteIndex) resource;
-                        final DataStream ds = index.getParentDataStream();
+                        final DataStream ds = resource.getParentDataStream();
 
                         if (ds != null) { // This index is owned by a data stream
                             boolean isFailureStoreIndex = ds.getFailureIndices().containsIndex(resource.getName());
@@ -188,7 +187,8 @@ public class Group {
                                 }
                             } else { // Not a read action, authenticate as normal
                                 String indexName = resource.getName();
-                                if ((authByDataStream && group.indexNameMatcher.test(ds.getName())) || group.indexNameMatcher.test(indexName)) {
+                                if ((authByDataStream && group.indexNameMatcher.test(ds.getName()))
+                                    || group.indexNameMatcher.test(indexName)) {
                                     yield IndicesPermission.AuthorizedComponents.DATA;
                                 }
                             }

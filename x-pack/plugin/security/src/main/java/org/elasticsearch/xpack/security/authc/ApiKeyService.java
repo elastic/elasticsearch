@@ -160,7 +160,7 @@ public class ApiKeyService implements Closeable {
 
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = XPackSettings.defaultStoredHashAlgorithmSetting(
         "xpack.security.authc.api_key.hashing.algorithm",
-        (s) -> Hasher.PBKDF2.name()
+        (s) -> Hasher.SSHA256.name()
     );
     public static final Setting<TimeValue> DELETE_TIMEOUT = Setting.timeSetting(
         "xpack.security.authc.api_key.delete.timeout",

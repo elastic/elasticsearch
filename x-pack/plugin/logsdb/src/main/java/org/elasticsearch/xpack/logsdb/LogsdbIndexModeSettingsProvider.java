@@ -237,6 +237,11 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 if (combinedTemplateMappings == null || combinedTemplateMappings.isEmpty()) {
                     combinedTemplateMappings = List.of(new CompressedXContent("{}"));
                 } else {
+                    // Filter the mapping to contain only the part this index settings provider is interested in.
+                    // This reduces the overhead of loading mappings, since mappings can be very large.
+                    // The _doc._source.mode is needed to determine synthetic source usage.
+                    // The _doc.properties.host* is needed to determine whether host.name field can be injected.
+                    // The _doc.subobjects is needed to determine whether subobjects is enabled.
                     List<CompressedXContent> processedTemplateMappings = new ArrayList<>(combinedTemplateMappings.size());
                     for (CompressedXContent mappingSource : combinedTemplateMappings) {
                         var ref = mappingSource.compressedReference();

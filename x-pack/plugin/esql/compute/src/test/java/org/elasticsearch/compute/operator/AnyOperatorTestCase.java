@@ -103,10 +103,14 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
 
                 if (operator instanceof SourceOperator) {
                     assertThat(map, hasKey("pages_emitted"));
+                    assertThat(map, hasKey("rows_emitted"));
                 } else if (operator instanceof SinkOperator) {
                     assertThat(map, hasKey("pages_received"));
+                    assertThat(map, hasKey("rows_received"));
                 } else {
                     assertThat(map, either(hasKey("pages_processed")).or(both(hasKey("pages_received")).and(hasKey("pages_emitted"))));
+                    assertThat(map, hasKey("rows_received"));
+                    assertThat(map, hasKey("rows_emitted"));
                 }
             }
         }

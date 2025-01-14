@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -80,7 +81,9 @@ public class CheckLicenseTests extends ESTestCase {
         var plan = parser.createStatement(esql);
         plan = plan.transformDown(
             Limit.class,
-            l -> Objects.equals(l.limit().fold(), 10) ? new LicensedLimit(l.source(), l.limit(), l.child(), functionLicenseFeature) : l
+            l -> Objects.equals(l.limit().fold(FoldContext.small()), 10)
+                ? new LicensedLimit(l.source(), l.limit(), l.child(), functionLicenseFeature)
+                : l
         );
         return analyzer(registry, operationMode).analyze(plan);
     }

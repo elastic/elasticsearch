@@ -68,9 +68,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final DesiredBalanceReconcilerAction reconciler;
     private final DesiredBalanceComputer desiredBalanceComputer;
     /**
-     * Reconciliation ({@link DesiredBalanceReconciler#reconcile(DesiredBalance, RoutingAllocation)}) takes the {@link DesiredBalance}
-     * output of {@link DesiredBalanceComputer#compute} and identifies how shards need to be added, moved or removed to go from the current
-     * cluster shard allocation to the new desired allocation.
+     * Reconciliation ({@link DesiredBalanceReconciler#reconcile(DesiredBalance, RoutingAllocation, BalancingRoundStats.Builder)}) takes the
+     * {@link DesiredBalance} output of {@link DesiredBalanceComputer#compute} and identifies how shards need to be added, moved or removed
+     * to go from the current cluster shard allocation to the new desired allocation.
      */
     private final DesiredBalanceReconciler desiredBalanceReconciler;
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;

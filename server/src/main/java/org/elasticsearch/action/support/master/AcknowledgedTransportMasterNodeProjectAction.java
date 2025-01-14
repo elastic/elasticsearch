@@ -10,7 +10,6 @@
 package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
@@ -25,15 +24,38 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.Executor;
 
-/**
- * A base class for read operations that need to be performed on the master node and that target a single project.
- */
-public abstract class TransportMasterNodeReadProjectAction<Request extends MasterNodeReadRequest<Request>, Response extends ActionResponse>
-    extends TransportMasterNodeReadAction<Request, Response> {
+public abstract class AcknowledgedTransportMasterNodeProjectAction<Request extends MasterNodeRequest<Request>> extends
+    AcknowledgedTransportMasterNodeAction<Request> {
 
     private final ProjectResolver projectResolver;
 
-    protected TransportMasterNodeReadProjectAction(
+    public AcknowledgedTransportMasterNodeProjectAction(
+        String actionName,
+        boolean canTripCircuitBreaker,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> request,
+        ProjectResolver projectResolver,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Executor executor
+    ) {
+        super(
+            actionName,
+            canTripCircuitBreaker,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            request,
+            indexNameExpressionResolver,
+            executor
+        );
+        this.projectResolver = projectResolver;
+    }
+
+    public AcknowledgedTransportMasterNodeProjectAction(
         String actionName,
         TransportService transportService,
         ClusterService clusterService,
@@ -42,27 +64,21 @@ public abstract class TransportMasterNodeReadProjectAction<Request extends Maste
         Writeable.Reader<Request> request,
         ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Writeable.Reader<Response> response,
         Executor executor
     ) {
-        super(
-            actionName,
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            request,
-            indexNameExpressionResolver,
-            response,
-            executor
-        );
+        super(actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver, executor);
         this.projectResolver = projectResolver;
     }
 
-    protected abstract void masterOperation(Task task, Request request, ProjectState project, ActionListener<Response> listener)
-        throws Exception;
+    protected abstract void masterOperation(
+        Task task,
+        Request request,
+        ProjectState projectState,
+        ActionListener<AcknowledgedResponse> listener
+    );
 
-    protected final void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
+    @Override
+    protected final void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
         masterOperation(task, request, projectResolver.getProjectState(state), listener);
     }

@@ -20,7 +20,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadProjectAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -326,7 +325,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetDataStreamAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetDataStreamAction.Request request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

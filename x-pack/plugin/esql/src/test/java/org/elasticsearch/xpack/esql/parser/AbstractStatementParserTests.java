@@ -165,8 +165,12 @@ abstract class AbstractStatementParserTests extends ESTestCase {
         expectInvalidIndexNameErrorWithLineNumber(query, "\"" + indexString + "\"", lineNumber, indexString);
     }
 
-    void expectInvalidIndexNameErrorWithLineNumber(String query, String indexString, String lineNumber, String error) {
-        expectError(LoggerMessageFormat.format(null, query, indexString), lineNumber + "Invalid index name [" + error);
+    void expectInvalidIndexNameErrorWithLineNumber(String query, String indexString, String lineNumber, String name) {
+        expectError(LoggerMessageFormat.format(null, query, indexString), lineNumber + "Invalid index name [" + name);
+    }
+
+    void expectInvalidIndexNameErrorWithLineNumber(String query, String indexString, String lineNumber, String name, String error) {
+        expectError(LoggerMessageFormat.format(null, query, indexString), lineNumber + "Invalid index name [" + name + "], " + error);
     }
 
     void expectDateMathErrorWithLineNumber(String query, String arg, String lineNumber, String error) {

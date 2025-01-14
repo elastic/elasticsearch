@@ -53,8 +53,8 @@ public class MapExpression extends Expression {
             Expression value = entries.get(i * 2 + 1);
             entryExpressions.add(new EntryExpression(key.source(), key, value));
             map.put(key, value);
-            if (key.foldable()) {
-                this.keyFoldedMap.put(key.fold(), value);
+            if (key instanceof Literal l) {
+                this.keyFoldedMap.put(l.value(), value);
             }
         }
     }

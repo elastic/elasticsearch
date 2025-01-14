@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.READ_ONLY;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 
 public class ReindexDataStreamIndexTransportAction extends HandledTransportAction<
@@ -93,13 +92,22 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             );
         }
 
+        if (settingsBefore.getAsBoolean(IndexMetadata.SETTING_BLOCKS_READ, false)) {
+            var errorMessage = String.format(Locale.ROOT, "Cannot reindex index [%s] which has a read block.", destIndexName);
+            listener.onFailure(new ElasticsearchException(errorMessage));
+            return;
+        }
+        if (settingsBefore.getAsBoolean(IndexMetadata.SETTING_BLOCKS_METADATA, false)) {
+            var errorMessage = String.format(Locale.ROOT, "Cannot reindex index [%s] which has a metadata block.", destIndexName);
+            listener.onFailure(new ElasticsearchException(errorMessage));
+            return;
+        }
+
         SubscribableListener.<AcknowledgedResponse>newForked(l -> setBlockWrites(sourceIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l, taskId))
             .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> copyOldSourceSettingsToDest(settingsBefore, destIndexName, l, taskId))
-            .<AddIndexBlockResponse>andThen(l -> addBlockIfFromSource(WRITE, settingsBefore, destIndexName, l, taskId))
-            .<AddIndexBlockResponse>andThen(l -> addBlockIfFromSource(READ_ONLY, settingsBefore, destIndexName, l, taskId))
             .andThenApply(ignored -> new ReindexDataStreamIndexAction.Response(destIndexName))
             .addListener(listener);
     }
@@ -120,7 +128,8 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof ClusterBlockException || e.getCause() instanceof ClusterBlockException) {
-                    // It's fine if block-writes is already set
+                    // Could fail with a cluster block exception if read-only or read-only-allow-delete is already set
+                    // In this case, we can proceed
                     listener.onResponse(null);
                 } else {
                     listener.onFailure(e);
@@ -146,10 +155,12 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
     ) {
         logger.debug("Creating destination index [{}] for source index [{}]", destIndexName, sourceIndex.getIndex().getName());
 
-        // override read-only settings if they exist
         var removeReadOnlyOverride = Settings.builder()
+            // remove read-only settings if they exist
             .putNull(IndexMetadata.SETTING_READ_ONLY)
+            .putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
             .putNull(IndexMetadata.SETTING_BLOCKS_WRITE)
+            // settings to optimize reindex
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
             .build();
@@ -192,6 +203,18 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         }
     }
 
+    private void updateSettings(
+        String index,
+        Settings.Builder settings,
+        ActionListener<AcknowledgedResponse> listener,
+        TaskId parentTaskId
+    ) {
+        var updateSettingsRequest = new UpdateSettingsRequest(settings.build(), index);
+        updateSettingsRequest.setParentTask(parentTaskId);
+        var errorMessage = String.format(Locale.ROOT, "Could not update settings on index [%s]", index);
+        client.admin().indices().updateSettings(updateSettingsRequest, failIfNotAcknowledged(listener, errorMessage));
+    }
+
     private void copyOldSourceSettingsToDest(
         Settings settingsBefore,
         String destIndexName,
@@ -199,15 +222,10 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         TaskId parentTaskId
     ) {
         logger.debug("Updating settings on destination index after reindex completes");
-
         var settings = Settings.builder();
         copySettingOrUnset(settingsBefore, settings, IndexMetadata.SETTING_NUMBER_OF_REPLICAS);
         copySettingOrUnset(settingsBefore, settings, IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey());
-
-        var updateSettingsRequest = new UpdateSettingsRequest(settings.build(), destIndexName);
-        updateSettingsRequest.setParentTask(parentTaskId);
-        var errorMessage = String.format(Locale.ROOT, "Could not update settings on index [%s]", destIndexName);
-        client.admin().indices().updateSettings(updateSettingsRequest, failIfNotAcknowledged(listener, errorMessage));
+        updateSettings(destIndexName, settings, listener, parentTaskId);
     }
 
     private static void copySettingOrUnset(Settings settingsBefore, Settings.Builder builder, String setting) {
@@ -221,8 +239,12 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         }
     }
 
-    public static String generateDestIndexName(String sourceIndex) {
-        return "migrated-" + sourceIndex;
+    static String generateDestIndexName(String sourceIndex) {
+        String prefix = "migrated-";
+        if (sourceIndex.startsWith(".")) {
+            return "." + prefix + sourceIndex.substring(1);
+        }
+        return prefix + sourceIndex;
     }
 
     private static <U extends AcknowledgedResponse> ActionListener<U> failIfNotAcknowledged(

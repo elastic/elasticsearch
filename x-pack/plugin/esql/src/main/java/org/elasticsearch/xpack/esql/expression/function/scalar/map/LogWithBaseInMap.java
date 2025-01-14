@@ -16,6 +16,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -147,7 +148,7 @@ public class LogWithBaseInMap extends EsqlScalarFunction implements OptionalArgu
         if (map instanceof MapExpression me) {
             Expression b = me.get(BASE);
             if (b != null && b.foldable()) {
-                Object v = b.fold();
+                Object v = b.fold(toEvaluator.foldCtx());
                 if (v instanceof BytesRef br) {
                     v = br.utf8ToString();
                 }
@@ -184,8 +185,19 @@ public class LogWithBaseInMap extends EsqlScalarFunction implements OptionalArgu
             if (resolution.unresolved()) {
                 return resolution;
             }
-            Object k = key.fold();
-            Object v = value.fold();
+            Object k = key instanceof Literal l ? l.value() : null;
+            Object v = value instanceof Literal l ? l.value() : null;
+            if (k == null) {
+                return new TypeResolution(
+                    format(null, "Invalid option key in [{}], expected a literal value but got [{}]", sourceText(), key.sourceText())
+                );
+            }
+
+            if (v == null) {
+                return new TypeResolution(
+                    format(null, "Invalid option value in [{}], expected a constant value but got [{}]", sourceText(), value.sourceText())
+                );
+            }
             String base = k instanceof BytesRef br ? br.utf8ToString() : k.toString();
             String number = v instanceof BytesRef br ? br.utf8ToString() : v.toString();
             // validate the key is in SUPPORTED_OPTIONS

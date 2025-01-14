@@ -292,12 +292,12 @@ public class In extends EsqlScalarFunction {
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         EvalOperator.ExpressionEvaluator.Factory lhs;
         EvalOperator.ExpressionEvaluator.Factory[] factories;
-        if (value.dataType() == DATE_NANOS && list.getFirst().dataType() == DATETIME) {
+        if (value.dataType() == DATE_NANOS && list.get(0).dataType() == DATETIME) {
             lhs = toEvaluator.apply(value);
             factories = list.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
             return new InNanosMillisEvaluator.Factory(source(), lhs, factories);
         }
-        if (value.dataType() == DATETIME && list.getFirst().dataType() == DATE_NANOS) {
+        if (value.dataType() == DATETIME && list.get(0).dataType() == DATE_NANOS) {
             lhs = toEvaluator.apply(value);
             factories = list.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
             return new InMillisNanosEvaluator.Factory(source(), lhs, factories);

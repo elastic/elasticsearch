@@ -27,6 +27,7 @@ import java.util.ArrayList;
 
 import static org.elasticsearch.common.bytes.ReleasableBytesReferenceStreamInputTests.wrapAsReleasable;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -182,7 +183,7 @@ public class InboundDecoderTests extends ESTestCase {
         }
     }
 
-    public void testDecodeHandshakeCompatibility() throws IOException {
+    public void testDecodeHandshakeV7Compatibility() throws IOException {
         String action = "test-request";
         long requestId = randomNonNegativeLong();
         final String headerKey = randomAlphaOfLength(10);
@@ -221,6 +222,55 @@ public class InboundDecoderTests extends ESTestCase {
             fragments.clear();
         }
 
+    }
+
+    public void testDecodeHandshakeV8Compatibility() throws IOException {
+        doHandshakeCompatibilityTest(TransportHandshaker.REQUEST_HANDSHAKE_VERSION, null);
+        doHandshakeCompatibilityTest(TransportHandshaker.REQUEST_HANDSHAKE_VERSION, Compression.Scheme.DEFLATE);
+    }
+
+    public void testDecodeHandshakeV9Compatibility() throws IOException {
+        doHandshakeCompatibilityTest(TransportHandshaker.V9_HANDSHAKE_VERSION, null);
+        doHandshakeCompatibilityTest(TransportHandshaker.V9_HANDSHAKE_VERSION, Compression.Scheme.DEFLATE);
+    }
+
+    private void doHandshakeCompatibilityTest(TransportVersion transportVersion, Compression.Scheme compressionScheme) throws IOException {
+        String action = "test-request";
+        long requestId = randomNonNegativeLong();
+        final String headerKey = randomAlphaOfLength(10);
+        final String headerValue = randomAlphaOfLength(20);
+        threadContext.putHeader(headerKey, headerValue);
+        OutboundMessage message = new OutboundMessage.Request(
+            threadContext,
+            new TestRequest(randomAlphaOfLength(100)),
+            transportVersion,
+            action,
+            requestId,
+            true,
+            compressionScheme
+        );
+
+        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
+            final BytesReference bytes = message.serialize(os);
+            int totalHeaderSize = TcpHeader.headerSize(transportVersion);
+
+            InboundDecoder decoder = new InboundDecoder(recycler);
+            final ArrayList<Object> fragments = new ArrayList<>();
+            final ReleasableBytesReference releasable1 = wrapAsReleasable(bytes);
+            int bytesConsumed = decoder.decode(releasable1, fragments::add);
+            assertThat(bytesConsumed, greaterThan(totalHeaderSize));
+            assertTrue(releasable1.hasReferences());
+
+            final Header header = (Header) fragments.get(0);
+            assertEquals(requestId, header.getRequestId());
+            assertEquals(transportVersion, header.getVersion());
+            assertEquals(compressionScheme == Compression.Scheme.DEFLATE, header.isCompressed());
+            assertTrue(header.isHandshake());
+            assertTrue(header.isRequest());
+            assertFalse(header.needsToReadVariableHeader());
+            assertEquals(headerValue, header.getRequestHeaders().get(headerKey));
+            fragments.clear();
+        }
     }
 
     public void testClientChannelTypeFailsDecodingRequests() throws Exception {
@@ -488,23 +538,16 @@ public class InboundDecoderTests extends ESTestCase {
     }
 
     public void testCheckHandshakeCompatibility() {
-        try {
-            InboundDecoder.checkHandshakeVersionCompatibility(randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS));
-        } catch (IllegalStateException e) {
-            throw new AssertionError(e);
-        }
+        for (final var allowedHandshakeVersion : TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS) {
+            InboundDecoder.checkHandshakeVersionCompatibility(allowedHandshakeVersion); // should not throw
 
-        var invalid = TransportVersion.fromId(TransportHandshaker.EARLIEST_HANDSHAKE_VERSION.id() - 1);
-        try {
-            InboundDecoder.checkHandshakeVersionCompatibility(invalid);
-            fail();
-        } catch (IllegalStateException expected) {
+            var invalid = TransportVersion.fromId(allowedHandshakeVersion.id() + randomFrom(-1, +1));
             assertEquals(
                 "Received message from unsupported version: ["
                     + invalid
                     + "] allowed versions are: "
                     + TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS,
-                expected.getMessage()
+                expectThrows(IllegalStateException.class, () -> InboundDecoder.checkHandshakeVersionCompatibility(invalid)).getMessage()
             );
         }
     }

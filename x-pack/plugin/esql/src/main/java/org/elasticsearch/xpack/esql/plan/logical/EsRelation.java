@@ -29,7 +29,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.TransportVersions.ESQL_REMOVE_ES_RELATION_FROZEN;
 import static org.elasticsearch.TransportVersions.ESQL_SKIP_ES_INDEX_SERIALIZATION;
 
 public class EsRelation extends LeafPlan {
@@ -82,7 +81,7 @@ public class EsRelation extends LeafPlan {
             in.readOptionalString();
         }
         IndexMode indexMode = readIndexMode(in);
-        if (in.getTransportVersion().before(ESQL_REMOVE_ES_RELATION_FROZEN)) {
+        if (in.getTransportVersion().before(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
             in.readBoolean();
         }
         return new EsRelation(source, indexName, indexMode, indexNameWithModes, attributes);
@@ -105,7 +104,7 @@ public class EsRelation extends LeafPlan {
             out.writeOptionalString(null);
         }
         writeIndexMode(out, indexMode);
-        if (out.getTransportVersion().before(ESQL_REMOVE_ES_RELATION_FROZEN)) {
+        if (out.getTransportVersion().before(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
             out.writeBoolean(false);
         }
     }

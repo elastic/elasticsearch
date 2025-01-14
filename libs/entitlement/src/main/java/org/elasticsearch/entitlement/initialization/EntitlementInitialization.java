@@ -105,6 +105,9 @@ public class EntitlementInitialization {
                     new ExitVMEntitlement(),
                     new CreateClassLoaderEntitlement(),
                     new NetworkEntitlement(LISTEN_ACTION | CONNECT_ACTION | ACCEPT_ACTION))
+                ),
+                new Scope("org.apache.httpcomponents.httpclient", List.of(
+                    new NetworkEntitlement(CONNECT_ACTION))
                 )
             )
         );

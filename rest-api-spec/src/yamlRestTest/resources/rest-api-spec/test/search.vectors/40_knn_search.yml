@@ -558,7 +558,7 @@ setup:
       capabilities:
         - method: GET
           path: /_search
-          capabilities: [knn_quantized_vector_rescore]
+          capabilities: [knn_quantized_vector_rescore_oversample]
   - skip:
       features: "headers"
 
@@ -598,7 +598,7 @@ setup:
             k: 3
             num_candidates: 3
             rescore_vector:
-              num_candidates_factor: 1.5
+              oversample: 1.5
 
   # Compare scores as hit IDs may change depending on how things are distributed
   - match: { hits.total: 3 }

@@ -23,7 +23,7 @@ import java.util.Map;
 public class IndexStats implements Iterable<IndexShardStats> {
 
     // feature was effectively reverted but we still need to keep this constant around
-    public static final NodeFeature REVERTED_TIER_CREATION_DATE = new NodeFeature("stats.tier_creation_date");
+    public static final NodeFeature REVERTED_TIER_CREATION_DATE = new NodeFeature("stats.tier_creation_date", true);
 
     private final String index;
 

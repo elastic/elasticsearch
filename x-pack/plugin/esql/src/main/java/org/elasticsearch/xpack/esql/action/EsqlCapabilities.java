@@ -384,6 +384,10 @@ public class EsqlCapabilities {
          * Support the {@link org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In} operator for date nanos
          */
         DATE_NANOS_IN_OPERATOR(),
+        /**
+         * Support running date format function on nanosecond dates
+         */
+        DATE_NANOS_DATE_FORMAT(),
 
         /**
          * DATE_PARSE supports reading timezones

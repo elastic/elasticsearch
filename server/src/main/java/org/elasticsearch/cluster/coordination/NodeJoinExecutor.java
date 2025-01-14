@@ -399,7 +399,6 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
      * will not be created with a newer version of elasticsearch as well as that all indices are newer or equal to the minimum index
      * compatibility version.
      * @see IndexVersions#MINIMUM_COMPATIBLE
-     * @see IndexVersions#MINIMUM_READONLY_COMPATIBLE
      * @throws IllegalStateException if any index is incompatible with the given version
      */
     public static void ensureIndexCompatibility(

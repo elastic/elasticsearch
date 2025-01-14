@@ -114,6 +114,15 @@ public class MetadataIndexStateService {
         Setting.Property.PrivateIndex
     );
 
+    public static final Setting<Boolean> VERIFIED_READ_ONLY_SETTING = Setting.boolSetting(
+        "index.verified_read_only",
+        false,
+        Setting.Property.IndexScope,
+        Setting.Property.NotCopyableOnResize,
+        // TODO Change this
+        Setting.Property.OperatorDynamic
+    );
+
     private final ClusterService clusterService;
     private final AllocationService allocationService;
     private final IndexMetadataVerifier indexMetadataVerifier;

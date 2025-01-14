@@ -2003,6 +2003,37 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testMatchOptions() {
+        assumeTrue("Match options are not available", EsqlCapabilities.Cap.MATCH_OPTIONS.isEnabled());
+
+        assertEquals(
+            "1:19: Invalid option [boost] in [match(first_name, \"Jean\", {\"boost\": true})], cannot cast [true] to [float]",
+            error("FROM test | WHERE match(first_name, \"Jean\", {\"boost\": true})")
+        );
+
+        // TODO Check all possible types for each option????
+
+        // Check positive cases
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"analyzer\": \"standard\"})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"auto_generate_synonyms_phrase_query\": true})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"boost\": 2.1})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"fuzziness\": 2})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"fuzziness\": \"AUTO\"})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"fuzzy_transpositions\": false})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"lenient\": false})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"max_expansions\": 10})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"minimum_should_match\": \"2\"})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"operator\": \"AND\"})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"prefix_length\": 2})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"auto_generate_synonyms_phrase_query\": true})");
+
+        assertThat(
+            error("FROM test | WHERE match(first_name, \"Jean\", {\"unknown_option\": true})"),
+            containsString("1:19: Invalid option [unknown_option] in [match(first_name, \"Jean\", {\"unknown_option\": true})]," +
+                " expected one of ")
+        );
+    }
+
     private void query(String query) {
         query(query, defaultAnalyzer);
     }

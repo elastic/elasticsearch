@@ -566,7 +566,7 @@ public final class EsqlExpressionTranslators {
                     fieldName = multiTypeEsField.getName();
                 }
                 // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
-                return new MatchQuery(match.source(), fieldName, match.queryAsObject(), Map.of("lenient", "true"));
+                return new MatchQuery(match.source(), fieldName, match.queryAsObject(), match.optionsMap());
             }
 
             throw new IllegalArgumentException("Match must have a field attribute as the first argument");

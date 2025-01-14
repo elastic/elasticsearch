@@ -427,7 +427,7 @@ public class EsqlFunctionRegistry {
             // fulltext functions
             new FunctionDefinition[] {
                 def(Kql.class, uni(Kql::new), "kql"),
-                def(Match.class, bi(Match::new), "match"),
+                def(Match.class, tri(Match::new), "match"),
                 def(QueryString.class, uni(QueryString::new), "qstr") } };
 
     }

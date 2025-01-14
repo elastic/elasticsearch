@@ -978,6 +978,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             matchFieldExpression = expression(ctx.fieldExp);
         }
 
-        return new Match(source(ctx), matchFieldExpression, expression(ctx.matchQuery));
+        return new Match(source(ctx), matchFieldExpression, expression(ctx.matchQuery), null);
     }
 }

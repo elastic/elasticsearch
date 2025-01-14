@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ilm.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
@@ -38,6 +39,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
  * Internally it uses {@link TransportPutLifecycleAction} and
  * {@link TransportDeleteLifecycleAction} to add, update and delete ILM policies.
  */
+@FixForMultiProject // ILM is not a thing on serverless, so this will only ever operate on default project. How do we handle this long-term?
 public class ReservedLifecycleAction implements ReservedClusterStateHandler<ClusterState, List<LifecyclePolicy>> {
 
     private final NamedXContentRegistry xContentRegistry;

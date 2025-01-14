@@ -160,6 +160,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private record TimedListener(ActionListener<Void> listener, Recorder recorder) implements ActionListener<Void> {
 
+        @Override
         public void onResponse(Void response) {
             try (Releasable ignored = recorder.record("listener.onResponse")) {
                 listener.onResponse(null);
@@ -170,6 +171,10 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         public void onFailure(Exception e) {
             try (Releasable ignored = recorder.record("listener.onFailure")) {
                 listener.onFailure(e);
+            } catch (Exception inner) {
+                inner.addSuppressed(e);
+                assert false : inner;
+                logger.error(() -> "exception thrown by listener notifying of failure", inner);
             }
         }
     }

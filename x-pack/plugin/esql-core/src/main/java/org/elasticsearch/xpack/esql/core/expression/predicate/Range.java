@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.esql.core.expression.predicate;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -85,24 +87,37 @@ public class Range extends ScalarFunction {
         return zoneId;
     }
 
+    /**
+     * In case that the range is empty due to foldable, invalid bounds, but the bounds themselves are not yet folded, the optimizer will
+     * need two passes to fold this.
+     * That's because we shouldn't perform folding when trying to determine foldability.
+     */
     @Override
     public boolean foldable() {
         if (lower.foldable() && upper.foldable()) {
-            return areBoundariesInvalid() || value.foldable();
-        }
+            if (value().foldable()) {
+                return true;
+            }
 
+            // We cannot fold the bounds here; but if they're already literals, we can check if the range is always empty.
+            if (lower() instanceof Literal l && upper() instanceof Literal u) {
+                return areBoundariesInvalid(l.value(), u.value());
+            }
+        }
         return false;
     }
 
     @Override
-    public Object fold() {
-        if (areBoundariesInvalid()) {
+    public Object fold(FoldContext ctx) {
+        Object lowerValue = lower.fold(ctx);
+        Object upperValue = upper.fold(ctx);
+        if (areBoundariesInvalid(lowerValue, upperValue)) {
             return Boolean.FALSE;
         }
 
-        Object val = value.fold();
-        Integer lowerCompare = BinaryComparison.compare(lower.fold(), val);
-        Integer upperCompare = BinaryComparison.compare(val, upper().fold());
+        Object val = value.fold(ctx);
+        Integer lowerCompare = BinaryComparison.compare(lower.fold(ctx), val);
+        Integer upperCompare = BinaryComparison.compare(val, upper().fold(ctx));
         boolean lowerComparsion = lowerCompare == null ? false : (includeLower ? lowerCompare <= 0 : lowerCompare < 0);
         boolean upperComparsion = upperCompare == null ? false : (includeUpper ? upperCompare <= 0 : upperCompare < 0);
         return lowerComparsion && upperComparsion;
@@ -112,9 +127,7 @@ public class Range extends ScalarFunction {
      * Check whether the boundaries are invalid ( upper &lt; lower) or not.
      * If they are, the value does not have to be evaluated.
      */
-    protected boolean areBoundariesInvalid() {
-        Object lowerValue = lower.fold();
-        Object upperValue = upper.fold();
+    protected boolean areBoundariesInvalid(Object lowerValue, Object upperValue) {
         if (DataType.isDateTime(value.dataType()) || DataType.isDateTime(lower.dataType()) || DataType.isDateTime(upper.dataType())) {
             try {
                 if (upperValue instanceof String upperString) {

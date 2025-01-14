@@ -91,7 +91,6 @@ public class Latest extends AbstractCompositeAggFunction {
             );
         }
 
-        // No need to cache the source map as it is not used outside of this method
         Map<String, Object> document = topHits.getHits().getHits()[0].getSourceAsMap();
 
         // generator to create unique but deterministic document ids, so we

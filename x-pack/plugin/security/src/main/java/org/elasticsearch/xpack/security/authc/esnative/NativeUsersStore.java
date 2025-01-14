@@ -155,7 +155,6 @@ public class NativeUsersStore {
                         .request();
                     request.indicesOptions().ignoreUnavailable();
                     ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener), (hit) -> {
-                        // No need to cache the source map as it is not used outside of this method
                         UserAndPassword u = transformUser(hit.getId(), hit.getSourceAsMap());
                         return u != null ? u.user() : null;
                     });
@@ -188,7 +187,6 @@ public class NativeUsersStore {
                         }
 
                         final List<QueryUserResult> userItems = Arrays.stream(searchResponse.getHits().getHits()).map(hit -> {
-                            // No need to cache the source map as it is not used outside of this method
                             UserAndPassword userAndPassword = transformUser(hit.getId(), hit.getSourceAsMap());
                             return userAndPassword != null ? new QueryUserResult(userAndPassword.user(), hit.getSortValues()) : null;
                         }).filter(Objects::nonNull).toList();

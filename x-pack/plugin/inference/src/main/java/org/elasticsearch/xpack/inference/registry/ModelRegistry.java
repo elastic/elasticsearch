@@ -331,7 +331,6 @@ public class ModelRegistry {
     private ArrayList<ModelConfigMap> parseHitsAsModels(SearchHits hits) {
         var modelConfigs = new ArrayList<ModelConfigMap>();
         for (var hit : hits) {
-            // No need to cache the source map as it is not used outside of this method
             modelConfigs.add(new ModelConfigMap(hit.getSourceAsMap(), Map.of()));
         }
         return modelConfigs;
@@ -375,7 +374,6 @@ public class ModelRegistry {
             );
         }
 
-        // No need to cache the source map as it is not used outside of this method
         return new ModelConfigMap(
             mappedHits.get(InferenceIndex.INDEX_NAME).getSourceAsMap(),
             mappedHits.get(InferenceSecretsIndex.INDEX_NAME).getSourceAsMap()

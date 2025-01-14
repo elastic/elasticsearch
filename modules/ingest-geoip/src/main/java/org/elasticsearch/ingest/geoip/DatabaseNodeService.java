@@ -517,7 +517,6 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                             failureHandler.accept(new ResourceNotFoundException("chunk document with id [" + id + "] not found"));
                             return;
                         }
-                        // No need to cache the source map as it is not used outside of this method
                         byte[] data = (byte[]) hits[0].getSourceAsMap().get("data");
                         md.update(data);
                         chunkConsumer.accept(data);

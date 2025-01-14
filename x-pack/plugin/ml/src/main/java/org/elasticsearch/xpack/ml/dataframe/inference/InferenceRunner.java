@@ -240,7 +240,6 @@ public class InferenceRunner {
     private IndexRequest createIndexRequest(SearchHit hit, InferenceResults results, String resultField) {
         Map<String, Object> resultsMap = new LinkedHashMap<>(results.asMap());
         resultsMap.put(DestinationIndex.IS_TRAINING, false);
-        // No need to cache the source map as it is not used outside of this method
         Map<String, Object> source = new LinkedHashMap<>(hit.getSourceAsMap());
         source.put(resultField, resultsMap);
         IndexRequest indexRequest = new IndexRequest(hit.getIndex());

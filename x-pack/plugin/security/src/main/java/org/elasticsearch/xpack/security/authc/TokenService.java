@@ -1915,7 +1915,6 @@ public class TokenService {
 
     private static Tuple<UserToken, String> filterAndParseHit(SearchHit hit, @Nullable Predicate<Map<String, Object>> filter)
         throws IllegalStateException, DateTimeException {
-        // No need to cache the source map as it is not used outside of this method
         final Map<String, Object> source = hit.getSourceAsMap();
         if (source == null) {
             throw new IllegalStateException("token document did not have source but source should have been fetched");
@@ -2738,7 +2737,6 @@ public class TokenService {
     }
 
     record Doc(String id, Map<String, Object> sourceAsMap, long seqNo, long primaryTerm) {
-        // No need to cache the source map as it is not used outside of this record
         Doc(SearchHit searchHit) {
             this(searchHit.getId(), searchHit.getSourceAsMap(), searchHit.getSeqNo(), searchHit.getPrimaryTerm());
         }

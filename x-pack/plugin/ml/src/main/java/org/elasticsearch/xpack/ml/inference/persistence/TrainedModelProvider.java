@@ -1016,7 +1016,6 @@ public class TrainedModelProvider {
                 long totalHitCount = response.getHits().getTotalHits().value() + foundResourceIds.size();
                 Set<String> foundFromDocs = new HashSet<>();
                 for (SearchHit hit : response.getHits().getHits()) {
-                    // No need to cache the source map as it is not used outside of this method
                     Map<String, Object> docSource = hit.getSourceAsMap();
                     if (docSource == null) {
                         continue;

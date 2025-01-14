@@ -129,7 +129,6 @@ class DataFrameRowsJoiner implements AutoCloseable {
     }
 
     private IndexRequest createIndexRequest(RowResults result, SearchHit hit) {
-        // No need to cache the source map as it is not used outside of this method
         Map<String, Object> source = new LinkedHashMap<>(hit.getSourceAsMap());
         source.putAll(result.getResults());
         IndexRequest indexRequest = new IndexRequest(hit.getIndex());

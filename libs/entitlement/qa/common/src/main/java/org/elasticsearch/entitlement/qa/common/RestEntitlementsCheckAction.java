@@ -142,7 +142,12 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("createURLStreamHandlerProvider", alwaysDenied(RestEntitlementsCheckAction::createURLStreamHandlerProvider)),
         entry("createURLWithURLStreamHandler", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler)),
         entry("createURLWithURLStreamHandler2", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler2)),
-        entry("sslSessionImpl_getSessionContext", alwaysDenied(RestEntitlementsCheckAction::sslSessionImplGetSessionContext))
+        entry("sslSessionImpl_getSessionContext", alwaysDenied(RestEntitlementsCheckAction::sslSessionImplGetSessionContext)),
+
+        entry("runtime_load", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoad)),
+        entry("runtime_load_library", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoadLibrary)),
+        entry("system_load", forPlugins(LoadNativeLibrariesCheckActions::systemLoad)),
+        entry("system_load_library", forPlugins(LoadNativeLibrariesCheckActions::systemLoadLibrary))
     );
 
     private static void createURLStreamHandlerProvider() {

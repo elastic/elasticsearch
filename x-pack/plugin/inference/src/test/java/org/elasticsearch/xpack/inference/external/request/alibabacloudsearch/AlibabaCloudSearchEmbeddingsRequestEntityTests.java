@@ -50,7 +50,7 @@ public class AlibabaCloudSearchEmbeddingsRequestEntityTests extends ESTestCase {
     public void testConvertToString_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {
         var thrownException = expectThrows(
             AssertionError.class,
-            () -> AlibabaCloudSearchEmbeddingsRequestEntity.covertToString(InputType.UNSPECIFIED)
+            () -> AlibabaCloudSearchEmbeddingsRequestEntity.convertToString(InputType.UNSPECIFIED)
         );
         MatcherAssert.assertThat(thrownException.getMessage(), is("received invalid input type value [unspecified]"));
     }

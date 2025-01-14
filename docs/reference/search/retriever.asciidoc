@@ -272,12 +272,12 @@ A retriever that normalizes and linearly combines the scores of other retrievers
 
 ===== Parameters
 
-`retrievers`::
-(Required, A list of <<retriever, retriever objects>>)
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=linear-retriever-components]
 
-sth
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=compound-retriever-rank-window-size]
 
-+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=compound-retriever-filter]
+
 [[rrf-retriever]]
 ==== RRF Retriever
 
@@ -290,9 +290,9 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-retrievers]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-constant]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-window-size]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=compound-retriever-rank-window-size]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-filter]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=compound-retriever-filter]
 
 [discrete]
 [[rrf-retriever-example-hybrid]]

@@ -613,12 +613,12 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         var similarity = taskType == TaskType.TEXT_EMBEDDING ? randomFrom(SimilarityMeasure.values()) : null;
         var elementType = taskType == TaskType.TEXT_EMBEDDING ? DenseVectorFieldMapper.ElementType.FLOAT : null;
         return new TestModel(
-                randomAlphaOfLength(4),
-                taskType,
-                randomAlphaOfLength(10),
-                new TestModel.TestServiceSettings(randomAlphaOfLength(4), dimensions, similarity, elementType),
-                new TestModel.TestTaskSettings(randomInt(3)),
-                new TestModel.TestSecretSettings(randomAlphaOfLength(4))
+            randomAlphaOfLength(4),
+            taskType,
+            randomAlphaOfLength(10),
+            new TestModel.TestServiceSettings(randomAlphaOfLength(4), dimensions, similarity, elementType),
+            new TestModel.TestTaskSettings(randomInt(3)),
+            new TestModel.TestSecretSettings(randomAlphaOfLength(4))
         );
     }
 }

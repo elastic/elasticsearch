@@ -14,6 +14,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.normalizer.ScoreNormalizer;
 import org.elasticsearch.search.rank.LinearRankDoc;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -44,11 +45,10 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     public static final String NAME = "linear";
 
     public static final NodeFeature LINEAR_RETRIEVER_SUPPORTED = new NodeFeature("linear_retriever_supported");
-
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
 
     private final float[] weights;
-    private final LinearRetrieverComponent.ScoreNormalizer[] normalizers;
+    private final ScoreNormalizer[] normalizers;
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<LinearRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
@@ -59,8 +59,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             int rankWindowSize = args[1] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[1];
             List<RetrieverSource> innerRetrievers = new ArrayList<>();
             float[] weights = new float[retrieverComponents.size()];
-            LinearRetrieverComponent.ScoreNormalizer[] normalizers = new LinearRetrieverComponent.ScoreNormalizer[retrieverComponents
-                .size()];
+            ScoreNormalizer[] normalizers = new ScoreNormalizer[retrieverComponents.size()];
             int index = 0;
             for (LinearRetrieverComponent component : retrieverComponents) {
                 innerRetrievers.add(new RetrieverSource(component.retriever, null));
@@ -94,7 +93,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         List<RetrieverSource> innerRetrievers,
         int rankWindowSize,
         float[] weights,
-        LinearRetrieverComponent.ScoreNormalizer[] normalizers
+        ScoreNormalizer[] normalizers
     ) {
         super(innerRetrievers, rankWindowSize);
         this.weights = weights;
@@ -126,7 +125,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                                 0f,
                                 originalScoreDocs[finalScoreIndex].shardIndex,
                                 weights,
-                                Arrays.stream(normalizers).map(Enum::name).toArray(String[]::new)
+                                Arrays.stream(normalizers).map(ScoreNormalizer::getName).toArray(String[]::new)
                             );
                         }
                         value.normalizedScores[finalResult] = normalizedScoreDocs[finalScoreIndex].score;
@@ -162,7 +161,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 builder.startObject(LinearRetrieverComponent.NAME);
                 builder.field(LinearRetrieverComponent.RETRIEVER_FIELD.getPreferredName(), entry.retriever());
                 builder.field(LinearRetrieverComponent.WEIGHT_FIELD.getPreferredName(), weights[index]);
-                builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizers[index].name());
+                builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizers[index]);
                 builder.endObject();
                 builder.endObject();
                 index++;

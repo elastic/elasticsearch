@@ -143,7 +143,9 @@ setup:
                       }
                     },
                     weight: 10.0,
-                    normalizer: "minmax"
+                    normalizer: {
+                      minmax: { }
+                    }
                   }
                 },
                 {
@@ -174,7 +176,7 @@ setup:
 ---
 "should throw on unknown normalizer":
   - do:
-      catch: /Unknown \[aardvark\] ScoreNormalizer provided/
+      catch: /unknown field \[aardvark\]/
       search:
         index: test
         body:
@@ -200,7 +202,9 @@ setup:
                       }
                     },
                     weight: 1.0,
-                    normalizer: "aardvark"
+                    normalizer: {
+                      aardvark: { }
+                    }
                   }
                 },
                 {
@@ -276,7 +280,9 @@ setup:
                       }
                     },
                     weight: 10.0,
-                    normalizer: "minmax"
+                    normalizer: {
+                      minmax: { }
+                    }
                   }
                 },
                 {
@@ -356,7 +362,9 @@ setup:
                       }
                     },
                     weight: 10.0,
-                    normalizer: "minmax"
+                    normalizer: {
+                      minmax: { }
+                    }
                   }
                 },
                 {
@@ -400,7 +408,9 @@ setup:
                       }
                     },
                     weight: 10.0,
-                    normalizer: "minmax"
+                    normalizer: {
+                      minmax: { }
+                    }
                   }
                 },
                 {
@@ -477,7 +487,9 @@ setup:
                       }
                     },
                     weight: 1.0,
-                    normalizer: "minmax"
+                    normalizer: {
+                      minmax: { }
+                    }
                   }
                 },
                 {
@@ -550,7 +562,9 @@ setup:
                       }
                     },
                     weight: 10.0,
-                    normalizer: "minmax"
+                    normalizer: {
+                      minmax: { }
+                    }
                   }
                 },
                 {
@@ -573,13 +587,13 @@ setup:
   - match: { hits.hits.0._id: "4" }
   - match: { hits.hits.0._explanation.description: "/weighted.linear.combination.score:.\\[20.0].computed.for.normalized.scores.\\[.*,.1.0\\].and.weights.\\[10.0,.20.0\\].as.sum.of.\\(weight\\[i\\].*.score\\[i\\]\\).for.each.query./"}
   - close_to: { hits.hits.0._explanation.details.0.value: { value: 0.0, error: 0.001 } }
-  - match: { hits.hits.0._explanation.details.0.description: "/.*weighted.score.*\\[my_standard_retriever\\].*using.score.normalizer.\\[MINMAX\\].*/" }
+  - match: { hits.hits.0._explanation.details.0.description: "/.*weighted.score.*\\[my_standard_retriever\\].*using.score.normalizer.\\[minmax\\].*/" }
   - close_to: { hits.hits.0._explanation.details.1.value: { value: 20.0, error: 0.001 } }
-  - match: { hits.hits.0._explanation.details.1.description: "/.*weighted.score.*using.score.normalizer.\\[IDENTITY\\].*/" }
+  - match: { hits.hits.0._explanation.details.1.description: "/.*weighted.score.*using.score.normalizer.\\[none\\].*/" }
   - match: { hits.hits.1._id: "1" }
   - match: { hits.hits.1._explanation.description: "/weighted.linear.combination.score:.\\[10.0].computed.for.normalized.scores.\\[1.0,.0.0\\].and.weights.\\[10.0,.20.0\\].as.sum.of.\\(weight\\[i\\].*.score\\[i\\]\\).for.each.query./"}
   - close_to: { hits.hits.1._explanation.details.0.value: { value: 10.0, error: 0.001 } }
-  - match: { hits.hits.1._explanation.details.0.description: "/.*weighted.score.*using.score.normalizer.\\[MINMAX\\].*/" }
+  - match: { hits.hits.1._explanation.details.0.description: "/.*weighted.score.*using.score.normalizer.\\[minmax\\].*/" }
   - close_to: { hits.hits.1._explanation.details.1.value: { value: 0.0, error: 0.001 } }
   - match: { hits.hits.1._explanation.details.1.description: "/.*weighted.score.*result.not.found.in.query.at.index.\\[1\\]/" }
 

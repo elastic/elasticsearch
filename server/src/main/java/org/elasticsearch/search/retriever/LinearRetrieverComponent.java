@@ -9,8 +9,10 @@
 
 package org.elasticsearch.search.retriever;
 
-import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.search.normalizer.IdentityScoreNormalizer;
+import org.elasticsearch.search.normalizer.ScoreNormalizer;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -29,7 +31,7 @@ public class LinearRetrieverComponent implements ToXContentObject {
     public static final ParseField NORMALIZER_FIELD = new ParseField("normalizer");
 
     static final float DEFAULT_WEIGHT = 1f;
-    static final ScoreNormalizer DEFAULT_NORMALIZER = ScoreNormalizer.IDENTITY;
+    static final ScoreNormalizer DEFAULT_NORMALIZER = IdentityScoreNormalizer.INSTANCE;
 
     public static final String NAME = "component";
 
@@ -39,7 +41,7 @@ public class LinearRetrieverComponent implements ToXContentObject {
         args -> {
             RetrieverBuilder base = (RetrieverBuilder) args[0];
             float weight = args[1] == null ? DEFAULT_WEIGHT : (float) args[1];
-            ScoreNormalizer normalizer = args[2] == null ? DEFAULT_NORMALIZER : ScoreNormalizer.fromString((String) args[2]);
+            ScoreNormalizer normalizer = args[2] == null ? DEFAULT_NORMALIZER : (ScoreNormalizer) args[2];
             return new LinearRetrieverComponent(base, weight, normalizer);
         }
     );
@@ -51,7 +53,19 @@ public class LinearRetrieverComponent implements ToXContentObject {
             return retrieverBuilder;
         }, RETRIEVER_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), WEIGHT_FIELD);
-        PARSER.declareString(optionalConstructorArg(), NORMALIZER_FIELD);
+
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                final String normalizer = p.text();
+                return ScoreNormalizer.valueOf(normalizer);
+            } else if (p.currentToken() == XContentParser.Token.START_OBJECT) {
+                p.nextToken();
+                ScoreNormalizer normalizer = p.namedObject(ScoreNormalizer.class, p.currentName(), c);
+                p.nextToken();
+                return normalizer;
+            }
+            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+        }, NORMALIZER_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
     }
 
     RetrieverBuilder retriever;
@@ -74,48 +88,7 @@ public class LinearRetrieverComponent implements ToXContentObject {
         return PARSER.apply(parser, context);
     }
 
-    public enum ScoreNormalizer {
-        IDENTITY {
-            @Override
-            public ScoreDoc[] normalizeScores(ScoreDoc[] docs) {
-                // no-op
-                return docs;
-            }
-        },
-        MINMAX {
-            @Override
-            public ScoreDoc[] normalizeScores(ScoreDoc[] docs) {
-                // create a new array to avoid changing ScoreDocs in place
-                ScoreDoc[] scoreDocs = new ScoreDoc[docs.length];
-                // to avoid 0 scores
-                float epsilon = Float.MIN_NORMAL;
-                float min = Float.MAX_VALUE;
-                float max = Float.MIN_VALUE;
-                for (ScoreDoc rd : docs) {
-                    if (rd.score > max) {
-                        max = rd.score;
-                    }
-                    if (rd.score < min) {
-                        min = rd.score;
-                    }
-                }
-                for (int i = 0; i < docs.length; i++) {
-                    float score = epsilon + ((docs[i].score - min) / (max - min));
-                    scoreDocs[i] = new ScoreDoc(docs[i].doc, score, docs[i].shardIndex);
-                }
-                return scoreDocs;
-            }
-        };
-
-        public abstract ScoreDoc[] normalizeScores(ScoreDoc[] docs);
-
-        public static ScoreNormalizer fromString(final String normalizerName) {
-            for (ScoreNormalizer normalizer : values()) {
-                if (normalizer.name().equalsIgnoreCase(normalizerName)) {
-                    return normalizer;
-                }
-            }
-            throw new IllegalArgumentException("Unknown [" + normalizerName + "] ScoreNormalizer provided.");
-        }
+    private void setNormalizerField(ScoreNormalizer normalizer) {
+        this.normalizer = normalizer;
     }
 }

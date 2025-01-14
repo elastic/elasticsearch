@@ -11,6 +11,8 @@ package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.normalizer.MinMaxScoreNormalizer;
+import org.elasticsearch.search.normalizer.ScoreNormalizer;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -43,13 +45,13 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
         int num = randomIntBetween(1, 3);
         List<CompoundRetrieverBuilder.RetrieverSource> innerRetrievers = new ArrayList<>();
         float[] weights = new float[num];
-        LinearRetrieverComponent.ScoreNormalizer[] normalizers = new LinearRetrieverComponent.ScoreNormalizer[num];
+        ScoreNormalizer[] normalizers = new ScoreNormalizer[num];
         for (int i = 0; i < num; i++) {
             innerRetrievers.add(
                 new CompoundRetrieverBuilder.RetrieverSource(TestRetrieverBuilder.createRandomTestRetrieverBuilder(), null)
             );
             weights[i] = randomFloat();
-            normalizers[i] = randomFrom(LinearRetrieverComponent.ScoreNormalizer.values());
+            normalizers[i] = randomScoreNormalizer();
         }
         return new LinearRetrieverBuilder(innerRetrievers, rankWindowSize, weights, normalizers);
     }
@@ -79,5 +81,9 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
             )
         );
         return new NamedXContentRegistry(entries);
+    }
+
+    private static ScoreNormalizer randomScoreNormalizer() {
+        return new MinMaxScoreNormalizer(1f, 10f);
     }
 }

@@ -55,6 +55,7 @@ module org.elasticsearch.server {
     requires org.apache.lucene.queryparser;
     requires org.apache.lucene.sandbox;
     requires org.apache.lucene.suggest;
+    requires java.desktop;
 
     exports org.elasticsearch;
     exports org.elasticsearch.action;
@@ -355,6 +356,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.fetch.subphase.highlight;
     exports org.elasticsearch.search.internal;
     exports org.elasticsearch.search.lookup;
+    exports org.elasticsearch.search.normalizer;
     exports org.elasticsearch.search.profile;
     exports org.elasticsearch.search.profile.aggregation;
     exports org.elasticsearch.search.profile.dfs;

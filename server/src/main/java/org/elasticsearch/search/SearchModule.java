@@ -87,6 +87,7 @@ import org.elasticsearch.plugins.SearchPlugin.QueryVectorBuilderSpec;
 import org.elasticsearch.plugins.SearchPlugin.RescorerSpec;
 import org.elasticsearch.plugins.SearchPlugin.RetrieverSpec;
 import org.elasticsearch.plugins.SearchPlugin.ScoreFunctionSpec;
+import org.elasticsearch.plugins.SearchPlugin.ScoreNormalizerSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
 import org.elasticsearch.plugins.SearchPlugin.SignificanceHeuristicSpec;
 import org.elasticsearch.plugins.SearchPlugin.SuggesterSpec;
@@ -224,6 +225,9 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.normalizer.IdentityScoreNormalizer;
+import org.elasticsearch.search.normalizer.MinMaxScoreNormalizer;
+import org.elasticsearch.search.normalizer.ScoreNormalizer;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
@@ -351,6 +355,7 @@ public class SearchModule {
         highlighters = setupHighlighters(settings, plugins);
         registerScoreFunctions(plugins);
         registerRetrieverParsers(plugins);
+        registerScoreNormalizerParsers(plugins);
         registerQueryParsers(plugins);
         registerRescorers(plugins);
         registerRankers();
@@ -1089,6 +1094,11 @@ public class SearchModule {
         registerFromPlugin(plugins, SearchPlugin::getRetrievers, this::registerRetriever);
     }
 
+    private void registerScoreNormalizerParsers(List<SearchPlugin> plugins) {
+        registerScoreNormalizer(new ScoreNormalizerSpec<>(MinMaxScoreNormalizer.NAME, MinMaxScoreNormalizer::fromXContent));
+        registerScoreNormalizer(new ScoreNormalizerSpec<>(IdentityScoreNormalizer.NAME, IdentityScoreNormalizer::fromXContent));
+    }
+
     private void registerQueryParsers(List<SearchPlugin> plugins) {
         registerQuery(new QuerySpec<>(MatchQueryBuilder.NAME, MatchQueryBuilder::new, MatchQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(MatchPhraseQueryBuilder.NAME, MatchPhraseQueryBuilder::new, MatchPhraseQueryBuilder::fromXContent));
@@ -1260,6 +1270,17 @@ public class SearchModule {
                 RetrieverBuilder.class,
                 spec.getName(),
                 (p, c) -> spec.getParser().fromXContent(p, (RetrieverParserContext) c),
+                spec.getName().getForRestApiVersion()
+            )
+        );
+    }
+
+    private void registerScoreNormalizer(ScoreNormalizerSpec<?> spec) {
+        namedXContents.add(
+            new NamedXContentRegistry.Entry(
+                ScoreNormalizer.class,
+                spec.getName(),
+                (p, c) -> spec.getParser().fromXContent(p),
                 spec.getName().getForRestApiVersion()
             )
         );

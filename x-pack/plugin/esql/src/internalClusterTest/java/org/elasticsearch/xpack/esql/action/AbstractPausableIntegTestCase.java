@@ -22,6 +22,8 @@ import java.util.Collection;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.esql.action.AbstractPauseFieldPlugin.PAUSE_FIELD_LANG;
+
 /** A pausable testcase. Subclasses extend this testcase to simulate slow running queries.
  *
  * Uses the evaluation of a runtime field in the mappings "pause_me" of type long, along
@@ -64,7 +66,7 @@ public abstract class AbstractPausableIntegTestCase extends AbstractEsqlIntegTes
             mapping.startObject("pause_me");
             {
                 mapping.field("type", "long");
-                mapping.startObject("script").field("source", "").field("lang", "pause").endObject();
+                mapping.startObject("script").field("source", "").field("lang", PAUSE_FIELD_LANG).endObject();
             }
             mapping.endObject();
         }

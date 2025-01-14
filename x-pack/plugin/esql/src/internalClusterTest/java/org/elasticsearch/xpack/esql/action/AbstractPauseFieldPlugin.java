@@ -28,6 +28,8 @@ import static org.junit.Assert.assertTrue;
  */
 public abstract class AbstractPauseFieldPlugin extends Plugin implements ScriptPlugin {
 
+    public static final String PAUSE_FIELD_LANG = "pause";
+
     // Called when the engine enters the execute() method.
     protected void onStartExecute() {}
 
@@ -39,7 +41,7 @@ public abstract class AbstractPauseFieldPlugin extends Plugin implements ScriptP
         return new ScriptEngine() {
             @Override
             public String getType() {
-                return "pause";
+                return PAUSE_FIELD_LANG;
             }
 
             @Override

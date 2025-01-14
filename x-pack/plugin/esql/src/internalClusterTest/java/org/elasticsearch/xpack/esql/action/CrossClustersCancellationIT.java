@@ -21,6 +21,7 @@ import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -32,6 +33,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -94,7 +96,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
             mapping.startObject("const");
             {
                 mapping.field("type", "long");
-                mapping.startObject("script").field("source", "").field("lang", "pause").endObject();
+                mapping.startObject("script").field("source", "").field("lang", AbstractPauseFieldPlugin.PAUSE_FIELD_LANG).endObject();
             }
             mapping.endObject();
         }
@@ -250,7 +252,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
         request.includeCCSMetadata(true);
         PlainActionFuture<EsqlQueryResponse> requestFuture = new PlainActionFuture<>();
         client().execute(EsqlQueryAction.INSTANCE, request, requestFuture);
-        assertTrue(PauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
+        assertTrue(SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
         List<TaskInfo> rootTasks = new ArrayList<>();
         assertBusy(() -> {
             List<TaskInfo> tasks = client(REMOTE_CLUSTER).admin()
@@ -278,7 +280,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
                 }
             });
         } finally {
-            PauseFieldPlugin.allowEmitting.countDown();
+            SimplePauseFieldPlugin.allowEmitting.countDown();
         }
         var resp = requestFuture.actionGet();
         EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
@@ -305,8 +307,8 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
             """);
         request.pragmas(randomPragmas());
         var requestFuture = client().execute(EsqlQueryAction.INSTANCE, request);
-        assertTrue(PauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
-        PauseFieldPlugin.allowEmitting.countDown();
+        assertTrue(SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
+        SimplePauseFieldPlugin.allowEmitting.countDown();
         cluster(REMOTE_CLUSTER).close();
         try (var resp = requestFuture.actionGet()) {
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();

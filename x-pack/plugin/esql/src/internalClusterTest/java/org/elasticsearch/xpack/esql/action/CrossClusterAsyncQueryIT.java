@@ -412,7 +412,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             mapping.startObject("const");
             {
                 mapping.field("type", "long");
-                mapping.startObject("script").field("source", "").field("lang", "pause").endObject();
+                mapping.startObject("script").field("source", "").field("lang", AbstractPauseFieldPlugin.PAUSE_FIELD_LANG).endObject();
             }
             mapping.endObject();
         }

@@ -27,6 +27,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
+import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -83,7 +84,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
         plugins.add(EsqlPluginWithEnterpriseOrTrialLicense.class);
         plugins.add(InternalExchangePlugin.class);
-        plugins.add(EsqlNodeFailureIT.FailingFieldPlugin.class);
+        plugins.add(FailingFieldPlugin.class);
         return plugins;
     }
 
@@ -1489,7 +1490,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             mapping.startObject("fail_me");
             {
                 mapping.field("type", "long");
-                mapping.startObject("script").field("source", "").field("lang", "fail").endObject();
+                mapping.startObject("script").field("source", "").field("lang", FailingFieldPlugin.FAILING_FIELD_LANG).endObject();
             }
             mapping.endObject();
         }

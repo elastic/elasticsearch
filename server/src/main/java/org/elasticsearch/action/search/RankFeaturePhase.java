@@ -37,7 +37,7 @@ import java.util.List;
  */
 public class RankFeaturePhase extends SearchPhase {
 
-    static final String NAME = "rank_feature";
+    static final String NAME = "rank-feature";
 
     private static final Logger logger = LogManager.getLogger(RankFeaturePhase.class);
     private final AbstractSearchAsyncAction<?> context;

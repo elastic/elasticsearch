@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -58,6 +59,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_INDEX_VERSION;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.READ_ONLY_ALLOW_DELETE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.State.CLOSE;
 import static org.elasticsearch.core.Strings.format;
 
@@ -447,12 +449,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                                     logAndThrowExceptionForFailures(bulkByScrollResponse)
                                 );
                             } else {
-                                // Successful completion of reindexing - remove read only and delete old index
-                                setWriteBlock(
-                                    oldIndex,
-                                    false,
-                                    delegate2.delegateFailureAndWrap(setAliasAndRemoveOldIndex(migrationInfo, bulkByScrollResponse))
-                                );
+                                // Successful completion of reindexing. Now we need to set the alias and remove the old index.
+                                delegate2.delegateFailureAndWrap(setAliasAndRemoveOldIndex(migrationInfo, bulkByScrollResponse));
                             }
                         }, e -> {
                             logger.error(
@@ -540,22 +538,42 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
     }
 
     /**
-     * Makes the index readonly if it's not set as a readonly yet
+     * Sets the write block on the index to the given value.
      */
     private void setWriteBlock(Index index, boolean readOnlyValue, ActionListener<AcknowledgedResponse> listener) {
-        final Settings readOnlySettings = Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), readOnlyValue).build();
-
-        metadataUpdateSettingsService.updateSettings(
-            new UpdateSettingsClusterStateUpdateRequest(
-                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
-                TimeValue.ZERO,
-                readOnlySettings,
-                UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
-                UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
-                index
-            ),
-            listener
-        );
+        if (readOnlyValue) {
+            // Setting the Block with an AddIndexBlockRequest ensures all shards have accounted for the block and all
+            // in-flight writes are completed before returning.
+            baseClient.admin()
+                .indices()
+                .addBlock(
+                    new AddIndexBlockRequest(READ_ONLY_ALLOW_DELETE, index.getName()).masterNodeTimeout(
+                        MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT
+                    ),
+                    listener.delegateFailureAndWrap((l, response) -> {
+                        if (response.isAcknowledged() == false) {
+                            throw new ElasticsearchException("Failed to acknowledge read-only block index request");
+                        }
+                        l.onResponse(response);
+                    })
+                );
+        } else {
+            // The only way to remove a Block is via a settings update.
+            final Settings readOnlySettings = Settings.builder()
+                .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false)
+                .build();
+            metadataUpdateSettingsService.updateSettings(
+                new UpdateSettingsClusterStateUpdateRequest(
+                    MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                    TimeValue.ZERO,
+                    readOnlySettings,
+                    UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                    UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
+                    index
+                ),
+                listener
+            );
+        }
     }
 
     private void reindex(SystemIndexMigrationInfo migrationInfo, ActionListener<BulkByScrollResponse> listener) {

@@ -1,0 +1,24 @@
+From 3fbde5576d336542c5d850f403d2804e0cab76eb Mon Sep 17 00:00:00 2001
+From: Dmitriy Burlutskiy <vidokX@gmail.com>
+Date: Fri, 10 Jan 2025 11:58:20 +0100
+Subject: [PATCH 2/3] Update docs/changelog/119679.yaml
+
+---
+ docs/changelog/119679.yaml | 5 +++++
+ 1 file changed, 5 insertions(+)
+ create mode 100644 docs/changelog/119679.yaml
+
+diff --git a/docs/changelog/119679.yaml b/docs/changelog/119679.yaml
+new file mode 100644
+index 00000000000..f29b79c2b2e
+--- /dev/null
++++ b/docs/changelog/119679.yaml
+@@ -0,0 +1,5 @@
++pr: 119679
++summary: Support mTLS in Elastic Inference Service plugin
++area: Machine Learning
++type: feature
++issues: []
+-- 
+2.45.1
+

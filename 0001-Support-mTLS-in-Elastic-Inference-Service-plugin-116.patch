@@ -1,0 +1,878 @@
+From 165d8d7cdf44c42435ab36f177c56a0a0540107d Mon Sep 17 00:00:00 2001
+From: Dmitriy Burlutskiy <dmitrii.burlutckii@elastic.co>
+Date: Thu, 12 Dec 2024 15:57:24 +0100
+Subject: [PATCH 1/3] Support mTLS in Elastic Inference Service plugin
+ (#116423)
+
+* Introduce new SSL settings under `xpack.inference.elastic.http.ssl`.
+
+* Support mTLS connection between Elasticsearch and Elastic Inference Service.
+---
+ docs/changelog/116423.yaml                    |   5 +
+ .../xpack/core/ssl/SSLService.java            |   2 +
+ .../core/LocalStateCompositeXPackPlugin.java  |   2 +-
+ .../xpack/core/ssl/SSLServiceTests.java       |   3 +-
+ .../ShardBulkInferenceActionFilterIT.java     |   4 +-
+ .../integration/ModelRegistryIT.java          |   5 +-
+ .../inference/src/main/java/module-info.java  |   1 +
+ .../xpack/inference/InferencePlugin.java      | 101 +++++++++++++-----
+ .../external/http/HttpClientManager.java      |  44 ++++++++
+ .../TextSimilarityRankRetrieverBuilder.java   |  11 +-
+ .../ElasticInferenceServiceSettings.java      |  24 ++++-
+ .../SemanticTextClusterMetadataTests.java     |   4 +-
+ .../xpack/inference/InferencePluginTests.java |  65 +++++++++++
+ .../inference/LocalStateInferencePlugin.java  |  71 ++++++++++++
+ .../elasticsearch/xpack/inference/Utils.java  |  15 ---
+ ...emanticTextNonDynamicFieldMapperTests.java |   4 +-
+ .../TextSimilarityRankMultiNodeTests.java     |   5 +-
+ ...SimilarityRankRetrieverTelemetryTests.java |   5 +-
+ .../TextSimilarityRankTests.java              |   5 +-
+ .../xpack/ml/LocalStateMachineLearning.java   |   7 ++
+ .../xpack/ml/support/BaseMlIntegTestCase.java |   4 +-
+ .../security/CrossClusterShardTests.java      |   2 -
+ 22 files changed, 314 insertions(+), 75 deletions(-)
+ create mode 100644 docs/changelog/116423.yaml
+ create mode 100644 x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/InferencePluginTests.java
+ create mode 100644 x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/LocalStateInferencePlugin.java
+
+diff --git a/docs/changelog/116423.yaml b/docs/changelog/116423.yaml
+new file mode 100644
+index 00000000000..d6d10eab410
+--- /dev/null
++++ b/docs/changelog/116423.yaml
+@@ -0,0 +1,5 @@
++pr: 116423
++summary: Support mTLS for the Elastic Inference Service integration inside the inference API
++area: Machine Learning
++type: feature
++issues: []
+diff --git a/x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/ssl/SSLService.java b/x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/ssl/SSLService.java
+index 9704335776f..d0d5e463f96 100644
+--- a/x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/ssl/SSLService.java
++++ b/x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/ssl/SSLService.java
+@@ -596,6 +596,8 @@ public class SSLService {
+         sslSettingsMap.put(WatcherField.EMAIL_NOTIFICATION_SSL_PREFIX, settings.getByPrefix(WatcherField.EMAIL_NOTIFICATION_SSL_PREFIX));
+         sslSettingsMap.put(XPackSettings.TRANSPORT_SSL_PREFIX, settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX));
+         sslSettingsMap.putAll(getTransportProfileSSLSettings(settings));
++        // Mount Elastic Inference Service (part of the Inference plugin) configuration
++        sslSettingsMap.put("xpack.inference.elastic.http.ssl", settings.getByPrefix("xpack.inference.elastic.http.ssl."));
+         // Only build remote cluster server SSL if the port is enabled
+         if (REMOTE_CLUSTER_SERVER_ENABLED.get(settings)) {
+             sslSettingsMap.put(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX, getRemoteClusterServerSslSettings(settings));
+diff --git a/x-pack/plugin/core/src/test/java/org/elasticsearch/xpack/core/LocalStateCompositeXPackPlugin.java b/x-pack/plugin/core/src/test/java/org/elasticsearch/xpack/core/LocalStateCompositeXPackPlugin.java
+index 1f2c89c473a..d50f7bb27a5 100644
+--- a/x-pack/plugin/core/src/test/java/org/elasticsearch/xpack/core/LocalStateCompositeXPackPlugin.java
++++ b/x-pack/plugin/core/src/test/java/org/elasticsearch/xpack/core/LocalStateCompositeXPackPlugin.java
+@@ -623,7 +623,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
+     }
+ 
+     @SuppressWarnings("unchecked")
+-    private <T> List<T> filterPlugins(Class<T> type) {
++    protected <T> List<T> filterPlugins(Class<T> type) {
+         return plugins.stream().filter(x -> type.isAssignableFrom(x.getClass())).map(p -> ((T) p)).collect(Collectors.toList());
+     }
+ 
+diff --git a/x-pack/plugin/core/src/test/java/org/elasticsearch/xpack/core/ssl/SSLServiceTests.java b/x-pack/plugin/core/src/test/java/org/elasticsearch/xpack/core/ssl/SSLServiceTests.java
+index 9663e41a647..bfac286bc3c 100644
+--- a/x-pack/plugin/core/src/test/java/org/elasticsearch/xpack/core/ssl/SSLServiceTests.java
++++ b/x-pack/plugin/core/src/test/java/org/elasticsearch/xpack/core/ssl/SSLServiceTests.java
+@@ -614,7 +614,8 @@ public class SSLServiceTests extends ESTestCase {
+             "xpack.security.authc.realms.ldap.realm1.ssl",
+             "xpack.security.authc.realms.saml.realm2.ssl",
+             "xpack.monitoring.exporters.mon1.ssl",
+-            "xpack.monitoring.exporters.mon2.ssl" };
++            "xpack.monitoring.exporters.mon2.ssl",
++            "xpack.inference.elastic.http.ssl" };
+ 
+         assumeTrue("Not enough cipher suites are available to support this test", getCipherSuites.length >= contextNames.length);
+ 
+diff --git a/x-pack/plugin/inference/src/internalClusterTest/java/org/elasticsearch/xpack/inference/action/filter/ShardBulkInferenceActionFilterIT.java b/x-pack/plugin/inference/src/internalClusterTest/java/org/elasticsearch/xpack/inference/action/filter/ShardBulkInferenceActionFilterIT.java
+index 3f7a51cc4e9..9da6b525554 100644
+--- a/x-pack/plugin/inference/src/internalClusterTest/java/org/elasticsearch/xpack/inference/action/filter/ShardBulkInferenceActionFilterIT.java
++++ b/x-pack/plugin/inference/src/internalClusterTest/java/org/elasticsearch/xpack/inference/action/filter/ShardBulkInferenceActionFilterIT.java
+@@ -27,7 +27,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
+ import org.elasticsearch.plugins.Plugin;
+ import org.elasticsearch.search.builder.SearchSourceBuilder;
+ import org.elasticsearch.test.ESIntegTestCase;
+-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
++import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+ import org.elasticsearch.xpack.inference.Utils;
+ import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
+ import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
+@@ -74,7 +74,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
+ 
+     @Override
+     protected Collection<Class<? extends Plugin>> nodePlugins() {
+-        return Arrays.asList(Utils.TestInferencePlugin.class, LocalStateCompositeXPackPlugin.class);
++        return Arrays.asList(LocalStateInferencePlugin.class);
+     }
+ 
+     @Override
+diff --git a/x-pack/plugin/inference/src/internalClusterTest/java/org/elasticsearch/xpack/inference/integration/ModelRegistryIT.java b/x-pack/plugin/inference/src/internalClusterTest/java/org/elasticsearch/xpack/inference/integration/ModelRegistryIT.java
+index 24585318b15..d5c156d1d4f 100644
+--- a/x-pack/plugin/inference/src/internalClusterTest/java/org/elasticsearch/xpack/inference/integration/ModelRegistryIT.java
++++ b/x-pack/plugin/inference/src/internalClusterTest/java/org/elasticsearch/xpack/inference/integration/ModelRegistryIT.java
+@@ -31,8 +31,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
+ import org.elasticsearch.threadpool.ThreadPool;
+ import org.elasticsearch.xcontent.ToXContentObject;
+ import org.elasticsearch.xcontent.XContentBuilder;
+-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+-import org.elasticsearch.xpack.inference.InferencePlugin;
++import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+ import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
+ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+ import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
+@@ -77,7 +76,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
+ 
+     @Override
+     protected Collection<Class<? extends Plugin>> getPlugins() {
+-        return pluginList(ReindexPlugin.class, InferencePlugin.class, LocalStateCompositeXPackPlugin.class);
++        return pluginList(ReindexPlugin.class, LocalStateInferencePlugin.class);
+     }
+ 
+     public void testStoreModel() throws Exception {
+diff --git a/x-pack/plugin/inference/src/main/java/module-info.java b/x-pack/plugin/inference/src/main/java/module-info.java
+index 53974657e4e..1c2240e8c52 100644
+--- a/x-pack/plugin/inference/src/main/java/module-info.java
++++ b/x-pack/plugin/inference/src/main/java/module-info.java
+@@ -34,6 +34,7 @@ module org.elasticsearch.inference {
+     requires software.amazon.awssdk.retries.api;
+     requires org.reactivestreams;
+     requires org.elasticsearch.logging;
++    requires org.elasticsearch.sslconfig;
+ 
+     exports org.elasticsearch.xpack.inference.action;
+     exports org.elasticsearch.xpack.inference.registry;
+diff --git a/x-pack/plugin/inference/src/main/java/org/elasticsearch/xpack/inference/InferencePlugin.java b/x-pack/plugin/inference/src/main/java/org/elasticsearch/xpack/inference/InferencePlugin.java
+index d303ead4d91..a90a3480ea1 100644
+--- a/x-pack/plugin/inference/src/main/java/org/elasticsearch/xpack/inference/InferencePlugin.java
++++ b/x-pack/plugin/inference/src/main/java/org/elasticsearch/xpack/inference/InferencePlugin.java
+@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
+ import org.elasticsearch.indices.SystemIndexDescriptor;
+ import org.elasticsearch.inference.InferenceServiceExtension;
+ import org.elasticsearch.inference.InferenceServiceRegistry;
++import org.elasticsearch.license.XPackLicenseState;
+ import org.elasticsearch.license.License;
+ import org.elasticsearch.license.LicensedFeature;
+ import org.elasticsearch.node.PluginComponentBinding;
+@@ -49,6 +50,7 @@ import org.elasticsearch.threadpool.ScalingExecutorBuilder;
+ import org.elasticsearch.threadpool.ThreadPool;
+ import org.elasticsearch.xcontent.ParseField;
+ import org.elasticsearch.xpack.core.ClientHelper;
++import org.elasticsearch.xpack.core.XPackPlugin;
+ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+ import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
+ import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
+@@ -58,6 +60,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+ import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
+ import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
+ import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
++import org.elasticsearch.xpack.core.ssl.SSLService;
+ import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
+ import org.elasticsearch.xpack.inference.action.TransportGetInferenceDiagnosticsAction;
+ import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
+@@ -126,7 +129,6 @@ import java.util.List;
+ import java.util.Map;
+ import java.util.function.Predicate;
+ import java.util.function.Supplier;
+-import java.util.stream.Collectors;
+ import java.util.stream.Stream;
+ 
+ import static java.util.Collections.singletonList;
+@@ -166,6 +168,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
+     private final Settings settings;
+     private final SetOnce<HttpRequestSender.Factory> httpFactory = new SetOnce<>();
+     private final SetOnce<AmazonBedrockRequestSender.Factory> amazonBedrockFactory = new SetOnce<>();
++    private final SetOnce<HttpRequestSender.Factory> elasicInferenceServiceFactory = new SetOnce<>();
+     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
+     // This is mainly so that the rest handlers can access the ThreadPool in a way that avoids potential null pointers from it
+     // not being initialized yet
+@@ -252,31 +255,31 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
+         var inferenceServices = new ArrayList<>(inferenceServiceExtensions);
+         inferenceServices.add(this::getInferenceServiceFactories);
+ 
+-        // Set elasticInferenceUrl based on feature flags to support transitioning to the new Elastic Inference Service URL without exposing
+-        // internal names like "eis" or "gateway".
+-        ElasticInferenceServiceSettings inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
+-
+-        String elasticInferenceUrl = null;
++        if (isElasticInferenceServiceEnabled()) {
++            // Create a separate instance of HTTPClientManager with its own SSL configuration (`xpack.inference.elastic.http.ssl.*`).
++            var elasticInferenceServiceHttpClientManager = HttpClientManager.create(
++                settings,
++                services.threadPool(),
++                services.clusterService(),
++                throttlerManager,
++                getSslService()
++            );
+ 
+-        if (ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
+-            elasticInferenceUrl = inferenceServiceSettings.getElasticInferenceServiceUrl();
+-        } else if (DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
+-            log.warn(
+-                "Deprecated flag {} detected for enabling {}. Please use {}.",
+-                ELASTIC_INFERENCE_SERVICE_IDENTIFIER,
+-                DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG,
+-                ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG
++            var elasticInferenceServiceRequestSenderFactory = new HttpRequestSender.Factory(
++                serviceComponents.get(),
++                elasticInferenceServiceHttpClientManager,
++                services.clusterService()
+             );
+-            elasticInferenceUrl = inferenceServiceSettings.getEisGatewayUrl();
+-        }
++            elasicInferenceServiceFactory.set(elasticInferenceServiceRequestSenderFactory);
+ 
+-        if (elasticInferenceUrl != null) {
++            ElasticInferenceServiceSettings inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
++            String elasticInferenceUrl = this.getElasticInferenceServiceUrl(inferenceServiceSettings);
+             elasticInferenceServiceComponents.set(new ElasticInferenceServiceComponents(elasticInferenceUrl));
+ 
+             inferenceServices.add(
+                 () -> List.of(
+                     context -> new ElasticInferenceService(
+-                        httpFactory.get(),
++                        elasicInferenceServiceFactory.get(),
+                         serviceComponents.get(),
+                         elasticInferenceServiceComponents.get()
+                     )
+@@ -400,16 +403,21 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
+ 
+     @Override
+     public List<Setting<?>> getSettings() {
+-        return Stream.of(
+-            HttpSettings.getSettingsDefinitions(),
+-            HttpClientManager.getSettingsDefinitions(),
+-            ThrottlerManager.getSettingsDefinitions(),
+-            RetrySettings.getSettingsDefinitions(),
+-            ElasticInferenceServiceSettings.getSettingsDefinitions(),
+-            Truncator.getSettingsDefinitions(),
+-            RequestExecutorServiceSettings.getSettingsDefinitions(),
+-            List.of(SKIP_VALIDATE_AND_START)
+-        ).flatMap(Collection::stream).collect(Collectors.toList());
++        ArrayList<Setting<?>> settings = new ArrayList<>();
++        settings.addAll(HttpSettings.getSettingsDefinitions());
++        settings.addAll(HttpClientManager.getSettingsDefinitions());
++        settings.addAll(ThrottlerManager.getSettingsDefinitions());
++        settings.addAll(RetrySettings.getSettingsDefinitions());
++        settings.addAll(Truncator.getSettingsDefinitions());
++        settings.addAll(RequestExecutorServiceSettings.getSettingsDefinitions());
++        settings.add(SKIP_VALIDATE_AND_START);
++
++        // Register Elastic Inference Service settings definitions if the corresponding feature flag is enabled.
++        if (isElasticInferenceServiceEnabled()) {
++            settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
++        }
++
++        return settings;
+     }
+ 
+     @Override
+@@ -466,7 +474,10 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
+     @Override
+     public List<RetrieverSpec<?>> getRetrievers() {
+         return List.of(
+-            new RetrieverSpec<>(new ParseField(TextSimilarityRankBuilder.NAME), TextSimilarityRankRetrieverBuilder::fromXContent),
++            new RetrieverSpec<>(
++                new ParseField(TextSimilarityRankBuilder.NAME),
++                (parser, context) -> TextSimilarityRankRetrieverBuilder.fromXContent(parser, context, getLicenseState())
++            ),
+             new RetrieverSpec<>(new ParseField(RandomRankBuilder.NAME), RandomRankRetrieverBuilder::fromXContent)
+         );
+     }
+@@ -475,4 +486,36 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
+     public Map<String, Highlighter> getHighlighters() {
+         return Map.of(SemanticTextHighlighter.NAME, new SemanticTextHighlighter());
+     }
++
++    // Get Elastic Inference service URL based on feature flags to support transitioning
++    // to the new Elastic Inference Service URL.
++    private String getElasticInferenceServiceUrl(ElasticInferenceServiceSettings settings) {
++        String elasticInferenceUrl = null;
++
++        if (ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
++            elasticInferenceUrl = settings.getElasticInferenceServiceUrl();
++        } else if (DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
++            log.warn(
++                "Deprecated flag {} detected for enabling {}. Please use {}.",
++                ELASTIC_INFERENCE_SERVICE_IDENTIFIER,
++                DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG,
++                ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG
++            );
++            elasticInferenceUrl = settings.getEisGatewayUrl();
++        }
++
++        return elasticInferenceUrl;
++    }
++
++    protected Boolean isElasticInferenceServiceEnabled() {
++        return (ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled() || DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled());
++    }
++
++    protected SSLService getSslService() {
++        return XPackPlugin.getSharedSslService();
++    }
++
++    protected XPackLicenseState getLicenseState() {
++        return XPackPlugin.getSharedLicenseState();
++    }
+ }
+diff --git a/x-pack/plugin/inference/src/main/java/org/elasticsearch/xpack/inference/external/http/HttpClientManager.java b/x-pack/plugin/inference/src/main/java/org/elasticsearch/xpack/inference/external/http/HttpClientManager.java
+index e5d76b9bb55..6d09c9e67b3 100644
+--- a/x-pack/plugin/inference/src/main/java/org/elasticsearch/xpack/inference/external/http/HttpClientManager.java
++++ b/x-pack/plugin/inference/src/main/java/org/elasticsearch/xpack/inference/external/http/HttpClientManager.java
+@@ -7,9 +7,14 @@
+ 
+ package org.elasticsearch.xpack.inference.external.http;
+ 
++import org.apache.http.config.Registry;
++import org.apache.http.config.RegistryBuilder;
+ import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
+ import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
+ import org.apache.http.impl.nio.reactor.IOReactorConfig;
++import org.apache.http.nio.conn.NoopIOSessionStrategy;
++import org.apache.http.nio.conn.SchemeIOSessionStrategy;
++import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+ import org.apache.http.nio.reactor.ConnectingIOReactor;
+ import org.apache.http.nio.reactor.IOReactorException;
+ import org.apache.http.pool.PoolStats;
+@@ -21,6 +26,7 @@ import org.elasticsearch.common.settings.Setting;
+ import org.elasticsearch.common.settings.Settings;
+ import org.elasticsearch.core.TimeValue;
+ import org.elasticsearch.threadpool.ThreadPool;
++import org.elasticsearch.xpack.core.ssl.SSLService;
+ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+ 
+ import java.io.Closeable;
+@@ -28,11 +34,13 @@ import java.io.IOException;
+ import java.util.List;
+ 
+ import static org.elasticsearch.core.Strings.format;
++import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX;
+ 
+ public class HttpClientManager implements Closeable {
+     private static final Logger logger = LogManager.getLogger(HttpClientManager.class);
+     /**
+      * The maximum number of total connections the connection pool can lease to all routes.
++     * The configuration applies to each instance of HTTPClientManager (max_total_connections=10 and instances=5 leads to 50 connections).
+      * From googling around the connection pools maxTotal value should be close to the number of available threads.
+      *
+      * https://stackoverflow.com/questions/30989637/how-to-decide-optimal-settings-for-setmaxtotal-and-setdefaultmaxperroute
+@@ -47,6 +55,7 @@ public class HttpClientManager implements Closeable {
+ 
+     /**
+      * The max number of connections a single route can lease.
++     * This configuration applies to each instance of HttpClientManager.
+      */
+     public static final Setting<Integer> MAX_ROUTE_CONNECTIONS = Setting.intSetting(
+         "xpack.inference.http.max_route_connections",
+@@ -98,6 +107,22 @@ public class HttpClientManager implements Closeable {
+         return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager);
+     }
+ 
++    public static HttpClientManager create(
++        Settings settings,
++        ThreadPool threadPool,
++        ClusterService clusterService,
++        ThrottlerManager throttlerManager,
++        SSLService sslService
++    ) {
++        // Set the sslStrategy to ensure an encrypted connection, as Elastic Inference Service requires it.
++        SSLIOSessionStrategy sslioSessionStrategy = sslService.sslIOSessionStrategy(
++            sslService.getSSLConfiguration(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX)
++        );
++
++        PoolingNHttpClientConnectionManager connectionManager = createConnectionManager(sslioSessionStrategy);
++        return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager);
++    }
++
+     // Default for testing
+     HttpClientManager(
+         Settings settings,
+@@ -121,6 +146,25 @@ public class HttpClientManager implements Closeable {
+         this.addSettingsUpdateConsumers(clusterService);
+     }
+ 
++    private static PoolingNHttpClientConnectionManager createConnectionManager(SSLIOSessionStrategy sslStrategy) {
++        ConnectingIOReactor ioReactor;
++        try {
++            var configBuilder = IOReactorConfig.custom().setSoKeepAlive(true);
++            ioReactor = new DefaultConnectingIOReactor(configBuilder.build());
++        } catch (IOReactorException e) {
++            var message = "Failed to initialize HTTP client manager with SSL.";
++            logger.error(message, e);
++            throw new ElasticsearchException(message, e);
++        }
++
++        Registry<SchemeIOSessionStrategy> registry = RegistryBuilder.<SchemeIOSessionStrategy>create()
++            .register("http", NoopIOSessionStrategy.INSTANCE)
++            .register("https", sslStrategy)
++            .build();
++
++        return new PoolingNHttpClientConnectionManager(ioReactor, registry);
++    }
++
+     private static PoolingNHttpClientConnectionManager createConnectionManager() {
+         ConnectingIOReactor ioReactor;
+         try {
+diff --git a/x-pack/plugin/inference/src/main/java/org/elasticsearch/xpack/inference/rank/textsimilarity/TextSimilarityRankRetrieverBuilder.java b/x-pack/plugin/inference/src/main/java/org/elasticsearch/xpack/inference/rank/textsimilarity/TextSimilarityRankRetrieverBuilder.java
+index bd4c9c1a8be..8d6f45d4ea0 100644
+--- a/x-pack/plugin/inference/src/main/java/org/elasticsearch/xpack/inference/rank/textsimilarity/TextSimilarityRankRetrieverBuilder.java
++++ b/x-pack/plugin/inference/src/main/java/org/elasticsearch/xpack/inference/rank/textsimilarity/TextSimilarityRankRetrieverBuilder.java
+@@ -12,6 +12,7 @@ import org.elasticsearch.common.ParsingException;
+ import org.elasticsearch.features.NodeFeature;
+ import org.elasticsearch.index.query.QueryBuilder;
+ import org.elasticsearch.license.LicenseUtils;
++import org.elasticsearch.license.XPackLicenseState;
+ import org.elasticsearch.search.builder.SearchSourceBuilder;
+ import org.elasticsearch.search.rank.RankDoc;
+ import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
+@@ -21,7 +22,6 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
+ import org.elasticsearch.xcontent.ParseField;
+ import org.elasticsearch.xcontent.XContentBuilder;
+ import org.elasticsearch.xcontent.XContentParser;
+-import org.elasticsearch.xpack.core.XPackPlugin;
+ 
+ import java.io.IOException;
+ import java.util.List;
+@@ -78,8 +78,11 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
+         RetrieverBuilder.declareBaseParserFields(TextSimilarityRankBuilder.NAME, PARSER);
+     }
+ 
+-    public static TextSimilarityRankRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context)
+-        throws IOException {
++    public static TextSimilarityRankRetrieverBuilder fromXContent(
++        XContentParser parser,
++        RetrieverParserContext context,
++        XPackLicenseState licenceState
++    ) throws IOException {
+         if (context.clusterSupportsFeature(TEXT_SIMILARITY_RERANKER_RETRIEVER_SUPPORTED) == false) {
+             throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + TextSimilarityRankBuilder.NAME + "]");
+         }
+@@ -88,7 +91,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
+                 "[text_similarity_reranker] retriever composition feature is not supported by all nodes in the cluster"
+             );
+         }
+-        if (TextSimilarityRankBuilder.TEXT_SIMILARITY_RERANKER_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
++        if (TextSimilarityRankBuilder.TEXT_SIMILARITY_RERANKER_FEATURE.check(licenceState) == false) {
+             throw LicenseUtils.newComplianceException(TextSimilarityRankBuilder.NAME);
+         }
+         return PARSER.apply(parser, context);
+diff --git a/x-pack/plugin/inference/src/main/java/org/elasticsearch/xpack/inference/services/elastic/ElasticInferenceServiceSettings.java b/x-pack/plugin/inference/src/main/java/org/elasticsearch/xpack/inference/services/elastic/ElasticInferenceServiceSettings.java
+index 5146cec1552..0c1a032dc89 100644
+--- a/x-pack/plugin/inference/src/main/java/org/elasticsearch/xpack/inference/services/elastic/ElasticInferenceServiceSettings.java
++++ b/x-pack/plugin/inference/src/main/java/org/elasticsearch/xpack/inference/services/elastic/ElasticInferenceServiceSettings.java
+@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.inference.services.elastic;
+ 
+ import org.elasticsearch.common.settings.Setting;
+ import org.elasticsearch.common.settings.Settings;
++import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
+ 
++import java.util.ArrayList;
+ import java.util.List;
+ 
+ /**
+@@ -21,6 +23,8 @@ public class ElasticInferenceServiceSettings {
+     @Deprecated
+     static final Setting<String> EIS_GATEWAY_URL = Setting.simpleString("xpack.inference.eis.gateway.url", Setting.Property.NodeScope);
+ 
++    public static final String ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX = "xpack.inference.elastic.http.ssl.";
++
+     static final Setting<String> ELASTIC_INFERENCE_SERVICE_URL = Setting.simpleString(
+         "xpack.inference.elastic.url",
+         Setting.Property.NodeScope
+@@ -35,11 +39,27 @@ public class ElasticInferenceServiceSettings {
+     public ElasticInferenceServiceSettings(Settings settings) {
+         eisGatewayUrl = EIS_GATEWAY_URL.get(settings);
+         elasticInferenceServiceUrl = ELASTIC_INFERENCE_SERVICE_URL.get(settings);
+-
+     }
+ 
++    public static final SSLConfigurationSettings ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_SETTINGS = SSLConfigurationSettings.withPrefix(
++        ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX,
++        false
++    );
++
++    public static final Setting<Boolean> ELASTIC_INFERENCE_SERVICE_SSL_ENABLED = Setting.boolSetting(
++        ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX + "enabled",
++        true,
++        Setting.Property.NodeScope
++    );
++
+     public static List<Setting<?>> getSettingsDefinitions() {
+-        return List.of(EIS_GATEWAY_URL, ELASTIC_INFERENCE_SERVICE_URL);
++        ArrayList<Setting<?>> settings = new ArrayList<>();
++        settings.add(EIS_GATEWAY_URL);
++        settings.add(ELASTIC_INFERENCE_SERVICE_URL);
++        settings.add(ELASTIC_INFERENCE_SERVICE_SSL_ENABLED);
++        settings.addAll(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_SETTINGS.getEnabledSettings());
++
++        return settings;
+     }
+ 
+     @Deprecated
+diff --git a/x-pack/plugin/inference/src/test/java/org/elasticsearch/cluster/metadata/SemanticTextClusterMetadataTests.java b/x-pack/plugin/inference/src/test/java/org/elasticsearch/cluster/metadata/SemanticTextClusterMetadataTests.java
+index a595134ecd5..505a4417b8e 100644
+--- a/x-pack/plugin/inference/src/test/java/org/elasticsearch/cluster/metadata/SemanticTextClusterMetadataTests.java
++++ b/x-pack/plugin/inference/src/test/java/org/elasticsearch/cluster/metadata/SemanticTextClusterMetadataTests.java
+@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
+ import org.elasticsearch.index.IndexService;
+ import org.elasticsearch.plugins.Plugin;
+ import org.elasticsearch.test.ESSingleNodeTestCase;
+-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
++import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+ import org.elasticsearch.xpack.inference.InferencePlugin;
+ import org.hamcrest.Matchers;
+ 
+@@ -29,7 +29,7 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
+ 
+     @Override
+     protected Collection<Class<? extends Plugin>> getPlugins() {
+-        return List.of(InferencePlugin.class, LocalStateCompositeXPackPlugin.class);
++        return List.of(LocalStateInferencePlugin.class);
+     }
+ 
+     public void testCreateIndexWithSemanticTextField() {
+diff --git a/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/InferencePluginTests.java b/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/InferencePluginTests.java
+new file mode 100644
+index 00000000000..d1db5b8b12c
+--- /dev/null
++++ b/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/InferencePluginTests.java
+@@ -0,0 +1,65 @@
++/*
++ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
++ * or more contributor license agreements. Licensed under the Elastic License
++ * 2.0; you may not use this file except in compliance with the Elastic License
++ * 2.0.
++ */
++
++package org.elasticsearch.xpack.inference;
++
++import org.elasticsearch.common.settings.Setting;
++import org.elasticsearch.common.settings.Settings;
++import org.elasticsearch.test.ESTestCase;
++import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
++import org.junit.After;
++import org.junit.Before;
++
++import static org.hamcrest.Matchers.is;
++
++public class InferencePluginTests extends ESTestCase {
++    private InferencePlugin inferencePlugin;
++
++    private Boolean elasticInferenceServiceEnabled = true;
++
++    private void setElasticInferenceServiceEnabled(Boolean elasticInferenceServiceEnabled) {
++        this.elasticInferenceServiceEnabled = elasticInferenceServiceEnabled;
++    }
++
++    @Before
++    public void setUp() throws Exception {
++        super.setUp();
++
++        Settings settings = Settings.builder().build();
++        inferencePlugin = new InferencePlugin(settings) {
++            @Override
++            protected Boolean isElasticInferenceServiceEnabled() {
++                return elasticInferenceServiceEnabled;
++            }
++        };
++    }
++
++    @After
++    public void tearDown() throws Exception {
++        super.tearDown();
++    }
++
++    public void testElasticInferenceServiceSettingsPresent() throws Exception {
++        setElasticInferenceServiceEnabled(true); // enable elastic inference service
++        boolean anyMatch = inferencePlugin.getSettings()
++            .stream()
++            .map(Setting::getKey)
++            .anyMatch(key -> key.startsWith(ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX));
++
++        assertThat("xpack.inference.elastic settings are present", anyMatch, is(true));
++    }
++
++    public void testElasticInferenceServiceSettingsNotPresent() throws Exception {
++        setElasticInferenceServiceEnabled(false); // disable elastic inference service
++        boolean noneMatch = inferencePlugin.getSettings()
++            .stream()
++            .map(Setting::getKey)
++            .noneMatch(key -> key.startsWith(ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX));
++
++        assertThat("xpack.inference.elastic settings are not present", noneMatch, is(true));
++    }
++}
+diff --git a/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/LocalStateInferencePlugin.java b/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/LocalStateInferencePlugin.java
+new file mode 100644
+index 00000000000..68ea175bd98
+--- /dev/null
++++ b/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/LocalStateInferencePlugin.java
+@@ -0,0 +1,71 @@
++/*
++ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
++ * or more contributor license agreements. Licensed under the Elastic License
++ * 2.0; you may not use this file except in compliance with the Elastic License
++ * 2.0.
++ */
++
++package org.elasticsearch.xpack.inference;
++
++import org.elasticsearch.action.support.MappedActionFilter;
++import org.elasticsearch.common.settings.Settings;
++import org.elasticsearch.index.mapper.Mapper;
++import org.elasticsearch.inference.InferenceServiceExtension;
++import org.elasticsearch.license.XPackLicenseState;
++import org.elasticsearch.plugins.SearchPlugin;
++import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
++import org.elasticsearch.xpack.core.ssl.SSLService;
++import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
++import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
++
++import java.nio.file.Path;
++import java.util.Collection;
++import java.util.List;
++import java.util.Map;
++
++import static java.util.stream.Collectors.toList;
++
++public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
++    private final InferencePlugin inferencePlugin;
++
++    public LocalStateInferencePlugin(final Settings settings, final Path configPath) throws Exception {
++        super(settings, configPath);
++        LocalStateInferencePlugin thisVar = this;
++        this.inferencePlugin = new InferencePlugin(settings) {
++            @Override
++            protected SSLService getSslService() {
++                return thisVar.getSslService();
++            }
++
++            @Override
++            protected XPackLicenseState getLicenseState() {
++                return thisVar.getLicenseState();
++            }
++
++            @Override
++            public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
++                return List.of(
++                    TestSparseInferenceServiceExtension.TestInferenceService::new,
++                    TestDenseInferenceServiceExtension.TestInferenceService::new
++                );
++            }
++        };
++        plugins.add(inferencePlugin);
++    }
++
++    @Override
++    public List<RetrieverSpec<?>> getRetrievers() {
++        return this.filterPlugins(SearchPlugin.class).stream().flatMap(p -> p.getRetrievers().stream()).collect(toList());
++    }
++
++    @Override
++    public Map<String, Mapper.TypeParser> getMappers() {
++        return inferencePlugin.getMappers();
++    }
++
++    @Override
++    public Collection<MappedActionFilter> getMappedActionFilters() {
++        return inferencePlugin.getMappedActionFilters();
++    }
++
++}
+diff --git a/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/Utils.java b/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/Utils.java
+index e02ac7b8853..6d9cbf8f916 100644
+--- a/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/Utils.java
++++ b/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/Utils.java
+@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
+ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+ import org.elasticsearch.core.TimeValue;
+ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+-import org.elasticsearch.inference.InferenceServiceExtension;
+ import org.elasticsearch.inference.Model;
+ import org.elasticsearch.inference.ModelConfigurations;
+ import org.elasticsearch.inference.ModelSecrets;
+@@ -149,20 +148,6 @@ public final class Utils {
+         latch.await();
+     }
+ 
+-    public static class TestInferencePlugin extends InferencePlugin {
+-        public TestInferencePlugin(Settings settings) {
+-            super(settings);
+-        }
+-
+-        @Override
+-        public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
+-            return List.of(
+-                TestSparseInferenceServiceExtension.TestInferenceService::new,
+-                TestDenseInferenceServiceExtension.TestInferenceService::new
+-            );
+-        }
+-    }
+-
+     public static Model getInvalidModel(String inferenceEntityId, String serviceName) {
+         var mockConfigs = mock(ModelConfigurations.class);
+         when(mockConfigs.getInferenceEntityId()).thenReturn(inferenceEntityId);
+diff --git a/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/mapper/SemanticTextNonDynamicFieldMapperTests.java b/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/mapper/SemanticTextNonDynamicFieldMapperTests.java
+index 0025b3a53a6..24183b21f73 100644
+--- a/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/mapper/SemanticTextNonDynamicFieldMapperTests.java
++++ b/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/mapper/SemanticTextNonDynamicFieldMapperTests.java
+@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.mapper;
+ 
+ import org.elasticsearch.index.mapper.NonDynamicFieldMapperTests;
+ import org.elasticsearch.plugins.Plugin;
+-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
++import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+ import org.elasticsearch.xpack.inference.Utils;
+ import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
+ import org.junit.Before;
+@@ -27,7 +27,7 @@ public class SemanticTextNonDynamicFieldMapperTests extends NonDynamicFieldMappe
+ 
+     @Override
+     protected Collection<Class<? extends Plugin>> getPlugins() {
+-        return List.of(Utils.TestInferencePlugin.class, LocalStateCompositeXPackPlugin.class);
++        return List.of(LocalStateInferencePlugin.class);
+     }
+ 
+     @Override
+diff --git a/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/rank/textsimilarity/TextSimilarityRankMultiNodeTests.java b/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/rank/textsimilarity/TextSimilarityRankMultiNodeTests.java
+index 69b1e19fa91..daed03c198e 100644
+--- a/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/rank/textsimilarity/TextSimilarityRankMultiNodeTests.java
++++ b/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/rank/textsimilarity/TextSimilarityRankMultiNodeTests.java
+@@ -10,8 +10,7 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
+ import org.elasticsearch.plugins.Plugin;
+ import org.elasticsearch.search.rank.RankBuilder;
+ import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
+-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+-import org.elasticsearch.xpack.inference.InferencePlugin;
++import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+ 
+ import java.util.Collection;
+ import java.util.List;
+@@ -41,7 +40,7 @@ public class TextSimilarityRankMultiNodeTests extends AbstractRerankerIT {
+ 
+     @Override
+     protected Collection<Class<? extends Plugin>> pluginsNeeded() {
+-        return List.of(InferencePlugin.class, TextSimilarityTestPlugin.class, LocalStateCompositeXPackPlugin.class);
++        return List.of(LocalStateInferencePlugin.class, TextSimilarityTestPlugin.class);
+     }
+ 
+     public void testQueryPhaseShardThrowingAllShardsFail() throws Exception {
+diff --git a/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/rank/textsimilarity/TextSimilarityRankRetrieverTelemetryTests.java b/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/rank/textsimilarity/TextSimilarityRankRetrieverTelemetryTests.java
+index 084a7f3de4a..ba6924ba0ff 100644
+--- a/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/rank/textsimilarity/TextSimilarityRankRetrieverTelemetryTests.java
++++ b/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/rank/textsimilarity/TextSimilarityRankRetrieverTelemetryTests.java
+@@ -24,8 +24,7 @@ import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+ import org.elasticsearch.test.ESIntegTestCase;
+ import org.elasticsearch.xcontent.XContentBuilder;
+ import org.elasticsearch.xcontent.XContentFactory;
+-import org.elasticsearch.xpack.core.XPackPlugin;
+-import org.elasticsearch.xpack.inference.InferencePlugin;
++import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+ import org.junit.Before;
+ 
+ import java.io.IOException;
+@@ -47,7 +46,7 @@ public class TextSimilarityRankRetrieverTelemetryTests extends ESIntegTestCase {
+ 
+     @Override
+     protected Collection<Class<? extends Plugin>> nodePlugins() {
+-        return List.of(InferencePlugin.class, XPackPlugin.class, TextSimilarityTestPlugin.class);
++        return List.of(LocalStateInferencePlugin.class, TextSimilarityTestPlugin.class);
+     }
+ 
+     @Override
+diff --git a/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/rank/textsimilarity/TextSimilarityRankTests.java b/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/rank/textsimilarity/TextSimilarityRankTests.java
+index a6a4ce2b2ff..f81f2965c39 100644
+--- a/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/rank/textsimilarity/TextSimilarityRankTests.java
++++ b/x-pack/plugin/inference/src/test/java/org/elasticsearch/xpack/inference/rank/textsimilarity/TextSimilarityRankTests.java
+@@ -19,9 +19,8 @@ import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorCont
+ import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
+ import org.elasticsearch.test.ESSingleNodeTestCase;
+ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+-import org.elasticsearch.xpack.inference.InferencePlugin;
++import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+ import org.junit.Before;
+ 
+ import java.util.Collection;
+@@ -109,7 +108,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
+ 
+     @Override
+     protected Collection<Class<? extends Plugin>> getPlugins() {
+-        return List.of(InferencePlugin.class, TextSimilarityTestPlugin.class, LocalStateCompositeXPackPlugin.class);
++        return List.of(LocalStateInferencePlugin.class, TextSimilarityTestPlugin.class);
+     }
+ 
+     @Before
+diff --git a/x-pack/plugin/ml/src/test/java/org/elasticsearch/xpack/ml/LocalStateMachineLearning.java b/x-pack/plugin/ml/src/test/java/org/elasticsearch/xpack/ml/LocalStateMachineLearning.java
+index bab012afc31..ff1a1d19779 100644
+--- a/x-pack/plugin/ml/src/test/java/org/elasticsearch/xpack/ml/LocalStateMachineLearning.java
++++ b/x-pack/plugin/ml/src/test/java/org/elasticsearch/xpack/ml/LocalStateMachineLearning.java
+@@ -27,6 +27,7 @@ import org.elasticsearch.transport.TransportService;
+ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+ import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
+ import org.elasticsearch.xpack.core.ssl.SSLService;
++import org.elasticsearch.xpack.inference.InferencePlugin;
+ import org.elasticsearch.xpack.monitoring.Monitoring;
+ import org.elasticsearch.xpack.security.Security;
+ 
+@@ -86,6 +87,12 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
+             }
+         });
+         plugins.add(new MockedRollupPlugin());
++        plugins.add(new InferencePlugin(settings) {
++            @Override
++            protected SSLService getSslService() {
++                return thisVar.getSslService();
++            }
++        });
+     }
+ 
+     @Override
+diff --git a/x-pack/plugin/ml/src/test/java/org/elasticsearch/xpack/ml/support/BaseMlIntegTestCase.java b/x-pack/plugin/ml/src/test/java/org/elasticsearch/xpack/ml/support/BaseMlIntegTestCase.java
+index aeebfabdce7..5cf15454e47 100644
+--- a/x-pack/plugin/ml/src/test/java/org/elasticsearch/xpack/ml/support/BaseMlIntegTestCase.java
++++ b/x-pack/plugin/ml/src/test/java/org/elasticsearch/xpack/ml/support/BaseMlIntegTestCase.java
+@@ -82,7 +82,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
+ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+ import org.elasticsearch.xpack.core.ml.utils.MlTaskState;
+ import org.elasticsearch.xpack.ilm.IndexLifecycle;
+-import org.elasticsearch.xpack.inference.InferencePlugin;
+ import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
+ import org.elasticsearch.xpack.ml.MachineLearning;
+ import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
+@@ -161,8 +160,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
+             DataStreamsPlugin.class,
+             // To remove errors from parsing build in templates that contain scaled_float
+             MapperExtrasPlugin.class,
+-            Wildcard.class,
+-            InferencePlugin.class
++            Wildcard.class
+         );
+     }
+ 
+diff --git a/x-pack/plugin/security/qa/consistency-checks/src/test/java/org/elasticsearch/xpack/security/CrossClusterShardTests.java b/x-pack/plugin/security/qa/consistency-checks/src/test/java/org/elasticsearch/xpack/security/CrossClusterShardTests.java
+index ab5be0f48f5..057ebdece5c 100644
+--- a/x-pack/plugin/security/qa/consistency-checks/src/test/java/org/elasticsearch/xpack/security/CrossClusterShardTests.java
++++ b/x-pack/plugin/security/qa/consistency-checks/src/test/java/org/elasticsearch/xpack/security/CrossClusterShardTests.java
+@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+ import org.elasticsearch.xpack.frozen.FrozenIndices;
+ import org.elasticsearch.xpack.graph.Graph;
+ import org.elasticsearch.xpack.ilm.IndexLifecycle;
+-import org.elasticsearch.xpack.inference.InferencePlugin;
+ import org.elasticsearch.xpack.profiling.ProfilingPlugin;
+ import org.elasticsearch.xpack.rollup.Rollup;
+ import org.elasticsearch.xpack.search.AsyncSearch;
+@@ -89,7 +88,6 @@ public class CrossClusterShardTests extends ESSingleNodeTestCase {
+                 FrozenIndices.class,
+                 Graph.class,
+                 IndexLifecycle.class,
+-                InferencePlugin.class,
+                 IngestCommonPlugin.class,
+                 IngestTestPlugin.class,
+                 MustachePlugin.class,
+-- 
+2.45.1
+

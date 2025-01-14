@@ -1,0 +1,36 @@
+From d7d9cdf7c96b5890e929f738fa613a950fc5f2c5 Mon Sep 17 00:00:00 2001
+From: Dmitrii Burlutskii <dmitrii.burlutckii@elastic.co>
+Date: Fri, 10 Jan 2025 12:06:26 +0100
+Subject: [PATCH 3/3] Apply new changelog
+
+---
+ docs/changelog/116423.yaml | 5 -----
+ docs/changelog/119679.yaml | 2 +-
+ 2 files changed, 1 insertion(+), 6 deletions(-)
+ delete mode 100644 docs/changelog/116423.yaml
+
+diff --git a/docs/changelog/116423.yaml b/docs/changelog/116423.yaml
+deleted file mode 100644
+index d6d10eab410..00000000000
+--- a/docs/changelog/116423.yaml
++++ /dev/null
+@@ -1,5 +0,0 @@
+-pr: 116423
+-summary: Support mTLS for the Elastic Inference Service integration inside the inference API
+-area: Machine Learning
+-type: feature
+-issues: []
+diff --git a/docs/changelog/119679.yaml b/docs/changelog/119679.yaml
+index f29b79c2b2e..a3fb36bcd01 100644
+--- a/docs/changelog/119679.yaml
++++ b/docs/changelog/119679.yaml
+@@ -1,5 +1,5 @@
+ pr: 119679
+-summary: Support mTLS in Elastic Inference Service plugin
++summary: Support mTLS for the Elastic Inference Service integration inside the inference API
+ area: Machine Learning
+ type: feature
+ issues: []
+-- 
+2.45.1
+

@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.nulls;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -28,41 +26,36 @@ import java.util.stream.IntStream;
  * This class is generated. Edit {@code X-InEvaluator.java.st} instead.
  */
 abstract sealed class CoalesceDoubleEvaluator implements EvalOperator.ExpressionEvaluator permits
-        CoalesceDoubleEvaluator.CoalesceEagerEvaluator, //
-        CoalesceDoubleEvaluator.CoalesceLazyEvaluator {
-    static ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator, List<Expression> children) {
-            List<ExpressionEvaluator.Factory> childEvaluators = children.stream().map(toEvaluator::apply).toList();
-            if (childEvaluators.stream().allMatch(ExpressionEvaluator.Factory::eagerEvalSafeInLazy)) {
-                return new ExpressionEvaluator.Factory() {
-                    @Override
-                    public ExpressionEvaluator get(DriverContext context) {
-                        return new CoalesceEagerEvaluator(
-                            context,
-                            childEvaluators.stream().map(x -> x.get(context)).toList()
-                        );
-                    }
+    CoalesceDoubleEvaluator.CoalesceDoubleEagerEvaluator, //
+    CoalesceDoubleEvaluator.CoalesceDoubleLazyEvaluator {
 
-                    @Override
-                    public String toString() {
-                        return "CoalesceEagerEvaluator[values=" + childEvaluators + ']';
-                    }
-                };
-            }
+    static ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator, List<Expression> children) {
+        List<ExpressionEvaluator.Factory> childEvaluators = children.stream().map(toEvaluator::apply).toList();
+        if (childEvaluators.stream().allMatch(ExpressionEvaluator.Factory::eagerEvalSafeInLazy)) {
             return new ExpressionEvaluator.Factory() {
                 @Override
                 public ExpressionEvaluator get(DriverContext context) {
-                    return new CoalesceLazyEvaluator(
-                        context,
-                        childEvaluators.stream().map(x -> x.get(context)).toList()
-                    );
+                    return new CoalesceDoubleEagerEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
                 }
 
                 @Override
                 public String toString() {
-                    return "CoalesceLazyEvaluator[values=" + childEvaluators + ']';
+                    return "CoalesceDoubleEagerEvaluator[values=" + childEvaluators + ']';
                 }
             };
         }
+        return new ExpressionEvaluator.Factory() {
+            @Override
+            public ExpressionEvaluator get(DriverContext context) {
+                return new CoalesceDoubleLazyEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+            }
+
+            @Override
+            public String toString() {
+                return "CoalesceDoubleLazyEvaluator[values=" + childEvaluators + ']';
+            }
+        };
+    }
 
     protected final DriverContext driverContext;
     protected final List<EvalOperator.ExpressionEvaluator> evaluators;
@@ -144,13 +137,13 @@ abstract sealed class CoalesceDoubleEvaluator implements EvalOperator.Expression
      * Evaluates {@code COALESCE} eagerly per position if entire-block evaluation fails.
      * First we evaluate all remaining evaluators, and then we pluck the first non-null
      * value from each one. This is <strong>much</strong> faster than
-     * {@link CoalesceLazyEvaluator} but will include spurious warnings if any of the
+     * {@link CoalesceDoubleLazyEvaluator} but will include spurious warnings if any of the
      * evaluators make them so we only use it for evaluators that are
      * {@link Factory#eagerEvalSafeInLazy safe} to evaluate eagerly
      * in a lazy environment.
      */
-    static final class CoalesceEagerEvaluator extends CoalesceDoubleEvaluator {
-        CoalesceEagerEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
+    static final class CoalesceDoubleEagerEvaluator extends CoalesceDoubleEvaluator {
+        CoalesceDoubleEagerEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
             super(driverContext, evaluators);
         }
 
@@ -192,8 +185,8 @@ abstract sealed class CoalesceDoubleEvaluator implements EvalOperator.Expression
      *     </li>
      * </ul>
      */
-    static final class CoalesceLazyEvaluator extends CoalesceDoubleEvaluator {
-        CoalesceLazyEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
+    static final class CoalesceDoubleLazyEvaluator extends CoalesceDoubleEvaluator {
+        CoalesceDoubleLazyEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
             super(driverContext, evaluators);
         }
 

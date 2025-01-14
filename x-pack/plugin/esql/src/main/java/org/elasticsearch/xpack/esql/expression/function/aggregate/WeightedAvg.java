@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -114,9 +115,15 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
             return resolution;
         }
 
-        if (weight.dataType() == DataType.NULL
-            || (weight.foldable() && (weight.fold() == null || weight.fold().equals(0) || weight.fold().equals(0.0)))) {
-            return new TypeResolution(format(null, invalidWeightError, SECOND, sourceText(), weight.foldable() ? weight.fold() : null));
+        if (weight.dataType() == DataType.NULL) {
+            return new TypeResolution(format(null, invalidWeightError, SECOND, sourceText(), null));
+        }
+        if (weight.foldable() == false) {
+            return TypeResolution.TYPE_RESOLVED;
+        }
+        Object weightVal = weight.fold(FoldContext.small()/* TODO remove me*/);
+        if (weightVal == null || weightVal.equals(0) || weightVal.equals(0.0)) {
+            return new TypeResolution(format(null, invalidWeightError, SECOND, sourceText(), weightVal));
         }
 
         return TypeResolution.TYPE_RESOLVED;

@@ -227,26 +227,8 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceCrudIT
   method: testGetServicesWithCompletionTaskType
   issue: https://github.com/elastic/elasticsearch/issues/119959
-- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
-  method: testSearchableSnapshotUpgrade {p0=[9.0.0, 8.18.0, 8.18.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/119978
-- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
-  method: testSearchableSnapshotUpgrade {p0=[9.0.0, 9.0.0, 8.18.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/119979
-- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
-  method: testMountSearchableSnapshot {p0=[9.0.0, 8.18.0, 8.18.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/119550
-- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
-  method: testMountSearchableSnapshot {p0=[9.0.0, 9.0.0, 8.18.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/119980
 - class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/119983
-- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
-  method: testMountSearchableSnapshot {p0=[9.0.0, 9.0.0, 9.0.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/119989
-- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
-  method: testSearchableSnapshotUpgrade {p0=[9.0.0, 9.0.0, 9.0.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/119990
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_unattended/Test unattended put and start}
   issue: https://github.com/elastic/elasticsearch/issues/120019

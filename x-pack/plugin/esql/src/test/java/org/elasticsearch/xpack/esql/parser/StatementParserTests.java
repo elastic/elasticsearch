@@ -625,11 +625,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM \"foo\"bar\"", ": token recognition error at: '\"'");
         expectError("FROM \"foo\"\"bar\"", ": extraneous input '\"bar\"' expecting <EOF>");
 
-        expectError("FROM \"\"\"foo\"\"\"bar\"\"\"", ": mismatched input 'bar' expecting {<EOF>, '|', ',', OPENING_BRACKET, 'metadata'}");
-        expectError(
-            "FROM \"\"\"foo\"\"\"\"\"\"bar\"\"\"",
-            ": mismatched input '\"bar\"' expecting {<EOF>, '|', ',', OPENING_BRACKET, 'metadata'}"
-        );
+        expectError("FROM \"\"\"foo\"\"\"bar\"\"\"", ": mismatched input 'bar' expecting {<EOF>, '|', ',', 'metadata'}");
+        expectError("FROM \"\"\"foo\"\"\"\"\"\"bar\"\"\"", ": mismatched input '\"bar\"' expecting {<EOF>, '|', ',', 'metadata'}");
     }
 
     public void testInvalidQuotingAsMetricsIndexPattern() {
@@ -909,10 +906,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMetadataFieldOnOtherSources() {
         expectError("row a = 1 metadata _index", "line 1:20: extraneous input '_index' expecting <EOF>");
         expectError("show info metadata _index", "line 1:11: token recognition error at: 'm'");
-        expectError(
-            "explain [from foo] metadata _index",
-            "line 1:20: mismatched input 'metadata' expecting {'|', ',', OPENING_BRACKET, ']', 'metadata'}"
-        );
+        expectError("explain [from foo] metadata _index", "line 1:20: mismatched input 'metadata' expecting {'|', ',', ']', 'metadata'}");
     }
 
     public void testMetadataFieldMultipleDeclarations() {
@@ -2356,5 +2350,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var matchField = (UnresolvedAttribute) toInteger.field();
         assertThat(matchField.name(), equalTo("field"));
         assertThat(match.query().fold(FoldContext.small()), equalTo("value"));
+    }
+
+    public void testFailingMetadataWithSquareBrackets() {
+        expectError(
+            "FROM test [METADATA _index] | STATS count(*)",
+            "line 1:11: mismatched input '[' expecting {<EOF>, '|', ',', 'metadata'}"
+        );
     }
 }

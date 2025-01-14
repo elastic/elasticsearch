@@ -22,7 +22,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.INTERNAL)
 public class RestRepositoryVerifyIntegrityAction extends BaseRestHandler {
 
-    public static final NodeFeature REPOSITORY_VERIFY_INTEGRITY_FEATURE = new NodeFeature("snapshot.repository_verify_integrity");
+    public static final NodeFeature REPOSITORY_VERIFY_INTEGRITY_FEATURE = new NodeFeature("snapshot.repository_verify_integrity", true);
 
     @Override
     public List<Route> routes() {

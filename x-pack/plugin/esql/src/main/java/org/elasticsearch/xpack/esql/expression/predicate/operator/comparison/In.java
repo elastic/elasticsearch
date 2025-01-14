@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -40,6 +41,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
@@ -231,20 +233,47 @@ public class In extends EsqlScalarFunction {
         }
 
         DataType dt = value.dataType();
-        for (int i = 0; i < list.size(); i++) {
-            Expression listValue = list.get(i);
-            if (areCompatible(dt, listValue.dataType()) == false) {
-                return new TypeResolution(
-                    format(
-                        null,
-                        "{} argument of [{}] must be [{}], found value [{}] type [{}]",
-                        ordinal(i + 1),
-                        sourceText(),
-                        dt.typeName(),
-                        Expressions.name(listValue),
-                        listValue.dataType().typeName()
-                    )
-                );
+        if (dt.isDate()) {
+            // If value is a date (nanos or millis), list cannot contain both nanos and millis
+            DataType seenDateType = null;
+            for (int i = 0; i < list.size(); i++) {
+                Expression listValue = list.get(i);
+                if (seenDateType == null && listValue.dataType().isDate()) {
+                    seenDateType = listValue.dataType();
+                }
+                // The areCompatible test is still necessary to account for nulls.
+                if ((listValue.dataType().isDate() && listValue.dataType() != seenDateType)
+                    || (listValue.dataType().isDate() == false && areCompatible(dt, listValue.dataType()) == false)) {
+                    return new TypeResolution(
+                        format(
+                            null,
+                            "{} argument of [{}] must be [{}], found value [{}] type [{}]",
+                            ordinal(i + 1),
+                            sourceText(),
+                            dt.typeName(),
+                            Expressions.name(listValue),
+                            listValue.dataType().typeName()
+                        )
+                    );
+                }
+            }
+
+        } else {
+            for (int i = 0; i < list.size(); i++) {
+                Expression listValue = list.get(i);
+                if (areCompatible(dt, listValue.dataType()) == false) {
+                    return new TypeResolution(
+                        format(
+                            null,
+                            "{} argument of [{}] must be [{}], found value [{}] type [{}]",
+                            ordinal(i + 1),
+                            sourceText(),
+                            dt.typeName(),
+                            Expressions.name(listValue),
+                            listValue.dataType().typeName()
+                        )
+                    );
+                }
             }
         }
 
@@ -261,9 +290,19 @@ public class In extends EsqlScalarFunction {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var commonType = commonType();
         EvalOperator.ExpressionEvaluator.Factory lhs;
         EvalOperator.ExpressionEvaluator.Factory[] factories;
+        if (value.dataType() == DATE_NANOS && list.getFirst().dataType() == DATETIME) {
+            lhs = toEvaluator.apply(value);
+            factories = list.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
+            return new InNanosMillisEvaluator.Factory(source(), lhs, factories);
+        }
+        if (value.dataType() == DATETIME && list.getFirst().dataType() == DATE_NANOS) {
+            lhs = toEvaluator.apply(value);
+            factories = list.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
+            return new InMillisNanosEvaluator.Factory(source(), lhs, factories);
+        }
+        var commonType = commonType();
         if (commonType.isNumeric()) {
             lhs = Cast.cast(source(), value.dataType(), commonType, toEvaluator.apply(value));
             factories = list.stream()
@@ -283,7 +322,7 @@ public class In extends EsqlScalarFunction {
         if (commonType == INTEGER) {
             return new InIntEvaluator.Factory(source(), lhs, factories);
         }
-        if (commonType == LONG || commonType == DATETIME || commonType == UNSIGNED_LONG) {
+        if (commonType == LONG || commonType == DATETIME || commonType == DATE_NANOS || commonType == UNSIGNED_LONG) {
             return new InLongEvaluator.Factory(source(), lhs, factories);
         }
         if (commonType == KEYWORD
@@ -338,6 +377,39 @@ public class In extends EsqlScalarFunction {
                 continue;
             }
             Boolean compResult = Comparisons.eq(lhs, rhs[i]);
+            if (compResult == Boolean.TRUE) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Processor for mixed millisecond and nanosecond dates, where the "value" (aka lhs) is in nanoseconds
+     * and the "list" (aka rhs) is in milliseconds
+     */
+    static boolean processNanosMillis(BitSet nulls, BitSet mvs, long lhs, long[] rhs) {
+        for (int i = 0; i < rhs.length; i++) {
+            if ((nulls != null && nulls.get(i)) || (mvs != null && mvs.get(i))) {
+                continue;
+            }
+            if (DateUtils.compareNanosToMillis(lhs, rhs[i]) == 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     *  Processor for mixed millisecond and nanosecond dates, where the "value" (aka lhs) is in milliseoncds
+     *  and the "list" (aka rhs) is in nanoseconds
+     */
+    static boolean processMillisNanos(BitSet nulls, BitSet mvs, long lhs, long[] rhs) {
+        for (int i = 0; i < rhs.length; i++) {
+            if ((nulls != null && nulls.get(i)) || (mvs != null && mvs.get(i))) {
+                continue;
+            }
+            Boolean compResult = DateUtils.compareNanosToMillis(rhs[i], lhs) == 0;
             if (compResult == Boolean.TRUE) {
                 return true;
             }

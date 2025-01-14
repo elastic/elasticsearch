@@ -374,6 +374,11 @@ public class EsqlCapabilities {
         DATE_NANOS_AGGREGATIONS(),
 
         /**
+         * Support the {@link org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In} operator for date nanos
+         */
+        DATE_NANOS_IN_OPERATOR(),
+
+        /**
          * DATE_PARSE supports reading timezones
          */
         DATE_PARSE_TZ(),

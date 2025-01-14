@@ -267,8 +267,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         return execute(GetMappingsAction.INSTANCE, request);
     }
 
-    public GetMappingsRequestBuilder prepareGetMappings(String... indices) {
-        return new GetMappingsRequestBuilder(this, indices);
+    public GetMappingsRequestBuilder prepareGetMappings(TimeValue masterTimeout, String... indices) {
+        return new GetMappingsRequestBuilder(this, masterTimeout, indices);
     }
 
     public void getFieldMappings(GetFieldMappingsRequest request, ActionListener<GetFieldMappingsResponse> listener) {

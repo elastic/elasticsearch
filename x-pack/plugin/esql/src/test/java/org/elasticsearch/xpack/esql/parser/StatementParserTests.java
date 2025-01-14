@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -2133,6 +2134,22 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(lookup.matchFields(), hasSize(1));
         var matchField = as(lookup.matchFields().get(0), UnresolvedAttribute.class);
         assertThat(matchField.name(), equalTo("j"));
+    }
+
+    public void testRerankCommand() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+
+        var plan = processingCommand("RERANK \"query text\" ON CONCAT(title, description) WITH inferenceID");
+        var rerank = as(plan, Rerank.class);
+
+        // Checking constant // foldable expressions
+        assertThat(rerank.queryText().fold(), equalTo("query text"));
+        assertThat(rerank.inferenceId().fold(), equalTo("inferenceID"));
+
+        System.out.println(rerank.input().getClass());
+
+        // Default window size is 20
+        assertThat(rerank.windowSize().fold(), equalTo(20));
     }
 
     public void testInlineConvertUnsupportedType() {

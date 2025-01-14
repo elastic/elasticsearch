@@ -55,6 +55,7 @@ processingCommand
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? joinCommand
+    | {this.isDevVersion()}? rerankCommand
     ;
 
 whereCommand
@@ -289,6 +290,11 @@ string
     : QUOTED_STRING
     ;
 
+stringOrParameter
+    : string
+    | {this.isDevVersion()}? parameter
+    ;
+
 comparisonOperator
     : EQ | NEQ | LT | LTE | GT | GTE
     ;
@@ -322,6 +328,18 @@ lookupCommand
 
 inlinestatsCommand
     : DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
+    ;
+
+rerankCommand
+    : DEV_RERANK queryText=stringOrParameter ON input=primaryExpression WITH inferenceId=identifierOrParameter (COMMA rerankCommandOptions)*
+    ;
+
+rerankCommandOptions
+    : rerankCommandWindowSize
+    ;
+
+rerankCommandWindowSize
+    : WINDOW_SIZE ASSIGN windowSize=INTEGER_LITERAL
     ;
 
 joinCommand

@@ -619,7 +619,7 @@ public class EsqlCapabilities {
         /**
          * Support match options in match function
          */
-        MATCH_OPTIONS(Build.current().isSnapshot());
+        MATCH_FUNCTION_OPTIONS(Build.current().isSnapshot());
 
         private final boolean enabled;
 

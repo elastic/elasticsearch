@@ -51,6 +51,7 @@ import java.util.Set;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.FUZZY_REWRITE_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.FUZZY_TRANSPOSITIONS_FIELD;
@@ -60,6 +61,7 @@ import static org.elasticsearch.index.query.MatchQueryBuilder.MAX_EXPANSIONS_FIE
 import static org.elasticsearch.index.query.MatchQueryBuilder.MINIMUM_SHOULD_MATCH_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.OPERATOR_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.PREFIX_LENGTH_FIELD;
+import static org.elasticsearch.index.query.MatchQueryBuilder.ZERO_TERMS_QUERY_FIELD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
@@ -71,6 +73,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -121,18 +124,19 @@ public class Match extends FullTextFunction implements Validatable, OptionalArgu
         VERSION
     );
 
-    static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
+    public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
         entry(ANALYZER_FIELD.getPreferredName(), KEYWORD),
         entry(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), BOOLEAN),
         entry(Fuzziness.FIELD.getPreferredName(), KEYWORD),
-        entry(AbstractQueryBuilder.BOOST_FIELD.getPreferredName(), DataType.FLOAT),
-        entry(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), DataType.BOOLEAN),
+        entry(BOOST_FIELD.getPreferredName(), FLOAT),
+        entry(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), BOOLEAN),
         entry(FUZZY_REWRITE_FIELD.getPreferredName(),  KEYWORD),
-        entry(MatchQueryBuilder.LENIENT_FIELD.getPreferredName(), BOOLEAN),
-        entry(MAX_EXPANSIONS_FIELD.getPreferredName(), DataType.INTEGER),
+        entry(LENIENT_FIELD.getPreferredName(), BOOLEAN),
+        entry(MAX_EXPANSIONS_FIELD.getPreferredName(), INTEGER),
         entry(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), KEYWORD),
         entry(OPERATOR_FIELD.getPreferredName(), KEYWORD),
-        entry(PREFIX_LENGTH_FIELD.getPreferredName(), DataType.INTEGER)
+        entry(PREFIX_LENGTH_FIELD.getPreferredName(), INTEGER),
+        entry(ZERO_TERMS_QUERY_FIELD.getPreferredName(), KEYWORD)
     );
 
     @FunctionInfo(
@@ -171,7 +175,7 @@ public class Match extends FullTextFunction implements Validatable, OptionalArgu
     }
 
     public Match(Source source, Expression field, Expression matchQuery, Expression options, QueryBuilder queryBuilder) {
-        super(source, matchQuery, List.of(field, matchQuery, options), queryBuilder);
+        super(source, matchQuery, options == null ? List.of(field, matchQuery) : List.of(field, matchQuery, options), queryBuilder);
         this.options = options;
         this.field = field;
     }
@@ -242,6 +246,10 @@ public class Match extends FullTextFunction implements Validatable, OptionalArgu
     }
 
     private Map<String, Object> parseOptions() throws InvalidArgumentException {
+        if (options() == null) {
+            return Map.of();
+        }
+
         Map<String, Object> options = new HashMap<>();
         // Match is lenient by default to avoid failing on incompatible types
         options.put(LENIENT_FIELD.getPreferredName(), true);
@@ -361,7 +369,7 @@ public class Match extends FullTextFunction implements Validatable, OptionalArgu
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Match(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), queryBuilder());
+        return new Match(source(), newChildren.get(0), newChildren.get(1), options == null ? null : newChildren.get(2), queryBuilder());
     }
 
     @Override

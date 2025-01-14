@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -21,6 +22,7 @@ import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocShardInfo;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
@@ -91,7 +93,7 @@ final class FetchSearchPhase extends SearchPhase {
 
     @Override
     public void run() {
-        context.execute(new AbstractRunnable() {
+        var fetchTask = new AbstractRunnable() {
 
             @Override
             protected void doRun() throws Exception {
@@ -102,7 +104,12 @@ final class FetchSearchPhase extends SearchPhase {
             public void onFailure(Exception e) {
                 context.onPhaseFailure(FetchSearchPhase.this, "", e);
             }
-        });
+        };
+        if (Thread.currentThread() instanceof EsExecutors.EsThread esThread && ThreadPool.Names.SEARCH.equals(esThread.pool())) {
+            fetchTask.run();
+            return;
+        }
+        context.execute(fetchTask);
     }
 
     private void innerRun() throws Exception {

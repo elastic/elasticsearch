@@ -24,7 +24,8 @@ import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -46,7 +47,7 @@ public class TextSimilarityRankRetrieverTelemetryTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateInferencePlugin.class, TextSimilarityTestPlugin.class);
+        return List.of(InferencePlugin.class, XPackPlugin.class, TextSimilarityTestPlugin.class);
     }
 
     @Override

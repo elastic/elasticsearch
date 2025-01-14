@@ -23,11 +23,14 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -58,6 +61,8 @@ import static org.elasticsearch.index.mapper.IpPrefixAutomatonUtil.buildIpPrefix
  * A {@link FieldMapper} for ip addresses.
  */
 public class IpFieldMapper extends FieldMapper {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IpFieldMapper.class);
 
     public static final String CONTENT_TYPE = "ip";
 
@@ -129,7 +134,20 @@ public class IpFieldMapper extends FieldMapper {
             try {
                 return InetAddresses.forString(nullValueAsString);
             } catch (Exception e) {
-                throw new MapperParsingException("Error parsing [null_value] on field [" + leafName() + "]: " + e.getMessage(), e);
+                if (indexCreatedVersion.onOrAfter(IndexVersions.V_8_0_0)) {
+                    throw new MapperParsingException("Error parsing [null_value] on field [" + leafName() + "]: " + e.getMessage(), e);
+                } else {
+                    DEPRECATION_LOGGER.warn(
+                        DeprecationCategory.MAPPINGS,
+                        "ip_mapper_null_field",
+                        "Error parsing ["
+                            + nullValue.getValue()
+                            + "] as IP in [null_value] on field ["
+                            + leafName()
+                            + "]); [null_value] will be ignored"
+                    );
+                    return null;
+                }
             }
         }
 
@@ -186,12 +204,10 @@ public class IpFieldMapper extends FieldMapper {
 
     }
 
-    private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
-
-    public static final TypeParser PARSER = new TypeParser((n, c) -> {
+    public static final TypeParser PARSER = createTypeParserWithLegacySupport((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
         return new Builder(n, c.scriptCompiler(), ignoreMalformedByDefault, c.indexVersionCreated());
-    }, MINIMUM_COMPATIBILITY_VERSION);
+    });
 
     public static final class IpFieldType extends SimpleMappedFieldType {
 

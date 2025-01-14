@@ -203,6 +203,10 @@ public class EsqlSessionCCSUtils {
          * Mark it as SKIPPED with 0 shards searched and took=0.
          */
         for (String c : clustersWithNoMatchingIndices) {
+            if (executionInfo.getCluster(c).getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+                // if cluster was already marked SKIPPED during enrich policy resolution, do not overwrite
+                continue;
+            }
             final String indexExpression = executionInfo.getCluster(c).getIndexExpression();
             if (missingIndicesIsFatal(c, executionInfo)) {
                 String error = Strings.format(
@@ -315,6 +319,7 @@ public class EsqlSessionCCSUtils {
      * @throws org.elasticsearch.ElasticsearchStatusException if the license is not valid (or present) for ES|QL CCS search.
      */
     public static void checkForCcsLicense(
+        EsqlExecutionInfo executionInfo,
         List<TableInfo> indices,
         IndicesExpressionGrouper indicesGrouper,
         XPackLicenseState licenseState
@@ -333,6 +338,17 @@ public class EsqlSessionCCSUtils {
             // check if it is a cross-cluster query
             if (groupedIndices.size() > 1 || groupedIndices.containsKey(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY) == false) {
                 if (EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
+                    // initialize the cluster entries in EsqlExecutionInfo before throwing the invalid license error
+                    // so that the CCS telemetry handler can recognize that this error is CCS-related
+                    for (Map.Entry<String, OriginalIndices> entry : groupedIndices.entrySet()) {
+                        executionInfo.swapCluster(
+                            entry.getKey(),
+                            (k, v) -> new EsqlExecutionInfo.Cluster(
+                                entry.getKey(),
+                                Strings.arrayToCommaDelimitedString(entry.getValue().indices())
+                            )
+                        );
+                    }
                     throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
                 }
             }

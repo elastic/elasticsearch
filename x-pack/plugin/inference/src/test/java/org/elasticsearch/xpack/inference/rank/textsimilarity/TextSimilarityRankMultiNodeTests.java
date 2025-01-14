@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
-import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.util.Collection;
 import java.util.List;
@@ -40,7 +41,7 @@ public class TextSimilarityRankMultiNodeTests extends AbstractRerankerIT {
 
     @Override
     protected Collection<Class<? extends Plugin>> pluginsNeeded() {
-        return List.of(LocalStateInferencePlugin.class, TextSimilarityTestPlugin.class);
+        return List.of(InferencePlugin.class, TextSimilarityTestPlugin.class, LocalStateCompositeXPackPlugin.class);
     }
 
     public void testQueryPhaseShardThrowingAllShardsFail() throws Exception {

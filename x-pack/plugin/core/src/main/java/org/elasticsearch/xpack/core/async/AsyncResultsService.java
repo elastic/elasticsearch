@@ -121,7 +121,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
     ) {
         try {
             final Task task = store.getTaskAndCheckAuthentication(taskManager, searchId, asyncTaskClass);
-            if (task == null || task.isCancelled()) {
+            if (task == null || (updateInitialResultsInStore && task.isCancelled())) {
                 getSearchResponseFromIndex(searchId, request, nowInMillis, listener);
                 return;
             }

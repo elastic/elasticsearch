@@ -11,8 +11,8 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Percolator module adds capability to index queries and query these queries by specifying documents'
-  classname 'org.elasticsearch.percolator.PercolatorPlugin'
+  description = 'Percolator module adds capability to index queries and query these queries by specifying documents'
+  classname = 'org.elasticsearch.percolator.PercolatorPlugin'
 }
 
 dependencies {

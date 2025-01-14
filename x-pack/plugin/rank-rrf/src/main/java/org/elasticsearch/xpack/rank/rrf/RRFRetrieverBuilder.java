@@ -44,11 +44,10 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetrieverBuilder> {
 
     public static final String NAME = "rrf";
-    public static final NodeFeature RRF_RETRIEVER_SUPPORTED = new NodeFeature("rrf_retriever_supported");
-    public static final NodeFeature RRF_RETRIEVER_COMPOSITION_SUPPORTED = new NodeFeature("rrf_retriever_composition_supported");
+    public static final NodeFeature RRF_RETRIEVER_SUPPORTED = new NodeFeature("rrf_retriever_supported", true);
+    public static final NodeFeature RRF_RETRIEVER_COMPOSITION_SUPPORTED = new NodeFeature("rrf_retriever_composition_supported", true);
 
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
-    public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
 
     public static final int DEFAULT_RANK_CONSTANT = 60;

@@ -6,6 +6,12 @@
 <titleabbrev>Clear trained model deployment cache</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-trained-model[{ml-cap} trained model APIs].
+--
+
 Clears the {infer} cache on all nodes where the deployment is assigned.
 
 [[clear-trained-model-deployment-cache-request]]

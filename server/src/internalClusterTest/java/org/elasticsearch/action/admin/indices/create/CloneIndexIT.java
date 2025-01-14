@@ -39,7 +39,7 @@ public class CloneIndexIT extends ESIntegTestCase {
     }
 
     public void testCreateCloneIndex() {
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleWriteVersion(random());
         int numPrimaryShards = randomIntBetween(1, 5);
         prepareCreate("source").setSettings(
             Settings.builder().put(indexSettings()).put("number_of_shards", numPrimaryShards).put("index.version.created", version)

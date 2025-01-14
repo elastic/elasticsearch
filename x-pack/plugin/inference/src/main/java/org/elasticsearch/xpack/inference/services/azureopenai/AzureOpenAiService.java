@@ -351,7 +351,9 @@ public class AzureOpenAiService extends SenderService {
 
                 configurationMap.put(
                     RESOURCE_NAME,
-                    new SettingsConfiguration.Builder().setDescription("The name of your Azure OpenAI resource.")
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION)).setDescription(
+                        "The name of your Azure OpenAI resource."
+                    )
                         .setLabel("Resource Name")
                         .setRequired(true)
                         .setSensitive(false)
@@ -362,7 +364,9 @@ public class AzureOpenAiService extends SenderService {
 
                 configurationMap.put(
                     API_VERSION,
-                    new SettingsConfiguration.Builder().setDescription("The Azure API version ID to use.")
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION)).setDescription(
+                        "The Azure API version ID to use."
+                    )
                         .setLabel("API Version")
                         .setRequired(true)
                         .setSensitive(false)
@@ -373,7 +377,9 @@ public class AzureOpenAiService extends SenderService {
 
                 configurationMap.put(
                     DEPLOYMENT_ID,
-                    new SettingsConfiguration.Builder().setDescription("The deployment name of your deployed models.")
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION)).setDescription(
+                        "The deployment name of your deployed models."
+                    )
                         .setLabel("Deployment ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -385,7 +391,8 @@ public class AzureOpenAiService extends SenderService {
                 configurationMap.putAll(AzureOpenAiSecretSettings.Configuration.get());
                 configurationMap.putAll(
                     RateLimitSettings.toSettingsConfigurationWithDescription(
-                        "The azureopenai service sets a default number of requests allowed per minute depending on the task type."
+                        "The azureopenai service sets a default number of requests allowed per minute depending on the task type.",
+                        EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION)
                     )
                 );
 

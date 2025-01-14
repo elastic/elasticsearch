@@ -985,7 +985,8 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "required": true,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "str"
+                               "type": "str",
+                               "available_for_task_types": ["text_embedding"]
                            },
                            "model_id": {
                                "description": "The name of the model to use for the inference task.",
@@ -993,7 +994,8 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "required": true,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "str"
+                               "type": "str",
+                               "available_for_task_types": ["text_embedding"]
                            },
                            "api_version": {
                                "description": "The IBM Watsonx API version ID to use.",
@@ -1001,7 +1003,8 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "required": true,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "str"
+                               "type": "str",
+                               "available_for_task_types": ["text_embedding"]
                            },
                            "max_input_tokens": {
                                "description": "Allows you to specify the maximum number of tokens per input.",
@@ -1009,7 +1012,8 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "required": false,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "int"
+                               "type": "int",
+                               "available_for_task_types": ["text_embedding"]
                            },
                            "url": {
                                "description": "",
@@ -1017,7 +1021,8 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "required": true,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "str"
+                               "type": "str",
+                               "available_for_task_types": ["text_embedding"]
                            }
                        }
                    }

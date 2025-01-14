@@ -28,11 +28,12 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -51,7 +52,7 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
     private final boolean sensitive;
     private final boolean updatable;
     private final SettingsConfigurationFieldType type;
-    private final List<TaskType> supportedTaskTypes;
+    private final EnumSet<TaskType> supportedTaskTypes;
 
     /**
      * Constructs a new {@link SettingsConfiguration} instance with specified properties.
@@ -73,7 +74,7 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
         boolean sensitive,
         boolean updatable,
         SettingsConfigurationFieldType type,
-        List<TaskType> supportedTaskTypes
+        EnumSet<TaskType> supportedTaskTypes
     ) {
         this.defaultValue = defaultValue;
         this.description = description;
@@ -93,7 +94,7 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
         this.sensitive = in.readBoolean();
         this.updatable = in.readBoolean();
         this.type = in.readEnum(SettingsConfigurationFieldType.class);
-        this.supportedTaskTypes = in.readCollectionAsImmutableList(TaskType::fromStream);
+        this.supportedTaskTypes = in.readEnumSet(TaskType.class);
     }
 
     static final ParseField DEFAULT_VALUE_FIELD = new ParseField("default_value");
@@ -110,7 +111,7 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
         "service_configuration",
         true,
         args -> {
-            return new SettingsConfiguration.Builder((List<TaskType>) args[7]).setDefaultValue(args[0])
+            return new SettingsConfiguration.Builder((EnumSet<TaskType>) args[7]).setDefaultValue(args[0])
                 .setDescription((String) args[1])
                 .setLabel((String) args[2])
                 .setRequired((Boolean) args[3])
@@ -176,7 +177,7 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
         return type;
     }
 
-    public List<TaskType> getSupportedTaskTypes() {
+    public Set<TaskType> getSupportedTaskTypes() {
         return supportedTaskTypes;
     }
 
@@ -198,6 +199,7 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
             if (type != null) {
                 builder.field(TYPE_FIELD.getPreferredName(), type.toString());
             }
+            builder.field(SUPPORTED_TASK_TYPES.getPreferredName(), supportedTaskTypes);
         }
         builder.endObject();
         return builder;
@@ -224,6 +226,7 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
         out.writeBoolean(sensitive);
         out.writeBoolean(updatable);
         out.writeEnum(type);
+        out.writeEnumSet(supportedTaskTypes);
     }
 
     public Map<String, Object> toMap() {
@@ -240,6 +243,7 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
 
         Optional.ofNullable(type).ifPresent(t -> map.put(TYPE_FIELD.getPreferredName(), t.toString()));
 
+        map.put(SUPPORTED_TASK_TYPES.getPreferredName(), supportedTaskTypes);
         return map;
     }
 
@@ -272,9 +276,9 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
         private boolean sensitive;
         private boolean updatable;
         private SettingsConfigurationFieldType type;
-        private final List<TaskType> supportedTaskTypes;
+        private final EnumSet<TaskType> supportedTaskTypes;
 
-        public Builder(List<TaskType> supportedTaskTypes) {
+        public Builder(EnumSet<TaskType> supportedTaskTypes) {
             this.supportedTaskTypes = Objects.requireNonNull(supportedTaskTypes);
         }
 

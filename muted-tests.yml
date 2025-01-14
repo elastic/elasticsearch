@@ -272,6 +272,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120117
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
   issue: https://github.com/elastic/elasticsearch/issues/118548
+- class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
+  method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
+  issue: https://github.com/elastic/elasticsearch/issues/120127
 
 # Examples:
 #

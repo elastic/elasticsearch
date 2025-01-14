@@ -464,7 +464,7 @@ public record IndicesOptions(
                 .ignoreThrottled(false)
         )
         .build();
-    public static final IndicesOptions STRICT_EXPAND_OPEN_FAILURE_STORE = IndicesOptions.builder()
+    public static final IndicesOptions STRICT_EXPAND_OPEN_NO_SELECTOR = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
         .wildcardOptions(
             WildcardOptions.builder()
@@ -478,7 +478,7 @@ public record IndicesOptions(
             GatekeeperOptions.builder()
                 .allowAliasToMultipleIndices(true)
                 .allowClosedIndices(true)
-                .allowSelectors(true)
+                .allowSelectors(false)
                 .ignoreThrottled(false)
         )
         .build();
@@ -621,55 +621,6 @@ public record IndicesOptions(
                 .allowAliasToMultipleIndices(true)
                 .allowClosedIndices(true)
                 .allowSelectors(false)
-                .ignoreThrottled(false)
-        )
-        .build();
-    public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_FAILURE_STORE = IndicesOptions.builder()
-        .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
-        .wildcardOptions(
-            WildcardOptions.builder()
-                .matchOpen(true)
-                .matchClosed(true)
-                .includeHidden(false)
-                .allowEmptyExpressions(true)
-                .resolveAliases(true)
-        )
-        .gatekeeperOptions(
-            GatekeeperOptions.builder()
-                .allowAliasToMultipleIndices(true)
-                .allowClosedIndices(true)
-                .allowSelectors(true)
-                .ignoreThrottled(false)
-        )
-        .build();
-    public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN_FAILURE_STORE = IndicesOptions.builder()
-        .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
-        .wildcardOptions(
-            WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(true).allowEmptyExpressions(true).resolveAliases(true)
-        )
-        .gatekeeperOptions(
-            GatekeeperOptions.builder()
-                .allowAliasToMultipleIndices(true)
-                .allowClosedIndices(true)
-                .allowSelectors(true)
-                .ignoreThrottled(false)
-        )
-        .build();
-    public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_FAILURE_STORE = IndicesOptions.builder()
-        .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
-        .wildcardOptions(
-            WildcardOptions.builder()
-                .matchOpen(true)
-                .matchClosed(true)
-                .includeHidden(false)
-                .allowEmptyExpressions(true)
-                .resolveAliases(true)
-        )
-        .gatekeeperOptions(
-            GatekeeperOptions.builder()
-                .allowAliasToMultipleIndices(true)
-                .allowClosedIndices(true)
-                .allowSelectors(true)
                 .ignoreThrottled(false)
         )
         .build();
@@ -1320,6 +1271,15 @@ public record IndicesOptions(
     }
 
     /**
+     * @return indices options that requires every specified index to exist, expands wildcards only to open indices and
+     * allows that no indices are resolved from wildcard expressions (not returning an error). It disallows selectors
+     * in the expression (no :: separators).
+     */
+    public static IndicesOptions strictExpandOpenNoSelectors() {
+        return STRICT_EXPAND_OPEN_NO_SELECTOR;
+    }
+
+    /**
      * @return indices options that requires every specified index to exist, expands wildcards only to open indices,
      * allows that no indices are resolved from wildcard expressions (not returning an error) and forbids the
      * use of closed indices by throwing an error.
@@ -1360,24 +1320,6 @@ public record IndicesOptions(
      */
     public static IndicesOptions strictExpandHiddenNoSelectors() {
         return STRICT_EXPAND_OPEN_CLOSED_HIDDEN_NO_SELECTORS;
-    }
-
-    /**
-     * @return indices option that expands wildcards to both open and closed indices, includes failure store
-     * (with data stream) and allows that indices can be missing and no indices are resolved from wildcard expressions
-     * (not returning an error).
-     */
-    public static IndicesOptions lenientExpandIncludeFailureStore() {
-        return LENIENT_EXPAND_OPEN_CLOSED_FAILURE_STORE;
-    }
-
-    /**
-     * @return indices option that requires every specified index to exist, expands wildcards to both open and closed indices, includes
-     * hidden indices, includes failure store (with data stream) and allows that no indices are resolved from wildcard expressions
-     * (not returning an error).
-     */
-    public static IndicesOptions strictExpandHiddenIncludeFailureStore() {
-        return STRICT_EXPAND_OPEN_CLOSED_HIDDEN_FAILURE_STORE;
     }
 
     /**

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.rank.random;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;

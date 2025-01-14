@@ -27,6 +27,7 @@ import java.net.SocketImplFactory;
 import java.net.URL;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
+import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
@@ -274,6 +275,8 @@ public interface EntitlementChecker {
         CompletionHandler<Void, Object> handler
     );
 
+    void check$sun_nio_ch_DatagramChannelImpl$connect(Class<?> callerClass, DatagramChannel that, SocketAddress remote);
+
     // accept
 
     void check$sun_nio_ch_ServerSocketChannelImpl$accept(Class<?> callerClass, ServerSocketChannel that);
@@ -287,4 +290,9 @@ public interface EntitlementChecker {
         CompletionHandler<AsynchronousSocketChannel, Object> handler
     );
 
+    // send/receive
+
+    void check$sun_nio_ch_DatagramChannelImpl$send(Class<?> callerClass, DatagramChannel that, ByteBuffer src, SocketAddress target);
+
+    void check$sun_nio_ch_DatagramChannelImpl$receive(Class<?> callerClass, DatagramChannel that, ByteBuffer dst);
 }

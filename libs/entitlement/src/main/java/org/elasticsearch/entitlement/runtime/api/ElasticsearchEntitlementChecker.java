@@ -22,6 +22,7 @@ import java.net.DatagramSocket;
 import java.net.DatagramSocketImplFactory;
 import java.net.FileNameMap;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
 import java.net.NetworkInterface;
 import java.net.ProxySelector;
@@ -31,6 +32,7 @@ import java.net.SocketImplFactory;
 import java.net.URL;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
+import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
@@ -506,6 +508,11 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$sun_nio_ch_DatagramChannelImpl$connect(Class<?> callerClass, DatagramChannel that, SocketAddress remote) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
+    }
+
+    @Override
     public void check$sun_nio_ch_ServerSocketChannelImpl$accept(Class<?> callerClass, ServerSocketChannel that) {
         policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.ACCEPT_ACTION);
     }
@@ -522,6 +529,24 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         Object attachment,
         CompletionHandler<AsynchronousSocketChannel, Object> handler
     ) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$sun_nio_ch_DatagramChannelImpl$send(
+        Class<?> callerClass,
+        DatagramChannel that,
+        ByteBuffer src,
+        SocketAddress target
+    ) {
+        if (target instanceof InetSocketAddress isa && isa.getAddress().isMulticastAddress()) {
+            policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.ACCEPT_ACTION | NetworkEntitlement.CONNECT_ACTION);
+        }
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
+    }
+
+    @Override
+    public void check$sun_nio_ch_DatagramChannelImpl$receive(Class<?> callerClass, DatagramChannel that, ByteBuffer dst) {
         policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.ACCEPT_ACTION);
     }
 }

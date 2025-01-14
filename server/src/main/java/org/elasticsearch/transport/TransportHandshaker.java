@@ -41,9 +41,9 @@ final class TransportHandshaker {
      * ignores the body of the request. After the handshake, the OutboundHandler uses the min(local,remote) protocol version for all later
      * messages.
      *
-     * This version supports two handshake protocols, v6080099 and v7170099, which respectively have the same message structure as the
-     * transport protocols of v6.8.0 and v7.17.0. This node only sends v7170099 requests, but it can send a valid response to any v6080099
-     * requests that it receives.
+     * This version supports three handshake protocols, v6080099, v7170099 and v8800000, which respectively have the same message structure
+     * as the transport protocols of v6.8.0, v7.17.0, and v8.18.0. This node only sends v7170099 requests, but it can send a valid response
+     * to any v6080099 or v8800000 requests that it receives.
      *
      * Here are some example messages, broken down to show their structure:
      *
@@ -79,7 +79,7 @@ final class TransportHandshaker {
      *    c3 f9 eb 03                   -- max acceptable protocol version (vInt: 00000011 11101011 11111001 11000011 == 8060099)
      *
      *
-     * ## v7170099 Request:
+     * ## v7170099 and v8800000 Requests:
      *
      * 45 53                            -- 'ES' marker
      * 00 00 00 31                      -- total message length
@@ -98,7 +98,7 @@ final class TransportHandshaker {
      *    04                            -- payload length
      *       c3 f9 eb 03                -- max acceptable protocol version (vInt: 00000011 11101011 11111001 11000011 == 8060099)
      *
-     * ## v7170099 Response:
+     * ## v7170099 and v8800000 Responses:
      *
      * 45 53                            -- 'ES' marker
      * 00 00 00 17                      -- total message length
@@ -118,7 +118,12 @@ final class TransportHandshaker {
 
     static final TransportVersion EARLIEST_HANDSHAKE_VERSION = TransportVersion.fromId(6080099);
     static final TransportVersion REQUEST_HANDSHAKE_VERSION = TransportVersions.MINIMUM_COMPATIBLE;
-    static final Set<TransportVersion> ALLOWED_HANDSHAKE_VERSIONS = Set.of(EARLIEST_HANDSHAKE_VERSION, REQUEST_HANDSHAKE_VERSION);
+    static final TransportVersion V9_HANDSHAKE_VERSION = TransportVersion.fromId(8_800_00_0);
+    static final Set<TransportVersion> ALLOWED_HANDSHAKE_VERSIONS = Set.of(
+        EARLIEST_HANDSHAKE_VERSION,
+        REQUEST_HANDSHAKE_VERSION,
+        V9_HANDSHAKE_VERSION
+    );
 
     static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
     private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();

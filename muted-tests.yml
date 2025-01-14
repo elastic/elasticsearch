@@ -178,9 +178,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=indices.split/40_routing_partition_size/more than 1}
   issue: https://github.com/elastic/elasticsearch/issues/113841
-- class: org.elasticsearch.kibana.KibanaThreadPoolIT
-  method: testBlockedThreadPoolsRejectUserRequests
-  issue: https://github.com/elastic/elasticsearch/issues/113939
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5WithTrainedModelAndInference
   issue: https://github.com/elastic/elasticsearch/issues/114023

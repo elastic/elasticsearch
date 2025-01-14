@@ -101,14 +101,15 @@ public class EntitlementInitialization {
             List.of(
                 new Scope("org.elasticsearch.base", List.of(new CreateClassLoaderEntitlement())),
                 new Scope("org.elasticsearch.xcontent", List.of(new CreateClassLoaderEntitlement())),
-                new Scope("org.elasticsearch.server", List.of(
-                    new ExitVMEntitlement(),
-                    new CreateClassLoaderEntitlement(),
-                    new NetworkEntitlement(LISTEN_ACTION | CONNECT_ACTION | ACCEPT_ACTION))
+                new Scope(
+                    "org.elasticsearch.server",
+                    List.of(
+                        new ExitVMEntitlement(),
+                        new CreateClassLoaderEntitlement(),
+                        new NetworkEntitlement(LISTEN_ACTION | CONNECT_ACTION | ACCEPT_ACTION)
+                    )
                 ),
-                new Scope("org.apache.httpcomponents.httpclient", List.of(
-                    new NetworkEntitlement(CONNECT_ACTION))
-                )
+                new Scope("org.apache.httpcomponents.httpclient", List.of(new NetworkEntitlement(CONNECT_ACTION)))
             )
         );
         // agents run without a module, so this is a special hack for the apm agent

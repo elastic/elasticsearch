@@ -19,14 +19,12 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.mapper.SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING;
-
 public class LuceneSyntheticSourceChangesSnapshotTests extends SearchBasedChangesSnapshotTests {
     @Override
     protected Settings indexSettings() {
         return Settings.builder()
             .put(super.indexSettings())
-            .put(INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.name())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.name())
             .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
             .build();
     }

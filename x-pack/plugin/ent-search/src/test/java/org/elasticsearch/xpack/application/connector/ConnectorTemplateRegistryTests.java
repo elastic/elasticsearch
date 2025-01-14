@@ -222,10 +222,7 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
             assertThat(putRequest.indexTemplate().version(), equalTo((long) ConnectorTemplateRegistry.REGISTRY_VERSION));
             final List<String> indexPatterns = putRequest.indexTemplate().indexPatterns();
             assertThat(indexPatterns, hasSize(1));
-            assertThat(
-                indexPatterns,
-                contains(ACCESS_CONTROL_INDEX_NAME_PATTERN)
-            );
+            assertThat(indexPatterns, contains(ACCESS_CONTROL_INDEX_NAME_PATTERN));
             assertNotNull(listener);
             return new TestPutIndexTemplateResponse(true);
         } else {

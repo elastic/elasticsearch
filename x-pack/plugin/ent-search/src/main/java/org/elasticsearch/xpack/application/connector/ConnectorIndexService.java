@@ -78,8 +78,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.fromXContentBytesConnectorFiltering;
 import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.sortFilteringRulesByOrder;
-import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.MANAGED_CONNECTOR_INDEX_PREFIX;
 import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.CONNECTORS_ALLOWED_PRODUCT_ORIGINS;
+import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.MANAGED_CONNECTOR_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 
 /**

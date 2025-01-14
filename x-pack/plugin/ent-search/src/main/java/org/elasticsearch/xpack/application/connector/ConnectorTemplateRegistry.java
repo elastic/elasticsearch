@@ -49,7 +49,6 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     // Sources allowed to access system indices using X-elastic-product-origin header
     public static final List<String> CONNECTORS_ALLOWED_PRODUCT_ORIGINS = List.of("kibana", "connectors");
 
-
     @Override
     protected List<IngestPipelineConfig> getIngestPipelines() {
         return List.of(

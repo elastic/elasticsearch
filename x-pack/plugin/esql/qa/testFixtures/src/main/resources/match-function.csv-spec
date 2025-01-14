@@ -675,6 +675,7 @@ host:keyword | semantic_text_field:text
 ;
 
 testMatchWithOptionsFuzziness
+required_capability: match_function
 required_capability: match_function_options
 
 from books 
@@ -690,6 +691,7 @@ book_no:keyword
 ;
 
 testMatchWithOptionsOperator
+required_capability: match_function
 required_capability: match_function_options
 
 from books 
@@ -701,6 +703,7 @@ The Hobbit or There and Back Again
 ;
 
 testMatchWithOptionsMinimumShouldMatch
+required_capability: match_function
 required_capability: match_function_options
 
 from books 

@@ -73,7 +73,7 @@ public class MatchQueryTests extends ESTestCase {
     public void testToString() {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
         FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", KEYWORD, emptyMap(), true));
-        final MatchQuery mmq = new MatchQuery(source, "eggplant", "foo", null);
+        final MatchQuery mmq = new MatchQuery(source, "eggplant", "foo");
         assertEquals("MatchQuery@1:2[eggplant:foo]", mmq.toString());
     }
 }

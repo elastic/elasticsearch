@@ -50,6 +50,8 @@ import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
+import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.XFeatureField;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -71,7 +73,6 @@ import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -83,16 +84,12 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CONFIDENCE_INTERVAL_FIELD;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.EF_CONSTRUCTION_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INDEX_OPTIONS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.MODEL_SETTINGS_FIELD;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.M_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TYPE_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_ELSER_2_INFERENCE_ID;
@@ -455,42 +452,17 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             String inferenceId = "test_model";
             String fieldName = randomFieldName(depth);
 
-            DenseVectorFieldMapper.VectorIndexType vectorIndexType = randomFrom(
-                Arrays.stream(DenseVectorFieldMapper.VectorIndexType.values())
-                    // Force a type that doesn't support every available index option
-                    .filter(
-                        type -> Set.of(DenseVectorFieldMapper.VectorIndexType.INT8_HNSW, DenseVectorFieldMapper.VectorIndexType.INT4_HNSW)
-                            .contains(type) == false
-                    )
-                    .toArray(DenseVectorFieldMapper.VectorIndexType[]::new)
-            );
-            String vectorIndexTypeName = vectorIndexType.name().toLowerCase(Locale.ROOT);
-
-            SemanticTextField.DenseVectorIndexOptions expectedIndexOptions = new SemanticTextField.DenseVectorIndexOptions(
-                vectorIndexTypeName,
-                randomIntBetween(1, 100),
-                randomIntBetween(1, 100),
-                randomFloatBetween(0.9f, 1.0f, true)
-            );
-
-            Exception exc = expectThrows(
-                MapperParsingException.class,
-                () -> createMapperService(
-                    mapping(
-                        b -> b.startObject(fieldName)
-                            .field("type", SemanticTextFieldMapper.CONTENT_TYPE)
-                            .field(INFERENCE_ID_FIELD, inferenceId)
-                            .startObject(INDEX_OPTIONS_FIELD)
-                            .field(TYPE_FIELD, vectorIndexTypeName)
-                            .field(M_FIELD, expectedIndexOptions.m())
-                            .field(EF_CONSTRUCTION_FIELD, expectedIndexOptions.efConstruction())
-                            .field(CONFIDENCE_INTERVAL_FIELD, expectedIndexOptions.confidenceInterval())
-                            .endObject()
-                            .endObject()
-                    ),
-                    useLegacyFormat
-                )
-            );
+            IndexOptions indexOptions = DenseVectorFieldTypeTests.randomIndexOptionsAll();
+            Exception exc = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
+                b.startObject(fieldName);
+                b.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
+                b.field(INFERENCE_ID_FIELD, inferenceId);
+                b.startObject(INDEX_OPTIONS_FIELD);
+                b.field("type", indexOptions.getType().name().toLowerCase(Locale.ROOT));
+                b.field("unsupported_param", "any_value");
+                b.endObject();
+                b.endObject();
+            }), useLegacyFormat));
             assertTrue(exc.getMessage().contains("unsupported parameters"));
         }
     }
@@ -515,35 +487,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             );
             String inferenceId = model.getInferenceEntityId();
 
-            DenseVectorFieldMapper.VectorIndexType vectorIndexType = randomFrom(DenseVectorFieldMapper.VectorIndexType.values());
-            String vectorIndexTypeName = vectorIndexType.name().toLowerCase(Locale.ROOT);
-
-            SemanticTextField.DenseVectorIndexOptions expectedIndexOptions = new SemanticTextField.DenseVectorIndexOptions(
-                vectorIndexTypeName,
-                vectorIndexType.allowedOptions().contains(M_FIELD) ? (randomBoolean() ? randomIntBetween(1, 100) : null) : null,
-                vectorIndexType.allowedOptions().contains(EF_CONSTRUCTION_FIELD)
-                    ? (randomBoolean() ? randomIntBetween(1, 100) : null)
-                    : null,
-                vectorIndexType.allowedOptions().contains(CONFIDENCE_INTERVAL_FIELD)
-                    ? (randomBoolean() ? randomFloatBetween(0.9f, 1.0f, true) : null)
-                    : null
-            );
+            IndexOptions expectedIndexOptions = DenseVectorFieldTypeTests.randomIndexOptionsAll();
             MapperService mapperService = createMapperService(mapping(b -> {
                 b.startObject(fieldName);
                 b.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
                 b.field(INFERENCE_ID_FIELD, inferenceId);
-                b.startObject(INDEX_OPTIONS_FIELD);
-                b.field(TYPE_FIELD, vectorIndexTypeName);
-                if (expectedIndexOptions.m() != null) {
-                    b.field(M_FIELD, expectedIndexOptions.m());
-                }
-                if (expectedIndexOptions.efConstruction() != null) {
-                    b.field(EF_CONSTRUCTION_FIELD, expectedIndexOptions.efConstruction());
-                }
-                if (expectedIndexOptions.confidenceInterval() != null) {
-                    b.field(CONFIDENCE_INTERVAL_FIELD, expectedIndexOptions.confidenceInterval());
-                }
-                b.endObject();
+                b.field(INDEX_OPTIONS_FIELD, expectedIndexOptions.toXContent(b, null));
                 b.endObject();
             }), useLegacyFormat);
             assertSemanticTextField(mapperService, fieldName, false, expectedIndexOptions);
@@ -559,126 +508,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     )
                 )
             );
-        }
-    }
-
-    public void testMergingDenseVectorIndexOptions() throws IOException {
-        for (int depth = 1; depth < 5; depth++) {
-            String fieldName = randomFieldName(depth);
-            String inferenceId = "test_model";
-
-            // Hardcoded type because it allows all defined options
-            DenseVectorFieldMapper.VectorIndexType vectorIndexType = DenseVectorFieldMapper.VectorIndexType.INT8_HNSW;
-            String vectorIndexTypeName = vectorIndexType.name().toLowerCase(Locale.ROOT);
-
-            SemanticTextField.IndexOptions expectedIndexOptions = new SemanticTextField.DenseVectorIndexOptions(
-                vectorIndexTypeName,
-                null,
-                null,
-                null
-            );
-            MapperService mapperService = createMapperService(
-                mapping(
-                    b -> b.startObject(fieldName)
-                        .field("type", SemanticTextFieldMapper.CONTENT_TYPE)
-                        .field(INFERENCE_ID_FIELD, inferenceId)
-                        .startObject(INDEX_OPTIONS_FIELD)
-                        .field(TYPE_FIELD, vectorIndexTypeName)
-                        .endObject()
-                        .endObject()
-                ),
-                useLegacyFormat
-            );
-            assertSemanticTextField(mapperService, fieldName, false, expectedIndexOptions);
-
-            SemanticTextField.DenseVectorIndexOptions updatedOptions = new SemanticTextField.DenseVectorIndexOptions(
-                vectorIndexTypeName,
-                vectorIndexType.allowedOptions().contains(M_FIELD) ? (randomBoolean() ? randomIntBetween(1, 100) : null) : null,
-                vectorIndexType.allowedOptions().contains(EF_CONSTRUCTION_FIELD)
-                    ? (randomBoolean() ? randomIntBetween(1, 100) : null)
-                    : null,
-                vectorIndexType.allowedOptions().contains(CONFIDENCE_INTERVAL_FIELD)
-                    ? (randomBoolean() ? randomFloatBetween(0.9f, 1.0f, true) : null)
-                    : null
-            );
-            merge(mapperService, mapping(b -> {
-                b.startObject(fieldName);
-                b.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
-                b.field(INFERENCE_ID_FIELD, inferenceId);
-                b.startObject(INDEX_OPTIONS_FIELD);
-                b.field(TYPE_FIELD, vectorIndexTypeName);
-                if (updatedOptions.m() != null) {
-                    b.field(M_FIELD, updatedOptions.m());
-                }
-                if (updatedOptions.efConstruction() != null) {
-                    b.field(EF_CONSTRUCTION_FIELD, updatedOptions.efConstruction());
-                }
-                if (updatedOptions.confidenceInterval() != null) {
-                    b.field(CONFIDENCE_INTERVAL_FIELD, updatedOptions.confidenceInterval());
-                }
-                b.endObject();
-                b.endObject();
-            }));
-            assertSemanticTextField(mapperService, fieldName, false, updatedOptions);
-
-            {
-                // You can't change the type after the fact
-                Exception exc = expectThrows(
-                    IllegalArgumentException.class,
-                    () -> merge(
-                        mapperService,
-                        mapping(
-                            b -> b.startObject(fieldName)
-                                .field("type", SemanticTextFieldMapper.CONTENT_TYPE)
-                                .field(INFERENCE_ID_FIELD, inferenceId)
-                                .startObject(INDEX_OPTIONS_FIELD)
-                                .field(TYPE_FIELD, DenseVectorFieldMapper.VectorIndexType.BBQ_HNSW.name().toLowerCase(Locale.ROOT))
-                                .endObject()
-                                .endObject()
-                        )
-                    )
-                );
-                assertThat(exc.getMessage(), containsString("Conflict in parameter [type]"));
-            }
-            {
-                // You have to reference a supported index option type
-                Exception exc = expectThrows(
-                    MapperParsingException.class,
-                    () -> createMapperService(
-                        mapping(
-                            b -> b.startObject(fieldName)
-                                .field("type", SemanticTextFieldMapper.CONTENT_TYPE)
-                                .field(INFERENCE_ID_FIELD, "test_model")
-                                .startObject(INDEX_OPTIONS_FIELD)
-                                .field(TYPE_FIELD, "unsupported_type")
-                                .endObject()
-                                .endObject()
-                        ),
-                        useLegacyFormat
-                    )
-                );
-                assertThat(exc.getMessage(), containsString("Failed to build [index_options] after last required field arrived"));
-            }
-            {
-                // Dense vector index option validation, so we don't specify index options that are incompatible with each other
-                Exception exc = expectThrows(
-                    MapperParsingException.class,
-                    () -> createMapperService(
-                        mapping(
-                            b -> b.startObject(fieldName)
-                                .field("type", SemanticTextFieldMapper.CONTENT_TYPE)
-                                .field(INFERENCE_ID_FIELD, "test_model")
-                                .startObject(INDEX_OPTIONS_FIELD)
-                                .field(TYPE_FIELD, DenseVectorFieldMapper.VectorIndexType.BBQ_FLAT.name().toLowerCase(Locale.ROOT))
-                                .field(EF_CONSTRUCTION_FIELD, 100)
-                                .endObject()
-                                .endObject()
-                        ),
-                        useLegacyFormat
-                    )
-                );
-                assertThat(exc.getMessage(), containsString("unsupported parameters:  [ef_construction : 100]"));
-            }
         }
     }
 
@@ -739,7 +568,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         MapperService mapperService,
         String fieldName,
         boolean expectedModelSettings,
-        SemanticTextField.IndexOptions expectedIndexOptions
+        IndexOptions expectedIndexOptions
     ) {
         Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
         assertNotNull(mapper);
@@ -750,7 +579,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertNotNull(fieldType);
         assertThat(fieldType, instanceOf(SemanticTextFieldMapper.SemanticTextFieldType.class));
         SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType = (SemanticTextFieldMapper.SemanticTextFieldType) fieldType;
-        assertTrue(semanticFieldMapper.fieldType() == semanticTextFieldType);
+        assertSame(semanticFieldMapper.fieldType(), semanticTextFieldType);
 
         NestedObjectMapper chunksMapper = mapperService.mappingLookup()
             .nestedLookup()
@@ -794,7 +623,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
 
         if (expectedIndexOptions != null) {
-            SemanticTextField.IndexOptions indexOptions = semanticFieldMapper.fieldType().getIndexOptions();
+            IndexOptions indexOptions = semanticFieldMapper.fieldType().getIndexOptions();
             assertNotNull(indexOptions);
             assertEquals(expectedIndexOptions, indexOptions);
         } else {

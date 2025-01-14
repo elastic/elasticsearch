@@ -52,6 +52,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
@@ -89,16 +90,12 @@ import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_OFFSET_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CONFIDENCE_INTERVAL_FIELD;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.EF_CONSTRUCTION_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INDEX_OPTIONS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.MODEL_SETTINGS_FIELD;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.M_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TYPE_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOffsetsFieldName;
@@ -168,7 +165,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             Objects::toString
         ).acceptsNull().setMergeValidator(SemanticTextFieldMapper::canMergeModelSettings);
 
-        private final Parameter<SemanticTextField.IndexOptions> indexOptions = new Parameter<>(
+        private final Parameter<IndexOptions> indexOptions = new Parameter<>(
             INDEX_OPTIONS_FIELD,
             true,
             () -> null,
@@ -500,7 +497,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         private final String inferenceId;
         private final String searchInferenceId;
         private final SemanticTextField.ModelSettings modelSettings;
-        private final SemanticTextField.IndexOptions indexOptions;
+        private final IndexOptions indexOptions;
         private final ObjectMapper inferenceField;
         private final IndexVersion indexVersionCreated;
         private final boolean useLegacyFormat;
@@ -510,7 +507,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             String inferenceId,
             String searchInferenceId,
             SemanticTextField.ModelSettings modelSettings,
-            SemanticTextField.IndexOptions indexOptions,
+            IndexOptions indexOptions,
             ObjectMapper inferenceField,
             IndexVersion indexVersionCreated,
             boolean useLegacyFormat,
@@ -552,7 +549,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return modelSettings;
         }
 
-        public SemanticTextField.IndexOptions getIndexOptions() {
+        public IndexOptions getIndexOptions() {
             return indexOptions;
         }
 
@@ -867,7 +864,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         IndexVersion indexVersionCreated,
         boolean useLegacyFormat,
         @Nullable SemanticTextField.ModelSettings modelSettings,
-        @Nullable SemanticTextField.IndexOptions indexOptions,
+        @Nullable IndexOptions indexOptions,
         Function<Query, BitSetProducer> bitSetProducer,
         IndexSettings indexSettings,
         String fieldName
@@ -891,7 +888,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         IndexVersion indexVersionCreated,
         boolean useLegacyFormat,
         @Nullable SemanticTextField.ModelSettings modelSettings,
-        @Nullable SemanticTextField.IndexOptions indexOptions,
+        @Nullable IndexOptions indexOptions,
         Function<Query, BitSetProducer> bitSetProducer,
         IndexSettings indexSettings,
         String fieldName
@@ -920,7 +917,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     private static Mapper.Builder createEmbeddingsField(
         IndexVersion indexVersionCreated,
         SemanticTextField.ModelSettings modelSettings,
-        SemanticTextField.IndexOptions indexOptions,
+        IndexOptions indexOptions,
         boolean useLegacyFormat,
         String fieldName
     ) {
@@ -961,9 +958,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 denseVectorMapperBuilder.elementType(modelSettings.elementType());
 
                 if (indexOptions != null) {
-                    DenseVectorFieldMapper.IndexOptions denseVectorIndexOptions = ((SemanticTextField.DenseVectorIndexOptions) indexOptions)
-                        .parsedIndexOptions(CHUNKED_EMBEDDINGS_FIELD);
-                    denseVectorMapperBuilder.indexOptions(denseVectorIndexOptions);
+                    denseVectorMapperBuilder.indexOptions(indexOptions);
                 }
 
                 yield denseVectorMapperBuilder;
@@ -987,11 +982,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         return false;
     }
 
-    private static boolean canMergeIndexOptions(
-        SemanticTextField.IndexOptions previous,
-        SemanticTextField.IndexOptions current,
-        Conflicts conflicts
-    ) {
+    private static boolean canMergeIndexOptions(IndexOptions previous, IndexOptions current, Conflicts conflicts) {
         if (Objects.equals(previous, current)) {
             return true;
         }
@@ -1004,43 +995,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return false;
         }
 
-        if (current instanceof SemanticTextField.DenseVectorIndexOptions) {
-            return canMergeDenseVectorIndexOptions(
-                (SemanticTextField.DenseVectorIndexOptions) previous,
-                (SemanticTextField.DenseVectorIndexOptions) current,
-                conflicts
-            );
-        }
-
         conflicts.addConflict(INDEX_OPTIONS_FIELD, "");
         return false;
-    }
-
-    private static boolean canMergeDenseVectorIndexOptions(
-        SemanticTextField.DenseVectorIndexOptions previous,
-        SemanticTextField.DenseVectorIndexOptions current,
-        Conflicts conflicts
-    ) {
-        if (Objects.equals(previous.type(), current.type()) == false) {
-            conflicts.addConflict(TYPE_FIELD, "");
-            return false;
-        }
-
-        if (previous.m() != null && Objects.equals(previous.m(), current.m()) == false) {
-            conflicts.addConflict(M_FIELD, "");
-            return false;
-        }
-
-        if (previous.efConstruction() != null && Objects.equals(previous.efConstruction(), current.efConstruction()) == false) {
-            conflicts.addConflict(EF_CONSTRUCTION_FIELD, "");
-            return false;
-        }
-
-        if (previous.confidenceInterval() != null && Objects.equals(previous.confidenceInterval(), current.confidenceInterval()) == false) {
-            conflicts.addConflict(CONFIDENCE_INTERVAL_FIELD, "");
-            return false;
-        }
-
-        return true;
     }
 }

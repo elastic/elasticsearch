@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -34,13 +35,11 @@ import org.elasticsearch.xcontent.support.MapXContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
@@ -82,11 +81,7 @@ public record SemanticTextField(
     static final String SIMILARITY_FIELD = "similarity";
     static final String ELEMENT_TYPE_FIELD = "element_type";
     static final String INDEX_OPTIONS_FIELD = "index_options";
-    // Supported dense_vector index options
     static final String TYPE_FIELD = "type";
-    static final String M_FIELD = "m";
-    static final String EF_CONSTRUCTION_FIELD = "ef_construction";
-    static final String CONFIDENCE_INTERVAL_FIELD = "confidence_interval";
 
     public record InferenceResult(String inferenceId, ModelSettings modelSettings, Map<String, List<Chunk>> chunks) {}
 
@@ -194,140 +189,6 @@ public record SemanticTextField(
         }
     }
 
-    public abstract static class IndexOptions implements ToXContentObject {
-
-        private final String type;
-
-        public IndexOptions(String type) {
-            this.type = type;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            for (Map.Entry<String, Object> entry : asMap().entrySet()) {
-                if (entry.getValue() != null) {
-                    builder.field(entry.getKey(), entry.getValue());
-                }
-            }
-            builder.endObject();
-            return builder;
-        }
-
-        public String type() {
-            return type;
-        }
-
-        @Override
-        public String toString() {
-            return asMap().toString();
-        }
-
-        public Map<String, Object> asMap() {
-            Map<String, Object> map = new HashMap<>();
-            if (type != null) {
-                map.put(TYPE_FIELD, type);
-            }
-
-            map.putAll(
-                addParamsToMap().entrySet()
-                    .stream()
-                    .filter(entry -> entry.getValue() != null)
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
-            );
-            return map;
-        }
-
-        public abstract Map<String, Object> addParamsToMap();
-
-        public abstract void validate(String fieldName);
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            IndexOptions that = (IndexOptions) o;
-            return Objects.equals(type, that.type);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(type);
-        }
-    }
-
-    public static class DenseVectorIndexOptions extends IndexOptions {
-
-        private final Integer m;
-        private final Integer efConstruction;
-        private final Float confidenceInterval;
-        private DenseVectorFieldMapper.IndexOptions parsedIndexOptions;
-
-        public DenseVectorIndexOptions(String type, Integer m, Integer efConstruction, Float confidenceInterval) {
-            super(type);
-            this.m = m;
-            this.efConstruction = efConstruction;
-            this.confidenceInterval = confidenceInterval;
-        }
-
-        public Integer m() {
-            return m;
-        }
-
-        public Integer efConstruction() {
-            return efConstruction;
-        }
-
-        public Float confidenceInterval() {
-            return confidenceInterval;
-        }
-
-        public DenseVectorFieldMapper.IndexOptions parsedIndexOptions(String fieldName) {
-            if (parsedIndexOptions == null) {
-                parsedIndexOptions = DenseVectorFieldMapper.parseIndexOptions(fieldName, asMap());
-            }
-            return parsedIndexOptions;
-        }
-
-        @Override
-        public Map<String, Object> addParamsToMap() {
-            Map<String, Object> map = new HashMap<>();
-            if (m != null) {
-                map.put(M_FIELD, m);
-            }
-            if (efConstruction != null) {
-                map.put(EF_CONSTRUCTION_FIELD, efConstruction);
-            }
-            if (confidenceInterval != null) {
-                map.put(CONFIDENCE_INTERVAL_FIELD, confidenceInterval);
-            }
-            return map;
-        }
-
-        @Override
-        public void validate(String fieldName) {
-            // Run dense vector index options through the dense vector field mapper validation
-            // so we error on invalid options at index creation time
-            parsedIndexOptions(fieldName);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            DenseVectorIndexOptions that = (DenseVectorIndexOptions) o;
-            return super.equals(o)
-                && Objects.equals(m, that.m)
-                && Objects.equals(efConstruction, that.efConstruction)
-                && Objects.equals(confidenceInterval, that.confidenceInterval);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), m, efConstruction, confidenceInterval);
-        }
-    }
-
     public static String getOriginalTextFieldName(String fieldName) {
         return fieldName + "." + TEXT_FIELD;
     }
@@ -378,26 +239,18 @@ public record SemanticTextField(
         }
         try {
             Map<String, Object> map = XContentMapValues.nodeMapValue(node, INDEX_OPTIONS_FIELD);
-            XContentParser parser = new MapXContentParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.IGNORE_DEPRECATIONS,
-                map,
-                XContentType.JSON
-            );
-            IndexOptions indexOptions = INDEX_OPTIONS_PARSER.parse(parser, null);
-
-            if (indexOptions.type != null) {
-                indexOptions.validate(fieldName);
+            String type = map.remove(TYPE_FIELD).toString();
+            DenseVectorFieldMapper.VectorIndexType vectorIndexType = DenseVectorFieldMapper.VectorIndexType.fromString(
+                XContentMapValues.nodeStringValue(type, null)
+            ).orElse(null);
+            if (vectorIndexType != null) {
+                return vectorIndexType.parseIndexOptions(fieldName, map);
             }
 
-            return indexOptions;
+            return null;
         } catch (Exception exc) {
             throw new ElasticsearchException(exc);
         }
-    }
-
-    private static boolean isDenseVectorIndexType(String type) {
-        return DenseVectorFieldMapper.VectorIndexType.fromString(type).isPresent();
     }
 
     @Override
@@ -506,22 +359,6 @@ public record SemanticTextField(
         }
     );
 
-    private static final ConstructingObjectParser<IndexOptions, Void> INDEX_OPTIONS_PARSER = new ConstructingObjectParser<>(
-        INDEX_OPTIONS_FIELD,
-        true,
-        args -> {
-            String type = (String) args[0];
-            if (type != null && isDenseVectorIndexType(type)) {
-                Integer m = (Integer) args[1];
-                Integer efConstruction = (Integer) args[2];
-                Float confidenceInterval = (Float) args[3];
-                return new DenseVectorIndexOptions(type, m, efConstruction, confidenceInterval);
-            }
-
-            throw new IllegalArgumentException("Unsupported index options type [" + type + "]");
-        }
-    );
-
     static {
         SEMANTIC_TEXT_FIELD_PARSER.declareStringArray(optionalConstructorArg(), new ParseField(TEXT_FIELD));
         SEMANTIC_TEXT_FIELD_PARSER.declareObject(constructorArg(), INFERENCE_RESULT_PARSER, new ParseField(INFERENCE_FIELD));
@@ -554,10 +391,10 @@ public record SemanticTextField(
         MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(SIMILARITY_FIELD));
         MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ELEMENT_TYPE_FIELD));
 
-        INDEX_OPTIONS_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(TYPE_FIELD));
-        INDEX_OPTIONS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(M_FIELD));
-        INDEX_OPTIONS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(EF_CONSTRUCTION_FIELD));
-        INDEX_OPTIONS_PARSER.declareFloat(ConstructingObjectParser.optionalConstructorArg(), new ParseField(CONFIDENCE_INTERVAL_FIELD));
+        // INDEX_OPTIONS_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(TYPE_FIELD));
+        // INDEX_OPTIONS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(M_FIELD));
+        // INDEX_OPTIONS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(EF_CONSTRUCTION_FIELD));
+        // INDEX_OPTIONS_PARSER.declareFloat(ConstructingObjectParser.optionalConstructorArg(), new ParseField(CONFIDENCE_INTERVAL_FIELD));
     }
 
     private static Map<String, List<Chunk>> parseChunksMap(XContentParser parser, ParserContext context) throws IOException {

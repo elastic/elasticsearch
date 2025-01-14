@@ -73,7 +73,6 @@ import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -1188,54 +1187,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract VectorSimilarityFunction vectorSimilarityFunction(IndexVersion indexVersion, ElementType elementType);
     }
 
-    public abstract static class IndexOptions implements ToXContent {
-        final VectorIndexType type;
-
-        IndexOptions(VectorIndexType type) {
-            this.type = type;
-        }
-
-        abstract KnnVectorsFormat getVectorsFormat(ElementType elementType);
-
-        final void validateElementType(ElementType elementType) {
-            if (type.supportsElementType(elementType) == false) {
-                throw new IllegalArgumentException(
-                    "[element_type] cannot be [" + elementType.toString() + "] when using index type [" + type + "]"
-                );
-            }
-        }
-
-        abstract boolean updatableTo(IndexOptions update);
-
-        public void validateDimension(int dim) {
-            if (type.supportsDimension(dim)) {
-                return;
-            }
-            throw new IllegalArgumentException(type.name + " only supports even dimensions; provided=" + dim);
-        }
-
-        abstract boolean doEquals(IndexOptions other);
-
-        abstract int doHashCode();
-
-        @Override
-        public final boolean equals(Object other) {
-            if (other == this) {
-                return true;
-            }
-            if (other == null || other.getClass() != getClass()) {
-                return false;
-            }
-            IndexOptions otherOptions = (IndexOptions) other;
-            return Objects.equals(type, otherOptions.type) && doEquals(otherOptions);
-        }
-
-        @Override
-        public final int hashCode() {
-            return Objects.hash(type, doHashCode());
-        }
-    }
-
     public enum VectorIndexType {
         HNSW("hnsw", false) {
             @Override
@@ -1477,7 +1428,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return Stream.of(VectorIndexType.values()).filter(vectorIndexType -> vectorIndexType.name.equals(type)).findFirst();
         }
 
-        private final String name;
+        final String name;
         private final boolean quantized;
 
         VectorIndexType(String name, boolean quantized) {
@@ -1503,10 +1454,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    static class Int8FlatIndexOptions extends IndexOptions {
+    public static class Int8FlatIndexOptions extends IndexOptions {
         private final Float confidenceInterval;
 
-        Int8FlatIndexOptions(Float confidenceInterval) {
+        public Int8FlatIndexOptions(Float confidenceInterval) {
             super(VectorIndexType.INT8_FLAT);
             this.confidenceInterval = confidenceInterval;
         }
@@ -1549,9 +1500,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    static class FlatIndexOptions extends IndexOptions {
+    public static class FlatIndexOptions extends IndexOptions {
 
-        FlatIndexOptions() {
+        public FlatIndexOptions() {
             super(VectorIndexType.FLAT);
         }
 
@@ -1587,12 +1538,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    static class Int4HnswIndexOptions extends IndexOptions {
+    public static class Int4HnswIndexOptions extends IndexOptions {
         private final int m;
         private final int efConstruction;
         private final float confidenceInterval;
 
-        Int4HnswIndexOptions(int m, int efConstruction, Float confidenceInterval) {
+        public Int4HnswIndexOptions(int m, int efConstruction, Float confidenceInterval) {
             super(VectorIndexType.INT4_HNSW);
             this.m = m;
             this.efConstruction = efConstruction;
@@ -1655,10 +1606,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    static class Int4FlatIndexOptions extends IndexOptions {
+    public static class Int4FlatIndexOptions extends IndexOptions {
         private final float confidenceInterval;
 
-        Int4FlatIndexOptions(Float confidenceInterval) {
+        public Int4FlatIndexOptions(Float confidenceInterval) {
             super(VectorIndexType.INT4_FLAT);
             // The default confidence interval for int4 is dynamic quantiles, this provides the best relevancy and is
             // effectively required for int4 to behave well across a wide range of data.
@@ -1709,12 +1660,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     }
 
-    static class Int8HnswIndexOptions extends IndexOptions {
+    public static class Int8HnswIndexOptions extends IndexOptions {
         private final int m;
         private final int efConstruction;
         private final Float confidenceInterval;
 
-        Int8HnswIndexOptions(int m, int efConstruction, Float confidenceInterval) {
+        public Int8HnswIndexOptions(int m, int efConstruction, Float confidenceInterval) {
             super(VectorIndexType.INT8_HNSW);
             this.m = m;
             this.efConstruction = efConstruction;
@@ -1784,11 +1735,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    static class HnswIndexOptions extends IndexOptions {
+    public static class HnswIndexOptions extends IndexOptions {
         private final int m;
         private final int efConstruction;
 
-        HnswIndexOptions(int m, int efConstruction) {
+        public HnswIndexOptions(int m, int efConstruction) {
             super(VectorIndexType.HNSW);
             this.m = m;
             this.efConstruction = efConstruction;
@@ -1844,11 +1795,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    static class BBQHnswIndexOptions extends IndexOptions {
+    public static class BBQHnswIndexOptions extends IndexOptions {
         private final int m;
         private final int efConstruction;
 
-        BBQHnswIndexOptions(int m, int efConstruction) {
+        public BBQHnswIndexOptions(int m, int efConstruction) {
             super(VectorIndexType.BBQ_HNSW);
             this.m = m;
             this.efConstruction = efConstruction;
@@ -1895,10 +1846,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    static class BBQFlatIndexOptions extends IndexOptions {
+    public static class BBQFlatIndexOptions extends IndexOptions {
         private final int CLASS_NAME_HASH = this.getClass().getName().hashCode();
 
-        BBQFlatIndexOptions() {
+        public BBQFlatIndexOptions() {
             super(VectorIndexType.BBQ_FLAT);
         }
 

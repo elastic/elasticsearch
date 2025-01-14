@@ -48,14 +48,14 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         this.indexed = randomBoolean();
     }
 
-    private DenseVectorFieldMapper.IndexOptions randomIndexOptionsNonQuantized() {
+    private IndexOptions randomIndexOptionsNonQuantized() {
         return randomFrom(
             new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000)),
             new DenseVectorFieldMapper.FlatIndexOptions()
         );
     }
 
-    private DenseVectorFieldMapper.IndexOptions randomIndexOptionsAll() {
+    public static IndexOptions randomIndexOptionsAll() {
         return randomFrom(
             new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000)),
             new DenseVectorFieldMapper.Int8HnswIndexOptions(
@@ -76,7 +76,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
-    private DenseVectorFieldMapper.IndexOptions randomIndexOptionsHnswQuantized() {
+    private IndexOptions randomIndexOptionsHnswQuantized() {
         return randomFrom(
             new DenseVectorFieldMapper.Int8HnswIndexOptions(
                 randomIntBetween(1, 100),

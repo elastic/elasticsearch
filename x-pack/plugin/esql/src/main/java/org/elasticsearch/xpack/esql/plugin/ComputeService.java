@@ -771,7 +771,6 @@ public class ComputeService {
             task.addListener(() -> exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled())));
             var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor, computeListener.acquireAvoid());
             exchangeSource.addRemoteSink(internalSink::fetchPageAsync, true, 1, ActionListener.noop());
-            externalSink.setSource(exchangeSource);
             ActionListener<ComputeResponse> reductionListener = computeListener.acquireCompute();
             runCompute(
                 task,
@@ -912,7 +911,6 @@ public class ComputeService {
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
             computeListener.acquireAvoid()
         );
-        exchangeSink.setSource(exchangeSource);
         try (Releasable ignored = exchangeSource.addEmptySink()) {
             exchangeSink.addCompletionListener(computeListener.acquireAvoid());
             runCompute(

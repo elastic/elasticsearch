@@ -43,6 +43,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
@@ -337,16 +338,12 @@ class StatelessIndexEventListener implements IndexEventListener {
                         engine.flush(true, true, l.map(f -> null));
                     }
                 } else if (engineOrNull instanceof HollowIndexEngine hollowIndexEngine) {
-                    // TODO https://elasticco.atlassian.net/browse/ES-10487
-                    // Acquiring primary permits fails with `org.elasticsearch.index.shard.ShardNotInPrimaryModeException:
-                    // CurrentState[POST_RECOVERY] shard is not in primary mode` due to the `replicationTracker.isPrimaryMode()` check in
-                    // `IndexShard#wrapPrimaryOperationPermitListener`.
-                    /* indexShard.acquireAllPrimaryOperationsPermits(listener.map(r -> {
-                        engine.setPrimaryPermits(r);
+                    indexShard.acquireAllPrimaryOperationsPermits(listener.map(r -> {
+                        logger.debug("Acquired primary permits for hollow engine for {}", indexShard.shardId());
+                        hollowIndexEngine.setPrimaryPermits(r);
+                        hollowIndexEngine.callRefreshListeners();
                         return null;
-                    }), TimeValue.timeValueMinutes(1));*/
-                    hollowIndexEngine.callRefreshListeners();
-                    l.onResponse(null);
+                    }), TimeValue.timeValueMinutes(1), IndexShard.PrimaryPermitCheck.NONE);
                 } else if (engineOrNull == null) {
                     throw new AlreadyClosedException("engine is closed");
                 } else {

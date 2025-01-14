@@ -30,7 +30,7 @@ import java.io.IOException;
 public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
 
     static ElasticsearchCluster remoteCluster = Clusters.remoteCluster();
-    static ElasticsearchCluster localCluster = Clusters.localCluster(remoteCluster);
+    static ElasticsearchCluster localCluster = Clusters.localCluster(remoteCluster, false);
 
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);

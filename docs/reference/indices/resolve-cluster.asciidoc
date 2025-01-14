@@ -22,14 +22,13 @@ You use the same index expression with this endpoint as you would for cross-clus
 search. Index and <<exclude-problematic-clusters,cluster exclusions>> are also supported
 with this endpoint.
 
-For each cluster in the index expression, information is returned about:
+For each cluster in scope, information is returned about:
 
-1. whether the querying ("local") cluster is currently connected to each remote cluster
-   in the index expression scope
+1. whether the querying ("local") cluster is currently connected to it
 2. whether each remote cluster is configured with `skip_unavailable` as `true` or `false`
 3. whether there are any indices, aliases or data streams on that cluster that match
    the index expression (if one provided)
-4. whether the search is likely to have errors returned when you do the {ccs} (including any
+4. whether the search is likely to have errors returned when you do a {ccs} (including any
    authorization errors if your user does not have permission to query a remote cluster or
    the indices on that cluster)
 5. (in some cases) cluster version information, including the Elasticsearch server version
@@ -43,6 +42,11 @@ Once the proper security permissions are obtained, then you can rely on the `con
 in the response to determine whether the remote cluster is available and ready for querying.
 ====
 
+NOTE: When querying older clusters that do not support the _resolve/cluster endpoint
+without an index expression, the local cluster will send the index expression `dummy*`
+to those remote clusters, so if errors occur, you may see reference to that index
+expression even though you didn't request it. If it causes a problem, you can instead
+include an index expression like `*:*` to this endpoint to bypass the issue.
 
 ////
 [source,console]
@@ -79,7 +83,7 @@ GET /_resolve/cluster
 ----
 // TEST[continued]
 
-FILL IN LEFTOFF
+Returns information about all remotely configured clusters.
 
 [source,console]
 ----
@@ -87,7 +91,7 @@ GET /_resolve/cluster/my-index-*,cluster*:my-index-*
 ----
 // TEST[continued]
 
-This will return information about the local cluster and all remotely configured
+Returns information about the local cluster and all remotely configured
 clusters that start with the alias `cluster*`. Each cluster will return information
 about whether it has any indices, aliases or data streams that match `my-index-*`.
 

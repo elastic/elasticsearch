@@ -52,9 +52,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
   method: testStopWaitForCheckpoint
   issue: https://github.com/elastic/elasticsearch/issues/106113
-- class: org.elasticsearch.kibana.KibanaThreadPoolIT
-  method: testBlockedThreadPoolsRejectUserRequests
-  issue: https://github.com/elastic/elasticsearch/issues/113939
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5Small_withPlatformAgnosticVariant
   issue: https://github.com/elastic/elasticsearch/issues/113983
@@ -269,6 +266,15 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120088
 - class: org.elasticsearch.xpack.searchablesnapshots.minio.MinioSearchableSnapshotsIT
   issue: https://github.com/elastic/elasticsearch/issues/120101
+- class: org.elasticsearch.repositories.s3.S3RepositoryThirdPartyTests
+  issue: https://github.com/elastic/elasticsearch/issues/120115
+- class: org.elasticsearch.repositories.s3.RepositoryS3MinioBasicCredentialsRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/120117
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/118548
+- class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
+  method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
+  issue: https://github.com/elastic/elasticsearch/issues/120127
 
 # Examples:
 #

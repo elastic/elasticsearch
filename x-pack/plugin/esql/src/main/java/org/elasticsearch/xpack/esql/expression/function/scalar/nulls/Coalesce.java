@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
@@ -36,6 +36,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -200,26 +201,16 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return SUPPORTED.get(dataType()).toEvaluator(toEvaluator, children());
+        return switch (dataType()) {
+            case BOOLEAN -> CoalesceBooleanEvaluator.toEvaluator(toEvaluator, children());
+            case DOUBLE, COUNTER_DOUBLE -> CoalesceDoubleEvaluator.toEvaluator(toEvaluator, children());
+            case INTEGER, COUNTER_INTEGER -> CoalesceIntEvaluator.toEvaluator(toEvaluator, children());
+            case LONG, DATE_NANOS, DATETIME, COUNTER_LONG, UNSIGNED_LONG -> CoalesceLongEvaluator.toEvaluator(toEvaluator, children());
+            case KEYWORD, TEXT, SEMANTIC_TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, IP, VERSION ->
+                CoalesceBytesRefEvaluator.toEvaluator(toEvaluator, children());
+            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case UNSUPPORTED, SHORT, BYTE, DATE_PERIOD, OBJECT, DOC_DATA_TYPE, SOURCE, TIME_DURATION, FLOAT, HALF_FLOAT, TSID_DATA_TYPE,
+                SCALED_FLOAT, PARTIAL_AGG -> throw new UnsupportedOperationException("can't be coalesced");
+        };
     }
-
-    interface BuildCoalesce {
-        ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator, List<Expression> children);
-    }
-
-    private static final Map<DataType, BuildCoalesce> SUPPORTED = Map.ofEntries(
-        // We intend to support all types here.
-        Map.entry(BOOLEAN, CoalesceBooleanEvaluator::toEvaluator),
-        Map.entry(CARTESIAN_POINT, CoalesceBytesRefEvaluator::toEvaluator),
-        Map.entry(CARTESIAN_SHAPE, CoalesceBytesRefEvaluator::toEvaluator),
-        Map.entry(DATE_NANOS, CoalesceLongEvaluator::toEvaluator),
-        Map.entry(DATETIME, CoalesceLongEvaluator::toEvaluator),
-        Map.entry(GEO_POINT, CoalesceBytesRefEvaluator::toEvaluator),
-        Map.entry(GEO_SHAPE, CoalesceBytesRefEvaluator::toEvaluator),
-        Map.entry(INTEGER, CoalesceIntEvaluator::toEvaluator),
-        Map.entry(IP, CoalesceBytesRefEvaluator::toEvaluator),
-        Map.entry(KEYWORD, CoalesceBytesRefEvaluator::toEvaluator),
-        Map.entry(LONG, CoalesceLongEvaluator::toEvaluator),
-        Map.entry(VERSION, CoalesceBytesRefEvaluator::toEvaluator)
-    );
 }

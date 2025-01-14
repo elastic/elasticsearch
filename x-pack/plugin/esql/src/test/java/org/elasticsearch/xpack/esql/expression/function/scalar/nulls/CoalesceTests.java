@@ -47,6 +47,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class CoalesceTests extends AbstractScalarFunctionTestCase {
@@ -57,7 +58,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> noNullsSuppliers = new ArrayList<>();
-        VaragsTestCaseBuilder builder = new VaragsTestCaseBuilder(type -> "CoalesceEager");
+        VaragsTestCaseBuilder builder = new VaragsTestCaseBuilder(type -> "Coalesce" + type + "Eager");
         builder.expectString(strings -> strings.filter(v -> v != null).findFirst());
         builder.expectLong(longs -> longs.filter(v -> v != null).findFirst());
         builder.expectInt(ints -> ints.filter(v -> v != null).findFirst());
@@ -72,7 +73,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(first, DataType.IP, "first"),
                     new TestCaseSupplier.TypedData(second, DataType.IP, "second")
                 ),
-                "CoalesceEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                "CoalesceBytesRefEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
                 DataType.IP,
                 equalTo(first == null ? second : first)
             );
@@ -87,7 +88,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(first, DataType.VERSION, "first"),
                     new TestCaseSupplier.TypedData(second, DataType.VERSION, "second")
                 ),
-                "CoalesceEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                "CoalesceBytesRefEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
                 DataType.VERSION,
                 equalTo(first == null ? second : first)
             );
@@ -100,7 +101,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(firstDate, DataType.DATETIME, "first"),
                     new TestCaseSupplier.TypedData(secondDate, DataType.DATETIME, "second")
                 ),
-                "CoalesceEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                "CoalesceLongEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
                 DataType.DATETIME,
                 equalTo(firstDate == null ? secondDate : firstDate)
             );
@@ -113,7 +114,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(firstDate, DataType.DATE_NANOS, "first"),
                     new TestCaseSupplier.TypedData(secondDate, DataType.DATE_NANOS, "second")
                 ),
-                "CoalesceEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                "CoalesceLongEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
                 DataType.DATE_NANOS,
                 equalTo(firstDate == null ? secondDate : firstDate)
             );
@@ -137,6 +138,20 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 suppliers.add(new TestCaseSupplier(nullCaseName(s, nullUpTo, true), types, () -> nullCase(s.get(), finalNullUpTo, true)));
             }
         }
+        suppliers.add(
+            new TestCaseSupplier(
+                List.of(DataType.NULL, DataType.NULL),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(null, DataType.NULL, "first"),
+                        new TestCaseSupplier.TypedData(null, DataType.NULL, "second")
+                    ),
+                    "ConstantNull",
+                    DataType.NULL,
+                    nullValue()
+                )
+            )
+        );
 
         return parameterSuppliersFromTypedData(suppliers);
     }
@@ -175,7 +190,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 TestCaseSupplier.testCaseSupplier(
                     leftDataSupplier,
                     rightDataSupplier,
-                    (l, r) -> equalTo("CoalesceEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]"),
+                    (l, r) -> equalTo("CoalesceBytesRefEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]"),
                     dataType,
                     (l, r) -> l
                 )
@@ -243,7 +258,11 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
         sub.add(between(0, sub.size()), randomLiteral(sub.get(sub.size() - 1).dataType()));
         Coalesce exp = build(Source.EMPTY, sub);
         // Known not to be nullable because it contains a non-null literal
-        assertThat(exp.nullable(), equalTo(Nullability.FALSE));
+        if (testCase.expectedType() == DataType.NULL) {
+            assertThat(exp.nullable(), equalTo(Nullability.UNKNOWN));
+        } else {
+            assertThat(exp.nullable(), equalTo(Nullability.FALSE));
+        }
     }
 
     /**

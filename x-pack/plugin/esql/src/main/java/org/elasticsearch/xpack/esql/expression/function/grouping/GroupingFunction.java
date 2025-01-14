@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
@@ -28,8 +29,8 @@ public abstract class GroupingFunction extends Function implements EvaluatorMapp
     }
 
     @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
+    public Object fold(FoldContext ctx) {
+        return EvaluatorMapper.super.fold(source(), ctx);
     }
 
     @Override

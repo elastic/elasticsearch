@@ -102,6 +102,12 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
     @Internal
     abstract public Property<Boolean> getSpoolOutput();
 
+    private boolean ignoreExitValue;
+
+    public void setIgnoreExitValue(boolean value) {
+        ignoreExitValue = value;
+    }
+
     private String output;
 
     @Inject
@@ -205,7 +211,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
         if (exitValue == 0 && getCaptureOutput().get()) {
             output = byteStreamToString(out);
         }
-        if (getLogger().isInfoEnabled() == false) {
+        if (getLogger().isInfoEnabled() == false && ignoreExitValue == false) {
             if (exitValue != 0) {
                 try {
                     if (getIndentingConsoleOutput().isPresent() == false) {

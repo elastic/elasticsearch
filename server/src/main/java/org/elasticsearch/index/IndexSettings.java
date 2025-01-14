@@ -725,9 +725,6 @@ public final class IndexSettings {
     public static final Setting<Boolean> RECOVERY_USE_SYNTHETIC_SOURCE_SETTING = Setting.boolSetting(
         "index.recovery.use_synthetic_source",
         settings -> {
-            if (DiscoveryNode.isStateless(settings)) {
-                return String.valueOf(false);
-            }
             if (IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings)
                 .onOrAfter(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT)
                 || SETTING_INDEX_VERSION_CREATED.get(settings)

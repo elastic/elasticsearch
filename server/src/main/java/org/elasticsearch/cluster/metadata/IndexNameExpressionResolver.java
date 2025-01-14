@@ -1624,11 +1624,6 @@ public class IndexNameExpressionResolver {
         private final Predicate<String> systemIndexAccessPredicate;
         private final Predicate<String> netNewSystemIndexPredicate;
 
-        @Deprecated
-        Context(ClusterState state, IndicesOptions options, SystemIndexAccessLevel systemIndexAccessLevel) {
-            this(state.metadata().getProject(), options, systemIndexAccessLevel);
-        }
-
         Context(ProjectMetadata project, IndicesOptions options, SystemIndexAccessLevel systemIndexAccessLevel) {
             this(project, options, systemIndexAccessLevel, Predicates.always(), Predicates.never());
         }

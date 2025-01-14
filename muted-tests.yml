@@ -227,9 +227,6 @@ tests:
 - class: org.elasticsearch.search.profile.dfs.DfsProfilerIT
   method: testProfileDfs
   issue: https://github.com/elastic/elasticsearch/issues/119711
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testBulkOperations {p0=false}
-  issue: https://github.com/elastic/elasticsearch/issues/119901
 - class: org.elasticsearch.xpack.inference.InferenceCrudIT
   method: testGetServicesWithCompletionTaskType
   issue: https://github.com/elastic/elasticsearch/issues/119959
@@ -268,6 +265,11 @@ tests:
 - class: org.elasticsearch.entitlement.qa.EntitlementsDeniedIT
   method: testCheckThrows {pathPrefix=denied_nonmodular actionName=sslSessionImpl_getSessionContext}
   issue: https://github.com/elastic/elasticsearch/issues/120054
+- class: org.elasticsearch.xpack.ilm.actions.SearchableSnapshotActionIT
+  method: testUpdatePolicyToAddPhasesYieldsInvalidActionsToBeSkipped
+  issue: https://github.com/elastic/elasticsearch/issues/118406
+- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
+  issue: https://github.com/elastic/elasticsearch/issues/120088
 
 # Examples:
 #

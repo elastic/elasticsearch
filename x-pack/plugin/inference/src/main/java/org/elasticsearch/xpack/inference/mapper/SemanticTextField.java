@@ -390,11 +390,6 @@ public record SemanticTextField(
         MODEL_SETTINGS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(DIMENSIONS_FIELD));
         MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(SIMILARITY_FIELD));
         MODEL_SETTINGS_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ELEMENT_TYPE_FIELD));
-
-        // INDEX_OPTIONS_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(TYPE_FIELD));
-        // INDEX_OPTIONS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(M_FIELD));
-        // INDEX_OPTIONS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(EF_CONSTRUCTION_FIELD));
-        // INDEX_OPTIONS_PARSER.declareFloat(ConstructingObjectParser.optionalConstructorArg(), new ParseField(CONFIDENCE_INTERVAL_FIELD));
     }
 
     private static Map<String, List<Chunk>> parseChunksMap(XContentParser parser, ParserContext context) throws IOException {

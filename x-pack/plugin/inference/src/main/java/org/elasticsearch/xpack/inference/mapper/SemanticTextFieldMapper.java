@@ -924,11 +924,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         return switch (modelSettings.taskType()) {
             case SPARSE_EMBEDDING -> {
 
-                // We allow a mapping to be created with index options until we know more about the model;
-                // however, since we do not currently support sparse vector index options, this will throw
-                // the first time we try to index a document with incompatible options.
-                // TODO - Support better validation more in line with what we do for dense vector index options,
-                // when we know more about the options we want to support.
                 if (indexOptions != null) {
                     throw new IllegalArgumentException(
                         "Unsupported [" + INDEX_OPTIONS_FIELD + "] specified for field [" + fieldName + "]: " + indexOptions

@@ -65,6 +65,7 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
             .put("thread_pool.write.queue_size", 1)
             .put("thread_pool.get.size", 1)
             .put("thread_pool.get.queue_size", 1)
+            // a rejected GET may retry on an INITIALIZING shard (the target of a relocation) and unexpectedly succeed, so block rebalancing
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
             .build();
     }

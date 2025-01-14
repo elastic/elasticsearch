@@ -239,9 +239,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
   method: testBulkOperations {p0=false}
   issue: https://github.com/elastic/elasticsearch/issues/119901
-- class: org.elasticsearch.xpack.inference.InferenceCrudIT
-  method: testGetServicesWithCompletionTaskType
-  issue: https://github.com/elastic/elasticsearch/issues/119959
 - class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
   method: testSearchableSnapshotUpgrade {p0=[9.0.0, 8.18.0, 8.18.0]}
   issue: https://github.com/elastic/elasticsearch/issues/119978

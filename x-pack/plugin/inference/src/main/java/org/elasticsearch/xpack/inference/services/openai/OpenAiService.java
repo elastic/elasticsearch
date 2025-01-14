@@ -73,7 +73,11 @@ public class OpenAiService extends SenderService {
 
     private static final String SERVICE_NAME = "OpenAI";
     // The task types exposed via the _inference/_services API
-    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES_FOR_SERVICES_API = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES_FOR_SERVICES_API = EnumSet.of(
+        TaskType.TEXT_EMBEDDING,
+        TaskType.COMPLETION,
+        TaskType.CHAT_COMPLETION
+    );
     /**
      * The task types that the {@link InferenceAction.Request} can accept.
      */

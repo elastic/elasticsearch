@@ -574,7 +574,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 {
                        "service": "elastic",
                        "name": "Elastic",
-                       "task_types": ["sparse_embedding"],
+                       "task_types": ["sparse_embedding", "chat_completion"],
                        "configurations": {
                            "rate_limit.requests_per_minute": {
                                "description": "Minimize the number of rate limit errors.",

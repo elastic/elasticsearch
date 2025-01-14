@@ -217,6 +217,11 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
          */
         Builder copyFrom(DoubleBlock block, int beginInclusive, int endExclusive);
 
+        /**
+         * Copy the values in {@code block} at {@code position}.
+         */
+        Builder copyFrom(DoubleBlock block, int position);
+
         @Override
         Builder appendNull();
 

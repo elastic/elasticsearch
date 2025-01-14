@@ -228,6 +228,11 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
          */
         Builder copyFrom(BytesRefBlock block, int beginInclusive, int endExclusive);
 
+        /**
+         * Copy the values in {@code block} at {@code position}.
+         */
+        Builder copyFrom(BytesRefBlock block, int position, BytesRef scratch);
+
         @Override
         Builder appendNull();
 

@@ -522,6 +522,8 @@ public final class Case extends EsqlScalarFunction {
                 ) {
                     for (int p = 0; p < lhs.getPositionCount(); p++) {
                         if (lhsOrRhs.mask().getBoolean(p)) {
+                            // This is quite slow compared to using the single valued copy and unrolling per-type like coalesce
+                            // *especially* when copying a Block. Vectors are pretty fast this way.
                             builder.copyFrom(lhs, p, p + 1);
                         } else {
                             builder.copyFrom(rhs, p, p + 1);

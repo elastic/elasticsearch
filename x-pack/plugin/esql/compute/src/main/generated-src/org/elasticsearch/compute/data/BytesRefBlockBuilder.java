@@ -85,12 +85,14 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
         return copyFrom((BytesRefBlock) block, beginInclusive, endExclusive);
     }
 
-    // NOCOMMIT it's slow to check if all values are null for single position copies.
-
     /**
      * Copy the values in {@code block} from {@code beginInclusive} to
      * {@code endExclusive} into this builder.
+     * <p>
+     *     For single-position copies see {@link #copyFrom(BytesRefBlock, int, BytesRef scratch)}.
+     * </p>
      */
+    @Override
     public BytesRefBlockBuilder copyFrom(BytesRefBlock block, int beginInclusive, int endExclusive) {
         if (endExclusive > block.getPositionCount()) {
             throw new IllegalArgumentException("can't copy past the end [" + endExclusive + " > " + block.getPositionCount() + "]");
@@ -107,21 +109,7 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     private void copyFromBlock(BytesRefBlock block, int beginInclusive, int endExclusive) {
         BytesRef scratch = new BytesRef();
         for (int p = beginInclusive; p < endExclusive; p++) {
-            if (block.isNull(p)) {
-                appendNull();
-                continue;
-            }
-            int count = block.getValueCount(p);
-            if (count > 1) {
-                beginPositionEntry();
-            }
-            int i = block.getFirstValueIndex(p);
-            for (int v = 0; v < count; v++) {
-                appendBytesRef(block.getBytesRef(i++, scratch));
-            }
-            if (count > 1) {
-                endPositionEntry();
-            }
+            copyFrom(block, p, scratch);
         }
     }
 
@@ -130,6 +118,34 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
         for (int p = beginInclusive; p < endExclusive; p++) {
             appendBytesRef(vector.getBytesRef(p, scratch));
         }
+    }
+
+    /**
+     * Copy the values in {@code block} at {@code position}.
+     * <p>
+     *     Note that there isn't a version of this method on {@link Block.Builder} that takes
+     *     {@link Block}. That'd be quite slow, running position by position. And it's important
+     *     to know if you are copying {@link BytesRef}s so you can have the scratch.
+     * </p>
+     */
+    @Override
+    public BytesRefBlockBuilder copyFrom(BytesRefBlock block, int position, BytesRef scratch) {
+        if (block.isNull(position)) {
+            appendNull();
+            return this;
+        }
+        int count = block.getValueCount(position);
+        int i = block.getFirstValueIndex(position);
+        if (count == 1) {
+            appendBytesRef(block.getBytesRef(i++, scratch));
+            return this;
+        }
+        beginPositionEntry();
+        for (int v = 0; v < count; v++) {
+            appendBytesRef(block.getBytesRef(i++, scratch));
+        }
+        endPositionEntry();
+        return this;
     }
 
     @Override

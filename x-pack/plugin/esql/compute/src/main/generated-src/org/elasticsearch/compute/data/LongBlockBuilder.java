@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.LongArray;
@@ -82,12 +83,14 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
         return copyFrom((LongBlock) block, beginInclusive, endExclusive);
     }
 
-    // NOCOMMIT it's slow to check if all values are null for single position copies.
-
     /**
      * Copy the values in {@code block} from {@code beginInclusive} to
      * {@code endExclusive} into this builder.
+     * <p>
+     *     For single-position copies see {@link #copyFrom(LongBlock, int)}.
+     * </p>
      */
+    @Override
     public LongBlockBuilder copyFrom(LongBlock block, int beginInclusive, int endExclusive) {
         if (endExclusive > block.getPositionCount()) {
             throw new IllegalArgumentException("can't copy past the end [" + endExclusive + " > " + block.getPositionCount() + "]");
@@ -103,21 +106,7 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
 
     private void copyFromBlock(LongBlock block, int beginInclusive, int endExclusive) {
         for (int p = beginInclusive; p < endExclusive; p++) {
-            if (block.isNull(p)) {
-                appendNull();
-                continue;
-            }
-            int count = block.getValueCount(p);
-            if (count > 1) {
-                beginPositionEntry();
-            }
-            int i = block.getFirstValueIndex(p);
-            for (int v = 0; v < count; v++) {
-                appendLong(block.getLong(i++));
-            }
-            if (count > 1) {
-                endPositionEntry();
-            }
+            copyFrom(block, p);
         }
     }
 
@@ -125,6 +114,34 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
         for (int p = beginInclusive; p < endExclusive; p++) {
             appendLong(vector.getLong(p));
         }
+    }
+
+    /**
+     * Copy the values in {@code block} at {@code position}.
+     * <p>
+     *     Note that there isn't a version of this method on {@link Block.Builder} that takes
+     *     {@link Block}. That'd be quite slow, running position by position. And it's important
+     *     to know if you are copying {@link BytesRef}s so you can have the scratch.
+     * </p>
+     */
+    @Override
+    public LongBlockBuilder copyFrom(LongBlock block, int position) {
+        if (block.isNull(position)) {
+            appendNull();
+            return this;
+        }
+        int count = block.getValueCount(position);
+        int i = block.getFirstValueIndex(position);
+        if (count == 1) {
+            appendLong(block.getLong(i++));
+            return this;
+        }
+        beginPositionEntry();
+        for (int v = 0; v < count; v++) {
+            appendLong(block.getLong(i++));
+        }
+        endPositionEntry();
+        return this;
     }
 
     @Override

@@ -79,6 +79,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.fromXContentBytesConnectorFiltering;
 import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.sortFilteringRulesByOrder;
 import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.MANAGED_CONNECTOR_INDEX_PREFIX;
+import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.CONNECTORS_ALLOWED_PRODUCT_ORIGINS;
 import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 
 /**
@@ -93,7 +94,6 @@ public class ConnectorIndexService {
     private static final int CONNECTORS_INDEX_VERSION = 1;
     private static final String CONNECTORS_MAPPING_VERSION_VARIABLE = "elastic-connectors.version";
     private static final String CONNECTORS_MAPPING_MANAGED_VERSION_VARIABLE = "elastic-connectors.managed.index.version";
-    private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "connectors", "enterprise-search");
 
     /**
      * @param client A client for executing actions on the connector index
@@ -109,8 +109,6 @@ public class ConnectorIndexService {
      */
     public static SystemIndexDescriptor getSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-
-        // TODO get rid of templates for everything but acl indices
         String templateSource = TemplateUtils.loadTemplate(
             "/elastic-connectors.json",
             Version.CURRENT.toString(),
@@ -119,7 +117,7 @@ public class ConnectorIndexService {
         );
         request.source(templateSource, XContentType.JSON);
 
-        // The index pattern needs a strict regex to prevent conflicts with .elastic-connectors-sync-jobs
+        // The index pattern needs a stricter regex to prevent conflicts with .elastic-connectors-sync-jobs
         return SystemIndexDescriptor.builder()
             .setIndexPattern(CONNECTOR_INDEX_NAME + "-v*")
             .setPrimaryIndex(CONNECTOR_INDEX_NAME + "-v" + CONNECTORS_INDEX_VERSION)
@@ -129,7 +127,7 @@ public class ConnectorIndexService {
             .setSettings(request.settings())
             .setOrigin(CONNECTORS_ORIGIN)
             .setType(SystemIndexDescriptor.Type.EXTERNAL_MANAGED)
-            .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
+            .setAllowedElasticProductOrigins(CONNECTORS_ALLOWED_PRODUCT_ORIGINS)
             .setNetNew()
             .build();
     }

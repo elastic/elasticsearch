@@ -72,6 +72,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.application.connector.ConnectorIndexService.CONNECTOR_INDEX_NAME;
+import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.CONNECTORS_ALLOWED_PRODUCT_ORIGINS;
 import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 
 /**
@@ -88,7 +89,6 @@ public class ConnectorSyncJobIndexService {
     private static final int CONNECTOR_SYNC_JOB_INDEX_VERSION = 1;
     private static final String CONNECTOR_SYNC_JOB_MAPPING_VERSION_VARIABLE = "elastic-connectors-sync-jobs.version";
     private static final String CONNECTOR_SYNC_JOB_MAPPING_MANAGED_VERSION_VARIABLE = "elastic-connectors-sync-jobs.managed.index.version";
-    private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "connectors", "enterprise-search");
 
     /**
      * @param client A client for executing actions on the connectors sync jobs index.
@@ -104,8 +104,6 @@ public class ConnectorSyncJobIndexService {
      */
     public static SystemIndexDescriptor getSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
-
-        // TODO get rid of templates for everything but acl indices
         String templateSource = TemplateUtils.loadTemplate(
             "/elastic-connectors-sync-jobs.json",
             Version.CURRENT.toString(),
@@ -123,7 +121,7 @@ public class ConnectorSyncJobIndexService {
             .setSettings(request.settings())
             .setOrigin(CONNECTORS_ORIGIN)
             .setType(SystemIndexDescriptor.Type.EXTERNAL_MANAGED)
-            .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
+            .setAllowedElasticProductOrigins(CONNECTORS_ALLOWED_PRODUCT_ORIGINS)
             .setNetNew()
             .build();
     }

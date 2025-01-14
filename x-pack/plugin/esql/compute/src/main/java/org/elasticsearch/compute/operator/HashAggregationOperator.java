@@ -202,6 +202,9 @@ public class HashAggregationOperator implements Operator {
     @Override
     public Page getOutput() {
         Page p = output;
+        if (p != null) {
+            rowsEmitted += p.getPositionCount();
+        }
         output = null;
         return p;
     }

@@ -22,7 +22,7 @@ import org.elasticsearch.index.IndexVersions;
 import java.util.List;
 
 public class DocumentMapper {
-    static final NodeFeature INDEX_SORTING_ON_NESTED = new NodeFeature("mapper.index_sorting_on_nested");
+    static final NodeFeature INDEX_SORTING_ON_NESTED = new NodeFeature("mapper.index_sorting_on_nested", true);
 
     private final String type;
     private final CompressedXContent mappingSource;
@@ -49,7 +49,6 @@ public class DocumentMapper {
             mapping,
             mapping.toCompressedXContent(),
             IndexVersion.current(),
-            mapperService.getIndexSettings(),
             mapperService.getMapperMetrics(),
             mapperService.index().getName()
         );
@@ -60,13 +59,12 @@ public class DocumentMapper {
         Mapping mapping,
         CompressedXContent source,
         IndexVersion version,
-        IndexSettings indexSettings,
         MapperMetrics mapperMetrics,
         String indexName
     ) {
         this.documentParser = documentParser;
         this.type = mapping.getRoot().fullPath();
-        this.mappingLookup = MappingLookup.fromMapping(mapping, indexSettings);
+        this.mappingLookup = MappingLookup.fromMapping(mapping);
         this.mappingSource = source;
         this.mapperMetrics = mapperMetrics;
         this.indexVersion = version;

@@ -381,6 +381,11 @@ public class EsqlCapabilities {
         DATE_NANOS_AGGREGATIONS(),
 
         /**
+         * Support the {@link org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In} operator for date nanos
+         */
+        DATE_NANOS_IN_OPERATOR(),
+
+        /**
          * DATE_PARSE supports reading timezones
          */
         DATE_PARSE_TZ(),
@@ -452,12 +457,16 @@ public class EsqlCapabilities {
         /**
          * KQL function
          */
-        KQL_FUNCTION(Build.current().isSnapshot()),
+        KQL_FUNCTION,
 
         /**
          * Hash function
          */
         HASH_FUNCTION,
+        /**
+         * Hash function aliases such as MD5
+         */
+        HASH_FUNCTION_ALIASES_V1,
 
         /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
@@ -600,7 +609,12 @@ public class EsqlCapabilities {
         /**
          * Full text functions can be used in disjunctions
          */
-        FULL_TEXT_FUNCTIONS_DISJUNCTIONS;
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS,
+
+        /**
+         * Change field caps response for semantic_text fields to be reported as text
+         */
+        SEMANTIC_TEXT_FIELD_CAPS;
 
         private final boolean enabled;
 

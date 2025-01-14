@@ -304,7 +304,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
 
             List<String> dataStreamNames = indexNameExpressionResolver.dataStreamNames(
                 state,
-                IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
+                IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN_NO_SELECTOR
             );
             Map<String, List<DeprecationIssue>> dataStreamIssues = new HashMap<>();
             for (String dataStreamName : dataStreamNames) {

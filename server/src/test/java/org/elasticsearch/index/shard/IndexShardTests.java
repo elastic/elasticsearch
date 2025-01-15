@@ -82,6 +82,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -4574,6 +4575,32 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShard(shard, false);
     }
 
+    public void testResetEngineToReadOnlyEngine() throws Exception {
+        var newEngineCreated = new CountDownLatch(2);
+        var indexShard = newStartedShard(true, Settings.EMPTY, config -> {
+            try {
+                return new NoOpEngine(config);
+            } finally {
+                newEngineCreated.countDown();
+            }
+        });
+        var newEngineNotification = new CountDownLatch(1);
+        indexShard.waitForEngineOrClosedShard(ActionListener.running(newEngineNotification::countDown));
+
+        var onAcquired = new PlainActionFuture<Releasable>();
+        indexShard.acquireAllPrimaryOperationsPermits(onAcquired, TimeValue.timeValueMinutes(1L));
+        try (var permit = safeGet(onAcquired)) {
+            indexShard.resetToReadOnlyEngine();
+        }
+        safeAwait(newEngineCreated);
+        safeAwait(newEngineNotification);
+
+        assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));
+        assertTrue(indexShard.isActive());
+
+        closeShard(indexShard, false);
+    }
+
     /**
      * This test simulates a scenario seen rarely in ConcurrentSeqNoVersioningIT. Closing a shard while engine is inside
      * resetEngineToGlobalCheckpoint can lead to check index failure in integration tests.
@@ -4698,7 +4725,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShard(shard, false);
     }
 
-    public void testResetEngineWithBrokenTranslog() throws Exception {
+    public void testResetEngineToReadOnlyEngineWithBrokenTranslog() throws Exception {
         IndexShard shard = newStartedShard(false);
         updateMappings(
             shard,

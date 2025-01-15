@@ -4355,6 +4355,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Switch the current engine to a read-only engine.
+     */
+    public void resetToReadOnlyEngine() throws IOException {
+        assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
+        assert getActiveOperationsCount() == OPERATIONS_BLOCKED
+            : "resetting engine without blocking operations; active operations are [" + getActiveOperationsCount() + ']';
+        var engineConfig = newEngineConfig(replicationTracker);
+        synchronized (engineMutex) {
+            verifyNotClosed();
+            IOUtils.close(currentEngineReference.get());
+
+            var newEngine = createEngine(engineConfig);
+            assert newEngine instanceof ReadOnlyEngine;
+            currentEngineReference.set(newEngine);
+            onNewEngine(newEngine);
+            active.set(true);
+        }
+        onSettingsChanged();
+        checkAndCallWaitForEngineOrClosedShardListeners();
+    }
+
+    /**
      * Rollback the current engine to the safe commit, then replay local translog up to the global checkpoint.
      */
     void resetEngineToGlobalCheckpoint() throws IOException {
@@ -4527,20 +4549,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 (l, ignored) -> getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, l)
             )
         );
-    }
-
-    public void resetEngine() throws IOException {
-        assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED : "must hold permits to reset the engine";
-        var engineConfig = newEngineConfig(replicationTracker);
-        synchronized (engineMutex) {
-            IOUtils.close(currentEngineReference.get());
-            var newEngine = createEngine(engineConfig);
-            currentEngineReference.set(newEngine);
-            onNewEngine(newEngine);
-            active.set(true);
-        }
-        onSettingsChanged();
-        checkAndCallWaitForEngineOrClosedShardListeners();
     }
 
 }

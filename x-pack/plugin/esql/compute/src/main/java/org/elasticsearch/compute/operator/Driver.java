@@ -186,12 +186,12 @@ public class Driver implements Releasable, Describable {
         long nextStatus = startTime + statusNanos;
         int iter = 0;
         while (true) {
-            final IsBlockedResult isBlocked;
+            IsBlockedResult isBlocked = Operator.NOT_BLOCKED;
             try {
                 isBlocked = runSingleLoopIteration();
             } catch (DriverEarlyTerminationException unused) {
                 closeEarlyFinishedOperators();
-                continue;
+                assert isFinished() : "not finished after early termination";
             }
             iter++;
             if (isBlocked.listener().isDone() == false) {
@@ -355,14 +355,6 @@ public class Driver implements Releasable, Describable {
         // 2. When users abort the query but want to retain the current result.
         // This allows the Driver to finish early without waiting for the scheduled task.
         final AtomicBoolean earlyFinished = new AtomicBoolean();
-        if (driver.activeOperators.isEmpty() == false) {
-            if (driver.activeOperators.getLast() instanceof ExchangeSinkOperator sinkOperator) {
-                sinkOperator.addCompletionListener(ActionListener.running(() -> {
-                    earlyFinished.set(true);
-                    driver.scheduler.runPendingTasks();
-                }));
-            }
-        }
         driver.driverContext.initializeEarlyTerminationChecker(() -> {
             final String reason = driver.cancelReason.get();
             if (reason != null) {
@@ -372,6 +364,14 @@ public class Driver implements Releasable, Describable {
                 throw new DriverEarlyTerminationException("Exchange sink is closed");
             }
         });
+        if (driver.activeOperators.isEmpty() == false) {
+            if (driver.activeOperators.getLast() instanceof ExchangeSinkOperator sinkOperator) {
+                sinkOperator.addCompletionListener(ActionListener.running(() -> {
+                    earlyFinished.set(true);
+                    driver.scheduler.runPendingTasks();
+                }));
+            }
+        }
     }
 
     // Drains all active operators and closes them.

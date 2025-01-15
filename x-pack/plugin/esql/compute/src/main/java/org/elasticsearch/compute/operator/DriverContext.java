@@ -60,9 +60,7 @@ public class DriverContext {
 
     private final WarningsMode warningsMode;
 
-    public static final int CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD = 2048;
-    private static final Runnable NO_OP = () -> {};
-    private Runnable earlyTerminationChecker = NO_OP;
+    private Runnable earlyTerminationChecker = () -> {};
 
     public DriverContext(BigArrays bigArrays, BlockFactory blockFactory) {
         this(bigArrays, blockFactory, WarningsMode.COLLECT);

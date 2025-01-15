@@ -40,7 +40,6 @@ import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
-import static org.elasticsearch.compute.gen.Types.BYTES_REF_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
@@ -62,7 +61,6 @@ public class EvaluatorImplementer {
     private final TypeElement declarationType;
     private final ProcessFunction processFunction;
     private final ClassName implementation;
-    private final int executionCost;
     private final boolean processOutputsMultivalued;
 
     public EvaluatorImplementer(
@@ -70,15 +68,11 @@ public class EvaluatorImplementer {
         javax.lang.model.util.Types types,
         ExecutableElement processFunction,
         String extraName,
-        int executionCost,
         List<TypeMirror> warnExceptions
     ) {
         this.declarationType = (TypeElement) processFunction.getEnclosingElement();
         this.processFunction = new ProcessFunction(elements, types, processFunction, warnExceptions);
-        this.executionCost = executionCost;
-        if (executionCost < 0) {
-            throw new IllegalArgumentException("executionCost must be non-negative; got " + executionCost);
-        }
+
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
             declarationType.getSimpleName() + extraName + "Evaluator"
@@ -198,132 +192,78 @@ public class EvaluatorImplementer {
             });
 
             processFunction.args.stream().forEach(a -> a.createScratch(builder));
-            if (vectorize) {
-                realEvalWithVectorizedStyle(builder, resultDataType);
-            } else {
-                if (executionCost > 0) {
-                    builder.addStatement("int accumulatedCost = 0");
-                }
-                builder.beginControlFlow("position: for (int p = 0; p < positionCount; p++)");
-                {
-                    if (blockStyle) {
-                        if (processOutputsMultivalued == false) {
-                            processFunction.args.stream().forEach(a -> a.skipNull(builder));
-                        } else {
-                            builder.addStatement("boolean allBlocksAreNulls = true");
-                            // allow block type inputs to be null
-                            processFunction.args.stream().forEach(a -> {
-                                if (a instanceof StandardProcessFunctionArg as) {
-                                    as.skipNull(builder);
-                                } else if (a instanceof BlockProcessFunctionArg ab) {
-                                    builder.beginControlFlow("if (!$N.isNull(p))", ab.paramName(blockStyle));
-                                    {
-                                        builder.addStatement("allBlocksAreNulls = false");
-                                    }
-                                    builder.endControlFlow();
-                                }
-                            });
 
-                            builder.beginControlFlow("if (allBlocksAreNulls)");
-                            {
-                                builder.addStatement("result.appendNull()");
-                                builder.addStatement("continue position");
-                            }
-                            builder.endControlFlow();
-                        }
-                    }
-                    processFunction.args.stream().forEach(a -> a.unpackValues(builder, blockStyle));
-
-                    StringBuilder pattern = new StringBuilder();
-                    List<Object> args = new ArrayList<>();
-                    pattern.append(processOutputsMultivalued ? "$T.$N(result, p, " : "$T.$N(");
-                    args.add(declarationType);
-                    args.add(processFunction.function.getSimpleName());
-                    processFunction.args.stream().forEach(a -> {
-                        if (args.size() > 2) {
-                            pattern.append(", ");
-                        }
-                        a.buildInvocation(pattern, args, blockStyle);
-                    });
-                    pattern.append(")");
-                    String builtPattern;
-                    if (processFunction.builderArg == null) {
-                        builtPattern = "result.$L(" + pattern + ")";
-                        args.add(0, appendMethod(resultDataType));
+            builder.beginControlFlow("position: for (int p = 0; p < positionCount; p++)");
+            {
+                if (blockStyle) {
+                    if (processOutputsMultivalued == false) {
+                        processFunction.args.stream().forEach(a -> a.skipNull(builder));
                     } else {
-                        builtPattern = pattern.toString();
-                    }
-                    if (processFunction.warnExceptions.isEmpty() == false) {
-                        builder.beginControlFlow("try");
-                    }
-                    if (executionCost > 0) {
-                        addEarlyTerminationCheck(builder, executionCost);
-                    }
-                    builder.addStatement(builtPattern, args.toArray());
+                        builder.addStatement("boolean allBlocksAreNulls = true");
+                        // allow block type inputs to be null
+                        processFunction.args.stream().forEach(a -> {
+                            if (a instanceof StandardProcessFunctionArg as) {
+                                as.skipNull(builder);
+                            } else if (a instanceof BlockProcessFunctionArg ab) {
+                                builder.beginControlFlow("if (!$N.isNull(p))", ab.paramName(blockStyle));
+                                {
+                                    builder.addStatement("allBlocksAreNulls = false");
+                                }
+                                builder.endControlFlow();
+                            }
+                        });
 
-                    if (processFunction.warnExceptions.isEmpty() == false) {
-                        String catchPattern = "catch ("
-                            + processFunction.warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | "))
-                            + " e)";
-                        builder.nextControlFlow(catchPattern, processFunction.warnExceptions.stream().map(m -> TypeName.get(m)).toArray());
-                        builder.addStatement("warnings().registerException(e)");
-                        builder.addStatement("result.appendNull()");
+                        builder.beginControlFlow("if (allBlocksAreNulls)");
+                        {
+                            builder.addStatement("result.appendNull()");
+                            builder.addStatement("continue position");
+                        }
                         builder.endControlFlow();
                     }
                 }
-                builder.endControlFlow();
+                processFunction.args.stream().forEach(a -> a.unpackValues(builder, blockStyle));
+
+                StringBuilder pattern = new StringBuilder();
+                List<Object> args = new ArrayList<>();
+                pattern.append(processOutputsMultivalued ? "$T.$N(result, p, " : "$T.$N(");
+                args.add(declarationType);
+                args.add(processFunction.function.getSimpleName());
+                processFunction.args.stream().forEach(a -> {
+                    if (args.size() > 2) {
+                        pattern.append(", ");
+                    }
+                    a.buildInvocation(pattern, args, blockStyle);
+                });
+                pattern.append(")");
+                String builtPattern;
+                if (processFunction.builderArg == null) {
+                    builtPattern = vectorize ? "result.$L(p, " + pattern + ")" : "result.$L(" + pattern + ")";
+                    args.add(0, appendMethod(resultDataType));
+                } else {
+                    builtPattern = pattern.toString();
+                }
+                if (processFunction.warnExceptions.isEmpty() == false) {
+                    builder.beginControlFlow("try");
+                }
+
+                builder.addStatement(builtPattern, args.toArray());
+
+                if (processFunction.warnExceptions.isEmpty() == false) {
+                    String catchPattern = "catch ("
+                        + processFunction.warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | "))
+                        + " e)";
+                    builder.nextControlFlow(catchPattern, processFunction.warnExceptions.stream().map(m -> TypeName.get(m)).toArray());
+                    builder.addStatement("warnings().registerException(e)");
+                    builder.addStatement("result.appendNull()");
+                    builder.endControlFlow();
+                }
             }
+            builder.endControlFlow();
             builder.addStatement("return result.build()");
         }
         builder.endControlFlow();
 
         return builder.build();
-    }
-
-    private void realEvalWithVectorizedStyle(MethodSpec.Builder builder, ClassName resultDataType) {
-        boolean checkEarlyTerminationPerRow = executionCost > 0
-            && processFunction.args.stream().anyMatch(a -> a.dataType(false).equals(BYTES_REF_VECTOR));
-        if (checkEarlyTerminationPerRow) {
-            builder.addStatement("int accumulatedCost = 0");
-        }
-        builder.beginControlFlow("position: for (int p = 0; p < positionCount; p++)");
-        {
-            processFunction.args.forEach(a -> a.unpackValues(builder, false));
-            StringBuilder pattern = new StringBuilder();
-            List<Object> args = new ArrayList<>();
-            pattern.append("$T.$N(");
-            args.add(declarationType);
-            args.add(processFunction.function.getSimpleName());
-            processFunction.args.forEach(a -> {
-                if (args.size() > 2) {
-                    pattern.append(", ");
-                }
-                a.buildInvocation(pattern, args, false);
-            });
-            pattern.append(")");
-            String builtPattern;
-            if (processFunction.builderArg == null) {
-                builtPattern = "result.$L(p, " + pattern + ")";
-                args.add(0, appendMethod(resultDataType));
-            } else {
-                builtPattern = pattern.toString();
-            }
-            if (checkEarlyTerminationPerRow) {
-                addEarlyTerminationCheck(builder, executionCost);
-            }
-            builder.addStatement(builtPattern, args.toArray());
-        }
-        builder.endControlFlow();
-    }
-
-    static void addEarlyTerminationCheck(MethodSpec.Builder builder, int executionCost) {
-        builder.addStatement("accumulatedCost += $L", executionCost);
-        builder.beginControlFlow("if (accumulatedCost >= DriverContext.CHECK_FOR_EARLY_TERMINATION_COST_THRESHOLD)");
-        {
-            builder.addStatement("accumulatedCost = 0");
-            builder.addStatement("driverContext.checkForEarlyTermination()");
-        }
-        builder.endControlFlow();
     }
 
     private static void skipNull(MethodSpec.Builder builder, String value) {

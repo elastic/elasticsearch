@@ -42,10 +42,4 @@ public @interface Evaluator {
      * into a warning and turn into a null value.
      */
     Class<? extends Exception>[] warnExceptions() default {};
-
-    /**
-     * The estimated execution cost of evaluating one row of this evaluator. The Driver periodically checks for cancellation or early
-     * termination after the accumulated cost exceeds the threshold (2048). Increase this estimate for expensive evaluators.
-     */
-    int executionCost() default 0;
 }

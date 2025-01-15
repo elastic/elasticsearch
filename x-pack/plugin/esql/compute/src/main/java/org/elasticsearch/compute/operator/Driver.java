@@ -193,7 +193,6 @@ public class Driver implements Releasable, Describable {
                 closeEarlyFinishedOperators();
                 continue;
             }
-            runSingleLoopIteration();
             iter++;
             if (isBlocked.listener().isDone() == false) {
                 updateStatus(nowSupplier.getAsLong() - startTime, iter, DriverStatus.Status.ASYNC, isBlocked.reason());

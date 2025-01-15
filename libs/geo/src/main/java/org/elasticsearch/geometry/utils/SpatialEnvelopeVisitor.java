@@ -243,6 +243,7 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
 
         @Override
         public void visitRectangle(double minX, double maxX, double maxY, double minY) {
+            // TODO: Fix bug with rectangle crossing the dateline (see Extent.addRectangle for correct behaviour)
             this.bottom = Math.min(this.bottom, minY);
             this.top = Math.max(this.top, maxY);
             visitLongitude(minX);

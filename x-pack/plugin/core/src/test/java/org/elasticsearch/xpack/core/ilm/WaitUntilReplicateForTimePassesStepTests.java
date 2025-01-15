@@ -121,18 +121,17 @@ public class WaitUntilReplicateForTimePassesStepTests extends AbstractStepTestCa
     }
 
     public void testApproximateTimeRemaining() {
-        assertThat("0h", equalTo(approximateTimeRemaining(TimeValue.ZERO)));
+        assertThat(approximateTimeRemaining(TimeValue.ZERO), equalTo("less than 1d"));
 
         for (int i : new int[] { -2000, 0, 2000 }) {
-            assertThat("2d", equalTo(approximateTimeRemaining(TimeValue.timeValueMillis(TimeValue.timeValueDays(2).millis() + i))));
-            assertThat("2h", equalTo(approximateTimeRemaining(TimeValue.timeValueMillis(TimeValue.timeValueHours(2).millis() + i))));
+            assertThat(
+                approximateTimeRemaining(TimeValue.timeValueMillis(TimeValue.timeValueDays(2).millis() + i)),
+                equalTo("approximately 2d")
+            );
         }
 
-        assertThat("1d", equalTo(approximateTimeRemaining(TimeValue.timeValueHours(12))));
-        assertThat("12h", equalTo(approximateTimeRemaining(TimeValue.timeValueMillis(TimeValue.timeValueHours(12).millis() - 1))));
-        assertThat("11h", equalTo(approximateTimeRemaining(TimeValue.timeValueHours(11))));
-        assertThat("1h", equalTo(approximateTimeRemaining(TimeValue.timeValueMinutes(30))));
-        assertThat("0h", equalTo(approximateTimeRemaining(TimeValue.timeValueMinutes(29))));
+        assertThat(approximateTimeRemaining(TimeValue.timeValueHours(24)), equalTo("approximately 1d"));
+        assertThat(approximateTimeRemaining(TimeValue.timeValueMillis(TimeValue.timeValueHours(24).millis() - 1)), equalTo("less than 1d"));
     }
 
     private IndexMetadata getIndexMetadata(String index, String lifecycleName, WaitUntilReplicateForTimePassesStep step) {

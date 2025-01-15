@@ -94,11 +94,11 @@ public class WaitUntilReplicateForTimePassesStep extends AsyncWaitStep {
                 false,
                 new SingleMessageFieldInfo(
                     Strings.format(
-                        "Waiting approximately [%s] until the replicate_for time [%s] has elapsed for index [%s] before removing replicas.",
+                        "Waiting [%s] until the replicate_for time [%s] has elapsed for index [%s] before removing replicas.",
                         // note: we're sacrificing specificity for stability of string representation. if this string stays the same then
                         // there isn't a cluster state change to update the string (since it is lazy) -- and we'd rather avoid unnecessary
-                        // cluster state changes. this approach gives us N days of one cluster state change per day, then ~12 hours of
-                        // one cluster state change per hour, and that seems like a reasonable balance between precision and efficiency.
+                        // cluster state changes. this approach gives us one cluster state change per day, which seems like a reasonable
+                        // balance between precision and efficiency.
                         approximateTimeRemaining(remaining),
                         this.replicateFor,
                         index.getName()
@@ -111,21 +111,20 @@ public class WaitUntilReplicateForTimePassesStep extends AsyncWaitStep {
         listener.onResponse(true, EmptyInfo.INSTANCE);
     }
 
-    private static final TimeValue TWELVE_HOURS = TimeValue.timeValueHours(12);
+    private static final TimeValue TWENTY_FOUR_HOURS = TimeValue.timeValueHours(24);
 
     /**
-     * Turns a {@link TimeValue} into an approximate time value String. Similar in spirit to {@link TimeValue#toHumanReadableString(int)},
-     * but reimplemented here to get slightly different behavior.
+     * Turns a {@link TimeValue} into a very approximate time value String.
      *
      * @param remaining the time remaining
-     * @return a String representing the approximate time remaining in days (e.g. "2d") OR hours (e.g. "7h")
+     * @return a String representing the approximate time remaining in days (e.g. "approximately 2d" OR "less than 1d")
      */
     // visible for testing
     static String approximateTimeRemaining(TimeValue remaining) {
-        if (remaining.compareTo(TWELVE_HOURS) >= 0) {
-            return Math.round(remaining.daysFrac()) + "d";
+        if (remaining.compareTo(TWENTY_FOUR_HOURS) >= 0) {
+            return "approximately " + Math.round(remaining.daysFrac()) + "d";
         } else {
-            return Math.round(remaining.hoursFrac()) + "h";
+            return "less than 1d";
         }
     }
 

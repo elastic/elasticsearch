@@ -85,7 +85,9 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         // Race conditions between closing and killing tasks in these tests,
         // sometimes result in lingering persistent tasks (such as "_close"),
         // which cause subsequent tests to fail.
-        client().execute(TransportCancelTasksAction.TYPE, new CancelTasksRequest());
+        CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
+        cancelTasksRequest.setWaitForCompletion(true);
+        client().execute(TransportCancelTasksAction.TYPE, cancelTasksRequest);
     }
 
     public void testLookbackOnly() throws Exception {

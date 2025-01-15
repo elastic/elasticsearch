@@ -259,7 +259,6 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
                 "azureaistudio",
                 "azureopenai",
                 "cohere",
-                "elastic",
                 "googleaistudio",
                 "openai",
                 "streaming_completion_test_service"

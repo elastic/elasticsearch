@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.rank.random;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -30,8 +29,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * A {@code RetrieverBuilder} for randomly scoring a set of documents using the {@code RandomRankBuilder}
  */
 public class RandomRankRetrieverBuilder extends RetrieverBuilder {
-
-    public static final NodeFeature RANDOM_RERANKER_RETRIEVER_SUPPORTED = new NodeFeature("random_reranker_retriever_supported", true);
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField FIELD_FIELD = new ParseField("field");
@@ -63,9 +60,6 @@ public class RandomRankRetrieverBuilder extends RetrieverBuilder {
     }
 
     public static RandomRankRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
-        if (context.clusterSupportsFeature(RANDOM_RERANKER_RETRIEVER_SUPPORTED) == false) {
-            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + RandomRankBuilder.NAME + "]");
-        }
         return PARSER.apply(parser, context);
     }
 

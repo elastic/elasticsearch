@@ -1,0 +1,11 @@
+apply plugin: 'elasticsearch.build'
+
+base {
+  archivesName = 'x-pack-esql-compute-test'
+}
+
+dependencies {
+  compileOnly project(':test:framework')
+  compileOnly project(xpackModule('esql:compute'))
+}
+

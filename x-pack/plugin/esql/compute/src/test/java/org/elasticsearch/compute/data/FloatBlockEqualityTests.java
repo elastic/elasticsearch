@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.compute.operator.ComputeTestCase;
+import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.Releasables;
 
 import java.util.BitSet;

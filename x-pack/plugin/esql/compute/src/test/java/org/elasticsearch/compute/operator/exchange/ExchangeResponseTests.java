@@ -13,7 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.ComputeTestCase;
+import org.elasticsearch.compute.test.ComputeTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 

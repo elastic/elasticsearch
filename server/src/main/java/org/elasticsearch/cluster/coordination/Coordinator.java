@@ -2188,7 +2188,12 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             long gotMutexTime = System.nanoTime();
             long acquireTime = gotMutexTime - start;
             if (acquireTime > 1_000_000) {
-                logger.info("Took {} to get the mutex on {}, holder was {}", TimeValue.timeValueNanos(acquireTime), myThreadName, currentHolder);
+                logger.info(
+                    "Took {} to get the mutex on {}, holder was {}",
+                    TimeValue.timeValueNanos(acquireTime),
+                    myThreadName,
+                    currentHolder
+                );
             }
             try {
                 return s.get();

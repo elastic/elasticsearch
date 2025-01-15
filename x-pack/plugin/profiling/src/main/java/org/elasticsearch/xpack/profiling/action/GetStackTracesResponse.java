@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.profiling.action;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
@@ -141,10 +140,5 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     @Override
     public int hashCode() {
         return Objects.hash(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate);
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this, true, true);
     }
 }

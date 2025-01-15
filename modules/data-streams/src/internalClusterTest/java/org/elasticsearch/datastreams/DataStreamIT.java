@@ -596,7 +596,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, indicesAdmin().prepareGetFieldMappings(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().preparePutMapping(dataStreamName).setSource("""
             {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}""", XContentType.JSON), false);
-        verifyResolvability(dataStreamName, indicesAdmin().prepareGetMappings(dataStreamName), false);
+        verifyResolvability(dataStreamName, indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, dataStreamName), false);
         verifyResolvability(
             dataStreamName,
             indicesAdmin().prepareUpdateSettings(dataStreamName).setSettings(Settings.builder().put("index.number_of_replicas", 0)),
@@ -643,7 +643,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, indicesAdmin().prepareGetFieldMappings(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().preparePutMapping(wildcardExpression).setSource("""
             {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}""", XContentType.JSON), false);
-        verifyResolvability(wildcardExpression, indicesAdmin().prepareGetMappings(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareGetSettings(wildcardExpression), false);
         verifyResolvability(
             wildcardExpression,
@@ -1180,7 +1180,7 @@ public class DataStreamIT extends ESIntegTestCase {
             DataStreamTimestampFieldMapper.NAME,
             Map.of("enabled", true)
         );
-        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings("logs-foobar").get();
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "logs-foobar").get();
         assertThat(getMappingsResponse.getMappings().size(), equalTo(2));
         assertThat(getMappingsResponse.getMappings().get(backingIndex1).getSourceAsMap(), equalTo(expectedMapping));
         assertThat(getMappingsResponse.getMappings().get(backingIndex2).getSourceAsMap(), equalTo(expectedMapping));
@@ -1195,7 +1195,7 @@ public class DataStreamIT extends ESIntegTestCase {
             .setSource("{\"properties\":{\"my_field\":{\"type\":\"keyword\"}}}", XContentType.JSON)
             .get();
         // The mappings of all backing indices should be updated:
-        getMappingsResponse = indicesAdmin().prepareGetMappings("logs-foobar").get();
+        getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "logs-foobar").get();
         assertThat(getMappingsResponse.getMappings().size(), equalTo(2));
         assertThat(getMappingsResponse.getMappings().get(backingIndex1).getSourceAsMap(), equalTo(expectedMapping));
         assertThat(getMappingsResponse.getMappings().get(backingIndex2).getSourceAsMap(), equalTo(expectedMapping));

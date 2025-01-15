@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.MetadataOptionContext;
 import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -72,7 +71,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
@@ -261,21 +259,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
-            var deprecatedContext = ctx.metadata().deprecated_metadata();
-            MetadataOptionContext metadataOptionContext = null;
-            if (deprecatedContext != null) {
-                var s = source(deprecatedContext).source();
-                addWarning(
-                    "Line {}:{}: Square brackets '[]' need to be removed in FROM METADATA declaration",
-                    s.getLineNumber(),
-                    s.getColumnNumber()
-                );
-                metadataOptionContext = deprecatedContext.metadataOption();
-            } else {
-                metadataOptionContext = ctx.metadata().metadataOption();
-
-            }
-            for (var c : metadataOptionContext.UNQUOTED_SOURCE()) {
+            for (var c : ctx.metadata().UNQUOTED_SOURCE()) {
                 String id = c.getText();
                 Source src = source(c);
                 if (MetadataAttribute.isSupported(id) == false // TODO: drop check below once METADATA_SCORE is no longer snapshot-only

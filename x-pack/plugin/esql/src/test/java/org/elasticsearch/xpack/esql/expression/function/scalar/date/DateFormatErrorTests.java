@@ -37,7 +37,7 @@ public class DateFormatErrorTests extends ErrorsForCasesWithoutExamplesTestCase 
         String source = sourceForSignature(signature);
         String name = signature.get(0).typeName();
         if (signature.size() == 1) {
-            return equalTo("first argument of [" + source + "] must be [datetime], found value [] type [" + name + "]");
+            return equalTo("first argument of [" + source + "] must be [datetime or date_nanos], found value [] type [" + name + "]");
         }
         // Two argument version
         // Handle the weird case where we're calling the two argument version with the date first instead of the format.
@@ -46,7 +46,7 @@ public class DateFormatErrorTests extends ErrorsForCasesWithoutExamplesTestCase 
         }
         return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> switch (p) {
             case 0 -> "string";
-            case 1 -> "datetime";
+            case 1 -> "datetime or date_nanos";
             default -> "";
         }));
     }

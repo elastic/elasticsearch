@@ -13,10 +13,19 @@ import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.net.ContentHandlerFactory;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.net.DatagramSocketImplFactory;
 import java.net.FileNameMap;
+import java.net.InetAddress;
+import java.net.MulticastSocket;
+import java.net.NetworkInterface;
+import java.net.ProxySelector;
+import java.net.ResponseCache;
+import java.net.SocketAddress;
 import java.net.SocketImplFactory;
 import java.net.URL;
+import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
 import java.util.List;
 
@@ -167,4 +176,43 @@ public interface EntitlementChecker {
 
     void check$java_net_URLConnection$$setContentHandlerFactory(Class<?> callerClass, ContentHandlerFactory fac);
 
+    ////////////////////
+    //
+    // Network access
+    //
+    void check$java_net_ProxySelector$$setDefault(Class<?> callerClass, ProxySelector ps);
+
+    void check$java_net_ResponseCache$$setDefault(Class<?> callerClass, ResponseCache rc);
+
+    void check$java_net_spi_InetAddressResolverProvider$(Class<?> callerClass);
+
+    void check$java_net_spi_URLStreamHandlerProvider$(Class<?> callerClass);
+
+    void check$java_net_URL$(Class<?> callerClass, String protocol, String host, int port, String file, URLStreamHandler handler);
+
+    void check$java_net_URL$(Class<?> callerClass, URL context, String spec, URLStreamHandler handler);
+
+    void check$java_net_DatagramSocket$bind(Class<?> callerClass, DatagramSocket that, SocketAddress addr);
+
+    void check$java_net_DatagramSocket$connect(Class<?> callerClass, DatagramSocket that, InetAddress addr);
+
+    void check$java_net_DatagramSocket$connect(Class<?> callerClass, DatagramSocket that, SocketAddress addr);
+
+    void check$java_net_DatagramSocket$send(Class<?> callerClass, DatagramSocket that, DatagramPacket p);
+
+    void check$java_net_DatagramSocket$receive(Class<?> callerClass, DatagramSocket that, DatagramPacket p);
+
+    void check$java_net_DatagramSocket$joinGroup(Class<?> callerClass, DatagramSocket that, SocketAddress addr, NetworkInterface ni);
+
+    void check$java_net_DatagramSocket$leaveGroup(Class<?> callerClass, DatagramSocket that, SocketAddress addr, NetworkInterface ni);
+
+    void check$java_net_MulticastSocket$joinGroup(Class<?> callerClass, MulticastSocket that, InetAddress addr);
+
+    void check$java_net_MulticastSocket$joinGroup(Class<?> callerClass, MulticastSocket that, SocketAddress addr, NetworkInterface ni);
+
+    void check$java_net_MulticastSocket$leaveGroup(Class<?> callerClass, MulticastSocket that, InetAddress addr);
+
+    void check$java_net_MulticastSocket$leaveGroup(Class<?> callerClass, MulticastSocket that, SocketAddress addr, NetworkInterface ni);
+
+    void check$java_net_MulticastSocket$send(Class<?> callerClass, MulticastSocket that, DatagramPacket p, byte ttl);
 }

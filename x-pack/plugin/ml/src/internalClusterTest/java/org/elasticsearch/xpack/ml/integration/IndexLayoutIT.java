@@ -66,7 +66,7 @@ public class IndexLayoutIT extends BaseMlIntegTestCase {
         assertThat(
             client.admin()
                 .indices()
-                .prepareGetAliases(AnomalyDetectorsIndex.jobStateIndexPattern())
+                .prepareGetAliases(TEST_REQUEST_TIMEOUT, AnomalyDetectorsIndex.jobStateIndexPattern())
                 .get()
                 .getAliases()
                 .get(".ml-state-000001")

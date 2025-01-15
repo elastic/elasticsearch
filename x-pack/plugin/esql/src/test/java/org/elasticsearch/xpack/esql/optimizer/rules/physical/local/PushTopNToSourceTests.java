@@ -582,7 +582,7 @@ public class PushTopNToSourceTests extends ESTestCase {
 
         public TopNExec build() {
             List<Attribute> attributes = new ArrayList<>(fields.values());
-            PhysicalPlan child = new EsQueryExec(Source.EMPTY, this.index, indexMode, attributes, null, null, List.of(), 0);
+            PhysicalPlan child = new EsQueryExec(Source.EMPTY, this.index, indexMode, Map.of(), attributes, null, null, List.of(), 0);
             if (aliases.isEmpty() == false) {
                 child = new EvalExec(Source.EMPTY, child, aliases);
             }

@@ -562,6 +562,15 @@ public class LocalExecutionPlanner {
         if (localSourceExec.indexMode() != IndexMode.LOOKUP) {
             throw new IllegalArgumentException("can't plan [" + join + "]");
         }
+        Map<String, IndexMode> indicesWithModes = localSourceExec.indexNameWithModes();
+        if (indicesWithModes.size() != 1) {
+            throw new IllegalArgumentException("can't plan [" + join + "], found more than 1 index");
+        }
+        var entry = indicesWithModes.entrySet().iterator().next();
+        if (entry.getValue() != IndexMode.LOOKUP) {
+            throw new IllegalArgumentException("can't plan [" + join + "], found index with mode [" + entry.getValue() + "]");
+        }
+        String indexName = entry.getKey();
         List<Layout.ChannelAndType> matchFields = new ArrayList<>(join.leftFields().size());
         for (Attribute m : join.leftFields()) {
             Layout.ChannelAndType t = source.layout.get(m.id());
@@ -582,7 +591,7 @@ public class LocalExecutionPlanner {
                 matchFields.getFirst().channel(),
                 lookupFromIndexService,
                 matchFields.getFirst().type(),
-                localSourceExec.indexName(),
+                indexName,
                 join.leftFields().getFirst().name(),
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source()

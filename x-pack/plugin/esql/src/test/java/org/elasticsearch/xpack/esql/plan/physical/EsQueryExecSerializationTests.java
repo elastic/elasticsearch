@@ -19,6 +19,9 @@ import org.elasticsearch.xpack.esql.index.EsIndexSerializationTests;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.index.EsIndexSerializationTests.randomIndexNameWithModes;
 
 public class EsQueryExecSerializationTests extends AbstractPhysicalPlanSerializationTests<EsQueryExec> {
     public static EsQueryExec randomEsQueryExec() {
@@ -26,6 +29,7 @@ public class EsQueryExecSerializationTests extends AbstractPhysicalPlanSerializa
             randomSource(),
             randomIdentifier(),
             randomFrom(IndexMode.values()),
+            randomIndexNameWithModes(),
             randomFieldAttributes(1, 10, false),
             randomQuery(),
             new Literal(randomSource(), between(0, Integer.MAX_VALUE), DataType.INTEGER),
@@ -47,25 +51,37 @@ public class EsQueryExecSerializationTests extends AbstractPhysicalPlanSerializa
     protected EsQueryExec mutateInstance(EsQueryExec instance) throws IOException {
         String indexName = instance.indexName();
         IndexMode indexMode = instance.indexMode();
+        Map<String, IndexMode> indexNameWithModes = instance.indexNameWithModes();
         List<Attribute> attrs = instance.attrs();
         QueryBuilder query = instance.query();
         Expression limit = instance.limit();
         Integer estimatedRowSize = instance.estimatedRowSize();
-        switch (between(0, 5)) {
+        switch (between(0, 6)) {
             case 0 -> indexName = randomValueOtherThan(indexName, EsIndexSerializationTests::randomIdentifier);
             case 1 -> indexMode = randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.values()));
-            case 2 -> attrs = randomValueOtherThan(attrs, () -> randomFieldAttributes(1, 10, false));
-            case 3 -> query = randomValueOtherThan(query, EsQueryExecSerializationTests::randomQuery);
-            case 4 -> limit = randomValueOtherThan(
+            case 2 -> indexNameWithModes = randomValueOtherThan(indexNameWithModes, EsIndexSerializationTests::randomIndexNameWithModes);
+            case 3 -> attrs = randomValueOtherThan(attrs, () -> randomFieldAttributes(1, 10, false));
+            case 4 -> query = randomValueOtherThan(query, EsQueryExecSerializationTests::randomQuery);
+            case 5 -> limit = randomValueOtherThan(
                 limit,
                 () -> new Literal(randomSource(), between(0, Integer.MAX_VALUE), DataType.INTEGER)
             );
-            case 5 -> estimatedRowSize = randomValueOtherThan(
+            case 6 -> estimatedRowSize = randomValueOtherThan(
                 estimatedRowSize,
                 AbstractPhysicalPlanSerializationTests::randomEstimatedRowSize
             );
         }
-        return new EsQueryExec(instance.source(), indexName, indexMode, attrs, query, limit, EsQueryExec.NO_SORTS, estimatedRowSize);
+        return new EsQueryExec(
+            instance.source(),
+            indexName,
+            indexMode,
+            indexNameWithModes,
+            attrs,
+            query,
+            limit,
+            EsQueryExec.NO_SORTS,
+            estimatedRowSize
+        );
     }
 
     @Override

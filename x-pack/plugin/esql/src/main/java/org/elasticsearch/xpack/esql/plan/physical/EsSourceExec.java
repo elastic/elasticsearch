@@ -36,30 +36,46 @@ public class EsSourceExec extends LeafExec {
 
     private final String indexName;
     private final IndexMode indexMode;
+    private final Map<String, IndexMode> indexNameWithModes;
     private final QueryBuilder query;
     private final List<Attribute> attributes;
 
     public EsSourceExec(EsRelation relation) {
-        this(relation.source(), relation.indexName(), relation.indexMode(), null, relation.output());
+        this(relation.source(), relation.indexName(), relation.indexMode(), relation.indexNameWithModes(), null, relation.output());
     }
 
-    public EsSourceExec(Source source, String indexName, IndexMode indexMode, QueryBuilder query, List<Attribute> attributes) {
+    public EsSourceExec(
+        Source source,
+        String indexName,
+        IndexMode indexMode,
+        Map<String, IndexMode> indexNameWithModes,
+        QueryBuilder query,
+        List<Attribute> attributes
+    ) {
         super(source);
         this.indexName = indexName;
         this.indexMode = indexMode;
+        this.indexNameWithModes = indexNameWithModes;
         this.query = query;
         this.attributes = attributes;
     }
 
     private static EsSourceExec readFrom(StreamInput in) throws IOException {
         var source = Source.readFrom((PlanStreamInput) in);
-        var indexName = in.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)
-            ? in.readString()
-            : EsIndex.readFrom(in).name();
+        String indexName;
+        Map<String, IndexMode> indexNameWithModes;
+        if (in.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
+            indexName = in.readString();
+            indexNameWithModes = in.readMap(IndexMode::readFrom);
+        } else {
+            var index = EsIndex.readFrom(in);
+            indexName = index.name();
+            indexNameWithModes = index.indexNameWithModes();
+        }
         var attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         var query = in.readOptionalNamedWriteable(QueryBuilder.class);
         var indexMode = EsRelation.readIndexMode(in);
-        return new EsSourceExec(source, indexName, indexMode, query, attributes);
+        return new EsSourceExec(source, indexName, indexMode, indexNameWithModes, query, attributes);
     }
 
     @Override
@@ -67,8 +83,9 @@ public class EsSourceExec extends LeafExec {
         Source.EMPTY.writeTo(out);
         if (out.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
             out.writeString(indexName);
+            out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
         } else {
-            new EsIndex(indexName, Map.of(), Map.of()).writeTo(out);
+            new EsIndex(indexName, Map.of(), indexNameWithModes).writeTo(out);
         }
         out.writeNamedWriteableCollection(output());
         out.writeOptionalNamedWriteable(query());
@@ -88,6 +105,10 @@ public class EsSourceExec extends LeafExec {
         return indexMode;
     }
 
+    public Map<String, IndexMode> indexNameWithModes() {
+        return indexNameWithModes;
+    }
+
     public QueryBuilder query() {
         return query;
     }
@@ -99,12 +120,12 @@ public class EsSourceExec extends LeafExec {
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, EsSourceExec::new, indexName, indexMode, query, attributes);
+        return NodeInfo.create(this, EsSourceExec::new, indexName, indexMode, indexNameWithModes, query, attributes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexName, indexMode, query, attributes);
+        return Objects.hash(indexName, indexMode, indexNameWithModes, query, attributes);
     }
 
     @Override
@@ -120,6 +141,7 @@ public class EsSourceExec extends LeafExec {
         EsSourceExec other = (EsSourceExec) obj;
         return Objects.equals(indexName, other.indexName)
             && Objects.equals(indexMode, other.indexMode)
+            && Objects.equals(indexNameWithModes, other.indexNameWithModes)
             && Objects.equals(query, other.query)
             && Objects.equals(attributes, other.attributes);
     }

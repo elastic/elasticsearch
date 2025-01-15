@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.qa.mixed;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
@@ -22,7 +21,6 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V11;
-import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.Mode.ASYNC;
 
 public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     @ClassRule
@@ -49,10 +47,6 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         return oldClusterTestFeatureService.clusterHasFeature(featureId);
     }
 
-    protected static boolean oldClusterHasFeature(NodeFeature feature) {
-        return oldClusterHasFeature(feature.id());
-    }
-
     @AfterClass
     public static void cleanUp() {
         oldClusterTestFeatureService = null;
@@ -74,14 +68,6 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
         assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, instructions, bwcVersion));
-        if (mode == ASYNC) {
-            assumeTrue("Async is not supported on " + bwcVersion, supportsAsync());
-        }
-    }
-
-    @Override
-    protected boolean supportsAsync() {
-        return oldClusterHasFeature(ASYNC_QUERY_FEATURE_ID);
     }
 
     @Override

@@ -91,7 +91,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
         };
         try {
             ParsedScrollId scrollId = parseScrollId(request.scrollId());
-            Runnable action = switch (scrollId.getType()) {
+            var action = switch (scrollId.getType()) {
                 case QUERY_THEN_FETCH_TYPE -> new SearchScrollQueryThenFetchAsyncAction(
                     logger,
                     clusterService,

@@ -28,8 +28,8 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
         return new LookupFromIndexOperator.Status(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
+            randomLongBetween(0, TimeValue.timeValueHours(1).millis()),
             randomNonNegativeLong(),
-            randomLongBetween(1, TimeValue.timeValueHours(1).millis()),
             randomNonNegativeLong()
         );
     }
@@ -53,7 +53,7 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
     }
 
     public void testToXContent() {
-        var status = new EnrichLookupOperator.Status(100, 50, TimeValue.timeValueSeconds(10).millis(), 120);
+        var status = new LookupFromIndexOperator.Status(100, 50, TimeValue.timeValueSeconds(10).millis(), 120, 88);
         String json = Strings.toString(status, true, true);
         assertThat(json, equalTo("""
             {
@@ -61,6 +61,7 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
               "completed_pages" : 50,
               "total_time_in_millis" : 10000,
               "total_time" : "10s",
+              "emitted_pages" : 88,
               "total_terms" : 120
             }"""));
     }

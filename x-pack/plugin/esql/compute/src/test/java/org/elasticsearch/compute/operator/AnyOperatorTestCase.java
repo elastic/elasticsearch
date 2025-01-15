@@ -85,7 +85,7 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
     }
 
     /**
-     * Ensures that the Operator.Status of this operator has the required fields.
+     * Ensures that the Operator.Status of this operator has the standard fields.
      */
     public void testOperatorStatus() throws IOException {
         DriverContext driverContext = driverContext();

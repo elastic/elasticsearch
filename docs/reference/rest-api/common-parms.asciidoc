@@ -1379,10 +1379,11 @@ results, which will later be merged based on the specified `weight` and `normali
 The weight that each score of this retriever's top docs will be multiplied with. Defaults to 1.0.
 
 * `normalizer`::
-(Optional, string)
+(Optional, String or Object)
 +
 Specifies how we will normalize the retriever's scores, before applying the specified `weight`.
 Available values are: `minmax`, `identity`. Defaults to `identity`.
 
-See also <<retrievers-examples-linear-retriever, the hybrid search example>> using a linear retriever.
+See also <<retrievers-examples-linear-retriever, a hybrid search example>> using a linear retriever on how to
+independently configure and apply normalizers to retrievers.
 end::linear-retriever-components[]

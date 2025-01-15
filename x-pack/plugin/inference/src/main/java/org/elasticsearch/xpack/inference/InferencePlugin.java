@@ -280,7 +280,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             elasticInferenceServiceComponents.set(
                 new ElasticInferenceServiceComponents(
                     elasticInferenceUrl,
-                    new ElasticInferenceServiceACL(Map.of("model-abc", EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.COMPLETION)))
+                    new ElasticInferenceServiceACL(Map.of("model-abc", EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)))
                 )
             );
 

@@ -122,7 +122,7 @@ public class PlannerUtils {
             return Strings.EMPTY_ARRAY;
         }
         var indices = new LinkedHashSet<String>();
-        forEachFromRelation(plan, relation -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(relation.indexName()))));
+        forEachFromRelation(plan, relation -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(relation.indexPattern()))));
         return indices.toArray(String[]::new);
     }
 
@@ -194,7 +194,7 @@ public class PlannerUtils {
                     EsSourceExec.class,
                     query -> new EsSourceExec(
                         Source.EMPTY,
-                        query.indexName(),
+                        query.indexPattern(),
                         query.indexMode(),
                         query.indexNameWithModes(),
                         filter,

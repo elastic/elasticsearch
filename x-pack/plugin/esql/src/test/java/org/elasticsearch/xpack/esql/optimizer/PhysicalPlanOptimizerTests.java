@@ -2582,7 +2582,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             EsQueryExec.class,
             node -> new EsSourceExec(
                 node.source(),
-                node.indexName(),
+                node.indexPattern(),
                 IndexMode.STANDARD,
                 node.indexNameWithModes(),
                 node.query(),

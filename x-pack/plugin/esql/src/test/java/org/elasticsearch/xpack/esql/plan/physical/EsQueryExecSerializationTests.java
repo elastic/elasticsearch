@@ -49,7 +49,7 @@ public class EsQueryExecSerializationTests extends AbstractPhysicalPlanSerializa
 
     @Override
     protected EsQueryExec mutateInstance(EsQueryExec instance) throws IOException {
-        String indexName = instance.indexName();
+        String indexPattern = instance.indexPattern();
         IndexMode indexMode = instance.indexMode();
         Map<String, IndexMode> indexNameWithModes = instance.indexNameWithModes();
         List<Attribute> attrs = instance.attrs();
@@ -57,7 +57,7 @@ public class EsQueryExecSerializationTests extends AbstractPhysicalPlanSerializa
         Expression limit = instance.limit();
         Integer estimatedRowSize = instance.estimatedRowSize();
         switch (between(0, 6)) {
-            case 0 -> indexName = randomValueOtherThan(indexName, EsIndexSerializationTests::randomIdentifier);
+            case 0 -> indexPattern = randomValueOtherThan(indexPattern, EsIndexSerializationTests::randomIdentifier);
             case 1 -> indexMode = randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.values()));
             case 2 -> indexNameWithModes = randomValueOtherThan(indexNameWithModes, EsIndexSerializationTests::randomIndexNameWithModes);
             case 3 -> attrs = randomValueOtherThan(attrs, () -> randomFieldAttributes(1, 10, false));
@@ -73,7 +73,7 @@ public class EsQueryExecSerializationTests extends AbstractPhysicalPlanSerializa
         }
         return new EsQueryExec(
             instance.source(),
-            indexName,
+            indexPattern,
             indexMode,
             indexNameWithModes,
             attrs,

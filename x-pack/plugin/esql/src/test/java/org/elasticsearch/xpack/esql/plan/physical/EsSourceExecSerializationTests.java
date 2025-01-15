@@ -39,20 +39,20 @@ public class EsSourceExecSerializationTests extends AbstractPhysicalPlanSerializ
 
     @Override
     protected EsSourceExec mutateInstance(EsSourceExec instance) throws IOException {
-        String indexName = instance.indexName();
+        String indexPattern = instance.indexPattern();
         IndexMode indexMode = instance.indexMode();
         Map<String, IndexMode> indexNameWithModes = instance.indexNameWithModes();
         QueryBuilder query = instance.query();
         List<Attribute> attributes = instance.output();
         switch (between(0, 4)) {
-            case 0 -> indexName = randomValueOtherThan(indexName, ESTestCase::randomIdentifier);
+            case 0 -> indexPattern = randomValueOtherThan(indexPattern, ESTestCase::randomIdentifier);
             case 1 -> indexMode = randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.values()));
             case 2 -> indexNameWithModes = randomValueOtherThan(indexNameWithModes, EsIndexSerializationTests::randomIndexNameWithModes);
             case 3 -> query = randomValueOtherThan(query, () -> new TermQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5)));
             case 4 -> attributes = randomValueOtherThan(attributes, () -> randomFieldAttributes(1, 10, false));
             default -> throw new IllegalStateException();
         }
-        return new EsSourceExec(instance.source(), indexName, indexMode, indexNameWithModes, query, attributes);
+        return new EsSourceExec(instance.source(), indexPattern, indexMode, indexNameWithModes, query, attributes);
     }
 
     @Override

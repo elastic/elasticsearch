@@ -36,18 +36,18 @@ public class EsRelationSerializationTests extends AbstractLogicalPlanSerializati
 
     @Override
     protected EsRelation mutateInstance(EsRelation instance) throws IOException {
-        String indexName = instance.indexName();
+        String indexPattern = instance.indexPattern();
         IndexMode indexMode = instance.indexMode();
         Map<String, IndexMode> indexNameWithModes = instance.indexNameWithModes();
         List<Attribute> attributes = instance.output();
         switch (between(0, 3)) {
-            case 0 -> indexName = randomValueOtherThan(indexName, ESTestCase::randomIdentifier);
+            case 0 -> indexPattern = randomValueOtherThan(indexPattern, ESTestCase::randomIdentifier);
             case 1 -> indexMode = randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.values()));
             case 2 -> indexNameWithModes = randomValueOtherThan(indexNameWithModes, EsIndexSerializationTests::randomIndexNameWithModes);
             case 3 -> attributes = randomValueOtherThan(attributes, () -> randomFieldAttributes(0, 10, false));
             default -> throw new IllegalArgumentException();
         }
-        return new EsRelation(instance.source(), indexName, indexMode, indexNameWithModes, attributes);
+        return new EsRelation(instance.source(), indexPattern, indexMode, indexNameWithModes, attributes);
     }
 
     @Override

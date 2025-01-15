@@ -38,7 +38,7 @@ public class EsRelation extends LeafPlan {
         EsRelation::readFrom
     );
 
-    private final String indexName;
+    private final String indexPattern;
     private final IndexMode indexMode;
     private final Map<String, IndexMode> indexNameWithModes;
     private final List<Attribute> attrs;
@@ -49,13 +49,13 @@ public class EsRelation extends LeafPlan {
 
     public EsRelation(
         Source source,
-        String indexName,
+        String indexPattern,
         IndexMode indexMode,
         Map<String, IndexMode> indexNameWithModes,
         List<Attribute> attributes
     ) {
         super(source);
-        this.indexName = indexName;
+        this.indexPattern = indexPattern;
         this.indexMode = indexMode;
         this.indexNameWithModes = indexNameWithModes;
         this.attrs = attributes;
@@ -63,14 +63,14 @@ public class EsRelation extends LeafPlan {
 
     private static EsRelation readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
-        String indexName;
+        String indexPattern;
         Map<String, IndexMode> indexNameWithModes;
         if (in.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
-            indexName = in.readString();
+            indexPattern = in.readString();
             indexNameWithModes = in.readMap(IndexMode::readFrom);
         } else {
             var index = EsIndex.readFrom(in);
-            indexName = index.name();
+            indexPattern = index.name();
             indexNameWithModes = index.indexNameWithModes();
         }
         List<Attribute> attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
@@ -84,17 +84,17 @@ public class EsRelation extends LeafPlan {
         if (in.getTransportVersion().before(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
             in.readBoolean();
         }
-        return new EsRelation(source, indexName, indexMode, indexNameWithModes, attributes);
+        return new EsRelation(source, indexPattern, indexMode, indexNameWithModes, attributes);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         if (out.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
-            out.writeString(indexName);
+            out.writeString(indexPattern);
             out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
         } else {
-            new EsIndex(indexName, Map.of(), indexNameWithModes).writeTo(out);
+            new EsIndex(indexPattern, Map.of(), indexNameWithModes).writeTo(out);
         }
         out.writeNamedWriteableCollection(attrs);
         if (supportingEsSourceOptions(out.getTransportVersion())) {
@@ -120,7 +120,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     protected NodeInfo<EsRelation> info() {
-        return NodeInfo.create(this, EsRelation::new, indexName, indexMode, indexNameWithModes, attrs);
+        return NodeInfo.create(this, EsRelation::new, indexPattern, indexMode, indexNameWithModes, attrs);
     }
 
     private static List<Attribute> flatten(Source source, Map<String, EsField> mapping) {
@@ -151,8 +151,8 @@ public class EsRelation extends LeafPlan {
         return list;
     }
 
-    public String indexName() {
-        return indexName;
+    public String indexPattern() {
+        return indexPattern;
     }
 
     public IndexMode indexMode() {
@@ -186,7 +186,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexName, indexMode, indexNameWithModes, attrs);
+        return Objects.hash(indexPattern, indexMode, indexNameWithModes, attrs);
     }
 
     @Override
@@ -200,7 +200,7 @@ public class EsRelation extends LeafPlan {
         }
 
         EsRelation other = (EsRelation) obj;
-        return Objects.equals(indexName, other.indexName)
+        return Objects.equals(indexPattern, other.indexPattern)
             && Objects.equals(indexMode, other.indexMode)
             && Objects.equals(indexNameWithModes, other.indexNameWithModes)
             && Objects.equals(attrs, other.attrs);
@@ -210,7 +210,7 @@ public class EsRelation extends LeafPlan {
     public String nodeString() {
         return nodeName()
             + "["
-            + indexName
+            + indexPattern
             + "]"
             + (indexMode != IndexMode.STANDARD ? "[" + indexMode.name() + "]" : "")
             + NodeUtils.limitedToString(attrs);

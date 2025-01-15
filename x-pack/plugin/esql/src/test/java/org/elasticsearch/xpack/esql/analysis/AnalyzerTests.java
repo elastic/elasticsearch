@@ -2068,7 +2068,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(project.projections().stream().map(Object::toString).toList(), hasItem(matchesRegex("languages\\{f}#\\d+ AS int#\\d+")));
 
         var esRelation = as(project.child(), EsRelation.class);
-        assertThat(esRelation.indexName(), equalTo("test"));
+        assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // Lookup's output looks sensible too
         assertMap(
@@ -2580,7 +2580,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(enrich.policy().getMatchField(), "language_code");
         var eval = as(enrich.child(), Eval.class);
         var esRelation = as(eval.child(), EsRelation.class);
-        assertEquals(esRelation.indexName(), "test");
+        assertEquals(esRelation.indexPattern(), "test");
 
     }
 

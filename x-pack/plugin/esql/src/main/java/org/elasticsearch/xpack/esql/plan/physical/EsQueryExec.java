@@ -48,7 +48,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public static final EsField DOC_ID_FIELD = new EsField("_doc", DataType.DOC_DATA_TYPE, Map.of(), false);
     public static final List<Sort> NO_SORTS = List.of();  // only exists to mimic older serialization, but we no longer serialize sorts
 
-    private final String indexName;
+    private final String indexPattern;
     private final IndexMode indexMode;
     private final Map<String, IndexMode> indexNameWithModes;
     private final QueryBuilder query;
@@ -113,18 +113,18 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     public EsQueryExec(
         Source source,
-        String indexName,
+        String indexPattern,
         IndexMode indexMode,
         Map<String, IndexMode> indexNameWithModes,
         List<Attribute> attributes,
         QueryBuilder query
     ) {
-        this(source, indexName, indexMode, indexNameWithModes, attributes, query, null, null, null);
+        this(source, indexPattern, indexMode, indexNameWithModes, attributes, query, null, null, null);
     }
 
     public EsQueryExec(
         Source source,
-        String indexName,
+        String indexPattern,
         IndexMode indexMode,
         Map<String, IndexMode> indexNameWithModes,
         List<Attribute> attrs,
@@ -134,7 +134,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         Integer estimatedRowSize
     ) {
         super(source);
-        this.indexName = indexName;
+        this.indexPattern = indexPattern;
         this.indexMode = indexMode;
         this.indexNameWithModes = indexNameWithModes;
         this.query = query;
@@ -150,14 +150,14 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
      */
     private static EsQueryExec readFrom(StreamInput in) throws IOException {
         var source = Source.readFrom((PlanStreamInput) in);
-        String indexName;
+        String indexPattern;
         Map<String, IndexMode> indexNameWithModes;
         if (in.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
-            indexName = in.readString();
+            indexPattern = in.readString();
             indexNameWithModes = in.readMap(IndexMode::readFrom);
         } else {
             var index = EsIndex.readFrom(in);
-            indexName = index.name();
+            indexPattern = index.name();
             indexNameWithModes = index.indexNameWithModes();
         }
         var indexMode = EsRelation.readIndexMode(in);
@@ -167,7 +167,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         in.readOptionalCollectionAsList(EsQueryExec::readSort);
         var rowSize = in.readOptionalVInt();
         // Ignore sorts from the old serialization format
-        return new EsQueryExec(source, indexName, indexMode, indexNameWithModes, attrs, query, limit, NO_SORTS, rowSize);
+        return new EsQueryExec(source, indexPattern, indexMode, indexNameWithModes, attrs, query, limit, NO_SORTS, rowSize);
     }
 
     private static Sort readSort(StreamInput in) throws IOException {
@@ -182,10 +182,10 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         if (out.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
-            out.writeString(indexName);
+            out.writeString(indexPattern);
             out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
         } else {
-            new EsIndex(indexName, Map.of(), indexNameWithModes).writeTo(out);
+            new EsIndex(indexPattern, Map.of(), indexNameWithModes).writeTo(out);
         }
         EsRelation.writeIndexMode(out, indexMode());
         out.writeNamedWriteableCollection(output());
@@ -209,7 +209,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         return NodeInfo.create(
             this,
             EsQueryExec::new,
-            indexName,
+            indexPattern,
             indexMode,
             indexNameWithModes,
             attrs,
@@ -220,8 +220,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         );
     }
 
-    public String indexName() {
-        return indexName;
+    public String indexPattern() {
+        return indexPattern;
     }
 
     public IndexMode indexMode() {
@@ -275,13 +275,13 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
         return Objects.equals(this.estimatedRowSize, size)
             ? this
-            : new EsQueryExec(source(), indexName, indexMode, indexNameWithModes, attrs, query, limit, sorts, size);
+            : new EsQueryExec(source(), indexPattern, indexMode, indexNameWithModes, attrs, query, limit, sorts, size);
     }
 
     public EsQueryExec withLimit(Expression limit) {
         return Objects.equals(this.limit, limit)
             ? this
-            : new EsQueryExec(source(), indexName, indexMode, indexNameWithModes, attrs, query, limit, sorts, estimatedRowSize);
+            : new EsQueryExec(source(), indexPattern, indexMode, indexNameWithModes, attrs, query, limit, sorts, estimatedRowSize);
     }
 
     public boolean canPushSorts() {
@@ -295,12 +295,12 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
         return Objects.equals(this.sorts, sorts)
             ? this
-            : new EsQueryExec(source(), indexName, indexMode, indexNameWithModes, attrs, query, limit, sorts, estimatedRowSize);
+            : new EsQueryExec(source(), indexPattern, indexMode, indexNameWithModes, attrs, query, limit, sorts, estimatedRowSize);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexName, indexMode, indexNameWithModes, attrs, query, limit, sorts);
+        return Objects.hash(indexPattern, indexMode, indexNameWithModes, attrs, query, limit, sorts);
     }
 
     @Override
@@ -314,7 +314,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
 
         EsQueryExec other = (EsQueryExec) obj;
-        return Objects.equals(indexName, other.indexName)
+        return Objects.equals(indexPattern, other.indexPattern)
             && Objects.equals(indexMode, other.indexMode)
             && Objects.equals(indexNameWithModes, other.indexNameWithModes)
             && Objects.equals(attrs, other.attrs)
@@ -328,7 +328,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public String nodeString() {
         return nodeName()
             + "["
-            + indexName
+            + indexPattern
             + "], "
             + "indexMode["
             + indexMode

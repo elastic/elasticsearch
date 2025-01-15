@@ -10,7 +10,6 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.script.field.vectors.DenseVector;
 import org.elasticsearch.script.field.vectors.DenseVectorDocValuesField;
@@ -20,8 +19,6 @@ import java.util.HexFormat;
 import java.util.List;
 
 public class VectorScoreScriptUtils {
-
-    public static final NodeFeature HAMMING_DISTANCE_FUNCTION = new NodeFeature("script.hamming");
 
     public static class DenseVectorFunction {
         protected final ScoreScript scoreScript;

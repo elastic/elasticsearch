@@ -427,7 +427,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
 
         {
             Settings settings = Settings.builder()
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString())
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString())
                 .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
                 .build();
             IllegalArgumentException exc = expectThrows(
@@ -470,7 +470,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
     public void testRecoverySourceWithSyntheticSource() throws IOException {
         {
             Settings settings = Settings.builder()
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
                 .build();
             MapperService mapperService = createMapperService(settings, topMapping(b -> {}));
             DocumentMapper docMapper = mapperService.documentMapper();
@@ -480,7 +480,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         }
         {
             Settings settings = Settings.builder()
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
                 .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
                 .build();
             MapperService mapperService = createMapperService(settings, topMapping(b -> {}));
@@ -539,7 +539,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             final XContentBuilder mappings = topMapping(b -> {});
             final Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name())
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
                 .build();
             final MapperService mapperService = createMapperService(settings, mappings);
             DocumentMapper docMapper = mapperService.documentMapper();
@@ -549,7 +549,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             final XContentBuilder mappings = topMapping(b -> {});
             final Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name())
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
                 .build();
             final MapperService mapperService = createMapperService(settings, mappings);
             final DocumentMapper docMapper = mapperService.documentMapper();
@@ -559,7 +559,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             final XContentBuilder mappings = topMapping(b -> {});
             final Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name())
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
                 .build();
             final MapperService mapperService = createMapperService(settings, mappings);
             final DocumentMapper docMapper = mapperService.documentMapper();
@@ -571,7 +571,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             final XContentBuilder mappings = topMapping(b -> {});
             final Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
                 .build();
             final MapperService mapperService = createMapperService(settings, mappings);
             DocumentMapper docMapper = mapperService.documentMapper();
@@ -581,7 +581,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             final XContentBuilder mappings = topMapping(b -> {});
             final Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
                 .build();
             final MapperService mapperService = createMapperService(settings, mappings);
             final DocumentMapper docMapper = mapperService.documentMapper();
@@ -591,7 +591,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             final XContentBuilder mappings = topMapping(b -> {});
             final Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
                 .build();
             var ex = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mappings));
             assertEquals("Failed to parse mapping: _source can not be disabled in index using [logsdb] index mode", ex.getMessage());
@@ -613,7 +613,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 """;
             final Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
                 .build();
             final MapperService mapperService = createMapperService(settings, mappings);
@@ -635,7 +635,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 """;
             final Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
                 .build();
             final MapperService mapperService = createMapperService(settings, mappings);
@@ -657,7 +657,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 """;
             final Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
                 .build();
             var ex = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mappings));
@@ -668,7 +668,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         {
             final XContentBuilder mappings = topMapping(b -> {});
             final Settings settings = Settings.builder()
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
                 .build();
             final MapperService mapperService = createMapperService(settings, mappings);
             DocumentMapper docMapper = mapperService.documentMapper();
@@ -677,7 +677,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         {
             final XContentBuilder mappings = topMapping(b -> {});
             final Settings settings = Settings.builder()
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
                 .build();
             final MapperService mapperService = createMapperService(settings, mappings);
             final DocumentMapper docMapper = mapperService.documentMapper();
@@ -686,7 +686,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         {
             final XContentBuilder mappings = topMapping(b -> {});
             final Settings settings = Settings.builder()
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
                 .build();
             final MapperService mapperService = createMapperService(settings, mappings);
             final DocumentMapper docMapper = mapperService.documentMapper();

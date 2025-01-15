@@ -166,7 +166,14 @@ public class PutJobStateMachineTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
 
-        TransportPutRollupJobAction.updateMapping(job, testListener, mock(PersistentTasksService.class), client, logger);
+        TransportPutRollupJobAction.updateMapping(
+            job,
+            testListener,
+            mock(PersistentTasksService.class),
+            client,
+            logger,
+            TEST_REQUEST_TIMEOUT
+        );
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
     }
 
@@ -201,7 +208,14 @@ public class PutJobStateMachineTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
 
-        TransportPutRollupJobAction.updateMapping(job, testListener, mock(PersistentTasksService.class), client, logger);
+        TransportPutRollupJobAction.updateMapping(
+            job,
+            testListener,
+            mock(PersistentTasksService.class),
+            client,
+            logger,
+            TEST_REQUEST_TIMEOUT
+        );
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
     }
 
@@ -238,7 +252,14 @@ public class PutJobStateMachineTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
 
-        TransportPutRollupJobAction.updateMapping(job, testListener, mock(PersistentTasksService.class), client, logger);
+        TransportPutRollupJobAction.updateMapping(
+            job,
+            testListener,
+            mock(PersistentTasksService.class),
+            client,
+            logger,
+            TEST_REQUEST_TIMEOUT
+        );
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
     }
 
@@ -272,7 +293,14 @@ public class PutJobStateMachineTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
 
-        TransportPutRollupJobAction.updateMapping(job, testListener, mock(PersistentTasksService.class), client, logger);
+        TransportPutRollupJobAction.updateMapping(
+            job,
+            testListener,
+            mock(PersistentTasksService.class),
+            client,
+            logger,
+            TEST_REQUEST_TIMEOUT
+        );
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
     }
 
@@ -318,7 +346,14 @@ public class PutJobStateMachineTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(TransportPutMappingAction.TYPE), any(PutMappingRequest.class), requestCaptor2.capture());
 
-        TransportPutRollupJobAction.updateMapping(job, testListener, mock(PersistentTasksService.class), client, logger);
+        TransportPutRollupJobAction.updateMapping(
+            job,
+            testListener,
+            mock(PersistentTasksService.class),
+            client,
+            logger,
+            TEST_REQUEST_TIMEOUT
+        );
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
         verify(client).execute(eq(TransportPutMappingAction.TYPE), any(PutMappingRequest.class), any());
     }

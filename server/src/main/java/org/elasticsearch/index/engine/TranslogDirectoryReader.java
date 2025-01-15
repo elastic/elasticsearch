@@ -98,6 +98,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             // output for realtime-get operations. However, this can degrade the performance of realtime-get and update operations.
             // If slight inconsistencies in realtime-get operations are acceptable, the translog operation can be reindexed lazily.
             if (mappingLookup.isSourceSynthetic()) {
+                onSegmentCreated.run();
                 leafReader = createInMemoryReader(shardId, engineConfig, directory, documentParser, mappingLookup, false, operation);
             } else {
                 leafReader = new TranslogLeafReader(

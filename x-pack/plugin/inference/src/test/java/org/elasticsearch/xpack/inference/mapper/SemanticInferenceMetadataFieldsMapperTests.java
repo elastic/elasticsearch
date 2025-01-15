@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import java.util.Collection;
 import java.util.Collections;
 
-public class SemanticInferenceMetadataFieldMapperTests extends MapperServiceTestCase {
+public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTestCase {
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return Collections.singletonList(new InferencePlugin(Settings.EMPTY));

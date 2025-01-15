@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -111,18 +112,28 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
         "service_configuration",
         true,
         args -> {
-            return new SettingsConfiguration.Builder((EnumSet<TaskType>) args[7]).setDefaultValue(args[0])
-                .setDescription((String) args[1])
-                .setLabel((String) args[2])
-                .setRequired((Boolean) args[3])
-                .setSensitive((Boolean) args[4])
-                .setUpdatable((Boolean) args[5])
-                .setType((SettingsConfigurationFieldType) args[6])
+            int i = 0;
+
+            EnumSet<TaskType> supportedTaskTypes = EnumSet.noneOf(TaskType.class);
+            var supportedTaskTypesListOfStrings = (List<String>) args[i++];
+
+            for (var supportedTaskTypeString : supportedTaskTypesListOfStrings) {
+                supportedTaskTypes.add(TaskType.fromString(supportedTaskTypeString));
+            }
+
+            return new SettingsConfiguration.Builder(supportedTaskTypes).setDefaultValue(args[i++])
+                .setDescription((String) args[i++])
+                .setLabel((String) args[i++])
+                .setRequired((Boolean) args[i++])
+                .setSensitive((Boolean) args[i++])
+                .setUpdatable((Boolean) args[i++])
+                .setType((SettingsConfigurationFieldType) args[i++])
                 .build();
         }
     );
 
     static {
+        PARSER.declareStringArray(constructorArg(), SUPPORTED_TASK_TYPES);
         PARSER.declareField(optionalConstructorArg(), (p, c) -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return p.text();
@@ -146,7 +157,6 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
             TYPE_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
-        PARSER.declareStringArray(optionalConstructorArg(), SUPPORTED_TASK_TYPES);
     }
 
     public Object getDefaultValue() {

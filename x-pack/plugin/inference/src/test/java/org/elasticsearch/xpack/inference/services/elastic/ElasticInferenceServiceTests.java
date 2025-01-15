@@ -509,7 +509,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "int",
-                               "available_for_task_types": ["sparse_embedding" , "completion"]
+                               "available_for_task_types": ["sparse_embedding"]
                            }
                        }
                    }

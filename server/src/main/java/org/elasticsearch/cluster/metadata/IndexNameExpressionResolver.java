@@ -93,12 +93,23 @@ public class IndexNameExpressionResolver {
      */
     public record ResolvedExpression(String resource, @Nullable IndexComponentSelector selector) {
         public ResolvedExpression(String indexAbstraction) {
-            this(indexAbstraction, null);
+            this(indexAbstraction, (IndexComponentSelector) null);
+        }
+
+        /**
+         * Constructs a ResolvedExpression with the DATA selector if the selectors are allowed
+         * or null otherwise.
+         * @param indexAbstraction
+         * @param options
+         */
+        public ResolvedExpression(String indexAbstraction, IndicesOptions options) {
+            this(indexAbstraction, options.allowSelectors() ? IndexComponentSelector.DATA : null);
         }
 
         public String combined() {
             return combineSelector(resource, selector);
         }
+
     }
 
     /**
@@ -1751,12 +1762,7 @@ public class IndexNameExpressionResolver {
                         Index index = indexAbstraction.getIndices().get(i);
                         IndexMetadata indexMetadata = context.state.metadata().index(index);
                         if (indexMetadata.getState() != excludeState) {
-                            resources.add(
-                                new ResolvedExpression(
-                                    index.getName(),
-                                    context.options.allowSelectors() ? IndexComponentSelector.DATA : null
-                                )
-                            );
+                            resources.add(new ResolvedExpression(index.getName(), context.getOptions()));
                         }
                     }
                 }
@@ -1770,7 +1776,7 @@ public class IndexNameExpressionResolver {
                             List<Index> failureIndices = ds.getFailureIndices().getIndices();
                             for (int i = 0; i < failureIndices.size(); i++) {
                                 Index index = failureIndices.get(i);
-                                resources.add(new ResolvedExpression(index.getName(), IndexComponentSelector.DATA));
+                                resources.add(new ResolvedExpression(index.getName(), context.getOptions()));
                             }
                         }
                     } else if (indexAbstraction.getType() == Type.DATA_STREAM) {
@@ -1779,7 +1785,7 @@ public class IndexNameExpressionResolver {
                             Index index = dataStream.getFailureIndices().getIndices().get(i);
                             IndexMetadata indexMetadata = context.state.metadata().index(index);
                             if (indexMetadata.getState() != excludeState) {
-                                resources.add(new ResolvedExpression(index.getName(), IndexComponentSelector.DATA));
+                                resources.add(new ResolvedExpression(index.getName(), context.getOptions()));
                             }
                         }
                     }

@@ -424,7 +424,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
         try {
-            RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+            client.admin()
                 .cluster()
                 .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
                 .setWaitForCompletion(true)

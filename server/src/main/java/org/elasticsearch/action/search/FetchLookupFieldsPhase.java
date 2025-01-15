@@ -40,11 +40,7 @@ final class FetchLookupFieldsPhase extends SearchPhase {
     private final SearchResponseSections searchResponse;
     private final AtomicArray<SearchPhaseResult> queryResults;
 
-    FetchLookupFieldsPhase(
-        AsyncSearchContext context,
-        SearchResponseSections searchResponse,
-        AtomicArray<SearchPhaseResult> queryResults
-    ) {
+    FetchLookupFieldsPhase(AsyncSearchContext context, SearchResponseSections searchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         super(NAME);
         this.context = context;
         this.searchResponse = searchResponse;

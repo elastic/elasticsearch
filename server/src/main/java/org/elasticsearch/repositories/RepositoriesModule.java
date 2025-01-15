@@ -102,7 +102,9 @@ public final class RepositoriesModule {
         }
         if (preRestoreChecks.isEmpty()) {
             preRestoreChecks.add((snapshot, version) -> {
-                if (version.isLegacyIndexVersion()) {
+                // pre-restore checks will be run against the version in which the snapshot was created as well as
+                // the version in which the restored index was created
+                if (version.before(IndexVersions.MINIMUM_COMPATIBLE)) {
                     throw new SnapshotRestoreException(
                         snapshot,
                         "the snapshot was created with Elasticsearch version ["

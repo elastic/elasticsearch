@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -65,7 +64,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, Ccr.class);
+        return List.of(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, Ccr.class);
     }
 
     @Override
@@ -109,7 +108,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
 
         String[] firstAttemptShrinkIndexName = new String[1];
         assertBusy(() -> {
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
@@ -119,7 +118,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
 
         // let's check ILM for the managed index is waiting in the `shrunk-shards-allocated` step
         assertBusy(() -> {
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
@@ -161,7 +160,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
 
         String[] secondCycleShrinkIndexName = new String[1];
         assertBusy(() -> {
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
@@ -181,7 +180,9 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // situation and allow for shrink to complete by reducing the number of shards for the shrunk index to 0
         setReplicaCount(0, secondCycleShrinkIndexName[0]);
         assertBusy(() -> {
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(secondCycleShrinkIndexName[0]);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(
+                secondCycleShrinkIndexName[0]
+            );
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses()
                 .get(secondCycleShrinkIndexName[0]);

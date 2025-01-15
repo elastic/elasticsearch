@@ -7,6 +7,12 @@
 
 beta::[]
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[Connector APIs].
+--
+
 Returns information about all created connectors.
 
 To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.
@@ -40,6 +46,9 @@ To get started with Connector APIs, check out <<es-connectors-tutorial-api, our 
 
 `service_type`::
 (Optional, string) A comma-separated list of connector service types, used to filter search results.
+
+`include_deleted`::
+(Optional, boolean) A flag indicating whether to also return connectors that have been soft-deleted. Defaults to `false`.
 
 [[list-connector-api-example]]
 ==== {api-examples-title}

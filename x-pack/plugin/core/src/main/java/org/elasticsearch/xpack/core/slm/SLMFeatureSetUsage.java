@@ -41,7 +41,7 @@ public class SLMFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_5_0;
+        return TransportVersions.ZERO;
     }
 
     public SnapshotLifecycleStats getStats() {

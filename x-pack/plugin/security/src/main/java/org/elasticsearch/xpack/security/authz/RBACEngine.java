@@ -32,6 +32,7 @@ import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -129,6 +130,19 @@ public class RBACEngine implements AuthorizationEngine {
     private static final String DELETE_SUB_REQUEST_REPLICA = TransportDeleteAction.NAME + "[r]";
 
     private static final Logger logger = LogManager.getLogger(RBACEngine.class);
+
+    private static final Set<String> SCROLL_RELATED_ACTIONS = Set.of(
+        TransportSearchScrollAction.TYPE.name(),
+        SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME,
+        SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME,
+        SearchTransportService.QUERY_SCROLL_ACTION_NAME,
+        SearchTransportService.FREE_CONTEXT_ACTION_NAME,
+        SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME,
+        TransportClearScrollAction.NAME,
+        "indices:data/read/sql/close_cursor",
+        SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME
+    );
+
     private final Settings settings;
     private final CompositeRolesStore rolesStore;
     private final FieldPermissionsCache fieldPermissionsCache;
@@ -320,7 +334,7 @@ public class RBACEngine implements AuthorizationEngine {
             // need to validate that the action is allowed and then move on
             listener.onResponse(role.checkIndicesAction(action) ? IndexAuthorizationResult.EMPTY : IndexAuthorizationResult.DENIED);
         } else if (request instanceof IndicesRequest == false) {
-            if (isScrollRelatedAction(action)) {
+            if (SCROLL_RELATED_ACTIONS.contains(action)) {
                 // scroll is special
                 // some APIs are indices requests that are not actually associated with indices. For example,
                 // search scroll request, is categorized under the indices context, but doesn't hold indices names
@@ -515,7 +529,12 @@ public class RBACEngine implements AuthorizationEngine {
                 + Arrays.stream(indices).filter(Regex::isSimpleMatchPattern).toList();
 
         // Check if the parent context has already successfully authorized access to the child's indices
-        return Arrays.stream(indices).allMatch(indicesAccessControl::hasIndexPermissions);
+        for (String index : indices) {
+            if (indicesAccessControl.hasIndexPermissions(index) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -862,6 +881,10 @@ public class RBACEngine implements AuthorizationEngine {
                             for (Index index : indexAbstraction.getIndices()) {
                                 indicesAndAliases.add(index.getName());
                             }
+                            // TODO: We need to limit if a data stream's failure indices should return here.
+                            for (Index index : ((DataStream) indexAbstraction).getFailureIndices().getIndices()) {
+                                indicesAndAliases.add(index.getName());
+                            }
                         }
                     }
                 }
@@ -998,17 +1021,6 @@ public class RBACEngine implements AuthorizationEngine {
                 return Objects.hash(role, authenticatedUserAuthorizationInfo);
             }
         }
-    }
-
-    private static boolean isScrollRelatedAction(String action) {
-        return action.equals(TransportSearchScrollAction.TYPE.name())
-            || action.equals(SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME)
-            || action.equals(SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME)
-            || action.equals(SearchTransportService.QUERY_SCROLL_ACTION_NAME)
-            || action.equals(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME)
-            || action.equals(TransportClearScrollAction.NAME)
-            || action.equals("indices:data/read/sql/close_cursor")
-            || action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
     }
 
     private static boolean isAsyncRelatedAction(String action) {

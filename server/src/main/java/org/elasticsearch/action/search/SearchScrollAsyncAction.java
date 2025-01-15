@@ -40,7 +40,7 @@ import static org.elasticsearch.core.Strings.format;
  * fan out to nodes and execute the query part of the scroll request. Subclasses can for instance
  * run separate fetch phases etc.
  */
-abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements Runnable {
+abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
     protected final Logger logger;
     protected final ActionListener<SearchResponse> listener;
     protected final ParsedScrollId scrollId;
@@ -229,7 +229,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
     ) {
         return new SearchPhase("fetch") {
             @Override
-            public void run() {
+            protected void run() {
                 sendResponse(queryPhase, fetchResults);
             }
         };
@@ -246,8 +246,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
             if (request.scroll() != null) {
                 scrollId = request.scrollId();
             }
-            var sections = SearchPhaseController.merge(true, queryPhase, fetchResults);
-            try {
+            try (var sections = SearchPhaseController.merge(true, queryPhase, fetchResults)) {
                 ActionListener.respondAndRelease(
                     listener,
                     new SearchResponse(
@@ -262,8 +261,6 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
                         null
                     )
                 );
-            } finally {
-                sections.decRef();
             }
         } catch (Exception e) {
             listener.onFailure(new ReduceSearchPhaseException("fetch", "inner finish failed", e, buildShardFailures()));

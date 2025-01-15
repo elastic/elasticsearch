@@ -1,5 +1,0 @@
-pr: 115678
-summary: "ESQL: extract common filter from aggs"
-area: ES|QL
-type: enhancement
-issues: []

@@ -1119,7 +1119,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         var json = entityToMap(entity, requestObject.contentType());
         checkKeepOnCompletion(requestObject, json, true);
         String id = (String) json.get("id");
-        // results won't be returned since keepOnCompletion is true
+        // results won't be returned because wait_for_completion is provided a very small interval
         assertThat(id, is(not(emptyOrNullString())));
 
         // issue an "async get" request with no Content-Type
@@ -1274,11 +1274,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 switch (format) {
                     case "txt" -> assertThat(initialValue, emptyOrNullString());
                     case "csv" -> {
-                        assertEquals(initialValue, "\r\n");
+                        assertEquals("\r\n", initialValue);
                         initialValue = "";
                     }
                     case "tsv" -> {
-                        assertEquals(initialValue, "\n");
+                        assertEquals("\n", initialValue);
                         initialValue = "";
                     }
                 }

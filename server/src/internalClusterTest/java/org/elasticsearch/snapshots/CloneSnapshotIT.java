@@ -565,9 +565,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertSuccessful(sn1);
         assertSuccessful(sn2);
         assertSuccessful(sn3);
-        assertAcked(clone1.get());
-        assertAcked(clone2.get());
-        assertAcked(clone3.get());
+        assertAcked(clone1, clone2, clone3);
     }
 
     public void testStartSnapshotWithSuccessfulShardClonePendingFinalization() throws Exception {
@@ -624,8 +622,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         unblockNode(repoName, masterName);
         awaitNoMoreRunningOperations(masterName);
         awaitMasterFinishRepoOperations();
-        assertAcked(blockedClone.get());
-        assertAcked(otherClone.get());
+        assertAcked(blockedClone, otherClone);
         assertEquals(getSnapshot(repoName, cloneName).state(), SnapshotState.SUCCESS);
         assertEquals(getSnapshot(repoName, otherCloneName).state(), SnapshotState.SUCCESS);
     }
@@ -732,8 +729,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         awaitClusterState(state -> SnapshotsInProgress.get(state).forRepo(repoName).stream().anyMatch(entry -> entry.state().completed()));
         repo.unblock();
 
-        assertAcked(clone1.get());
-        assertAcked(clone2.get());
+        assertAcked(clone1, clone2);
     }
 
     public void testRemoveFailedCloneFromCSWithoutIO() throws Exception {

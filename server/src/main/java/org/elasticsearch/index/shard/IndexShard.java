@@ -189,6 +189,7 @@ import static org.elasticsearch.cluster.metadata.DataStream.TIMESERIES_LEAF_READ
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.index.shard.IndexShard.PrimaryPermitCheck.CHECK_PRIMARY_MODE;
 
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
 
@@ -1488,6 +1489,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * @return true the shard has a translog.
+     */
+    public boolean hasTranslog() {
+        return translogConfig.hasTranslog();
+    }
+
+    /**
+     * Reads the global checkpoint from the translog checkpoint file if the shard has a translog. Otherwise, reads the local checkpoint from
+     * the provided commit user data.
+     *
+     * @return the global checkpoint to use for recovery
+     * @throws IOException
+     */
+    public long readGlobalCheckpointForRecovery(Map<String, String> commitUserData) throws IOException {
+        if (hasTranslog()) {
+            return Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), commitUserData.get(Translog.TRANSLOG_UUID_KEY));
+        }
+        return Long.parseLong(commitUserData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+    }
+
+    /**
      * checks and removes translog files that no longer need to be retained. See
      * {@link org.elasticsearch.index.translog.TranslogDeletionPolicy} for details
      */
@@ -1859,8 +1881,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
         try {
-            final var translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-            final var globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+            final var globalCheckpoint = readGlobalCheckpointForRecovery(store.readLastCommittedSegmentsInfo().getUserData());
             final var safeCommit = store.findSafeIndexCommit(globalCheckpoint);
             ActionListener.run(recoveryStartingSeqNoListener.delegateResponse((l, e) -> {
                 logger.debug(() -> format("failed to recover shard locally up to global checkpoint %s", globalCheckpoint), e);
@@ -2084,8 +2105,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // we have to set it before we open an engine and recover from the translog because
             // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
             // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
-            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-            final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+            final long globalCheckpoint = readGlobalCheckpointForRecovery(store.readLastCommittedSegmentsInfo().getUserData());
             replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
         } else {
             replicationTracker.updateGlobalCheckpointOnReplica(globalCheckPointIfUnpromotable, "from CleanFilesRequest");
@@ -2162,7 +2182,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during
         // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
         onSettingsChanged();
-        assert assertSequenceNumbersInCommit();
+        assert assertLastestCommitUserData();
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
         checkAndCallWaitForEngineOrClosedShardListeners();
     }
@@ -2183,9 +2203,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private boolean assertSequenceNumbersInCommit() throws IOException {
-        final SegmentInfos segmentCommitInfos = SegmentInfos.readLatestCommit(store.directory());
+    /**
+     * Asserts that the latest Lucene commit contains expected information about sequence numbers or ES version.
+     */
+    private boolean assertLastestCommitUserData() throws IOException {
+        final SegmentInfos segmentCommitInfos = store.readLastCommittedSegmentsInfo();
         final Map<String, String> userData = segmentCommitInfos.getUserData();
+        // Ensure sequence numbers are present in commit data
         assert userData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) : "commit point doesn't contains a local checkpoint";
         assert userData.containsKey(SequenceNumbers.MAX_SEQ_NO) : "commit point doesn't contains a maximum sequence number";
         assert userData.containsKey(Engine.HISTORY_UUID_KEY) : "commit point doesn't contains a history uuid";
@@ -2195,10 +2219,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 + "] is different than engine ["
                 + getHistoryUUID()
                 + "]";
+
         assert userData.containsKey(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID)
             : "opening index which was created post 5.5.0 but " + Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID + " is not found in commit";
+
+        // From 7.16.0, the ES version is included in the Lucene commit user data as well as in the snapshot metadata in the repository.
+        // This is used during primary failover to detect if the latest snapshot can be used to recover the new primary, because the failed
+        // primary may have created new segments in a more recent Lucene version, that may have been later snapshotted, meaning that the
+        // snapshotted files cannot be recovered on a node with a less recent Lucene version. Note that for versions <= 7.15 this assertion
+        // relies in the previous minor having a different lucene version.
         final org.apache.lucene.util.Version commitLuceneVersion = segmentCommitInfos.getCommitLuceneVersion();
-        // This relies in the previous minor having another lucene version
         assert commitLuceneVersion.onOrAfter(RecoverySettings.SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion()) == false
             || userData.containsKey(Engine.ES_VERSION)
                 && Engine.readIndexVersion(userData.get(Engine.ES_VERSION)).onOrBefore(IndexVersion.current())
@@ -2600,7 +2630,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param source    the source of the request
      * @param fromSeqNo the start sequence number (inclusive)
      * @param toSeqNo   the end sequence number (inclusive)
-     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean)
+     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean, long)
      */
     public int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException {
         return getEngine().countChanges(source, fromSeqNo, toSeqNo);
@@ -2619,6 +2649,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param singleConsumer    true if the snapshot is accessed by only the thread that creates the snapshot. In this case, the
      *                          snapshot can enable some optimizations to improve the performance.
      * @param accessStats       true if the stats of the snapshot is accessed via {@link Translog.Snapshot#totalOperations()}
+     * @param maxChunkSize      The maximum allowable size, in bytes, for buffering source documents during recovery.
      */
     public Translog.Snapshot newChangesSnapshot(
         String source,
@@ -2626,9 +2657,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long toSeqNo,
         boolean requiredFullRange,
         boolean singleConsumer,
-        boolean accessStats
+        boolean accessStats,
+        long maxChunkSize
     ) throws IOException {
-        return getEngine().newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats);
+        return getEngine().newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats, maxChunkSize);
     }
 
     public List<Segment> segments() {
@@ -3538,13 +3570,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Check to run before running the primary permit operation
+     */
+    public enum PrimaryPermitCheck {
+        CHECK_PRIMARY_MODE,
+        /**
+         * IMPORTANT: Currently intented to be used only for acquiring primary permits during the recovery of hollow shards.
+         * Don't disable primary mode checks unless you're really sure.
+         */
+        NONE
+    }
+
+    /**
      * Acquire a primary operation permit whenever the shard is ready for indexing. If a permit is directly available, the provided
      * ActionListener will be called on the calling thread. During relocation hand-off, permit acquisition can be delayed. The provided
      * ActionListener will then be called using the provided executor.
-     *
      */
     public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, Executor executorOnDelay) {
-        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, false);
+        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, false, CHECK_PRIMARY_MODE);
     }
 
     public void acquirePrimaryOperationPermit(
@@ -3552,9 +3595,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Executor executorOnDelay,
         boolean forceExecution
     ) {
+        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, forceExecution, CHECK_PRIMARY_MODE);
+    }
+
+    public void acquirePrimaryOperationPermit(
+        ActionListener<Releasable> onPermitAcquired,
+        Executor executorOnDelay,
+        boolean forceExecution,
+        PrimaryPermitCheck primaryPermitCheck
+    ) {
         verifyNotClosed();
         assert shardRouting.primary() : "acquirePrimaryOperationPermit should only be called on primary shard: " + shardRouting;
-        indexShardOperationPermits.acquire(wrapPrimaryOperationPermitListener(onPermitAcquired), executorOnDelay, forceExecution);
+        indexShardOperationPermits.acquire(
+            wrapPrimaryOperationPermitListener(primaryPermitCheck, onPermitAcquired),
+            executorOnDelay,
+            forceExecution
+        );
     }
 
     public boolean isPrimaryMode() {
@@ -3562,33 +3618,51 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return replicationTracker.isPrimaryMode();
     }
 
+    public void acquireAllPrimaryOperationsPermits(final ActionListener<Releasable> onPermitAcquired, final TimeValue timeout) {
+        acquireAllPrimaryOperationsPermits(onPermitAcquired, timeout, CHECK_PRIMARY_MODE);
+    }
+
     /**
      * Acquire all primary operation permits. Once all permits are acquired, the provided ActionListener is called.
      * It is the responsibility of the caller to close the {@link Releasable}.
      */
-    public void acquireAllPrimaryOperationsPermits(final ActionListener<Releasable> onPermitAcquired, final TimeValue timeout) {
+    public void acquireAllPrimaryOperationsPermits(
+        final ActionListener<Releasable> onPermitAcquired,
+        final TimeValue timeout,
+        final PrimaryPermitCheck primaryPermitCheck
+    ) {
         verifyNotClosed();
         assert shardRouting.primary() : "acquireAllPrimaryOperationsPermits should only be called on primary shard: " + shardRouting;
 
-        asyncBlockOperations(wrapPrimaryOperationPermitListener(onPermitAcquired), timeout.duration(), timeout.timeUnit());
+        asyncBlockOperations(
+            wrapPrimaryOperationPermitListener(primaryPermitCheck, onPermitAcquired),
+            timeout.duration(),
+            timeout.timeUnit()
+        );
     }
 
     /**
-     * Wraps the action to run on a primary after acquiring permit. This wrapping is used to check if the shard is in primary mode before
-     * executing the action.
+     * Wraps the action to run on a primary after acquiring permit.
      *
+     * @param primaryPermitCheck check to run before the primary mode operation
      * @param listener the listener to wrap
      * @return the wrapped listener
      */
-    private ActionListener<Releasable> wrapPrimaryOperationPermitListener(final ActionListener<Releasable> listener) {
-        return listener.delegateFailure((l, r) -> {
-            if (isPrimaryMode()) {
-                l.onResponse(r);
-            } else {
-                r.close();
-                l.onFailure(new ShardNotInPrimaryModeException(shardId, state));
-            }
-        });
+    private ActionListener<Releasable> wrapPrimaryOperationPermitListener(
+        final PrimaryPermitCheck primaryPermitCheck,
+        final ActionListener<Releasable> listener
+    ) {
+        return switch (primaryPermitCheck) {
+            case CHECK_PRIMARY_MODE -> listener.delegateFailure((l, r) -> {
+                if (isPrimaryMode()) {
+                    l.onResponse(r);
+                } else {
+                    r.close();
+                    l.onFailure(new ShardNotInPrimaryModeException(shardId, state));
+                }
+            });
+            case NONE -> listener;
+        };
     }
 
     private void asyncBlockOperations(ActionListener<Releasable> onPermitAcquired, long timeout, TimeUnit timeUnit) {
@@ -3626,7 +3700,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 runnable.run();
             }
         }, onFailure);
-        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay);
+        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, false, CHECK_PRIMARY_MODE);
     }
 
     private <E extends Exception> void bumpPrimaryTerm(

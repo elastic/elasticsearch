@@ -271,6 +271,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             allowExpensiveQueries,
             scriptService,
             null,
+            null,
             null
         );
         this.shardId = shardId;
@@ -439,9 +440,13 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public SourceLoader newSourceLoader(boolean forceSyntheticSource) {
         if (forceSyntheticSource) {
-            return new SourceLoader.Synthetic(mappingLookup.getMapping()::syntheticFieldLoader, mapperMetrics.sourceFieldMetrics());
+            return new SourceLoader.Synthetic(
+                null,
+                () -> mappingLookup.getMapping().syntheticFieldLoader(null),
+                mapperMetrics.sourceFieldMetrics()
+            );
         }
-        return mappingLookup.newSourceLoader(mapperMetrics.sourceFieldMetrics());
+        return mappingLookup.newSourceLoader(null, mapperMetrics.sourceFieldMetrics());
     }
 
     /**
@@ -501,7 +506,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     public SourceProvider createSourceProvider() {
         return isSourceSynthetic()
-            ? SourceProvider.fromSyntheticSource(mappingLookup.getMapping(), mapperMetrics.sourceFieldMetrics())
+            ? SourceProvider.fromSyntheticSource(mappingLookup.getMapping(), null, mapperMetrics.sourceFieldMetrics())
             : SourceProvider.fromStoredFields();
     }
 

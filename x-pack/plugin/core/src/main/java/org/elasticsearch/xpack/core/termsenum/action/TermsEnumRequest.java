@@ -33,8 +33,8 @@ import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 public final class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> implements ToXContentObject {
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = SearchRequest.DEFAULT_INDICES_OPTIONS;
-    public static int DEFAULT_SIZE = 10;
-    public static TimeValue DEFAULT_TIMEOUT = new TimeValue(1000);
+    public static final int DEFAULT_SIZE = 10;
+    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1000);
 
     private String field;
     private String string = null;

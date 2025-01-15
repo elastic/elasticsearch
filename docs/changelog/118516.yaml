@@ -1,0 +1,6 @@
+pr: 118435
+summary: Fix moving function linear weighted avg
+area: Aggregations
+type: bug
+issues:
+  - 113751

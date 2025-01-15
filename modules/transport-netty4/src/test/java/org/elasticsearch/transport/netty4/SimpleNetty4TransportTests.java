@@ -59,7 +59,6 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
     @Override
     protected Transport build(Settings settings, TransportVersion version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        assert version.equals(TransportVersion.current());
         return new Netty4Transport(
             settings,
             version,
@@ -80,6 +79,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                 if (doHandshake) {
                     super.executeHandshake(node, channel, profile, listener);
                 } else {
+                    assert version.equals(TransportVersion.current());
                     listener.onResponse(TransportVersions.MINIMUM_COMPATIBLE);
                 }
             }

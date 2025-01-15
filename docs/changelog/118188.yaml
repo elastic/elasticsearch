@@ -1,5 +1,5 @@
 pr: 118188
-summary: Allow check for early termination in Evaluator
+summary: Check for early termination in Driver
 area: ES|QL
 type: enhancement
 issues: []

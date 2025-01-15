@@ -34,6 +34,9 @@ import java.util.function.BiFunction;
  * Then it reaches out to all relevant shards to fetch the topN hits.
  */
 final class FetchSearchPhase extends SearchPhase {
+
+    static final String NAME = "fetch";
+
     private final AtomicArray<SearchPhaseResult> searchPhaseShardResults;
     private final BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final AbstractSearchAsyncAction<?> context;
@@ -70,7 +73,7 @@ final class FetchSearchPhase extends SearchPhase {
         @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory
     ) {
-        super("fetch");
+        super(NAME);
         if (context.getNumShards() != resultConsumer.getNumShards()) {
             throw new IllegalStateException(
                 "number of shards must match the length of the query results but doesn't:"
@@ -90,7 +93,7 @@ final class FetchSearchPhase extends SearchPhase {
     }
 
     @Override
-    public void run() {
+    protected void run() {
         context.execute(new AbstractRunnable() {
 
             @Override
@@ -100,7 +103,7 @@ final class FetchSearchPhase extends SearchPhase {
 
             @Override
             public void onFailure(Exception e) {
-                context.onPhaseFailure(FetchSearchPhase.this, "", e);
+                context.onPhaseFailure(NAME, "", e);
             }
         });
     }
@@ -228,7 +231,7 @@ final class FetchSearchPhase extends SearchPhase {
                     progressListener.notifyFetchResult(shardIndex);
                     counter.onResult(result);
                 } catch (Exception e) {
-                    context.onPhaseFailure(FetchSearchPhase.this, "", e);
+                    context.onPhaseFailure(NAME, "", e);
                 }
             }
 
@@ -275,7 +278,7 @@ final class FetchSearchPhase extends SearchPhase {
         AtomicArray<? extends SearchPhaseResult> fetchResultsArr,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
-        context.executeNextPhase(this, () -> {
+        context.executeNextPhase(NAME, () -> {
             var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
             context.addReleasable(resp);
             return nextPhaseFactory.apply(resp, searchPhaseShardResults);

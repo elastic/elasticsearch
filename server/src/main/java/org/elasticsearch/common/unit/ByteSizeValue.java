@@ -24,6 +24,7 @@ import java.math.RoundingMode;
 import java.util.Locale;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.BYTE_SIZE_VALUE_ALWAYS_USES_BYTES;
 import static org.elasticsearch.common.unit.ByteSizeUnit.BYTES;
 import static org.elasticsearch.common.unit.ByteSizeUnit.GB;
 import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
@@ -50,18 +51,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
      * @param size the number of {@code unit}s
      */
     public static ByteSizeValue of(long size, ByteSizeUnit unit) {
-        if (unit == BYTES) {
-            if (size == 0) {
-                return ZERO;
-            }
-            if (size == 1) {
-                return ONE;
-            }
-            if (size == -1) {
-                return MINUS_ONE;
-            }
-        }
-        if (size < 0) {
+        if (size < -1 || (size == -1 && unit != BYTES)) {
             throw new IllegalArgumentException("Values less than -1 bytes are not supported: " + size + unit.getSuffix());
         }
         if (size > Long.MAX_VALUE / unit.toBytes(1)) {
@@ -69,7 +59,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
                 "Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix()
             );
         }
-        return new ByteSizeValue(size * unit.toBytes(1), unit);
+        return newByteSizeValue(size * unit.toBytes(1), unit);
     }
 
     public static ByteSizeValue ofBytes(long size) {
@@ -96,21 +86,45 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         return of(size, PB);
     }
 
+    static ByteSizeValue newByteSizeValue(long sizeInBytes, ByteSizeUnit desiredUnit) {
+        // Peel off some common cases to avoid allocations
+        if (desiredUnit == BYTES) {
+            if (sizeInBytes == 0) {
+                return ZERO;
+            }
+            if (sizeInBytes == 1) {
+                return ONE;
+            }
+            if (sizeInBytes == -1) {
+                return MINUS_ONE;
+            }
+        }
+        if (sizeInBytes < 0) {
+            throw new IllegalArgumentException("Values less than -1 bytes are not supported: " + sizeInBytes);
+        }
+        return new ByteSizeValue(sizeInBytes, desiredUnit);
+    }
+
     private final long sizeInBytes;
     private final ByteSizeUnit desiredUnit;
 
     public static ByteSizeValue readFrom(StreamInput in) throws IOException {
         long size = in.readZLong();
         ByteSizeUnit unit = ByteSizeUnit.readFrom(in);
-        if (unit == BYTES) {
-            return ofBytes(size);
+        if (in.getTransportVersion().onOrAfter(BYTE_SIZE_VALUE_ALWAYS_USES_BYTES)) {
+            return newByteSizeValue(size, unit);
+        } else {
+            return of(size, unit);
         }
-        return of(size, unit);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeZLong(Math.divideExact(sizeInBytes, desiredUnit.toBytes(1)));
+        if (out.getTransportVersion().onOrAfter(BYTE_SIZE_VALUE_ALWAYS_USES_BYTES)) {
+            out.writeZLong(sizeInBytes);
+        } else {
+            out.writeZLong(Math.divideExact(sizeInBytes, desiredUnit.toBytes(1)));
+        }
         desiredUnit.writeTo(out);
     }
 

@@ -10,12 +10,16 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
@@ -182,25 +186,29 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
 
     public void testOutOfRange() {
         // Make sure a value of > Long.MAX_VALUE bytes throws an exception
-        ByteSizeUnit unit = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
-        long size = (long) randomDouble() * unit.toBytes(1) + (Long.MAX_VALUE - unit.toBytes(1));
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.of(size, unit));
-        assertEquals(
-            "Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix(),
-            exception.getMessage()
-        );
+        for (ByteSizeUnit unit : ByteSizeUnit.values()) {
+            if (unit == ByteSizeUnit.BYTES) {
+                continue;
+            }
+            long size = (long) randomDouble() * unit.toBytes(1) + (Long.MAX_VALUE - unit.toBytes(1));
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.of(size, unit));
+            assertEquals(
+                "Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix(),
+                exception.getMessage()
+            );
 
-        // Make sure for units other than BYTES a size of -1 throws an exception
-        ByteSizeUnit unit2 = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
-        long size2 = -1L;
-        exception = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.of(size2, unit2));
-        assertEquals("Values less than -1 bytes are not supported: " + size2 + unit2.getSuffix(), exception.getMessage());
+            // Make sure for units other than BYTES a size of -1 throws an exception
+            ByteSizeUnit unit2 = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
+            long size2 = -1L;
+            exception = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.of(size2, unit2));
+            assertEquals("Values less than -1 bytes are not supported: " + size2 + unit2.getSuffix(), exception.getMessage());
 
-        // Make sure for any unit a size < -1 throws an exception
-        ByteSizeUnit unit3 = randomFrom(ByteSizeUnit.values());
-        long size3 = -1L * randomNonNegativeLong() - 1L;
-        exception = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.of(size3, unit3));
-        assertEquals("Values less than -1 bytes are not supported: " + size3 + unit3.getSuffix(), exception.getMessage());
+            // Make sure for any unit a size < -1 throws an exception
+            ByteSizeUnit unit3 = randomFrom(ByteSizeUnit.values());
+            long size3 = -1L * randomNonNegativeLong() - 1L;
+            exception = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.of(size3, unit3));
+            assertEquals("Values less than -1 bytes are not supported: " + size3 + unit3.getSuffix(), exception.getMessage());
+        }
     }
 
     public void testConversionHashCode() {
@@ -508,5 +516,58 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     protected void assertEqualInstances(ByteSizeValue expectedInstance, ByteSizeValue newInstance) {
         assertThat(newInstance, equalTo(expectedInstance));
         assertThat(newInstance.hashCode(), equalTo(expectedInstance.hashCode()));
+    }
+
+    public void testBWCTransportFormat() throws IOException {
+        var tenMegs = ByteSizeValue.ofMb(10);
+        try (BytesStreamOutput expected = new BytesStreamOutput(); BytesStreamOutput actual = new BytesStreamOutput()) {
+            expected.writeZLong(10);
+            ByteSizeUnit.MB.writeTo(expected);
+            actual.setTransportVersion(TransportVersions.V_8_16_0);
+            tenMegs.writeTo(actual);
+            assertArrayEquals(
+                "Size denominated in the desired unit for backward compatibility",
+                expected.bytes().array(),
+                actual.bytes().array()
+            );
+        }
+    }
+
+    public void testTwoDigitTransportRoundTrips() throws IOException {
+        TransportVersion tv = TransportVersion.current();
+        for (var desiredUnit : ByteSizeUnit.values()) {
+            if (desiredUnit == ByteSizeUnit.BYTES) {
+                continue;
+            }
+            checkTransportRoundTrip(ByteSizeValue.parseBytesSizeValue("23" + desiredUnit.getSuffix(), "test"), tv);
+            for (int tenths = 1; tenths <= 9; tenths++) {
+                checkTransportRoundTrip(ByteSizeValue.parseBytesSizeValue("23." + tenths + desiredUnit.getSuffix(), "test"), tv);
+                for (int hundredths = 1; hundredths <= 9; hundredths++) {
+                    checkTransportRoundTrip(
+                        ByteSizeValue.parseBytesSizeValue("23." + tenths + hundredths + desiredUnit.getSuffix(), "test"),
+                        tv
+                    );
+                }
+            }
+        }
+    }
+
+    public void testIntegerTransportRoundTrips() throws IOException {
+        for (var tv : List.of(TransportVersion.current(), TransportVersions.V_8_16_0)) {
+            checkTransportRoundTrip(ByteSizeValue.ONE, tv);
+            checkTransportRoundTrip(ByteSizeValue.ZERO, tv);
+            checkTransportRoundTrip(ByteSizeValue.MINUS_ONE, tv);
+            for (var unit : ByteSizeUnit.values()) {
+                for (long bytes = unit.toBytes(1); bytes > 0; bytes *= 10) {
+                    checkTransportRoundTrip(new ByteSizeValue(bytes, unit), tv);
+                }
+            }
+        }
+    }
+
+    private void checkTransportRoundTrip(ByteSizeValue original, TransportVersion transportVersion) throws IOException {
+        var deserialized = copyWriteable(original, writableRegistry(), ByteSizeValue::readFrom, transportVersion);
+        assertEquals(original.getSizeInBytes(), deserialized.getSizeInBytes());
+        assertEquals(original.getDesiredUnit(), deserialized.getDesiredUnit());
     }
 }

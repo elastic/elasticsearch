@@ -6,7 +6,7 @@ setup:
 ---
 object param - store complex object:
   - requires:
-      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
+      cluster_features: ["mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -71,7 +71,7 @@ object param - store complex object:
 ---
 object param - object array:
   - requires:
-      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
+      cluster_features: ["mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -136,7 +136,7 @@ object param - object array:
 ---
 object param - object array within array:
   - requires:
-      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
+      cluster_features: ["mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -180,7 +180,7 @@ object param - object array within array:
 ---
 object param - no object array:
   - requires:
-      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
+      cluster_features: ["mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -223,7 +223,7 @@ object param - no object array:
 ---
 object param - field ordering in object array:
   - requires:
-      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
+      cluster_features: ["mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -273,7 +273,7 @@ object param - field ordering in object array:
 ---
 object param - nested object array next to other fields:
   - requires:
-      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
+      cluster_features: ["mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -380,7 +380,7 @@ object param - nested object with stored array:
 ---
 index param - nested array within array:
   - requires:
-      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
+      cluster_features: ["mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -428,7 +428,7 @@ index param - nested array within array:
 # 112156
 stored field under object with store_array_source:
   - requires:
-      cluster_features: ["mapper.source.synthetic_source_stored_fields_advance_fix", "mapper.bwc_workaround_9_0"]
+      cluster_features: ["mapper.bwc_workaround_9_0"]
       reason: requires bug fix to be implemented
 
   - do:
@@ -477,10 +477,6 @@ stored field under object with store_array_source:
 
 ---
 field param - keep root array:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires keeping array source
-
   - do:
       indices.create:
         index: test
@@ -535,10 +531,6 @@ field param - keep root array:
 
 ---
 field param - keep nested array:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires keeping array source
-
   - do:
       indices.create:
         index: test
@@ -605,7 +597,6 @@ field param - keep nested array:
 field param - keep root singleton fields:
   - requires:
       test_runner_features: close_to
-      cluster_features: ["mapper.synthetic_source_keep"]
       reason: requires keeping singleton source
 
   - do:
@@ -695,7 +686,6 @@ field param - keep root singleton fields:
 field param - keep nested singleton fields:
   - requires:
       test_runner_features: close_to
-      cluster_features: ["mapper.synthetic_source_keep"]
       reason: requires keeping singleton source
 
   - do:
@@ -776,10 +766,6 @@ field param - keep nested singleton fields:
 
 ---
 field param - nested array within array:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
@@ -821,7 +807,7 @@ field param - nested array within array:
 ---
 index param - root arrays:
   - requires:
-      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
+      cluster_features: ["mapper.bwc_workaround_9_0"]
       reason: requires keeping array source
 
   - do:
@@ -900,10 +886,6 @@ index param - root arrays:
 
 ---
 index param - dynamic root arrays:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires keeping array source
-
   - do:
       indices.create:
         index: test
@@ -952,10 +934,6 @@ index param - dynamic root arrays:
 
 ---
 index param - object array within array:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires keeping array source
-
   - do:
       indices.create:
         index: test
@@ -1001,10 +979,6 @@ index param - object array within array:
 
 ---
 index param - no object array:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires keeping array source
-
   - do:
       indices.create:
         index: test
@@ -1045,10 +1019,6 @@ index param - no object array:
 
 ---
 index param - field ordering:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires keeping array source
-
   - do:
       indices.create:
         index: test
@@ -1095,10 +1065,6 @@ index param - field ordering:
 
 ---
 index param - nested arrays:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires keeping array source
-
   - do:
       indices.create:
         index: test
@@ -1162,10 +1128,6 @@ index param - nested arrays:
 
 ---
 index param - nested object with stored array:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires keeping array source
-
   - do:
       indices.create:
         index: test
@@ -1214,7 +1176,7 @@ index param - nested object with stored array:
 ---
 index param - flattened fields:
   - requires:
-      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
+      cluster_features: ["mapper.bwc_workaround_9_0"]
       reason: requires keeping array source
 
   - do:

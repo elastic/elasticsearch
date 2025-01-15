@@ -33,7 +33,6 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -47,6 +46,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
@@ -94,8 +94,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     private final List<ShardContext> shardContexts;
 
-    public EsPhysicalOperationProviders(List<ShardContext> shardContexts, AnalysisRegistry analysisRegistry) {
-        super(analysisRegistry);
+    public EsPhysicalOperationProviders(FoldContext foldContext, List<ShardContext> shardContexts, AnalysisRegistry analysisRegistry) {
+        super(foldContext, analysisRegistry);
         this.shardContexts = shardContexts;
     }
 
@@ -161,7 +161,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         List<Sort> sorts = esQueryExec.sorts();
         assert esQueryExec.estimatedRowSize() != null : "estimated row size not initialized";
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
-        int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold() : NO_LIMIT;
+        int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold(context.foldCtx()) : NO_LIMIT;
         boolean scoring = esQueryExec.attrs()
             .stream()
             .anyMatch(a -> a instanceof MetadataAttribute && a.name().equals(MetadataAttribute.SCORE));
@@ -217,7 +217,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             querySupplier(queryBuilder),
             context.queryPragmas().dataPartitioning(),
             context.queryPragmas().taskConcurrency(),
-            limit == null ? NO_LIMIT : (Integer) limit.fold()
+            limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())
         );
     }
 
@@ -338,16 +338,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
                 @Override
                 public SearchLookup lookup() {
-                    boolean syntheticSource = SourceFieldMapper.isSynthetic(indexSettings());
-                    var searchLookup = ctx.lookup();
-                    if (syntheticSource) {
-                        // in the context of scripts and when synthetic source is used the search lookup can't always be reused between
-                        // users of SearchLookup. This is only an issue when scripts fallback to _source, but since we can't always
-                        // accurately determine whether a script uses _source, we should do this for all script usages.
-                        // This lookup() method is only invoked for scripts / runtime fields, so it is ok to do here.
-                        searchLookup = searchLookup.swapSourceProvider(ctx.createSourceProvider());
-                    }
-                    return searchLookup;
+                    return ctx.lookup();
                 }
 
                 @Override

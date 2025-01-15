@@ -24,6 +24,7 @@ import java.net.FileNameMap;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.net.NetworkInterface;
+import java.net.Proxy;
 import java.net.ProxySelector;
 import java.net.ResponseCache;
 import java.net.SocketAddress;
@@ -31,6 +32,10 @@ import java.net.SocketImplFactory;
 import java.net.URL;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.security.cert.CertStoreParameters;
 import java.util.List;
 
 import javax.net.ssl.HostnameVerifier;
@@ -419,5 +424,53 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void check$java_net_MulticastSocket$send(Class<?> callerClass, MulticastSocket that, DatagramPacket p, byte ttl) {
         policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_URL$openConnection(Class<?> callerClass, URL that, Proxy proxy) {
+        if (proxy.type() != Proxy.Type.DIRECT) {
+            policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
+        }
+    }
+
+    @Override
+    public void check$jdk_internal_net_http_HttpClientBuilderImpl$build(Class<?> callerClass, HttpClient.Builder that) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION);
+    }
+
+    @Override
+    public void check$jdk_internal_net_http_HttpClientImpl$send(
+        Class<?> callerClass,
+        HttpClient that,
+        HttpRequest request,
+        HttpResponse.BodyHandler<?> responseBodyHandler
+    ) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
+    }
+
+    @Override
+    public void check$jdk_internal_net_http_HttpClientImpl$sendAsync(
+        Class<?> callerClass,
+        HttpClient that,
+        HttpRequest userRequest,
+        HttpResponse.BodyHandler<?> responseHandler
+    ) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
+    }
+
+    @Override
+    public void check$jdk_internal_net_http_HttpClientImpl$sendAsync(
+        Class<?> callerClass,
+        HttpClient that,
+        HttpRequest userRequest,
+        HttpResponse.BodyHandler<?> responseHandler,
+        HttpResponse.PushPromiseHandler<?> pushPromiseHandler
+    ) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
+    }
+
+    @Override
+    public void check$sun_security_provider_certpath_ldap_LDAPCertStore$(Class<?> callerClass, CertStoreParameters params) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
     }
 }

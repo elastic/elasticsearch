@@ -243,7 +243,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.COMPLETION);
-        assertThat(services.size(), equalTo(10));
+        assertThat(services.size(), equalTo(9));
 
         var providers = new ArrayList<String>();
         for (int i = 0; i < services.size(); i++) {
@@ -267,6 +267,32 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         );
 
         assertThat(providers, containsInAnyOrder(providerList.toArray()));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetServicesWithChatCompletionTaskType() throws IOException {
+        List<Object> services = getServices(TaskType.CHAT_COMPLETION);
+        if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
+            || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
+            assertThat(services.size(), equalTo(2));
+        } else {
+            assertThat(services.size(), equalTo(1));
+        }
+
+        String[] providers = new String[services.size()];
+        for (int i = 0; i < services.size(); i++) {
+            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
+            providers[i] = (String) serviceConfig.get("service");
+        }
+
+        var providerList = new ArrayList<>(List.of("openai"));
+
+        if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
+            || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
+            providerList.addFirst("elastic");
+        }
+
+        assertArrayEquals(providers, providerList.toArray());
     }
 
     @SuppressWarnings("unchecked")

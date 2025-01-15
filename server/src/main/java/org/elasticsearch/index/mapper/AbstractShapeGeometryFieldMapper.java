@@ -12,7 +12,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.Orientation;
-import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.Extent;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 
 import java.io.IOException;
@@ -71,29 +71,27 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
 
         @Override
         protected Object nullValueAsSource(T nullValue) {
-            // we don't support null value fors shapes
+            // we don't support null value for shapes
             return nullValue;
         }
 
-        @Override
-        public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS && isBoundsExtractionSupported()
-                ? new BoundsBlockLoader(name(), coordinateEncoder())
-                : blockLoaderFromSource(blContext);
-        }
-
-        protected abstract boolean isBoundsExtractionSupported();
-
-        protected abstract CoordinateEncoder coordinateEncoder();
-
-        // Visible for testing
-        static class BoundsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+        protected static class BoundsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
             private final String fieldName;
-            private final CoordinateEncoder encoder;
 
-            BoundsBlockLoader(String fieldName, CoordinateEncoder encoder) {
+            protected BoundsBlockLoader(String fieldName) {
                 this.fieldName = fieldName;
-                this.encoder = encoder;
+            }
+
+            protected void writeExtent(BlockLoader.IntBuilder builder, Extent extent) {
+                // We store the 6 values as a single multi-valued field, in the same order as the fields in the Extent class
+                builder.beginPositionEntry();
+                builder.appendInt(extent.top);
+                builder.appendInt(extent.bottom);
+                builder.appendInt(extent.negLeft);
+                builder.appendInt(extent.negRight);
+                builder.appendInt(extent.posLeft);
+                builder.appendInt(extent.posRight);
+                builder.endPositionEntry();
             }
 
             @Override
@@ -125,16 +123,7 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
                             return;
                         }
                         reader.reset(binaryDocValues.binaryValue());
-                        var extent = reader.getExtent();
-                        // We store the 6 values as a single multi-valued field, in the same order as the fields in the Extent class
-                        builder.beginPositionEntry();
-                        builder.appendInt(extent.top);
-                        builder.appendInt(extent.bottom);
-                        builder.appendInt(extent.negLeft);
-                        builder.appendInt(extent.negRight);
-                        builder.appendInt(extent.posLeft);
-                        builder.appendInt(extent.posRight);
-                        builder.endPositionEntry();
+                        writeExtent(builder, reader.getExtent());
                     }
 
                     @Override

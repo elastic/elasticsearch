@@ -63,7 +63,7 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
         Function<Geometry, Optional<Rectangle>> visitor
     ) throws IOException {
         var geometries = IntStream.range(0, 50).mapToObj(i -> generator.get()).toList();
-        var loader = new AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsBlockLoader("field", encoder);
+        var loader = new AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsBlockLoader("field");
         try (Directory directory = newDirectory()) {
             try (var iw = new RandomIndexWriter(random(), directory)) {
                 for (Geometry geometry : geometries) {

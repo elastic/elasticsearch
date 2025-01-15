@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -46,7 +47,6 @@ import org.elasticsearch.legacygeo.XShapeCollection;
 import org.elasticsearch.legacygeo.builders.ShapeBuilder;
 import org.elasticsearch.legacygeo.parsers.ShapeParser;
 import org.elasticsearch.legacygeo.query.LegacyGeoShapeQueryProcessor;
-import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.locationtech.spatial4j.shape.Point;
@@ -534,14 +534,9 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        protected boolean isBoundsExtractionSupported() {
-            // Legacy geo-shapes do not support doc-values, so extracting bounds is not possible.
-            return false;
-        }
-
-        @Override
-        protected CoordinateEncoder coordinateEncoder() {
-            return CoordinateEncoder.GEO;
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            // Legacy geo-shapes do not support doc-values, we can only lead from source in ES|QL
+            return blockLoaderFromSource(blContext);
         }
     }
 

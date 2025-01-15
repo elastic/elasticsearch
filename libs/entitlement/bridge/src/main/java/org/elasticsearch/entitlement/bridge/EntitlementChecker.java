@@ -20,8 +20,11 @@ import java.net.FileNameMap;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.net.NetworkInterface;
+import java.net.Proxy;
 import java.net.ProxySelector;
 import java.net.ResponseCache;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.SocketAddress;
 import java.net.SocketImplFactory;
 import java.net.URL;
@@ -215,4 +218,40 @@ public interface EntitlementChecker {
     void check$java_net_MulticastSocket$leaveGroup(Class<?> callerClass, MulticastSocket that, SocketAddress addr, NetworkInterface ni);
 
     void check$java_net_MulticastSocket$send(Class<?> callerClass, MulticastSocket that, DatagramPacket p, byte ttl);
+
+    // Binding/connecting ctor
+    void check$java_net_ServerSocket$(Class<?> callerClass, int port);
+
+    void check$java_net_ServerSocket$(Class<?> callerClass, int port, int backlog);
+
+    void check$java_net_ServerSocket$(Class<?> callerClass, int port, int backlog, InetAddress bindAddr);
+
+    void check$java_net_ServerSocket$accept(Class<?> callerClass, ServerSocket that);
+
+    void check$java_net_ServerSocket$implAccept(Class<?> callerClass, ServerSocket that, Socket s);
+
+    void check$java_net_ServerSocket$bind(Class<?> callerClass, ServerSocket that, SocketAddress endpoint);
+
+    void check$java_net_ServerSocket$bind(Class<?> callerClass, ServerSocket that, SocketAddress endpoint, int backlog);
+
+    // Binding/connecting ctors
+    void check$java_net_Socket$(Class<?> callerClass, Proxy proxy);
+
+    void check$java_net_Socket$(Class<?> callerClass, String host, int port);
+
+    void check$java_net_Socket$(Class<?> callerClass, InetAddress address, int port);
+
+    void check$java_net_Socket$(Class<?> callerClass, String host, int port, InetAddress localAddr, int localPort);
+
+    void check$java_net_Socket$(Class<?> callerClass, InetAddress address, int port, InetAddress localAddr, int localPort);
+
+    void check$java_net_Socket$(Class<?> callerClass, String host, int port, boolean stream);
+
+    void check$java_net_Socket$(Class<?> callerClass, InetAddress host, int port, boolean stream);
+
+    void check$java_net_Socket$bind(Class<?> callerClass, Socket that, SocketAddress endpoint);
+
+    void check$java_net_Socket$connect(Class<?> callerClass, Socket that, SocketAddress endpoint);
+
+    void check$java_net_Socket$connect(Class<?> callerClass, Socket that, SocketAddress endpoint, int backlog);
 }

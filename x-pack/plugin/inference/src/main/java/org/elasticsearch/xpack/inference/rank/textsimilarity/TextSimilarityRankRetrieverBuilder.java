@@ -11,6 +11,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
@@ -20,7 +21,6 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
 import java.util.List;
@@ -68,9 +68,12 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         RetrieverBuilder.declareBaseParserFields(TextSimilarityRankBuilder.NAME, PARSER);
     }
 
-    public static TextSimilarityRankRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context)
-        throws IOException {
-        if (TextSimilarityRankBuilder.TEXT_SIMILARITY_RERANKER_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+    public static TextSimilarityRankRetrieverBuilder fromXContent(
+        XContentParser parser,
+        RetrieverParserContext context,
+        XPackLicenseState licenceState
+    ) throws IOException {
+        if (TextSimilarityRankBuilder.TEXT_SIMILARITY_RERANKER_FEATURE.check(licenceState) == false) {
             throw LicenseUtils.newComplianceException(TextSimilarityRankBuilder.NAME);
         }
         return PARSER.apply(parser, context);

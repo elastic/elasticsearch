@@ -14,7 +14,8 @@ The <<esql,{esql}>> async query stop API is used to manually stop an async query
 the query stops processing new data and returns the results that have been already processed. Note that due to the pipelined
 nature of {esql} queries, the stop operation is not immediate and may take time to return results.
 
-The results are returned in the same format as for <<esql-async-query-get-api,{esql} async query get API>>.
+The results are returned in <<esql-query-api-response-body,the same format>> as for
+<<esql-async-query-get-api,{esql} async query get API>>.
 If the query has been finished by the time the stop command is issued, the results are returned immediately.
 
 If the query processing has not been finished by the time the stop command is issued, the result data will have

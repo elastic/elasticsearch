@@ -521,35 +521,38 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     public static int clusterDetailsSize(int numClusters) {
         /* Example:
         "_clusters" : {
-        "total" : 2,
-        "successful" : 2,
-        "running" : 0,
-        "skipped" : 0,
-        "partial" : 0,
-        "failed" : 0,
-        "details" : {
-        "(local)" : {
-        "status" : "successful",
-        "indices" : "logs-1",
-        "took" : 4444,
-        "_shards" : {
-          "total" : 10,
-          "successful" : 10,
-          "skipped" : 3,
-          "failed" : 0
-        }
-        },
-        "remote1" : {
-        "status" : "successful",
-        "indices" : "remote1:logs-1",
-        "took" : 4999,
-        "_shards" : {
-          "total" : 12,
-          "successful" : 12,
-          "skipped" : 5,
-          "failed" : 0
-        }
-        }
+            "total" : 2,
+            "successful" : 2,
+            "running" : 0,
+            "skipped" : 0,
+            "partial" : 0,
+            "failed" : 0,
+            "is_partial": false,
+            "details" : {
+                "(local)" : {
+                    "status" : "successful",
+                    "indices" : "logs-1",
+                    "took" : 4444,
+                    "_shards" : {
+                      "total" : 10,
+                      "successful" : 10,
+                      "skipped" : 3,
+                      "failed" : 0
+                    }
+                },
+                "remote1" : {
+                    "status" : "successful",
+                    "indices" : "remote1:logs-1",
+                    "took" : 4999,
+                    "_shards" : {
+                      "total" : 12,
+                      "successful" : 12,
+                      "skipped" : 5,
+                      "failed" : 0
+                    }
+                }
+            }
+         }
          */
         return numClusters * 4 + 7;
     }

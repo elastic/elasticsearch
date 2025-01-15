@@ -136,12 +136,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      */
     FieldSubsetReader(LeafReader in, CharacterRunAutomaton filter) throws IOException {
         super(in);
-        this.fieldInfos = filter(in.getFieldInfos(), filter);
+        this.fieldInfos = filterPermittedFields(in.getFieldInfos(), filter);
         this.filter = filter;
     }
 
     // pkg-private for testing
-    static FieldInfos filter(FieldInfos fieldInfos, CharacterRunAutomaton filter) {
+    static FieldInfos filterPermittedFields(FieldInfos fieldInfos, CharacterRunAutomaton filter) {
         final ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : fieldInfos) {
             if (FieldPermissions.PREDICATE.test(fi.name) || filter.run(fi.name)) {

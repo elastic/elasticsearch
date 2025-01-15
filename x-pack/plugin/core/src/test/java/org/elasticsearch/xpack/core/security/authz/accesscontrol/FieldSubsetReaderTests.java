@@ -1135,21 +1135,21 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
     public void testMetadataFieldFiltering() {
         var result = new FieldPermissions(fieldPermissionDef(new String[] {}, null));
         for (var field : FieldPermissions.METADATA_FIELDS_ALLOWLIST) {
-            FieldInfos actual = FieldSubsetReader.filter(
+            FieldInfos actual = FieldSubsetReader.filterPermittedFields(
                 new FieldInfos(new FieldInfo[] { getFieldInfoWithName(field) }),
                 result.getPermittedFieldsAutomaton()
             );
             assertThat(actual.size(), equalTo(1));
             assertThat(actual.fieldInfo(field), is(notNullValue()));
 
-            actual = FieldSubsetReader.filter(
+            actual = FieldSubsetReader.filterPermittedFields(
                 new FieldInfos(new FieldInfo[] { getFieldInfoWithName(field + "." + "field") }),
                 result.getPermittedFieldsAutomaton()
             );
             assertThat(actual.size(), equalTo(1));
             assertThat(actual.fieldInfo(field + "." + "field"), is(notNullValue()));
 
-            actual = FieldSubsetReader.filter(
+            actual = FieldSubsetReader.filterPermittedFields(
                 new FieldInfos(new FieldInfo[] { getFieldInfoWithName("field") }),
                 result.getPermittedFieldsAutomaton()
             );

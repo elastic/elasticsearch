@@ -91,13 +91,13 @@ public final class FieldPermissions implements Accountable, CacheKey {
     public static final FieldPredicate PREDICATE = new FieldPredicate() {
         @Override
         public boolean test(String field) {
-            return METADATA_FIELDS_ALLOWLIST.contains(field) || (field.startsWith("_") && startsWithMetadataFieldAndDot(field));
+            return METADATA_FIELDS_ALLOWLIST.contains(field) || (field.startsWith("_") && isMetadataSubField(field));
         }
 
         /**
-         * Matches {metadata_field}.*
+         * Matches metadata sub-fields, i.e., {metadata_field}.*
          */
-        private boolean startsWithMetadataFieldAndDot(String field) {
+        private boolean isMetadataSubField(String field) {
             for (String f : METADATA_FIELDS_ALLOWLIST) {
                 if (field.startsWith(f + ".")) {
                     return true;

@@ -486,3 +486,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {date_nanos.Bucket Date nanos by 10 minutes}
   issue: https://github.com/elastic/elasticsearch/issues/120162
+- class: org.elasticsearch.xpack.inference.InferenceCrudIT
+  method: testGetServicesWithCompletionTaskType
+  issue: https://github.com/elastic/elasticsearch/issues/119959

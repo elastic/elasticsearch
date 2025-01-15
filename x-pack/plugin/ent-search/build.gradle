@@ -14,8 +14,7 @@ base {
 }
 
 dependencies {
-  implementation project(path: ':server')
-    compileOnly project(path: xpackModule('core'))
+  compileOnly project(path: xpackModule('core'))
   implementation project(xpackModule('search-business-rules'))
   api project(':modules:lang-mustache')
 

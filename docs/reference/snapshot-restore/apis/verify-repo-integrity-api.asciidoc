@@ -5,6 +5,12 @@
 <titleabbrev>Verify repository integrity</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-snapshot[Snapshot and restore APIs].
+--
+
 Verifies the integrity of the contents of a snapshot repository.
 
 ////

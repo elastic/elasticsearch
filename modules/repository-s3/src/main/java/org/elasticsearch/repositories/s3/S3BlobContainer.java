@@ -1025,7 +1025,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                             // should be no other processes interacting with the repository.
                             logger.warn(
                                 Strings.format(
-                                    "failed to clean up multipart upload [{}] of blob [{}][{}][{}]",
+                                    "failed to clean up multipart upload [%s] of blob [%s][%s][%s]",
                                     abortMultipartUploadRequest.getUploadId(),
                                     blobStore.getRepositoryMetadata().name(),
                                     abortMultipartUploadRequest.getBucketName(),

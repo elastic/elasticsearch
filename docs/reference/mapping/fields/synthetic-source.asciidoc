@@ -1,17 +1,10 @@
 [[synthetic-source]]
 ==== Synthetic `_source`
 
-IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
-(indices that have `index.mode` set to `time_series`). For other indices,
-synthetic `_source` is in technical preview. Features in technical preview may
-be changed or removed in a future release. Elastic will work to fix
-any issues, but features in technical preview are not subject to the support SLA
-of official GA features.
-
 Though very handy to have around, the source field takes up a significant amount
 of space on disk. Instead of storing source documents on disk exactly as you
 send them, Elasticsearch can reconstruct source content on the fly upon retrieval.
-Enable this by using the value `synthetic` for the index setting `index.mapping.source.mode`:
+To enable this https://www.elastic.co/subscriptions[subscription] feature, use the value `synthetic` for the index setting `index.mapping.source.mode`:
 
 [source,console,id=enable-synthetic-source-example]
 ----
@@ -30,7 +23,7 @@ PUT idx
 ----
 // TESTSETUP
 
-While this on the fly reconstruction is *generally* slower than saving the source
+While this on-the-fly reconstruction is _generally_ slower than saving the source
 documents verbatim and loading them at query time, it saves a lot of storage
 space. Additional latency can be avoided by not loading `_source` field in queries when it is not needed.
 

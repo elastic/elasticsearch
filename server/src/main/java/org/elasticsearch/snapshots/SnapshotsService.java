@@ -786,15 +786,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 assert snapshot.partial()
                     : "Data stream [" + dataStreamName + "] was deleted during a snapshot but snapshot was not partial.";
             } else {
-                boolean missingIndex = false;
-                for (Index index : dataStream.getIndices()) {
-                    final String indexName = index.getName();
-                    if (builder.get(indexName) == null || indicesInSnapshot.contains(indexName) == false) {
-                        missingIndex = true;
-                        break;
-                    }
-                }
-                final DataStream reconciled = missingIndex ? dataStream.snapshot(indicesInSnapshot) : dataStream;
+                final DataStream reconciled = dataStream.snapshot(indicesInSnapshot, builder);
                 if (reconciled != null) {
                     dataStreams.put(dataStreamName, reconciled);
                 }
@@ -4145,6 +4137,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 request.partial(),
                 indexIds,
                 CollectionUtils.concatLists(
+                    // It's ok to just get the data stream names here because we have already resolved every concrete index that will be
+                    // in the snapshot, and thus already resolved any selectors that might be present. We now only care about which data
+                    // streams we're packing up in the resulting snapshot, not what their contents are.
                     indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices()),
                     systemDataStreamNames
                 ),

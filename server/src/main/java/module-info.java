@@ -424,21 +424,14 @@ module org.elasticsearch.server {
 
     provides org.elasticsearch.features.FeatureSpecification
         with
-            org.elasticsearch.action.admin.indices.stats.IndicesStatsFeatures,
             org.elasticsearch.action.bulk.BulkFeatures,
             org.elasticsearch.features.FeatureInfrastructureFeatures,
-            org.elasticsearch.health.HealthFeatures,
-            org.elasticsearch.cluster.metadata.MetadataFeatures,
-            org.elasticsearch.rest.RestFeatures,
-            org.elasticsearch.repositories.RepositoriesFeatures,
-            org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
             org.elasticsearch.rest.action.admin.cluster.ClusterRerouteFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
-            org.elasticsearch.ingest.IngestGeoIpFeatures,
+            org.elasticsearch.index.IndexFeatures,
             org.elasticsearch.search.SearchFeatures,
             org.elasticsearch.script.ScriptFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures,
-            org.elasticsearch.reservedstate.service.FileSettingsFeatures,
             org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
@@ -479,5 +472,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.lucene.spatial;
     exports org.elasticsearch.inference.configuration;
     exports org.elasticsearch.monitor.metrics;
-
+    exports org.elasticsearch.plugins.internal.rewriter to org.elasticsearch.inference;
+    exports org.elasticsearch.lucene.util.automaton;
 }

@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.IntStream;
 
@@ -332,6 +333,24 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
     private void testFilter(Builder expected, Builder sample, Set<String> includes, Set<String> excludes, boolean matchFieldNamesWithDots)
         throws IOException {
         assertFilterResult(expected.apply(createBuilder()), filter(sample, includes, excludes, matchFieldNamesWithDots));
+
+        String rootPrefix = "root.path.random";
+        if (includes != null) {
+            Set<String> rootIncludes = new HashSet<>();
+            for (var incl : includes) {
+                rootIncludes.add(rootPrefix + (randomBoolean() ? "." : "*.") + incl);
+            }
+            includes = rootIncludes;
+        }
+
+        if (excludes != null) {
+            Set<String> rootExcludes = new HashSet<>();
+            for (var excl : excludes) {
+                rootExcludes.add(rootPrefix + (randomBoolean() ? "." : "*.") + excl);
+            }
+            excludes = rootExcludes;
+        }
+        assertFilterResult(expected.apply(createBuilder()), filterSub(sample, rootPrefix, includes, excludes, matchFieldNamesWithDots));
     }
 
     public void testArrayWithEmptyObjectInInclude() throws IOException {
@@ -413,21 +432,36 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
             && matchFieldNamesWithDots == false) {
             return filterOnBuilder(sample, includes, excludes);
         }
-        return filterOnParser(sample, includes, excludes, matchFieldNamesWithDots);
+        return filterOnParser(sample, null, includes, excludes, matchFieldNamesWithDots);
+    }
+
+    private XContentBuilder filterSub(
+        Builder sample,
+        String root,
+        Set<String> includes,
+        Set<String> excludes,
+        boolean matchFieldNamesWithDots
+    ) throws IOException {
+        return filterOnParser(sample, root, includes, excludes, matchFieldNamesWithDots);
     }
 
     private XContentBuilder filterOnBuilder(Builder sample, Set<String> includes, Set<String> excludes) throws IOException {
         return sample.apply(XContentBuilder.builder(getXContentType(), includes, excludes));
     }
 
-    private XContentBuilder filterOnParser(Builder sample, Set<String> includes, Set<String> excludes, boolean matchFieldNamesWithDots)
-        throws IOException {
+    private XContentBuilder filterOnParser(
+        Builder sample,
+        String rootPath,
+        Set<String> includes,
+        Set<String> excludes,
+        boolean matchFieldNamesWithDots
+    ) throws IOException {
         try (XContentBuilder builtSample = sample.apply(createBuilder())) {
             BytesReference sampleBytes = BytesReference.bytes(builtSample);
             try (
                 XContentParser parser = getXContentType().xContent()
                     .createParser(
-                        XContentParserConfiguration.EMPTY.withFiltering(includes, excludes, matchFieldNamesWithDots),
+                        XContentParserConfiguration.EMPTY.withFiltering(rootPath, includes, excludes, matchFieldNamesWithDots),
                         sampleBytes.streamInput()
                     )
             ) {

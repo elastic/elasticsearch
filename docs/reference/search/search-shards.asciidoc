@@ -4,6 +4,12 @@
 <titleabbrev>Search shards</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
+
 Returns the indices and shards that a search request would be executed against.
 
 [source,console]

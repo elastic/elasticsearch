@@ -55,7 +55,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         bulkBuilder.get();
         assertBusy(() -> {
-            GetMappingsResponse mappingsResponse = indicesAdmin().prepareGetMappings().get();
+            GetMappingsResponse mappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT).get();
             assertTrue(mappingsResponse.getMappings().containsKey("logstash-2014.03.30"));
         });
     }

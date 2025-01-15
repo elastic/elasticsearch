@@ -38,18 +38,18 @@ public class AllocationRoutedStepInfoTests extends AbstractXContentTestCase<Allo
 
     protected final AllocationInfo copyInstance(AllocationInfo instance) {
         return new AllocationInfo(
-            instance.getNumberOfReplicas(),
-            instance.getNumberShardsLeftToAllocate(),
+            instance.numberOfReplicas(),
+            instance.numberShardsLeftToAllocate(),
             instance.allShardsActive(),
-            instance.getMessage()
+            instance.message()
         );
     }
 
     protected AllocationInfo mutateInstance(AllocationInfo instance) throws IOException {
-        long actualReplicas = instance.getNumberOfReplicas();
-        long shardsToAllocate = instance.getNumberShardsLeftToAllocate();
+        long actualReplicas = instance.numberOfReplicas();
+        long shardsToAllocate = instance.numberShardsLeftToAllocate();
         boolean allShardsActive = instance.allShardsActive();
-        var message = instance.getMessage();
+        var message = instance.message();
         switch (between(0, 2)) {
             case 0 -> shardsToAllocate += between(1, 20);
             case 1 -> allShardsActive = allShardsActive == false;

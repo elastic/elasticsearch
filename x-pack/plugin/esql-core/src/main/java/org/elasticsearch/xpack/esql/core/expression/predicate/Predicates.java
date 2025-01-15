@@ -61,7 +61,7 @@ public abstract class Predicates {
      *
      * using the given combiner.
      *
-     * While a bit longer, this method creates a balanced tree as oppose to a plain
+     * While a bit longer, this method creates a balanced tree as opposed to a plain
      * recursive approach which creates an unbalanced one (either to the left or right).
      */
     private static Expression combine(List<Expression> exps, BiFunction<Expression, Expression, Expression> combiner) {

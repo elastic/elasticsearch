@@ -475,7 +475,7 @@ The input is untokenized text and the result is the single term attribute emitte
 - 영영칠 -> 7
 - 일영영영 -> 1000
 - 삼천2백2십삼 -> 3223
-- 조육백만오천일 -> 1000006005001
+- 일조육백만오천일 -> 1000006005001
 - ３.２천 ->  3200
 - １.２만３４５.６７ -> 12345.67
 - 4,647.100 -> 4647.1

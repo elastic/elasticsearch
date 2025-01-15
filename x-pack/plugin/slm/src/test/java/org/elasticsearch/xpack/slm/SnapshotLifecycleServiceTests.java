@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -50,7 +49,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -522,41 +520,6 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             assertEquals(task.get().getSLMOperationMode(), OperationMode.STOPPED);
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
-        }
-    }
-
-    public void testValidateIntervalScheduleSupport() {
-        var featureService = new FeatureService(List.of(new SnapshotLifecycleFeatures()));
-        {
-            ClusterState state = ClusterState.builder(new ClusterName("cluster"))
-                .nodeFeatures(Map.of("a", Set.of(), "b", Set.of(SnapshotLifecycleService.INTERVAL_SCHEDULE.id())))
-                .build();
-
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> SnapshotLifecycleService.validateIntervalScheduleSupport("30d", featureService, state)
-            );
-            assertThat(e.getMessage(), containsString("Unable to use slm interval schedules"));
-        }
-        {
-            ClusterState state = ClusterState.builder(new ClusterName("cluster"))
-                .nodeFeatures(Map.of("a", Set.of(SnapshotLifecycleService.INTERVAL_SCHEDULE.id())))
-                .build();
-            try {
-                SnapshotLifecycleService.validateIntervalScheduleSupport("30d", featureService, state);
-            } catch (Exception e) {
-                fail("interval schedule is supported by version and should not fail");
-            }
-        }
-        {
-            ClusterState state = ClusterState.builder(new ClusterName("cluster"))
-                .nodeFeatures(Map.of("a", Set.of(), "b", Set.of(SnapshotLifecycleService.INTERVAL_SCHEDULE.id())))
-                .build();
-            try {
-                SnapshotLifecycleService.validateIntervalScheduleSupport("*/1 * * * * ?", featureService, state);
-            } catch (Exception e) {
-                fail("cron schedule does not need feature check and should not fail");
-            }
         }
     }
 

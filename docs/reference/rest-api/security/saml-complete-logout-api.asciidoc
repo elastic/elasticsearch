@@ -5,6 +5,12 @@
 <titleabbrev>SAML complete logout</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Verifies the logout response sent from the SAML IdP.
 
 NOTE: This API is intended for use by custom web applications other than {kib}.

@@ -24,128 +24,15 @@ import java.util.Set;
  * examples below are *just* used for that. Don't make more of those - add them
  * to {@link EsqlCapabilities} instead.
  * <p>
- *     NOTE: You can't remove a feature now and probably never will be able to.
+ *     NOTE: You can only remove features on major version boundaries.
  *     Only add more of these if you need a fast CPU level check.
  * </p>
  */
 public class EsqlFeatures implements FeatureSpecification {
     /**
-     * Introduction of {@code MV_SORT}, {@code MV_SLICE}, and {@code MV_ZIP}.
-     * Added in #106095.
-     */
-    private static final NodeFeature MV_SORT = new NodeFeature("esql.mv_sort");
-
-    /**
-     * When we disabled some broken optimizations around {@code nullable}.
-     * Fixed in #105691.
-     */
-    private static final NodeFeature DISABLE_NULLABLE_OPTS = new NodeFeature("esql.disable_nullable_opts");
-
-    /**
-     * Introduction of {@code ST_X} and {@code ST_Y}. Added in #105768.
-     */
-    private static final NodeFeature ST_X_Y = new NodeFeature("esql.st_x_y");
-
-    /**
-     * Changed precision of {@code geo_point} and {@code cartesian_point} fields, by loading from source into WKB. Done in #103691.
-     */
-    private static final NodeFeature SPATIAL_POINTS_FROM_SOURCE = new NodeFeature("esql.spatial_points_from_source");
-
-    /**
-     * Support for loading {@code geo_shape} and {@code cartesian_shape} fields. Done in #104269.
-     */
-    private static final NodeFeature SPATIAL_SHAPES = new NodeFeature("esql.spatial_shapes");
-
-    /**
-     * Support for spatial aggregation {@code ST_CENTROID}. Done in #104269.
-     */
-    private static final NodeFeature ST_CENTROID_AGG = new NodeFeature("esql.st_centroid_agg");
-
-    /**
-     * Support for spatial aggregation {@code ST_INTERSECTS}. Done in #104907.
-     */
-    private static final NodeFeature ST_INTERSECTS = new NodeFeature("esql.st_intersects");
-
-    /**
-     * Support for spatial aggregation {@code ST_CONTAINS} and {@code ST_WITHIN}. Done in #106503.
-     */
-    private static final NodeFeature ST_CONTAINS_WITHIN = new NodeFeature("esql.st_contains_within");
-
-    /**
-     * Support for spatial aggregation {@code ST_DISJOINT}. Done in #107007.
-     */
-    private static final NodeFeature ST_DISJOINT = new NodeFeature("esql.st_disjoint");
-
-    /**
-     * The introduction of the {@code VALUES} agg.
-     */
-    private static final NodeFeature AGG_VALUES = new NodeFeature("esql.agg_values");
-
-    /**
-     * Does ESQL support async queries.
-     */
-    public static final NodeFeature ASYNC_QUERY = new NodeFeature("esql.async_query");
-
-    /**
-     * Does ESQL support FROM OPTIONS?
-     */
-    @Deprecated
-    public static final NodeFeature FROM_OPTIONS = new NodeFeature("esql.from_options");
-
-    /**
-     * Cast string literals to a desired data type.
-     */
-    public static final NodeFeature STRING_LITERAL_AUTO_CASTING = new NodeFeature("esql.string_literal_auto_casting");
-
-    /**
-     * Base64 encoding and decoding functions.
-     */
-    public static final NodeFeature BASE64_DECODE_ENCODE = new NodeFeature("esql.base64_decode_encode");
-
-    /**
-     * Support for the :: casting operator
-     */
-    public static final NodeFeature CASTING_OPERATOR = new NodeFeature("esql.casting_operator");
-
-    /**
-     * Blocks can be labelled with {@link org.elasticsearch.compute.data.Block.MvOrdering#SORTED_ASCENDING} for optimizations.
-     */
-    public static final NodeFeature MV_ORDERING_SORTED_ASCENDING = new NodeFeature("esql.mv_ordering_sorted_ascending");
-
-    /**
-     * Support for metrics counter fields
-     */
-    public static final NodeFeature METRICS_COUNTER_FIELDS = new NodeFeature("esql.metrics_counter_fields");
-
-    /**
-     * Cast string literals to a desired data type for IN predicate and more types for BinaryComparison.
-     */
-    public static final NodeFeature STRING_LITERAL_AUTO_CASTING_EXTENDED = new NodeFeature("esql.string_literal_auto_casting_extended");
-
-    /**
-     * Support for metadata fields.
-     */
-    public static final NodeFeature METADATA_FIELDS = new NodeFeature("esql.metadata_fields");
-
-    /**
-     * Support for timespan units abbreviations
-     */
-    public static final NodeFeature TIMESPAN_ABBREVIATIONS = new NodeFeature("esql.timespan_abbreviations");
-
-    /**
-     * Support metrics counter types
-     */
-    public static final NodeFeature COUNTER_TYPES = new NodeFeature("esql.counter_types");
-
-    /**
      * Support metrics syntax
      */
     public static final NodeFeature METRICS_SYNTAX = new NodeFeature("esql.metrics_syntax");
-
-    /**
-     * Internal resolve_fields API for ES|QL
-     */
-    public static final NodeFeature RESOLVE_FIELDS_API = new NodeFeature("esql.resolve_fields_api");
 
     private Set<NodeFeature> snapshotBuildFeatures() {
         assert Build.current().isSnapshot() : Build.current();
@@ -154,30 +41,7 @@ public class EsqlFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        Set<NodeFeature> features = Set.of(
-            ASYNC_QUERY,
-            AGG_VALUES,
-            BASE64_DECODE_ENCODE,
-            MV_SORT,
-            DISABLE_NULLABLE_OPTS,
-            ST_X_Y,
-            FROM_OPTIONS,
-            SPATIAL_POINTS_FROM_SOURCE,
-            SPATIAL_SHAPES,
-            ST_CENTROID_AGG,
-            ST_INTERSECTS,
-            ST_CONTAINS_WITHIN,
-            ST_DISJOINT,
-            STRING_LITERAL_AUTO_CASTING,
-            CASTING_OPERATOR,
-            MV_ORDERING_SORTED_ASCENDING,
-            METRICS_COUNTER_FIELDS,
-            STRING_LITERAL_AUTO_CASTING_EXTENDED,
-            METADATA_FIELDS,
-            TIMESPAN_ABBREVIATIONS,
-            COUNTER_TYPES,
-            RESOLVE_FIELDS_API
-        );
+        Set<NodeFeature> features = Set.of();
         if (Build.current().isSnapshot()) {
             return Collections.unmodifiableSet(Sets.union(features, snapshotBuildFeatures()));
         } else {

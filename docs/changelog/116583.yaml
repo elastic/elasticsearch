@@ -1,7 +1,0 @@
-pr: 116583
-summary: Fix NPE in `EnrichLookupService` on mixed clusters with <8.14 versions
-area: ES|QL
-type: bug
-issues:
- - 116529
- - 116544

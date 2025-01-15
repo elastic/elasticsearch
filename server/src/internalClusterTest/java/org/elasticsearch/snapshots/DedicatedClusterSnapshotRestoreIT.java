@@ -664,8 +664,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         createSnapshot(repo, snapshot, Collections.singletonList(shrunkIdx));
 
         logger.info("--> delete index and stop the data node");
-        assertAcked(indicesAdmin().prepareDelete(sourceIdx).get());
-        assertAcked(indicesAdmin().prepareDelete(shrunkIdx).get());
+        assertAcked(indicesAdmin().prepareDelete(sourceIdx), indicesAdmin().prepareDelete(shrunkIdx));
         internalCluster().stopRandomDataNode();
         clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setTimeout(TimeValue.timeValueSeconds(30)).setWaitForNodes("1");
 

@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
@@ -192,6 +193,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         entries.add(SingleValueQuery.ENTRY);
         entries.add(AsyncOperator.Status.ENTRY);
         entries.add(EnrichLookupOperator.Status.ENTRY);
+        entries.add(LookupFromIndexOperator.Status.ENTRY);
 
         entries.addAll(BlockWritables.getNamedWriteables());
         entries.addAll(ExpressionWritables.getNamedWriteables());

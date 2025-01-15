@@ -63,7 +63,7 @@ public class MlDeprecationIT extends ESRestTestCase {
         indexDoc(
             ".ml-anomalies-.write-" + jobId,
             jobId + "_model_snapshot_2",
-            "{\"job_id\":\"deprecation_check_job\",\"snapshot_id\":\"2\",\"snapshot_doc_count\":1,\"min_version\":\"8.0.0\"}"
+            "{\"job_id\":\"deprecation_check_job\",\"snapshot_id\":\"2\",\"snapshot_doc_count\":1,\"min_version\":\"8.3.0\"}"
         );
         client().performRequest(new Request("POST", "/.ml-anomalies-*/_refresh"));
 

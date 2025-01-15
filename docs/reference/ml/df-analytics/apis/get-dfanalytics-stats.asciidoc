@@ -6,6 +6,12 @@
 <titleabbrev>Get {dfanalytics-jobs} stats</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-data-frame[{ml-cap}  {dfanalytics} APIs].
+--
+
 Retrieves usage information for {ml-docs}/ml-dfanalytics.html[{dfanalytics-jobs}].
 
 

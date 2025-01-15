@@ -118,6 +118,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
@@ -505,8 +506,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @BeforeClass
     public static void maybeStashClassSecurityManager() {
-        if (getTestClass().isAnnotationPresent(WithoutSecurityManager.class)) {
-            securityManagerRestorer = BootstrapForTesting.disableTestSecurityManager();
+        if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
+            if (getTestClass().isAnnotationPresent(WithoutSecurityManager.class)) {
+                securityManagerRestorer = BootstrapForTesting.disableTestSecurityManager();
+            }
         }
     }
 
@@ -1207,6 +1210,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Generate a random string containing only alphanumeric characters.
+     * <b>The locale for the string is {@link Locale#ROOT}.</b>
      * @param length the length of the string to generate
      * @return the generated string
      */

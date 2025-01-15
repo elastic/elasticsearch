@@ -20,7 +20,7 @@ import static org.elasticsearch.cluster.coordination.LagDetector.CLUSTER_FOLLOWE
 
 @ESIntegTestCase.ClusterScope(supportsDedicatedMasters = true, numClientNodes = 0, numDataNodes = 0)
 public class DeleteBulkSearchableSnapshotsIT extends BaseSearchableSnapshotsIntegTestCase {
-    private static final int NUMBER_OF_INDICES = Integer.parseInt(System.getProperty("testDeletions.numberOfIndices", "100"));
+    private static final int NUMBER_OF_INDICES = Integer.parseInt(System.getProperty("testDeletions.numberOfIndices", "150"));
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -47,14 +47,15 @@ public class DeleteBulkSearchableSnapshotsIT extends BaseSearchableSnapshotsInte
         int numberOfIndices = NUMBER_OF_INDICES;
         logger.info("Mounting {} searchable snapshots", numberOfIndices);
         final String indexPrefix = randomIdentifier() + "_";
+        final String otherIndexPrefix = randomIdentifier() + "_";
         for (int i = 0; i < numberOfIndices; i++) {
-            String searchableSnapshotName = indexPrefix + i;
+            String searchableSnapshotName = i < (0.8 * numberOfIndices) ? indexPrefix + i : otherIndexPrefix + i;
             mountSnapshot(repositoryName, snapshotName, indexName, searchableSnapshotName, Settings.EMPTY);
             ensureGreen(searchableSnapshotName);
         }
 
         long startTime = System.currentTimeMillis();
-        client().execute(TransportDeleteIndexAction.TYPE, new DeleteIndexRequest("_all")).actionGet();
+        client().execute(TransportDeleteIndexAction.TYPE, new DeleteIndexRequest(indexPrefix + "*")).actionGet();
         logger.info("Deleting {} indices took {}", numberOfIndices, TimeValue.timeValueMillis(System.currentTimeMillis() - startTime));
 
         createIndex("bump_cluster_state_1");
@@ -72,6 +73,11 @@ public class DeleteBulkSearchableSnapshotsIT extends BaseSearchableSnapshotsInte
 
     @Override
     protected int maximumNumberOfShards() {
-        return 1;
+        return 2;
+    }
+
+    @Override
+    protected int minimumNumberOfShards() {
+        return 2;
     }
 }

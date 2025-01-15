@@ -161,16 +161,15 @@ FROM employees
 | LIMIT 5
 | EVAL language_code = emp_no % 10
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
-| EVAL country = MV_SORT(country)
 | KEEP emp_no, language_code, language_name, country
 ;
 
-emp_no:integer | language_code:integer | language_name:keyword | country:keyword
+emp_no:integer | language_code:integer | language_name:keyword | country:text
 10001          | 1                     | English               | Canada
 10001          | 1                     | English               | null
 10001          | 1                     | null                  | United Kingdom
 10001          | 1                     | English               | United States of America
-10002          | 2                     | German                | [Austria, Germany]
+10002          | 2                     | German                | [Germany, Austria]
 10002          | 2                     | German                | Switzerland
 10002          | 2                     | German                | null
 10003          | 3                     | null                  | null
@@ -184,13 +183,12 @@ required_capability: join_lookup_v11
 ROW language_code = 2
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
 | DROP country.keyword
-| EVAL country = MV_SORT(country)
 ;
 
-language_code:integer | language_name:keyword | country:keyword
-2                     | German                | [Austria, Germany]
-2                     | German                | Switzerland
-2                     | German                | null
+language_code:integer | country:text       | language_name:keyword
+2                     | [Germany, Austria] | German
+2                     | Switzerland        | German
+2                     | null               | German
 ;
 
 repeatedIndexOnFrom
@@ -451,11 +449,10 @@ required_capability: join_lookup_v11
 
 ROW language_code = [4, 5, 6, 7]
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
-| EVAL language_name = MV_SORT(language_name), country = MV_SORT(country)
 | KEEP language_code, language_name, country
 ;
 
-language_code:integer | language_name:keyword | country:keyword
+language_code:integer | language_name:keyword | country:text
 [4, 5, 6, 7]          | Quenya                | null
 [4, 5, 6, 7]          | null                  | Atlantis
 [4, 5, 6, 7]          | Mv-Lang               | Mv-Land

@@ -37,10 +37,17 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
     private final List<CircuitBreaker> breakers = new ArrayList<>();
 
     LookupFromIndexService.LookupResponse createTestInstance(BlockFactory blockFactory) {
-        return new LookupFromIndexService.LookupResponse(randomList(0, 10, () -> randomPage(blockFactory)), blockFactory);
+        return new LookupFromIndexService.LookupResponse(randomList(0, 10, () -> testPage(blockFactory)), blockFactory);
     }
 
-    Page randomPage(BlockFactory blockFactory) {
+    /**
+     * Build a {@link Page} to test serialization. If we had nice random
+     * {@linkplain Page} generation we'd use that happily, but it's off
+     * in the tests for compute, and we're in ESQL. And we don't
+     * <strong>really</strong> need a fully random one to verify serialization
+     * here.
+     */
+    Page testPage(BlockFactory blockFactory) {
         try (IntVector.Builder builder = blockFactory.newIntVectorFixedBuilder(3)) {
             builder.appendInt(1);
             builder.appendInt(2);
@@ -65,7 +72,7 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
         assertThat(instance.blockFactory, sameInstance(TestBlockFactory.getNonBreakingInstance()));
         List<Page> pages = new ArrayList<>(instance.pages().size());
         pages.addAll(instance.pages());
-        pages.add(randomPage(TestBlockFactory.getNonBreakingInstance()));
+        pages.add(testPage(TestBlockFactory.getNonBreakingInstance()));
         return new LookupFromIndexService.LookupResponse(pages, instance.blockFactory);
     }
 
@@ -99,7 +106,7 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
     }
 
     /**
-     * Tests that we reserve any memory other than that in the {@link Page}s we
+     * Tests that we don't reserve any memory other than that in the {@link Page}s we
      * hold, and calling {@link LookupFromIndexService.LookupResponse#takePages}
      * gives us those pages. If we then close those pages, we should have 0
      * reserved memory.

@@ -94,9 +94,7 @@ public class OldMappingsIT extends ESRestTestCase {
             if (oldVersion.before(Version.fromString("6.0.0"))) {
                 assertOK(oldEs.performRequest(createIndex("winlogbeat", "winlogbeat.json")));
             }
-            assertOK(
-                oldEs.performRequest(createIndexStandardTokenFilter("standard_token_filter", "standard_token_filter.json"))
-            );
+            assertOK(oldEs.performRequest(createIndexStandardTokenFilter("standard_token_filter", "standard_token_filter.json")));
             assertOK(oldEs.performRequest(createIndex("custom", "custom.json")));
             assertOK(oldEs.performRequest(createIndex("nested", "nested.json")));
 

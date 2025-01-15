@@ -15,18 +15,25 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<TopNOperatorStatus> {
+    public static TopNOperatorStatus simple() {
+        return new TopNOperatorStatus(10, 2000, 123, 123, 111, 222);
+    }
+
+    public static String simpleToJson() {
+        return """
+            {
+              "occupied_rows" : 10,
+              "ram_bytes_used" : 2000,
+              "ram_used" : "1.9kb",
+              "pages_received" : 123,
+              "pages_emitted" : 123,
+              "rows_received" : 111,
+              "rows_emitted" : 222
+            }""";
+    }
+
     public void testToXContent() {
-        assertThat(Strings.toString(new TopNOperatorStatus(10, 2000, 123, 123, 111, 222)), equalTo("""
-                {
-                    "occupied_rows":10,
-                    "ram_bytes_used":2000,
-                    "ram_used":"1.9kb",
-                    "pages_received":123,
-                    "pages_emitted":123,
-                    "rows_received":111,
-                    "rows_emitted":222
-                }
-            """));
+        assertThat(Strings.toString(simple(), true, true), equalTo(simpleToJson()));
     }
 
     @Override

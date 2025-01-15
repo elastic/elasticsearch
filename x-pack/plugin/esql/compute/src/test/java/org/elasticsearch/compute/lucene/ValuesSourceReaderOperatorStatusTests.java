@@ -33,7 +33,7 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
               "process_time" : "1ms",
               "pages_processed" : 123,
               "rows_received" : 111,
-               "rows_emitted" : 222
+              "rows_emitted" : 222
             }""";
     }
 

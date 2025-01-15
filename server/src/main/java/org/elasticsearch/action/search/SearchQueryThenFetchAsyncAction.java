@@ -1169,12 +1169,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                         queryPhaseResultConsumer.buffer.clear();
                         channelListener.onResponse(
                             new NodeQueryResponse(
-                                new QueryPhaseResultConsumer.MergeResult(
-                                    searchRequest.shards.stream().map(s -> new SearchShard(null, s.shardId)).toList(),
-                                    Lucene.EMPTY_TOP_DOCS,
-                                    null,
-                                    0L
-                                ),
+                                new QueryPhaseResultConsumer.MergeResult(List.of(), Lucene.EMPTY_TOP_DOCS, null, 0L),
                                 results,
                                 queryPhaseResultConsumer.topDocsStats
                             )

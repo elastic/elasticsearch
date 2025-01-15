@@ -2,9 +2,6 @@
 create logsdb data stream with host.name as keyword:
   - requires:
       test_runner_features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       cluster.put_component_template:
@@ -38,9 +35,6 @@ create logsdb data stream with host.name as keyword:
 create logsdb data stream with host.name as keyword and timestamp as date:
   - requires:
       test_runner_features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       cluster.put_component_template:
@@ -76,9 +70,6 @@ create logsdb data stream with host.name as keyword and timestamp as date:
 create logsdb data stream with host.name as integer and timestamp as date:
   - requires:
       test_runner_features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       cluster.put_component_template:
@@ -114,9 +105,6 @@ create logsdb data stream with host.name as integer and timestamp as date:
 create logsdb data stream with host as keyword:
   - requires:
       test_runner_features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       cluster.put_component_template:
@@ -150,9 +138,6 @@ create logsdb data stream with host as keyword:
 create logsdb data stream with host as text and multi fields:
   - requires:
       test_runner_features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       cluster.put_component_template:
@@ -193,9 +178,6 @@ create logsdb data stream with host as text and multi fields:
 create logsdb data stream with host as text:
   - requires:
       test_runner_features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: ["mapper.keyword_normalizer_synthetic_source"]
-      reason: "Support for normalizer on keyword fields"
 
   - do:
       cluster.put_component_template:
@@ -232,9 +214,6 @@ create logsdb data stream with host as text:
 create logsdb data stream with host as text and name as double:
   - requires:
       test_runner_features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: ["mapper.keyword_normalizer_synthetic_source"]
-      reason: "Support for normalizer on keyword fields"
 
   - do:
       cluster.put_component_template:
@@ -274,9 +253,6 @@ create logsdb data stream with host as text and name as double:
 create logsdb data stream with timestamp object mapping:
   - requires:
       test_runner_features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: ["mapper.keyword_normalizer_synthetic_source"]
-      reason: "Support for normalizer on keyword fields"
 
   - do:
       cluster.put_component_template:
@@ -315,9 +291,6 @@ create logsdb data stream with timestamp object mapping:
 create logsdb data stream with custom sorting without host.name:
   - skip:
       features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       allowed_warnings:
@@ -365,9 +338,6 @@ create logsdb data stream with custom sorting without host.name:
 create logsdb data stream with custom sorting and host object:
   - skip:
       features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       allowed_warnings:
@@ -424,9 +394,6 @@ create logsdb data stream with custom sorting and host object:
 create logsdb data stream with custom sorting and dynamically mapped host.name:
   - skip:
       features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       allowed_warnings:
@@ -489,9 +456,6 @@ create logsdb data stream with custom sorting and dynamically mapped host.name:
 create logsdb data stream with custom sorting and host.name object:
   - skip:
       features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       allowed_warnings:
@@ -545,9 +509,6 @@ create logsdb data stream with custom sorting and host.name object:
 create logsdb data stream with default sorting on malformed host.name:
   - skip:
       features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       allowed_warnings:
@@ -609,9 +570,6 @@ create logsdb data stream with default sorting on malformed host.name:
 create logsdb data stream with custom sorting and host.name date field:
   - skip:
       features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       allowed_warnings:
@@ -662,9 +620,6 @@ create logsdb data stream with custom sorting and host.name date field:
 create logsdb data stream with custom sorting and missing host.name field mapping:
   - skip:
       features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       allowed_warnings:
@@ -713,9 +668,6 @@ create logsdb data stream with custom sorting and missing host.name field mappin
 create logsdb data stream with custom sorting and host.name field without doc values:
   - skip:
       features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       allowed_warnings:
@@ -755,9 +707,6 @@ create logsdb data stream with custom sorting and host.name field without doc va
 create logsdb data stream with incompatible ignore_above on host.name:
   - skip:
       features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       allowed_warnings:
@@ -803,9 +752,6 @@ create logsdb data stream with incompatible ignore_above on host.name:
 create logsdb data stream with no sorting and host.name as text:
   - skip:
       features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       allowed_warnings:
@@ -846,9 +792,6 @@ create logsdb data stream with no sorting and host.name as text:
 create logsdb data stream without index sorting and ignore_above on host.name:
   - skip:
       features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       allowed_warnings:
@@ -892,9 +835,6 @@ create logsdb data stream without index sorting and ignore_above on host.name:
 create logsdb data stream with host.name as alias and sorting on it:
   - skip:
       features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       allowed_warnings:
@@ -930,9 +870,6 @@ create logsdb data stream with host.name as alias and sorting on it:
 create logsdb data stream with multi-fields on host.name:
   - skip:
       features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       allowed_warnings:
@@ -977,9 +914,6 @@ create logsdb data stream with multi-fields on host.name:
 create logsdb data stream with multi-fields on host.name and no sorting:
   - skip:
       features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       allowed_warnings:
@@ -1021,9 +955,6 @@ create logsdb data stream with multi-fields on host.name and no sorting:
 create logsdb data stream with custom empty sorting:
   - skip:
       features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       allowed_warnings:
@@ -1068,9 +999,6 @@ create logsdb data stream with custom empty sorting:
 create logsdb data stream with custom sorting on timestamp:
   - skip:
       features: [ "allowed_warnings" ]
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
 
   - do:
       allowed_warnings:

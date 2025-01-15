@@ -224,12 +224,7 @@ public class Group {
     }
 
     boolean checkAction(String action) {
-        return actionMatcher.test(action);
-    }
-
-    boolean checkIndex(String index) {
-        assert index != null;
-        return indexNameMatcher.test(index);
+        return actionMatcher.test(action) || (hasReadFailuresPrivilege && READ.predicate().test(action));
     }
 
     boolean hasQuery() {
@@ -240,16 +235,20 @@ public class Group {
         return allowRestrictedIndices;
     }
 
-    public Automaton getIndexMatcherAutomaton() {
+    Automaton getIndexMatcherAutomaton() {
         return indexNameAutomaton.get();
     }
 
-    boolean isTotal() {
+    boolean noFieldLevelSecurity() {
         return allowRestrictedIndices
             && indexNameMatcher.isTotal()
-            && privilege == IndexPrivilege.ALL
+            && privilege.name().contains(IndexPrivilege.ALL)
             && query == null
             && false == fieldPermissions.hasFieldLevelSecurity();
+    }
+
+    boolean noRestrictions() {
+        return noFieldLevelSecurity() && hasReadFailuresPrivilege;
     }
 
     @Override

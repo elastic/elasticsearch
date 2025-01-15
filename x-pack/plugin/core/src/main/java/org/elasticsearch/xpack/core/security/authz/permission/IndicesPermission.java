@@ -148,7 +148,7 @@ public final class IndicesPermission {
     private IndicesPermission(RestrictedIndices restrictedIndices, Group[] groups) {
         this.restrictedIndices = restrictedIndices;
         this.groups = groups;
-        this.hasFieldOrDocumentLevelSecurity = Arrays.stream(groups).noneMatch(Group::isTotal)
+        this.hasFieldOrDocumentLevelSecurity = Arrays.stream(groups).noneMatch(Group::noFieldLevelSecurity)
             && Arrays.stream(groups).anyMatch(g -> g.hasQuery() || g.getFieldPermissions().hasFieldLevelSecurity());
     }
 
@@ -477,7 +477,7 @@ public final class IndicesPermission {
     ) {
         // Short circuit if the indicesPermission allows all access to every index
         for (Group group : groups) {
-            if (group.isTotal()) {
+            if (group.noRestrictions()) {
                 return IndicesAccessControl.allowAll();
             }
         }

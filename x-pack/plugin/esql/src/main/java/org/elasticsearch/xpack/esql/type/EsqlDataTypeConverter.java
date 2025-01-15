@@ -540,7 +540,7 @@ public class EsqlDataTypeConverter {
     }
 
     public static String nanoTimeToString(long dateTime, DateFormatter formatter) {
-        return formatter == null ? dateTimeToString(dateTime) : formatter.formatNanos(dateTime);
+        return formatter == null ? nanoTimeToString(dateTime) : formatter.formatNanos(dateTime);
     }
 
     public static BytesRef numericBooleanToString(Object field) {

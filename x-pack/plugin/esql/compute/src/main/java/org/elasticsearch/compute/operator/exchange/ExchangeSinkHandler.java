@@ -80,8 +80,13 @@ public final class ExchangeSinkHandler {
         }
 
         @Override
-        public SubscribableListener<Void> onFinished() {
-            return onFinished;
+        public boolean isFinished() {
+            return onFinished.isDone();
+        }
+
+        @Override
+        public void addCompletionListener(ActionListener<Void> listener) {
+            onFinished.addListener(listener);
         }
 
         @Override

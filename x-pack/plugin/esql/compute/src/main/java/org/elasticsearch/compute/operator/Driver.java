@@ -11,10 +11,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -75,11 +75,9 @@ public class Driver implements Releasable, Describable {
     private final long statusNanos;
 
     private final AtomicReference<String> cancelReason = new AtomicReference<>();
-    private final AtomicReference<SubscribableListener<Void>> blocked = new AtomicReference<>();
     private final AtomicBoolean started = new AtomicBoolean();
     private final SubscribableListener<Void> completionListener = new SubscribableListener<>();
-    private final AtomicBoolean earlyFinished = new AtomicBoolean();
-    private final AtomicReference<Runnable> scheduledTask = new AtomicReference<>();
+    private final DriverScheduler scheduler = new DriverScheduler();
 
     /**
      * Status reported to the tasks API. We write the status at most once every
@@ -217,23 +215,6 @@ public class Driver implements Releasable, Describable {
         }
     }
 
-    private void earlyFinish() {
-        earlyFinished.set(true);
-        tryResumeDriver();
-    }
-
-    private void tryResumeDriver() {
-        // Attempt to run the scheduled task on the current thread to finish the driver by closing operators
-        SubscribableListener<Void> blockingFuture = blocked.getAndSet(null);
-        if (blockingFuture != null) {
-            blockingFuture.onResponse(null);
-        }
-        Runnable task = scheduledTask.getAndSet(null);
-        if (task != null) {
-            task.run();
-        }
-    }
-
     /**
      * Whether the driver has run the chain of operators to completion.
      */
@@ -264,7 +245,7 @@ public class Driver implements Releasable, Describable {
         ensureNotCancelled();
         boolean movedPage = false;
 
-        if (earlyFinished.get() == false) {
+        if (activeOperators.isEmpty() == false && activeOperators.getLast().isFinished() == false) {
             for (int i = 0; i < activeOperators.size() - 1; i++) {
                 Operator op = activeOperators.get(i);
                 Operator nextOp = activeOperators.get(i + 1);
@@ -333,7 +314,7 @@ public class Driver implements Releasable, Describable {
 
     public void cancel(String reason) {
         if (cancelReason.compareAndSet(null, reason)) {
-            tryResumeDriver();
+            scheduler.runPendingTasks();
         }
     }
 
@@ -354,10 +335,13 @@ public class Driver implements Releasable, Describable {
         driver.completionListener.addListener(listener);
         if (driver.started.compareAndSet(false, true)) {
             driver.updateStatus(0, 0, DriverStatus.Status.STARTING, "driver starting");
+            // Register a listener to an exchange sink to handle early completion scenarios:
+            // 1. When the query accumulates sufficient data (e.g., reaching the LIMIT).
+            // 2. When users abort the query but want to retain the current result.
+            // This allows the Driver to finish early without waiting for the scheduled task.
             if (driver.activeOperators.isEmpty() == false) {
-                var onFinishedListener = driver.activeOperators.getLast().onFinishedListener();
-                if (onFinishedListener != null) {
-                    onFinishedListener.addListener(ActionListener.running(driver::earlyFinish));
+                if (driver.activeOperators.getLast() instanceof ExchangeSinkOperator sinkOperator) {
+                    sinkOperator.addCompletionListener(ActionListener.running(driver.scheduler::runPendingTasks));
                 }
             }
             schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, threadContext, executor, driver, driver.completionListener);
@@ -406,13 +390,7 @@ public class Driver implements Releasable, Describable {
                         this::onFailure
                     );
                     fut.addListener(ContextPreservingActionListener.wrapPreservingContext(readyListener, threadContext));
-                    driver.blocked.set(fut);
-                    if (driver.cancelReason.get() != null || driver.earlyFinished.get()) {
-                        var resume = driver.blocked.getAndSet(null);
-                        if (resume != null) {
-                            resume.onResponse(null);
-                        }
-                    }
+                    driver.scheduler.addOrRunDelayedTask(() -> fut.onResponse(null));
                 }
             }
 
@@ -426,17 +404,7 @@ public class Driver implements Releasable, Describable {
                 driver.driverContext.waitForAsyncActions(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
             }
         };
-        final Runnable existing = driver.scheduledTask.getAndSet(task);
-        assert existing == null : existing;
-        final boolean runOnCurrentThread = driver.earlyFinished.get() || driver.cancelReason.get() != null;
-        final Executor executorToUse = runOnCurrentThread ? EsExecutors.DIRECT_EXECUTOR_SERVICE : executor;
-        executorToUse.execute(() -> {
-            final Runnable next = driver.scheduledTask.getAndSet(null);
-            if (next != null) {
-                assert next == task;
-                next.run();
-            }
-        });
+        driver.scheduler.scheduleOrRunTask(executor, task);
     }
 
     private static IsBlockedResult oneOf(List<IsBlockedResult> results) {

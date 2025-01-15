@@ -13,7 +13,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.ToXContentObject;
 
@@ -62,14 +61,6 @@ public interface Operator extends Releasable {
      * whether the operator has finished processing all input pages and made the corresponding output pages available
      */
     boolean isFinished();
-
-    /**
-     * Returns a listener that is notified when the operator is finished. This returns null if the operator doesn't support this feature.
-     */
-    @Nullable
-    default SubscribableListener<Void> onFinishedListener() {
-        return null;
-    }
 
     /**
      * returns non-null if output page available. Only called when isFinished() == false

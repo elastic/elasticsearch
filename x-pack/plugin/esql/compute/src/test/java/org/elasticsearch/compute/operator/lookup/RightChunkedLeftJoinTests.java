@@ -384,7 +384,7 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
 
     Object unwrapSingletonLists(Object o) {
         if (o instanceof List<?> l && l.size() == 1) {
-            return l.getFirst();
+            return l.get(0);
         }
         return o;
     }

@@ -35,7 +35,6 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -141,7 +140,6 @@ public class OutboundHandlerTests extends ESTestCase {
         TransportVersion version = isHandshake
             ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
             : TransportVersionUtils.randomCompatibleVersion(random());
-        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // drop the version.onOrAfter() in v9
         boolean compress = version.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE) && randomBoolean();
         String value = "message";
         threadContext.putHeader("header", "header_value");
@@ -215,7 +213,6 @@ public class OutboundHandlerTests extends ESTestCase {
         TransportVersion version = isHandshake
             ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
             : TransportVersionUtils.randomCompatibleVersion(random());
-        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // drop the version.onOrAfter() in v9
         boolean compress = version.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE) && randomBoolean();
 
         String value = "message";

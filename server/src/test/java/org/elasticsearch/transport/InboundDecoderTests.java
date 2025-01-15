@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.InboundDecoder.ChannelType;
@@ -126,7 +125,6 @@ public class InboundDecoderTests extends ESTestCase {
 
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // can delete test in v9
     public void testDecodePreHeaderSizeVariableInt() throws IOException {
         Compression.Scheme compressionScheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.DEFLATE, null);
         String action = "test-request";

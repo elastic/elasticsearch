@@ -11,6 +11,7 @@ package org.elasticsearch.entitlement.qa.common;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.qa.common.DummyImplementations.DummyBreakIteratorProvider;
 import org.elasticsearch.entitlement.qa.common.DummyImplementations.DummyCalendarDataProvider;
@@ -32,14 +33,18 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.HttpURLConnection;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
+import java.net.NetworkInterface;
 import java.net.ProxySelector;
 import java.net.ResponseCache;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.URLConnection;
@@ -55,9 +60,6 @@ import java.util.stream.Collectors;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.qa.common.RestEntitlementsCheckAction.CheckAction.alwaysDenied;
@@ -71,20 +73,20 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     public static final Thread NO_OP_SHUTDOWN_HOOK = new Thread(() -> {}, "Shutdown hook for testing");
     private final String prefix;
 
-    record CheckAction(Runnable action, boolean isAlwaysDeniedToPlugins) {
+    record CheckAction(CheckedRunnable<Exception> action, boolean isAlwaysDeniedToPlugins) {
         /**
          * These cannot be granted to plugins, so our test plugins cannot test the "allowed" case.
          * Used both for always-denied entitlements as well as those granted only to the server itself.
          */
-        static CheckAction deniedToPlugins(Runnable action) {
+        static CheckAction deniedToPlugins(CheckedRunnable<Exception> action) {
             return new CheckAction(action, true);
         }
 
-        static CheckAction forPlugins(Runnable action) {
+        static CheckAction forPlugins(CheckedRunnable<Exception> action) {
             return new CheckAction(action, false);
         }
 
-        static CheckAction alwaysDenied(Runnable action) {
+        static CheckAction alwaysDenied(CheckedRunnable<Exception> action) {
             return new CheckAction(action, true);
         }
     }
@@ -142,7 +144,12 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("createURLStreamHandlerProvider", alwaysDenied(RestEntitlementsCheckAction::createURLStreamHandlerProvider)),
         entry("createURLWithURLStreamHandler", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler)),
         entry("createURLWithURLStreamHandler2", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler2)),
-        entry("sslSessionImpl_getSessionContext", alwaysDenied(RestEntitlementsCheckAction::sslSessionImplGetSessionContext))
+        entry("datagram_socket_bind", forPlugins(RestEntitlementsCheckAction::bindDatagramSocket)),
+        entry("datagram_socket_connect", forPlugins(RestEntitlementsCheckAction::connectDatagramSocket)),
+        entry("datagram_socket_send", forPlugins(RestEntitlementsCheckAction::sendDatagramSocket)),
+        entry("datagram_socket_receive", forPlugins(RestEntitlementsCheckAction::receiveDatagramSocket)),
+        entry("datagram_socket_join_group", forPlugins(RestEntitlementsCheckAction::joinGroupDatagramSocket)),
+        entry("datagram_socket_leave_group", forPlugins(RestEntitlementsCheckAction::leaveGroupDatagramSocket))
     );
 
     private static void createURLStreamHandlerProvider() {
@@ -154,43 +161,24 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         };
     }
 
-    private static void sslSessionImplGetSessionContext() {
-        SSLSocketFactory factory = HttpsURLConnection.getDefaultSSLSocketFactory();
-        try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
-            SSLSession session = socket.getSession();
-
-            session.getSessionContext();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+    @SuppressWarnings("deprecation")
+    private static void createURLWithURLStreamHandler() throws MalformedURLException {
+        var x = new URL("http", "host", 1234, "file", new URLStreamHandler() {
+            @Override
+            protected URLConnection openConnection(URL u) {
+                return null;
+            }
+        });
     }
 
     @SuppressWarnings("deprecation")
-    private static void createURLWithURLStreamHandler() {
-        try {
-            var x = new URL("http", "host", 1234, "file", new URLStreamHandler() {
-                @Override
-                protected URLConnection openConnection(URL u) {
-                    return null;
-                }
-            });
-        } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @SuppressWarnings("deprecation")
-    private static void createURLWithURLStreamHandler2() {
-        try {
-            var x = new URL(null, "spec", new URLStreamHandler() {
-                @Override
-                protected URLConnection openConnection(URL u) {
-                    return null;
-                }
-            });
-        } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
-        }
+    private static void createURLWithURLStreamHandler2() throws MalformedURLException {
+        var x = new URL(null, "spec", new URLStreamHandler() {
+            @Override
+            protected URLConnection openConnection(URL u) {
+                return null;
+            }
+        });
     }
 
     private static void createInetAddressResolverProvider() {
@@ -215,12 +203,8 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         ProxySelector.setDefault(null);
     }
 
-    private static void setDefaultSSLContext() {
-        try {
-            SSLContext.setDefault(SSLContext.getDefault());
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
+    private static void setDefaultSSLContext() throws NoSuchAlgorithmException {
+        SSLContext.setDefault(SSLContext.getDefault());
     }
 
     private static void setDefaultHostnameVerifier() {
@@ -246,28 +230,18 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         System.exit(123);
     }
 
-    private static void createClassLoader() {
+    private static void createClassLoader() throws IOException {
         try (var classLoader = new URLClassLoader("test", new URL[0], RestEntitlementsCheckAction.class.getClassLoader())) {
             logger.info("Created URLClassLoader [{}]", classLoader.getName());
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
     }
 
-    private static void processBuilder_start() {
-        try {
-            new ProcessBuilder("").start();
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
+    private static void processBuilder_start() throws IOException {
+        new ProcessBuilder("").start();
     }
 
-    private static void processBuilder_startPipeline() {
-        try {
-            ProcessBuilder.startPipeline(List.of());
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
+    private static void processBuilder_startPipeline() throws IOException {
+        ProcessBuilder.startPipeline(List.of());
     }
 
     private static void setHttpsConnectionProperties() {
@@ -355,12 +329,8 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
 
     @SuppressWarnings("deprecation")
     @SuppressForbidden(reason = "We're required to prevent calls to this forbidden API")
-    private static void datagramSocket$$setDatagramSocketImplFactory() {
-        try {
-            DatagramSocket.setDatagramSocketImplFactory(() -> { throw new IllegalStateException(); });
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
+    private static void datagramSocket$$setDatagramSocketImplFactory() throws IOException {
+        DatagramSocket.setDatagramSocketImplFactory(() -> { throw new IllegalStateException(); });
     }
 
     private static void httpURLConnection$$setFollowRedirects() {
@@ -369,22 +339,14 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
 
     @SuppressWarnings("deprecation")
     @SuppressForbidden(reason = "We're required to prevent calls to this forbidden API")
-    private static void serverSocket$$setSocketFactory() {
-        try {
-            ServerSocket.setSocketFactory(() -> { throw new IllegalStateException(); });
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
+    private static void serverSocket$$setSocketFactory() throws IOException {
+        ServerSocket.setSocketFactory(() -> { throw new IllegalStateException(); });
     }
 
     @SuppressWarnings("deprecation")
     @SuppressForbidden(reason = "We're required to prevent calls to this forbidden API")
-    private static void socket$$setSocketImplFactory() {
-        try {
-            Socket.setSocketImplFactory(() -> { throw new IllegalStateException(); });
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
+    private static void socket$$setSocketImplFactory() throws IOException {
+        Socket.setSocketImplFactory(() -> { throw new IllegalStateException(); });
     }
 
     private static void url$$setURLStreamHandlerFactory() {
@@ -397,6 +359,51 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
 
     private static void urlConnection$$setContentHandlerFactory() {
         URLConnection.setContentHandlerFactory(__ -> { throw new IllegalStateException(); });
+    }
+
+    private static void bindDatagramSocket() throws SocketException {
+        try (var socket = new DatagramSocket(null)) {
+            socket.bind(null);
+        }
+    }
+
+    @SuppressForbidden(reason = "testing entitlements")
+    private static void connectDatagramSocket() throws SocketException {
+        try (var socket = new DummyImplementations.DummyDatagramSocket()) {
+            socket.connect(new InetSocketAddress(1234));
+        }
+    }
+
+    private static void joinGroupDatagramSocket() throws IOException {
+        try (var socket = new DummyImplementations.DummyDatagramSocket()) {
+            socket.joinGroup(
+                new InetSocketAddress(InetAddress.getByAddress(new byte[] { (byte) 230, 0, 0, 1 }), 1234),
+                NetworkInterface.getByIndex(0)
+            );
+        }
+    }
+
+    private static void leaveGroupDatagramSocket() throws IOException {
+        try (var socket = new DummyImplementations.DummyDatagramSocket()) {
+            socket.leaveGroup(
+                new InetSocketAddress(InetAddress.getByAddress(new byte[] { (byte) 230, 0, 0, 1 }), 1234),
+                NetworkInterface.getByIndex(0)
+            );
+        }
+    }
+
+    @SuppressForbidden(reason = "testing entitlements")
+    private static void sendDatagramSocket() throws IOException {
+        try (var socket = new DummyImplementations.DummyDatagramSocket()) {
+            socket.send(new DatagramPacket(new byte[] { 0 }, 1, InetAddress.getLocalHost(), 1234));
+        }
+    }
+
+    @SuppressForbidden(reason = "testing entitlements")
+    private static void receiveDatagramSocket() throws IOException {
+        try (var socket = new DummyImplementations.DummyDatagramSocket()) {
+            socket.receive(new DatagramPacket(new byte[1], 1, InetAddress.getLocalHost(), 1234));
+        }
     }
 
     public RestEntitlementsCheckAction(String prefix) {

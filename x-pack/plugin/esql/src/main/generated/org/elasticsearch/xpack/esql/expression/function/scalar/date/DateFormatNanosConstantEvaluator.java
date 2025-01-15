@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateFormat}.
  * This class is generated. Do not edit it.
  */
-public final class DateFormatConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class DateFormatNanosConstantEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator val;
@@ -35,7 +35,7 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
 
   private Warnings warnings;
 
-  public DateFormatConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
+  public DateFormatNanosConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       DateFormatter formatter, DriverContext driverContext) {
     this.source = source;
     this.val = val;
@@ -68,7 +68,7 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(DateFormat.process(valBlock.getLong(valBlock.getFirstValueIndex(p)), this.formatter));
+        result.appendBytesRef(DateFormat.processNanos(valBlock.getLong(valBlock.getFirstValueIndex(p)), this.formatter));
       }
       return result.build();
     }
@@ -77,7 +77,7 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
   public BytesRefVector eval(int positionCount, LongVector valVector) {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(DateFormat.process(valVector.getLong(p), this.formatter));
+        result.appendBytesRef(DateFormat.processNanos(valVector.getLong(p), this.formatter));
       }
       return result.build();
     }
@@ -85,7 +85,7 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
 
   @Override
   public String toString() {
-    return "DateFormatConstantEvaluator[" + "val=" + val + ", formatter=" + formatter + "]";
+    return "DateFormatNanosConstantEvaluator[" + "val=" + val + ", formatter=" + formatter + "]";
   }
 
   @Override
@@ -120,13 +120,13 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
     }
 
     @Override
-    public DateFormatConstantEvaluator get(DriverContext context) {
-      return new DateFormatConstantEvaluator(source, val.get(context), formatter, context);
+    public DateFormatNanosConstantEvaluator get(DriverContext context) {
+      return new DateFormatNanosConstantEvaluator(source, val.get(context), formatter, context);
     }
 
     @Override
     public String toString() {
-      return "DateFormatConstantEvaluator[" + "val=" + val + ", formatter=" + formatter + "]";
+      return "DateFormatNanosConstantEvaluator[" + "val=" + val + ", formatter=" + formatter + "]";
     }
   }
 }

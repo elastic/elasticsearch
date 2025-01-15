@@ -38,11 +38,9 @@ import static org.hamcrest.Matchers.sameInstance;
 public class PolicyManagerTests extends ESTestCase {
     /**
      * A module you can use for test cases that don't actually care about the
-     * entitlements module.
+     * entitlement module.
      */
     private static Module NO_ENTITLEMENTS_MODULE;
-
-    private static final String TEST_ENTITLEMENT_TYPE = "test";
 
     @BeforeClass
     public static void beforeClass() {
@@ -71,7 +69,7 @@ public class PolicyManagerTests extends ESTestCase {
         assertEquals(
             "No policy for the unnamed module",
             ModuleEntitlements.NONE,
-            policyManager.getEntitlements(callerClass, TEST_ENTITLEMENT_TYPE, "")
+            policyManager.getEntitlements(callerClass, Entitlement.class)
         );
 
         assertEquals(Map.of(requestingModule, ModuleEntitlements.NONE), policyManager.moduleEntitlementsMap);
@@ -84,11 +82,7 @@ public class PolicyManagerTests extends ESTestCase {
         var callerClass = this.getClass();
         var requestingModule = callerClass.getModule();
 
-        assertEquals(
-            "No policy for this plugin",
-            ModuleEntitlements.NONE,
-            policyManager.getEntitlements(callerClass, TEST_ENTITLEMENT_TYPE, "")
-        );
+        assertEquals("No policy for this plugin", ModuleEntitlements.NONE, policyManager.getEntitlements(callerClass, Entitlement.class));
 
         assertEquals(Map.of(requestingModule, ModuleEntitlements.NONE), policyManager.moduleEntitlementsMap);
     }
@@ -100,11 +94,11 @@ public class PolicyManagerTests extends ESTestCase {
         var callerClass = this.getClass();
         var requestingModule = callerClass.getModule();
 
-        assertEquals(ModuleEntitlements.NONE, policyManager.getEntitlements(callerClass, TEST_ENTITLEMENT_TYPE, ""));
+        assertEquals(ModuleEntitlements.NONE, policyManager.getEntitlements(callerClass, Entitlement.class));
         assertEquals(Map.of(requestingModule, ModuleEntitlements.NONE), policyManager.moduleEntitlementsMap);
 
         // A second time
-        assertEquals(ModuleEntitlements.NONE, policyManager.getEntitlements(callerClass, TEST_ENTITLEMENT_TYPE, ""));
+        assertEquals(ModuleEntitlements.NONE, policyManager.getEntitlements(callerClass, Entitlement.class));
 
         // Nothing new in the map
         assertEquals(Map.of(requestingModule, ModuleEntitlements.NONE), policyManager.moduleEntitlementsMap);
@@ -122,7 +116,7 @@ public class PolicyManagerTests extends ESTestCase {
         // Any class from the current module (unnamed) will do
         var callerClass = this.getClass();
 
-        var entitlements = policyManager.getEntitlements(callerClass, TEST_ENTITLEMENT_TYPE, "");
+        var entitlements = policyManager.getEntitlements(callerClass, Entitlement.class);
         assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
     }
 
@@ -139,7 +133,7 @@ public class PolicyManagerTests extends ESTestCase {
         assertEquals(
             "No policy for this module in server",
             ModuleEntitlements.NONE,
-            policyManager.getEntitlements(mockServerClass, TEST_ENTITLEMENT_TYPE, "")
+            policyManager.getEntitlements(mockServerClass, Entitlement.class)
         );
 
         assertEquals(Map.of(requestingModule, ModuleEntitlements.NONE), policyManager.moduleEntitlementsMap);
@@ -160,7 +154,7 @@ public class PolicyManagerTests extends ESTestCase {
         // loaded too early) to mimic a class that would be in the server module.
         var mockServerClass = ModuleLayer.boot().findLoader("jdk.httpserver").loadClass("com.sun.net.httpserver.HttpServer");
 
-        var entitlements = policyManager.getEntitlements(mockServerClass, TEST_ENTITLEMENT_TYPE, "");
+        var entitlements = policyManager.getEntitlements(mockServerClass, Entitlement.class);
         assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
         assertThat(entitlements.hasEntitlement(ExitVMEntitlement.class), is(true));
     }
@@ -181,7 +175,7 @@ public class PolicyManagerTests extends ESTestCase {
         var layer = createLayerForJar(jar, "org.example.plugin");
         var mockPluginClass = layer.findLoader("org.example.plugin").loadClass("q.B");
 
-        var entitlements = policyManager.getEntitlements(mockPluginClass, TEST_ENTITLEMENT_TYPE, "");
+        var entitlements = policyManager.getEntitlements(mockPluginClass, Entitlement.class);
         assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
         assertThat(
             entitlements.getEntitlements(FileEntitlement.class).toList(),
@@ -201,11 +195,11 @@ public class PolicyManagerTests extends ESTestCase {
         // Any class from the current module (unnamed) will do
         var callerClass = this.getClass();
 
-        var entitlements = policyManager.getEntitlements(callerClass, TEST_ENTITLEMENT_TYPE, "");
+        var entitlements = policyManager.getEntitlements(callerClass, Entitlement.class);
         assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
         assertThat(policyManager.moduleEntitlementsMap, aMapWithSize(1));
         var cachedResult = policyManager.moduleEntitlementsMap.values().stream().findFirst().orElseThrow();
-        var entitlementsAgain = policyManager.getEntitlements(callerClass, TEST_ENTITLEMENT_TYPE, "");
+        var entitlementsAgain = policyManager.getEntitlements(callerClass, Entitlement.class);
 
         // Nothing new in the map
         assertThat(policyManager.moduleEntitlementsMap, aMapWithSize(1));

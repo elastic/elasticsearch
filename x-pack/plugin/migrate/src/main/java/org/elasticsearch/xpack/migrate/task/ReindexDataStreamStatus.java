@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 public record ReindexDataStreamStatus(
     long persistentTaskStartTime,
@@ -23,11 +24,12 @@ public record ReindexDataStreamStatus(
     int totalIndicesToBeUpgraded,
     boolean complete,
     Exception exception,
-    int inProgress,
+    Set<String> inProgress,
     int pending,
     List<Tuple<String, Exception>> errors
 ) implements Task.Status {
     public ReindexDataStreamStatus {
+        Objects.requireNonNull(inProgress);
         Objects.requireNonNull(errors);
     }
 
@@ -40,7 +42,7 @@ public record ReindexDataStreamStatus(
             in.readInt(),
             in.readBoolean(),
             in.readException(),
-            in.readInt(),
+            in.readCollectionAsSet((Reader<String>) StreamInput::readString),
             in.readInt(),
             in.readCollectionAsList(in1 -> Tuple.tuple(in1.readString(), in1.readException()))
         );
@@ -58,7 +60,7 @@ public record ReindexDataStreamStatus(
         out.writeInt(totalIndicesToBeUpgraded);
         out.writeBoolean(complete);
         out.writeException(exception);
-        out.writeInt(inProgress);
+        out.writeStringCollection(inProgress);
         out.writeInt(pending);
         out.writeCollection(errors, (out1, tuple) -> {
             out1.writeString(tuple.v1());
@@ -69,12 +71,13 @@ public record ReindexDataStreamStatus(
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("start_time", persistentTaskStartTime);
+        builder.timestampFieldsFromUnixEpochMillis("start_time_millis", "start_time", persistentTaskStartTime);
         builder.field("complete", complete);
-        builder.field("total_indices", totalIndices);
+        builder.field("total_indices_in_data_stream", totalIndices);
         builder.field("total_indices_requiring_upgrade", totalIndicesToBeUpgraded);
-        builder.field("successes", totalIndicesToBeUpgraded - (inProgress + pending + errors.size()));
-        builder.field("in_progress", inProgress);
+        final int inProgressSize = inProgress.size();
+        builder.field("successes", totalIndicesToBeUpgraded - (inProgressSize + pending + errors.size()));
+        builder.field("in_progress", inProgressSize);
         builder.field("pending", pending);
         builder.startArray("errors");
         for (Tuple<String, Exception> error : errors) {

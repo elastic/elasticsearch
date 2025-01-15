@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.ccr.rest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -32,6 +34,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -42,10 +45,14 @@ import java.util.function.Supplier;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
- * A REST handler that retrieves shard changes in a specific index whose name is provided as a parameter.
- * It handles GET requests to the "/{index}/ccr/shard_changes" endpoint retrieving shard-level changes,
- * such as translog operations, mapping version, settings version, aliases version, the global checkpoint,
- * maximum sequence number and maximum sequence number of updates or deletes.
+ * A REST handler that retrieves shard changes in a specific index, data stream or alias whose name is
+ * provided as a parameter. It handles GET requests to the "/{index}/ccr/shard_changes" endpoint retrieving
+ * shard-level changes, such as Translog operations, mapping version, settings version, aliases version,
+ * the global checkpoint, maximum sequence number and maximum sequence number of updates or deletes.
+ * <p>
+ * In the case of a data stream, the first backing index is considered the target for retrieving shard changes.
+ * In the case of an alias, the first index that the alias points to is considered the target for retrieving
+ * shard changes.
  * <p>
  * Note: This handler is only available for snapshot builds.
  */
@@ -84,32 +91,36 @@ public class RestShardChangesAction extends BaseRestHandler {
     */
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) throws IOException {
-        final var indexName = restRequest.param(INDEX_PARAM_NAME);
+        final var indexAbstractionName = restRequest.param(INDEX_PARAM_NAME);
         final var fromSeqNo = restRequest.paramAsLong(FROM_SEQ_NO_PARAM_NAME, DEFAULT_FROM_SEQ_NO);
         final var maxBatchSize = restRequest.paramAsSize(MAX_BATCH_SIZE_PARAM_NAME, DEFAULT_MAX_BATCH_SIZE);
         final var pollTimeout = restRequest.paramAsTime(POLL_TIMEOUT_PARAM_NAME, DEFAULT_POLL_TIMEOUT);
         final var maxOperationsCount = restRequest.paramAsInt(MAX_OPERATIONS_COUNT_PARAM_NAME, DEFAULT_MAX_OPERATIONS_COUNT);
 
-        final CompletableFuture<String> indexUUIDCompletableFuture = asyncGetIndexUUID(
+        // NOTE: we first retrieve the concrete index name in case we are dealing with an alias or data stream.
+        // Then we use the concrete index name to retrieve the index UUID and shard stats.
+        final CompletableFuture<String> indexNameCompletableFuture = asyncGetIndexName(
             client,
-            indexName,
+            indexAbstractionName,
             client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME)
         );
-        final CompletableFuture<ShardStats> shardStatsCompletableFuture = asyncShardStats(
-            client,
-            indexName,
-            client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME)
+        final CompletableFuture<String> indexUUIDCompletableFuture = indexNameCompletableFuture.thenCompose(
+            concreteIndexName -> asyncGetIndexUUID(client, concreteIndexName, client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME))
+        );
+        final CompletableFuture<ShardStats> shardStatsCompletableFuture = indexNameCompletableFuture.thenCompose(
+            concreteIndexName -> asyncShardStats(client, concreteIndexName, client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME))
         );
 
         return channel -> CompletableFuture.allOf(indexUUIDCompletableFuture, shardStatsCompletableFuture).thenRun(() -> {
             try {
+                final String concreteIndexName = indexNameCompletableFuture.get(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
                 final String indexUUID = indexUUIDCompletableFuture.get(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
                 final ShardStats shardStats = shardStatsCompletableFuture.get(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
                 final ShardId shardId = shardStats.getShardRouting().shardId();
                 final String expectedHistoryUUID = shardStats.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY);
 
                 final ShardChangesAction.Request shardChangesRequest = shardChangesRequest(
-                    indexName,
+                    concreteIndexName,
                     indexUUID,
                     shardId,
                     expectedHistoryUUID,
@@ -121,7 +132,12 @@ public class RestShardChangesAction extends BaseRestHandler {
                 client.execute(ShardChangesAction.INSTANCE, shardChangesRequest, new RestActionListener<>(channel) {
                     @Override
                     protected void processResponse(final ShardChangesAction.Response response) {
-                        channel.sendResponse(new RestResponse(RestStatus.OK, shardChangesResponseToXContent(response, indexName, shardId)));
+                        channel.sendResponse(
+                            new RestResponse(
+                                RestStatus.OK,
+                                shardChangesResponseToXContent(response, indexAbstractionName, concreteIndexName, shardId)
+                            )
+                        );
                     }
                 });
 
@@ -132,7 +148,12 @@ public class RestShardChangesAction extends BaseRestHandler {
                 throw new IllegalStateException("Timeout while waiting for shard stats or index UUID", te);
             }
         }).exceptionally(ex -> {
-            channel.sendResponse(new RestResponse(RestStatus.BAD_REQUEST, "Failed to process shard changes for index [" + indexName + "]"));
+            channel.sendResponse(
+                new RestResponse(
+                    RestStatus.BAD_REQUEST,
+                    "Failed to process shard changes for index [" + indexAbstractionName + "] " + ex.getMessage()
+                )
+            );
             return null;
         });
     }
@@ -175,17 +196,20 @@ public class RestShardChangesAction extends BaseRestHandler {
      * Converts the response to XContent JSOn format.
      *
      * @param response The ShardChangesAction response.
-     * @param indexName The name of the index.
+     * @param indexAbstractionName The name of the index abstraction.
+     * @param concreteIndexName The name of the index.
      * @param shardId The ShardId.
      */
     private static XContentBuilder shardChangesResponseToXContent(
         final ShardChangesAction.Response response,
-        final String indexName,
+        final String indexAbstractionName,
+        final String concreteIndexName,
         final ShardId shardId
     ) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
-            builder.field("index", indexName);
+            builder.field("index_abstraction", indexAbstractionName);
+            builder.field("index", concreteIndexName);
             builder.field("shard_id", shardId);
             builder.field("mapping_version", response.getMappingVersion());
             builder.field("settings_version", response.getSettingsVersion());
@@ -250,25 +274,59 @@ public class RestShardChangesAction extends BaseRestHandler {
     }
 
     /**
+     * Asynchronously retrieves the index name for a given index, alias or data stream.
+     * If the name represents a data stream, the name of the first backing index is returned.
+     * If the name represents an alias, the name of the first index that the alias points to is returned.
+     *
+     * @param client The NodeClient for executing the asynchronous request.
+     * @param indexAbstractionName The name of the index, alias or data stream.
+     * @return A CompletableFuture that completes with the retrieved index name.
+     */
+    private static CompletableFuture<String> asyncGetIndexName(
+        final NodeClient client,
+        final String indexAbstractionName,
+        final ExecutorService executorService
+    ) {
+        return supplyAsyncTask(() -> {
+            final ClusterState clusterState = client.admin()
+                .cluster()
+                .prepareState(new TimeValue(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS))
+                .get(GET_INDEX_UUID_TIMEOUT)
+                .getState();
+            final IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(indexAbstractionName);
+            if (indexAbstraction == null) {
+                throw new IllegalArgumentException(
+                    String.format(Locale.ROOT, "Invalid index or data stream name [%s]", indexAbstractionName)
+                );
+            }
+            if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM
+                || indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
+                return indexAbstraction.getIndices().getFirst().getName();
+            }
+            return indexAbstractionName;
+        }, executorService, "Error while retrieving index name for index or data stream [" + indexAbstractionName + "]");
+    }
+
+    /**
      * Asynchronously retrieves the shard stats for a given index using an executor service.
      *
      * @param client The NodeClient for executing the asynchronous request.
-     * @param indexName The name of the index for which to retrieve shard statistics.
+     * @param concreteIndexName The name of the index for which to retrieve shard statistics.
      * @param executorService The executorService service for executing the asynchronous task.
      * @return A CompletableFuture that completes with the retrieved ShardStats.
      * @throws ElasticsearchException If an error occurs while retrieving shard statistics.
      */
     private static CompletableFuture<ShardStats> asyncShardStats(
         final NodeClient client,
-        final String indexName,
+        final String concreteIndexName,
         final ExecutorService executorService
     ) {
         return supplyAsyncTask(
-            () -> Arrays.stream(client.admin().indices().prepareStats(indexName).clear().get(SHARD_STATS_TIMEOUT).getShards())
+            () -> Arrays.stream(client.admin().indices().prepareStats(concreteIndexName).clear().get(SHARD_STATS_TIMEOUT).getShards())
                 .max(Comparator.comparingLong(shardStats -> shardStats.getCommitStats().getGeneration()))
-                .orElseThrow(() -> new ElasticsearchException("Unable to retrieve shard stats for index: " + indexName)),
+                .orElseThrow(() -> new ElasticsearchException("Unable to retrieve shard stats for index: " + concreteIndexName)),
             executorService,
-            "Error while retrieving shard stats for index [" + indexName + "]"
+            "Error while retrieving shard stats for index [" + concreteIndexName + "]"
         );
     }
 
@@ -276,25 +334,25 @@ public class RestShardChangesAction extends BaseRestHandler {
      * Asynchronously retrieves the index UUID for a given index using an executor service.
      *
      * @param client The NodeClient for executing the asynchronous request.
-     * @param indexName The name of the index for which to retrieve the index UUID.
+     * @param concreteIndexName The name of the index for which to retrieve the index UUID.
      * @param executorService The executorService service for executing the asynchronous task.
      * @return A CompletableFuture that completes with the retrieved index UUID.
      * @throws ElasticsearchException If an error occurs while retrieving the index UUID.
      */
     private static CompletableFuture<String> asyncGetIndexUUID(
         final NodeClient client,
-        final String indexName,
+        final String concreteIndexName,
         final ExecutorService executorService
     ) {
         return supplyAsyncTask(
             () -> client.admin()
                 .indices()
                 .prepareGetIndex()
-                .setIndices(indexName)
+                .setIndices(concreteIndexName)
                 .get(GET_INDEX_UUID_TIMEOUT)
-                .getSetting(indexName, IndexMetadata.SETTING_INDEX_UUID),
+                .getSetting(concreteIndexName, IndexMetadata.SETTING_INDEX_UUID),
             executorService,
-            "Error while retrieving index UUID for index [" + indexName + "]"
+            "Error while retrieving index UUID for index [" + concreteIndexName + "]"
         );
     }
 }

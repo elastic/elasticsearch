@@ -33,12 +33,14 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
@@ -85,6 +87,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -126,6 +129,7 @@ import org.junit.BeforeClass;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -148,6 +152,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
@@ -185,6 +190,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     private static EsqlParser parser;
     private static Analyzer analyzer;
+    private static LogicalOptimizerContext logicalOptimizerCtx;
     private static LogicalPlanOptimizer logicalOptimizer;
     private static Map<String, EsField> mapping;
     private static Map<String, EsField> mappingAirports;
@@ -200,7 +206,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private static Analyzer metricsAnalyzer;
 
     private static class SubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
-        static SubstitutionOnlyOptimizer INSTANCE = new SubstitutionOnlyOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
+        static SubstitutionOnlyOptimizer INSTANCE = new SubstitutionOnlyOptimizer(unboundLogicalOptimizerContext());
 
         SubstitutionOnlyOptimizer(LogicalOptimizerContext optimizerContext) {
             super(optimizerContext);
@@ -215,14 +221,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     @BeforeClass
     public static void init() {
         parser = new EsqlParser();
-        logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
+        logicalOptimizerCtx = unboundLogicalOptimizerContext();
+        logicalOptimizer = new LogicalPlanOptimizer(logicalOptimizerCtx);
         enrichResolution = new EnrichResolution();
         AnalyzerTestUtils.loadEnrichPolicyResolution(enrichResolution, "languages_idx", "id", "languages_idx", "mapping-languages.json");
-
-        var lookupMapping = loadMapping("mapping-languages.json");
-        IndexResolution lookupResolution = IndexResolution.valid(
-            new EsIndex("language_code", lookupMapping, Map.of("language_code", IndexMode.LOOKUP))
-        );
 
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
         mapping = loadMapping("mapping-basic.json");
@@ -327,7 +329,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(exprs.size(), equalTo(1));
         var alias = as(exprs.get(0), Alias.class);
         assertThat(alias.name(), equalTo("x"));
-        assertThat(alias.child().fold(), equalTo(1));
+        assertThat(alias.child().fold(FoldContext.small()), equalTo(1));
     }
 
     /**
@@ -363,11 +365,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(exprs.size(), equalTo(1));
         var alias = as(exprs.get(0), Alias.class);
         assertThat(alias.name(), equalTo("x"));
-        assertThat(alias.child().fold(), equalTo(1));
+        assertThat(alias.child().fold(FoldContext.small()), equalTo(1));
 
         var filterCondition = as(filter.condition(), GreaterThan.class);
         assertThat(Expressions.name(filterCondition.left()), equalTo("languages"));
-        assertThat(filterCondition.right().fold(), equalTo(1));
+        assertThat(filterCondition.right().fold(FoldContext.small()), equalTo(1));
     }
 
     public void testCombineProjections() {
@@ -627,7 +629,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(alias.name(), is("sum(salary) + 1 where false"));
         var add = as(alias.child(), Add.class);
         var literal = as(add.right(), Literal.class);
-        assertThat(literal.fold(), is(1));
+        assertThat(literal.value(), is(1));
 
         var limit = as(eval.child(), Limit.class);
         var source = as(limit.child(), LocalRelation.class);
@@ -660,7 +662,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var alias = as(eval.fields().getFirst(), Alias.class);
         assertTrue(alias.child().foldable());
-        assertThat(alias.child().fold(), nullValue());
+        assertThat(alias.child().fold(FoldContext.small()), nullValue());
         assertThat(alias.child().dataType(), is(LONG));
 
         alias = as(eval.fields().getLast(), Alias.class);
@@ -697,7 +699,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var alias = as(eval.fields().getFirst(), Alias.class);
         assertTrue(alias.child().foldable());
-        assertThat(alias.child().fold(), nullValue());
+        assertThat(alias.child().fold(FoldContext.small()), nullValue());
         assertThat(alias.child().dataType(), is(LONG));
 
         alias = as(eval.fields().get(1), Alias.class);
@@ -705,7 +707,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         alias = as(eval.fields().getLast(), Alias.class);
         assertTrue(alias.child().foldable());
-        assertThat(alias.child().fold(), nullValue());
+        assertThat(alias.child().fold(FoldContext.small()), nullValue());
         assertThat(alias.child().dataType(), is(LONG));
 
         var limit = as(eval.child(), Limit.class);
@@ -754,7 +756,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(alias.name(), is("count_distinct(salary + 2) + 3 where false"));
         var add = as(alias.child(), Add.class);
         var literal = as(add.right(), Literal.class);
-        assertThat(literal.fold(), is(3));
+        assertThat(literal.value(), is(3));
 
         var limit = as(eval.child(), Limit.class);
         var source = as(limit.child(), LocalRelation.class);
@@ -790,13 +792,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var alias = as(eval.fields().getFirst(), Alias.class);
         assertThat(Expressions.name(alias), containsString("max_a"));
         assertTrue(alias.child().foldable());
-        assertThat(alias.child().fold(), nullValue());
+        assertThat(alias.child().fold(FoldContext.small()), nullValue());
         assertThat(alias.child().dataType(), is(INTEGER));
 
         alias = as(eval.fields().getLast(), Alias.class);
         assertThat(Expressions.name(alias), containsString("min_a"));
         assertTrue(alias.child().foldable());
-        assertThat(alias.child().fold(), nullValue());
+        assertThat(alias.child().fold(FoldContext.small()), nullValue());
         assertThat(alias.child().dataType(), is(INTEGER));
 
         var limit = as(eval.child(), Limit.class);
@@ -935,7 +937,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var gt = as(filter.condition(), GreaterThan.class);
         assertThat(Expressions.name(gt.left()), is("emp_no"));
         assertTrue(gt.right().foldable());
-        assertThat(gt.right().fold(), is(1));
+        assertThat(gt.right().fold(FoldContext.small()), is(1));
 
         var source = as(filter.child(), EsRelation.class);
     }
@@ -1055,7 +1057,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var gt = as(filter.condition(), GreaterThan.class); // name is "emp_no > 1 + 1"
         assertThat(Expressions.name(gt.left()), is("emp_no"));
         assertTrue(gt.right().foldable());
-        assertThat(gt.right().fold(), is(2));
+        assertThat(gt.right().fold(FoldContext.small()), is(2));
 
         var source = as(filter.child(), EsRelation.class);
     }
@@ -1085,12 +1087,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var lt = as(and.left(), LessThan.class);
         assertThat(Expressions.name(lt.left()), is("emp_no"));
         assertTrue(lt.right().foldable());
-        assertThat(lt.right().fold(), is(10));
+        assertThat(lt.right().fold(FoldContext.small()), is(10));
 
         var equals = as(and.right(), Equals.class);
         assertThat(Expressions.name(equals.left()), is("last_name"));
         assertTrue(equals.right().foldable());
-        assertThat(equals.right().fold(), is(BytesRefs.toBytesRef("Doe")));
+        assertThat(equals.right().fold(FoldContext.small()), is(BytesRefs.toBytesRef("Doe")));
 
         var source = as(filter.child(), EsRelation.class);
     }
@@ -1305,7 +1307,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var anotherLimit = new Limit(EMPTY, L(limitValues[secondLimit]), oneLimit);
         assertEquals(
             new Limit(EMPTY, L(Math.min(limitValues[0], limitValues[1])), emptySource()),
-            new PushDownAndCombineLimits().rule(anotherLimit)
+            new PushDownAndCombineLimits().rule(anotherLimit, logicalOptimizerCtx)
         );
     }
 
@@ -1324,7 +1326,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var limit = new Limit(EMPTY, L(10), join);
 
-        var optimizedPlan = new PushDownAndCombineLimits().rule(limit);
+        var optimizedPlan = new PushDownAndCombineLimits().rule(limit, logicalOptimizerCtx);
 
         assertEquals(join.replaceChildren(limit.replaceChild(join.left()), join.right()), optimizedPlan);
     }
@@ -1342,10 +1344,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             var value = i == limitWithMinimum ? minimum : randomIntBetween(100, 1000);
             plan = new Limit(EMPTY, L(value), plan);
         }
-        assertEquals(
-            new Limit(EMPTY, L(minimum), relation),
-            new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG)).optimize(plan)
-        );
+        assertEquals(new Limit(EMPTY, L(minimum), relation), logicalOptimizer.optimize(plan));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/115311")
@@ -1866,7 +1865,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(mvExpand.limit(), equalTo(1000));
         var keep = as(mvExpand.child(), EsqlProject.class);
         var limitPastMvExpand = as(keep.child(), Limit.class);
-        assertThat(limitPastMvExpand.limit().fold(), equalTo(1000));
+        assertThat(limitPastMvExpand.limit().fold(FoldContext.small()), equalTo(1000));
         as(limitPastMvExpand.child(), EsRelation.class);
     }
 
@@ -1889,7 +1888,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(mvExpand.limit(), equalTo(10));
         var project = as(mvExpand.child(), EsqlProject.class);
         var limit = as(project.child(), Limit.class);
-        assertThat(limit.limit().fold(), equalTo(1));
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1));
         as(limit.child(), EsRelation.class);
     }
 
@@ -1923,7 +1922,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, EsqlProject.class);
         var topN = as(keep.child(), TopN.class);
-        assertThat(topN.limit().fold(), equalTo(5));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
         assertThat(orderNames(topN), contains("salary"));
         var mvExp = as(topN.child(), MvExpand.class);
         assertThat(mvExp.limit(), equalTo(5));
@@ -1933,7 +1932,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         mvExp = as(filter.child(), MvExpand.class);
         assertThat(mvExp.limit(), equalTo(10));
         topN = as(mvExp.child(), TopN.class);
-        assertThat(topN.limit().fold(), equalTo(10));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
         filter = as(topN.child(), Filter.class);
         as(filter.child(), EsRelation.class);
     }
@@ -1957,11 +1956,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, EsqlProject.class);
         var topN = as(keep.child(), TopN.class);
-        assertThat(topN.limit().fold(), equalTo(5));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
         assertThat(orderNames(topN), contains("salary", "first_name"));
         var mvExp = as(topN.child(), MvExpand.class);
         topN = as(mvExp.child(), TopN.class);
-        assertThat(topN.limit().fold(), equalTo(10000));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
         assertThat(orderNames(topN), contains("emp_no"));
         as(topN.child(), EsRelation.class);
     }
@@ -1987,14 +1986,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, EsqlProject.class);
         var topN = as(keep.child(), TopN.class);
-        assertThat(topN.limit().fold(), equalTo(5));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
         assertThat(orderNames(topN), contains("first_name"));
         topN = as(topN.child(), TopN.class);
-        assertThat(topN.limit().fold(), equalTo(5));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
         assertThat(orderNames(topN), contains("salary"));
         var mvExp = as(topN.child(), MvExpand.class);
         topN = as(mvExp.child(), TopN.class);
-        assertThat(topN.limit().fold(), equalTo(10000));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
         assertThat(orderNames(topN), contains("emp_no"));
         as(topN.child(), EsRelation.class);
     }
@@ -2023,11 +2022,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
-        assertThat(limit.limit().fold(), equalTo(5));
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(5));
         var agg = as(filter.child(), Aggregate.class);
         var mvExp = as(agg.child(), MvExpand.class);
         var topN = as(mvExp.child(), TopN.class);
-        assertThat(topN.limit().fold(), equalTo(50));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(50));
         assertThat(orderNames(topN), contains("emp_no"));
         as(topN.child(), EsRelation.class);
     }
@@ -2054,13 +2053,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | limit 5""");
 
         var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(), equalTo(5));
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(5));
         var filter = as(limit.child(), Filter.class);
         var agg = as(filter.child(), Aggregate.class);
         var mvExp = as(agg.child(), MvExpand.class);
         assertThat(mvExp.limit(), equalTo(50));
         limit = as(mvExp.child(), Limit.class);
-        assertThat(limit.limit().fold(), equalTo(50));
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(50));
         as(limit.child(), EsRelation.class);
     }
 
@@ -2085,12 +2084,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, EsqlProject.class);
         var topN = as(keep.child(), TopN.class);
-        assertThat(topN.limit().fold(), equalTo(5));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
         assertThat(orderNames(topN), contains("salary"));
         var eval = as(topN.child(), Eval.class);
         var mvExp = as(eval.child(), MvExpand.class);
         topN = as(mvExp.child(), TopN.class);
-        assertThat(topN.limit().fold(), equalTo(10000));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
         assertThat(orderNames(topN), contains("first_name"));
         as(topN.child(), EsRelation.class);
     }
@@ -2116,7 +2115,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, EsqlProject.class);
         var topN = as(keep.child(), TopN.class);
-        assertThat(topN.limit().fold(), equalTo(1000));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(1000));
         assertThat(orderNames(topN), contains("salary", "first_name"));
         var filter = as(topN.child(), Filter.class);
         assertThat(filter.condition(), instanceOf(And.class));
@@ -2145,7 +2144,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var mvExp = as(plan, MvExpand.class);
         assertThat(mvExp.limit(), equalTo(10));
         var topN = as(mvExp.child(), TopN.class);
-        assertThat(topN.limit().fold(), equalTo(10));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
         assertThat(orderNames(topN), contains("emp_no"));
         var filter = as(topN.child(), Filter.class);
         as(filter.child(), EsRelation.class);
@@ -2170,7 +2169,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort first_name""");
 
         var topN = as(plan, TopN.class);
-        assertThat(topN.limit().fold(), equalTo(1000));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(1000));
         assertThat(orderNames(topN), contains("first_name"));
         var mvExpand = as(topN.child(), MvExpand.class);
         var filter = as(mvExpand.child(), Filter.class);
@@ -2202,11 +2201,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(mvExpand.limit(), equalTo(10000));
         var project = as(mvExpand.child(), EsqlProject.class);
         var topN = as(project.child(), TopN.class);
-        assertThat(topN.limit().fold(), equalTo(7300));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(7300));
         assertThat(orderNames(topN), contains("a"));
         mvExpand = as(topN.child(), MvExpand.class);
         var limit = as(mvExpand.child(), Limit.class);
-        assertThat(limit.limit().fold(), equalTo(7300));
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(7300));
         as(limit.child(), LocalRelation.class);
     }
 
@@ -2226,7 +2225,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var topN = as(plan, TopN.class);
         assertThat(orderNames(topN), contains("first_name"));
-        assertThat(topN.limit().fold(), equalTo(10000));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
         var mvExpand = as(topN.child(), MvExpand.class);
         var topN2 = as(mvExpand.child(), TopN.class); // TODO is it correct? Double-check AddDefaultTopN rule
         as(topN2.child(), EsRelation.class);
@@ -2254,7 +2253,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, EsqlProject.class);
         var topN = as(keep.child(), TopN.class);
-        assertThat(topN.limit().fold(), equalTo(15));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(15));
         assertThat(orderNames(topN), contains("salary", "first_name"));
         var filter = as(topN.child(), Filter.class);
         assertThat(filter.condition(), instanceOf(And.class));
@@ -2262,7 +2261,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         topN = as(mvExp.child(), TopN.class);
         // the filter acts on first_name (the one used in mv_expand), so the limit 15 is not pushed down past mv_expand
         // instead the default limit is added
-        assertThat(topN.limit().fold(), equalTo(10000));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
         assertThat(orderNames(topN), contains("emp_no"));
         as(topN.child(), EsRelation.class);
     }
@@ -2289,7 +2288,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, EsqlProject.class);
         var topN = as(keep.child(), TopN.class);
-        assertThat(topN.limit().fold(), equalTo(15));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(15));
         assertThat(orderNames(topN), contains("salary", "first_name"));
         var filter = as(topN.child(), Filter.class);
         assertThat(filter.condition(), instanceOf(And.class));
@@ -2297,7 +2296,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         topN = as(mvExp.child(), TopN.class);
         // the filters after mv_expand do not act on the expanded field values, as such the limit 15 is the one being pushed down
         // otherwise that limit wouldn't have pushed down and the default limit was instead being added by default before mv_expanded
-        assertThat(topN.limit().fold(), equalTo(10000));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
         assertThat(orderNames(topN), contains("emp_no"));
         as(topN.child(), EsRelation.class);
     }
@@ -2325,14 +2324,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var keep = as(plan, EsqlProject.class);
         var topN = as(keep.child(), TopN.class);
-        assertThat(topN.limit().fold(), equalTo(15));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(15));
         assertThat(orderNames(topN), contains("salary", "first_name"));
         var filter = as(topN.child(), Filter.class);
         assertThat(filter.condition(), instanceOf(And.class));
         var mvExp = as(filter.child(), MvExpand.class);
         topN = as(mvExp.child(), TopN.class);
         // the filter uses an alias ("x") to the expanded field ("first_name"), so the default limit is used and not the one provided
-        assertThat(topN.limit().fold(), equalTo(10000));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
         assertThat(orderNames(topN), contains("gender"));
         as(topN.child(), EsRelation.class);
     }
@@ -2371,7 +2370,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var expand = as(plan, MvExpand.class);
         assertThat(expand.limit(), equalTo(20));
         var topN = as(expand.child(), TopN.class);
-        assertThat(topN.limit().fold(), is(20));
+        assertThat(topN.limit().fold(FoldContext.small()), is(20));
         var row = as(topN.child(), EsRelation.class);
     }
 
@@ -2392,7 +2391,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var expand = as(plan, MvExpand.class);
         assertThat(expand.limit(), equalTo(1000));
         var limit2 = as(expand.child(), Limit.class);
-        assertThat(limit2.limit().fold(), is(1000));
+        assertThat(limit2.limit().fold(FoldContext.small()), is(1000));
         var row = as(limit2.child(), LocalRelation.class);
     }
 
@@ -2585,7 +2584,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         assertTrue(filter.condition() instanceof Equals);
         Equals equals = as(filter.condition(), Equals.class);
-        assertEquals(BytesRefs.toBytesRef("foo"), equals.right().fold());
+        assertEquals(BytesRefs.toBytesRef("foo"), equals.right().fold(FoldContext.small()));
         assertTrue(filter.child() instanceof EsRelation);
     }
 
@@ -2611,7 +2610,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         assertTrue(filter.condition() instanceof Equals);
         Equals equals = as(filter.condition(), Equals.class);
-        assertEquals(BytesRefs.toBytesRef("foo"), equals.right().fold());
+        assertEquals(BytesRefs.toBytesRef("foo"), equals.right().fold(FoldContext.small()));
         assertTrue(filter.child() instanceof EsRelation);
     }
 
@@ -2775,7 +2774,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             """);
         var enrich = as(plan, Enrich.class);
         assertTrue(enrich.policyName().resolved());
-        assertThat(enrich.policyName().fold(), is(BytesRefs.toBytesRef("languages_idx")));
+        assertThat(enrich.policyName().fold(FoldContext.small()), is(BytesRefs.toBytesRef("languages_idx")));
         var eval = as(enrich.child(), Eval.class);
         var limit = as(eval.child(), Limit.class);
         as(limit.child(), EsRelation.class);
@@ -2821,7 +2820,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var filter = as(limit.child(), Filter.class);
         var enrich = as(filter.child(), Enrich.class);
         assertTrue(enrich.policyName().resolved());
-        assertThat(enrich.policyName().fold(), is(BytesRefs.toBytesRef("languages_idx")));
+        assertThat(enrich.policyName().fold(FoldContext.small()), is(BytesRefs.toBytesRef("languages_idx")));
         var eval = as(enrich.child(), Eval.class);
         as(eval.child(), EsRelation.class);
     }
@@ -2942,7 +2941,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var a = as(aggs.get(0), Alias.class);
         var per = as(a.child(), Percentile.class);
         var literal = as(per.percentile(), Literal.class);
-        assertThat((int) QuantileStates.MEDIAN, is(literal.fold()));
+        assertThat((int) QuantileStates.MEDIAN, is(literal.value()));
 
         assertThat(Expressions.names(agg.groupings()), contains("last_name"));
     }
@@ -2951,7 +2950,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute("foo");
         In in = new In(EMPTY, ONE, List.of(TWO, THREE, fa, L(null)));
         Or expected = new Or(EMPTY, new In(EMPTY, ONE, List.of(TWO, THREE)), new In(EMPTY, ONE, List.of(fa, L(null))));
-        assertThat(new SplitInWithFoldableValue().rule(in), equalTo(expected));
+        assertThat(new SplitInWithFoldableValue().rule(in, logicalOptimizerCtx), equalTo(expected));
     }
 
     public void testReplaceFilterWithExact() {
@@ -3014,6 +3013,24 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var keep = as(plan, Project.class);
         var limit = as(keep.child(), Limit.class);
         var source = as(limit.child(), EsRelation.class);
+    }
+
+    public void testPruneChainedEvalNoProjection() {
+        var plan = plan("""
+              from test
+            | eval garbage = salary + 3
+            | eval garbage = emp_no / garbage, garbage = garbage
+            | eval garbage = 1
+            """);
+        var eval = as(plan, Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), EsRelation.class);
+
+        assertEquals(1, eval.fields().size());
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertEquals(alias.name(), "garbage");
+        var literal = as(alias.child(), Literal.class);
+        assertEquals(1, literal.value());
     }
 
     /**
@@ -3690,7 +3707,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var alias = as(exp, Alias.class);
         var af = as(alias.child(), aggType);
         var field = af.field();
-        var name = field.foldable() ? BytesRefs.toString(field.fold()) : Expressions.name(field);
+        var name = field.foldable() ? BytesRefs.toString(field.fold(FoldContext.small())) : Expressions.name(field);
         assertThat(name, is(fieldName));
     }
 
@@ -4102,7 +4119,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var value = Alias.unwrap(fields.get(0));
         var math = as(value, Mod.class);
         assertThat(Expressions.name(math.left()), is("emp_no"));
-        assertThat(math.right().fold(), is(2));
+        assertThat(math.right().fold(FoldContext.small()), is(2));
         // languages + emp_no % 2
         var add = as(Alias.unwrap(fields.get(1).canonical()), Add.class);
         if (add.left() instanceof Mod mod) {
@@ -4111,7 +4128,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.name(add.left()), is("languages"));
         var mod = as(add.right().canonical(), Mod.class);
         assertThat(Expressions.name(mod.left()), is("emp_no"));
-        assertThat(mod.right().fold(), is(2));
+        assertThat(mod.right().fold(FoldContext.small()), is(2));
     }
 
     /**
@@ -4140,7 +4157,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var value = Alias.unwrap(fields.get(0).canonical());
         var math = as(value, Mod.class);
         assertThat(Expressions.name(math.left()), is("emp_no"));
-        assertThat(math.right().fold(), is(2));
+        assertThat(math.right().fold(FoldContext.small()), is(2));
         // languages + salary
         var add = as(Alias.unwrap(fields.get(1).canonical()), Add.class);
         assertThat(Expressions.name(add.left()), anyOf(is("languages"), is("salary")));
@@ -4157,7 +4174,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.name(add3.right()), anyOf(is("salary"), is("languages")));
         // emp_no % 2
         assertThat(Expressions.name(mod.left()), is("emp_no"));
-        assertThat(mod.right().fold(), is(2));
+        assertThat(mod.right().fold(FoldContext.small()), is(2));
     }
 
     /**
@@ -4595,8 +4612,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var mvCoalesce = as(mul.left(), Coalesce.class);
         assertThat(mvCoalesce.children().size(), equalTo(2));
         var mvCount = as(mvCoalesce.children().get(0), MvCount.class);
-        assertThat(mvCount.fold(), equalTo(2));
-        assertThat(mvCoalesce.children().get(1).fold(), equalTo(0));
+        assertThat(mvCount.fold(FoldContext.small()), equalTo(2));
+        assertThat(mvCoalesce.children().get(1).fold(FoldContext.small()), equalTo(0));
         var count = as(mul.right(), ReferenceAttribute.class);
         assertThat(count.name(), equalTo("$$COUNT$s$0"));
 
@@ -4607,8 +4624,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var mvCoalesce_expr = as(mul_expr.left(), Coalesce.class);
         assertThat(mvCoalesce_expr.children().size(), equalTo(2));
         var mvCount_expr = as(mvCoalesce_expr.children().get(0), MvCount.class);
-        assertThat(mvCount_expr.fold(), equalTo(1));
-        assertThat(mvCoalesce_expr.children().get(1).fold(), equalTo(0));
+        assertThat(mvCount_expr.fold(FoldContext.small()), equalTo(1));
+        assertThat(mvCoalesce_expr.children().get(1).fold(FoldContext.small()), equalTo(0));
         var count_expr = as(mul_expr.right(), ReferenceAttribute.class);
         assertThat(count_expr.name(), equalTo("$$COUNT$s$0"));
 
@@ -4620,7 +4637,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(mvCoalesce_null.children().size(), equalTo(2));
         var mvCount_null = as(mvCoalesce_null.children().get(0), MvCount.class);
         assertThat(mvCount_null.field(), equalTo(NULL));
-        assertThat(mvCoalesce_null.children().get(1).fold(), equalTo(0));
+        assertThat(mvCoalesce_null.children().get(1).fold(FoldContext.small()), equalTo(0));
         var count_null = as(mul_null.right(), ReferenceAttribute.class);
         assertThat(count_null.name(), equalTo("$$COUNT$s$0"));
     }
@@ -4659,7 +4676,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(s.name(), equalTo("s"));
         var mul = as(s.child(), Mul.class);
         var mvSum = as(mul.left(), MvSum.class);
-        assertThat(mvSum.fold(), equalTo(3));
+        assertThat(mvSum.fold(FoldContext.small()), equalTo(3));
         var count = as(mul.right(), ReferenceAttribute.class);
         assertThat(count.name(), equalTo("$$COUNT$s$0"));
 
@@ -4668,7 +4685,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(s_expr.name(), equalTo("s_expr"));
         var mul_expr = as(s_expr.child(), Mul.class);
         var mvSum_expr = as(mul_expr.left(), MvSum.class);
-        assertThat(mvSum_expr.fold(), equalTo(3.14));
+        assertThat(mvSum_expr.fold(FoldContext.small()), equalTo(3.14));
         var count_expr = as(mul_expr.right(), ReferenceAttribute.class);
         assertThat(count_expr.name(), equalTo("$$COUNT$s$0"));
 
@@ -4817,7 +4834,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var s = as(exprs.get(0), Alias.class);
         assertThat(s.source().toString(), containsString(LoggerMessageFormat.format(null, testCase.aggFunctionTemplate, "[1,2]")));
         assertEquals(s.child(), testCase.replacementForConstant.apply(new Literal(EMPTY, List.of(1, 2), INTEGER)));
-        assertEquals(s.child().fold(), testCase.aggMultiValue.apply(new int[] { 1, 2 }));
+        assertEquals(s.child().fold(FoldContext.small()), testCase.aggMultiValue.apply(new int[] { 1, 2 }));
 
         var s_expr = as(exprs.get(1), Alias.class);
         assertThat(s_expr.source().toString(), containsString(LoggerMessageFormat.format(null, testCase.aggFunctionTemplate, "314.0/100")));
@@ -4825,7 +4842,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             s_expr.child(),
             testCase.replacementForConstant.apply(new Div(EMPTY, new Literal(EMPTY, 314.0, DOUBLE), new Literal(EMPTY, 100, INTEGER)))
         );
-        assertEquals(s_expr.child().fold(), testCase.aggSingleValue.apply(3.14));
+        assertEquals(s_expr.child().fold(FoldContext.small()), testCase.aggSingleValue.apply(3.14));
 
         var s_null = as(exprs.get(2), Alias.class);
         assertThat(s_null.source().toString(), containsString(LoggerMessageFormat.format(null, testCase.aggFunctionTemplate, "null")));
@@ -4911,7 +4928,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testPlanSanityCheckWithBinaryPlans() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V5.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
 
         var plan = optimizedPlan("""
               FROM test
@@ -4919,8 +4936,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | LOOKUP JOIN languages_lookup ON language_code
             """);
 
-        var project = as(plan, Project.class);
-        var join = as(project.child(), Join.class);
+        var join = as(plan, Join.class);
 
         var joinWithInvalidLeftPlan = join.replaceChildren(join.right(), join.right());
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> logicalOptimizer.optimize(joinWithInvalidLeftPlan));
@@ -5583,8 +5599,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private static void assertSemanticMatching(Expression fieldAttributeExp, Expression unresolvedAttributeExp) {
         Expression unresolvedUpdated = unresolvedAttributeExp.transformUp(
             LITERALS_ON_THE_RIGHT.expressionToken(),
-            LITERALS_ON_THE_RIGHT::rule
-        ).transformUp(x -> x.foldable() ? new Literal(x.source(), x.fold(), x.dataType()) : x);
+            be -> LITERALS_ON_THE_RIGHT.rule(be, logicalOptimizerCtx)
+        ).transformUp(x -> x.foldable() ? new Literal(x.source(), x.fold(FoldContext.small()), x.dataType()) : x);
 
         List<Expression> resolvedFields = fieldAttributeExp.collectFirstChildren(x -> x instanceof FieldAttribute);
         for (Expression field : resolvedFields) {
@@ -5664,8 +5680,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     private void assertNullLiteral(Expression expression) {
-        assertEquals(Literal.class, expression.getClass());
-        assertNull(expression.fold());
+        assertNull(as(expression, Literal.class).value());
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108519")
@@ -5723,6 +5738,78 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
+    public void testReplaceStringCasingWithInsensitiveEqualsUpperFalse() {
+        var plan = optimizedPlan("FROM test | WHERE TO_UPPER(first_name) == \"VALÜe\"");
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsUpperTrue() {
+        var plan = optimizedPlan("FROM test | WHERE TO_UPPER(first_name) != \"VALÜe\"");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var isNotNull = as(filter.condition(), IsNotNull.class);
+        assertThat(Expressions.name(isNotNull.field()), is("first_name"));
+        as(filter.child(), EsRelation.class);
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsLowerFalse() {
+        var plan = optimizedPlan("FROM test | WHERE TO_LOWER(first_name) == \"VALÜe\"");
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsLowerTrue() {
+        var plan = optimizedPlan("FROM test | WHERE TO_LOWER(first_name) != \"VALÜe\"");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        assertThat(filter.condition(), instanceOf(IsNotNull.class));
+        as(filter.child(), EsRelation.class);
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsEquals() {
+        for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
+            var value = fn.equals("TO_LOWER") ? fn.toLowerCase(Locale.ROOT) : fn.toUpperCase(Locale.ROOT);
+            value += "🐔✈🔥🎉"; // these should not cause folding, they're not in the upper/lower char class
+            var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) == \"" + value + "\"");
+            var limit = as(plan, Limit.class);
+            var filter = as(limit.child(), Filter.class);
+            var insensitive = as(filter.condition(), InsensitiveEquals.class);
+            as(insensitive.left(), FieldAttribute.class);
+            var bRef = as(insensitive.right().fold(FoldContext.small()), BytesRef.class);
+            assertThat(bRef.utf8ToString(), is(value));
+            as(filter.child(), EsRelation.class);
+        }
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsNotEquals() {
+        for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
+            var value = fn.equals("TO_LOWER") ? fn.toLowerCase(Locale.ROOT) : fn.toUpperCase(Locale.ROOT);
+            value += "🐔✈🔥🎉"; // these should not cause folding, they're not in the upper/lower char class
+            var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) != \"" + value + "\"");
+            var limit = as(plan, Limit.class);
+            var filter = as(limit.child(), Filter.class);
+            var not = as(filter.condition(), Not.class);
+            var insensitive = as(not.field(), InsensitiveEquals.class);
+            as(insensitive.left(), FieldAttribute.class);
+            var bRef = as(insensitive.right().fold(FoldContext.small()), BytesRef.class);
+            assertThat(bRef.utf8ToString(), is(value));
+            as(filter.child(), EsRelation.class);
+        }
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsUnwrap() {
+        var plan = optimizedPlan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) == \"VALÜ\"");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var insensitive = as(filter.condition(), InsensitiveEquals.class);
+        var field = as(insensitive.left(), FieldAttribute.class);
+        assertThat(field.fieldName(), is("first_name"));
+        var bRef = as(insensitive.right().fold(FoldContext.small()), BytesRef.class);
+        assertThat(bRef.utf8ToString(), is("VALÜ"));
+        as(filter.child(), EsRelation.class);
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
@@ -5769,7 +5856,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var left = as(join.left(), EsqlProject.class);
         assertThat(left.output().toString(), containsString("int{r}"));
         var limit = as(left.child(), Limit.class);
-        assertThat(limit.limit().fold(), equalTo(1000));
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
 
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
         assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
@@ -5838,7 +5925,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         }
         var plan = optimizedPlan(query);
         var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(), equalTo(1000));
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
 
         var agg = as(limit.child(), Aggregate.class);
         assertMap(
@@ -5913,25 +6000,24 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *     | \_Limit[1000[INTEGER]]
      *     |  \_Filter[languages{f}#10 > 1[INTEGER]]
      *     |    \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     *     \_EsRelation[language_code][LOOKUP][language_code{f}#18, language_name{f}#19]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testLookupJoinPushDownFilterOnJoinKeyWithRename() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V5.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
 
         String query = """
               FROM test
             | RENAME languages AS language_code
-            | LOOKUP JOIN language_code ON language_code
+            | LOOKUP JOIN languages_lookup ON language_code
             | WHERE language_code > 1
             """;
         var plan = optimizedPlan(query);
 
-        var project = as(plan, Project.class);
-        var join = as(project.child(), Join.class);
+        var join = as(plan, Join.class);
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
-        project = as(join.left(), Project.class);
+        var project = as(join.left(), Project.class);
         var limit = as(project.child(), Limit.class);
-        assertThat(limit.limit().fold(), equalTo(1000));
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
         var filter = as(limit.child(), Filter.class);
         // assert that the rename has been undone
         var op = as(filter.condition(), GreaterThan.class);
@@ -5956,27 +6042,26 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *     | \_Limit[1000[INTEGER]]
      *     |  \_Filter[emp_no{f}#7 > 1[INTEGER]]
      *     |    \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     *     \_EsRelation[language_code][LOOKUP][language_code{f}#18, language_name{f}#19]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testLookupJoinPushDownFilterOnLeftSideField() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V5.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
 
         String query = """
               FROM test
             | RENAME languages AS language_code
-            | LOOKUP JOIN language_code ON language_code
+            | LOOKUP JOIN languages_lookup ON language_code
             | WHERE emp_no > 1
             """;
 
         var plan = optimizedPlan(query);
 
-        var project = as(plan, Project.class);
-        var join = as(project.child(), Join.class);
+        var join = as(plan, Join.class);
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
-        project = as(join.left(), Project.class);
+        var project = as(join.left(), Project.class);
 
         var limit = as(project.child(), Limit.class);
-        assertThat(limit.limit().fold(), equalTo(1000));
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
         var filter = as(limit.child(), Filter.class);
         var op = as(filter.condition(), GreaterThan.class);
         var field = as(op.left(), FieldAttribute.class);
@@ -6000,23 +6085,22 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *       |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
      * uages{f}#10 AS language_code, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
      *       | \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     *       \_EsRelation[language_code][LOOKUP][language_code{f}#18, language_name{f}#19]
+     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testLookupJoinPushDownDisabledForLookupField() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V5.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
 
         String query = """
               FROM test
             | RENAME languages AS language_code
-            | LOOKUP JOIN language_code ON language_code
+            | LOOKUP JOIN languages_lookup ON language_code
             | WHERE language_name == "English"
             """;
 
         var plan = optimizedPlan(query);
 
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        assertThat(limit.limit().fold(), equalTo(1000));
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
 
         var filter = as(limit.child(), Filter.class);
         var op = as(filter.condition(), Equals.class);
@@ -6027,7 +6111,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var join = as(filter.child(), Join.class);
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
-        project = as(join.left(), Project.class);
+        var project = as(join.left(), Project.class);
 
         var leftRel = as(project.child(), EsRelation.class);
         var rightRel = as(join.right(), EsRelation.class);
@@ -6045,23 +6129,22 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * guages{f}#11 AS language_code, last_name{f}#12, long_noidx{f}#18, salary{f}#13]]
      *       | \_Filter[emp_no{f}#8 > 1[INTEGER]]
      *       |   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
-     *       \_EsRelation[language_code][LOOKUP][language_code{f}#19, language_name{f}#20]
+     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
      */
     public void testLookupJoinPushDownSeparatedForConjunctionBetweenLeftAndRightField() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V5.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
 
         String query = """
               FROM test
             | RENAME languages AS language_code
-            | LOOKUP JOIN language_code ON language_code
+            | LOOKUP JOIN languages_lookup ON language_code
             | WHERE language_name == "English" AND emp_no > 1
             """;
 
         var plan = optimizedPlan(query);
 
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        assertThat(limit.limit().fold(), equalTo(1000));
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
         // filter kept in place, working on the right side
         var filter = as(limit.child(), Filter.class);
         EsqlBinaryComparison op = as(filter.condition(), Equals.class);
@@ -6072,7 +6155,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var join = as(filter.child(), Join.class);
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
-        project = as(join.left(), Project.class);
+        var project = as(join.left(), Project.class);
         // filter pushed down
         filter = as(project.child(), Filter.class);
         op = as(filter.condition(), GreaterThan.class);
@@ -6084,7 +6167,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var leftRel = as(filter.child(), EsRelation.class);
         var rightRel = as(join.right(), EsRelation.class);
-
     }
 
     /**
@@ -6098,23 +6180,22 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *       |_EsqlProject[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, lan
      * guages{f}#11 AS language_code, last_name{f}#12, long_noidx{f}#18, salary{f}#13]]
      *       | \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
-     *       \_EsRelation[language_code][LOOKUP][language_code{f}#19, language_name{f}#20]
+     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
      */
     public void testLookupJoinPushDownDisabledForDisjunctionBetweenLeftAndRightField() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V5.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
 
         String query = """
               FROM test
             | RENAME languages AS language_code
-            | LOOKUP JOIN language_code ON language_code
+            | LOOKUP JOIN languages_lookup ON language_code
             | WHERE language_name == "English" OR emp_no > 1
             """;
 
         var plan = optimizedPlan(query);
 
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        assertThat(limit.limit().fold(), equalTo(1000));
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
 
         var filter = as(limit.child(), Filter.class);
         var or = as(filter.condition(), Or.class);
@@ -6133,7 +6214,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var join = as(filter.child(), Join.class);
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
-        project = as(join.left(), Project.class);
+        var project = as(join.left(), Project.class);
 
         var leftRel = as(project.child(), EsRelation.class);
         var rightRel = as(join.right(), EsRelation.class);
@@ -6208,7 +6289,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         as(addEval.child(), EsRelation.class);
 
         assertThat(Expressions.attribute(mul.left()).id(), equalTo(finalAggs.aggregates().get(1).id()));
-        assertThat(mul.right().fold(), equalTo(1.1));
+        assertThat(mul.right().fold(FoldContext.small()), equalTo(1.1));
 
         assertThat(finalAggs.aggregateType(), equalTo(Aggregate.AggregateType.STANDARD));
         Max maxRate = as(Alias.unwrap(finalAggs.aggregates().get(0)), Max.class);
@@ -6223,7 +6304,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         ToPartial toPartialMaxCost = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), ToPartial.class);
         assertThat(Expressions.attribute(toPartialMaxCost.field()).id(), equalTo(addEval.fields().get(0).id()));
         assertThat(Expressions.attribute(add.left()).name(), equalTo("network.cost"));
-        assertThat(add.right().fold(), equalTo(0.2));
+        assertThat(add.right().fold(FoldContext.small()), equalTo(0.2));
     }
 
     public void testTranslateMetricsGroupedByOneDimension() {
@@ -6452,7 +6533,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.attribute(finalAgg.groupings().get(1)).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
 
         assertThat(Expressions.attribute(mul.left()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
-        assertThat(mul.right().fold(), equalTo(1.05));
+        assertThat(mul.right().fold(FoldContext.small()), equalTo(1.05));
         assertThat(aggsByTsid.aggregateType(), equalTo(Aggregate.AggregateType.METRICS));
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
@@ -6726,5 +6807,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             ve.getMessage(),
             containsString("[MATCH] function cannot operate on [text::keyword], which is not a field from an index mapping")
         );
+    }
+
+    public void testWhereNull() {
+        var plan = plan("""
+            from test
+            | sort salary
+            | rename emp_no as e, first_name as f
+            | keep salary, e, f
+            | where null
+            | LIMIT 12
+            """);
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
     }
 }

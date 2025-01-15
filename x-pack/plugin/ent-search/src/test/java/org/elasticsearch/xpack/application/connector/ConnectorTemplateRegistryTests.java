@@ -132,10 +132,7 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent event = createClusterChangedEvent(
             Collections.emptyMap(),
             Collections.emptyMap(),
-            Collections.singletonMap(
-                ConnectorTemplateRegistry.ENT_SEARCH_GENERIC_PIPELINE_NAME,
-                ConnectorTemplateRegistry.REGISTRY_VERSION
-            ),
+            Collections.singletonMap(ConnectorTemplateRegistry.SEARCH_DEFAULT_PIPELINE_NAME, ConnectorTemplateRegistry.REGISTRY_VERSION),
             Collections.emptyMap(),
             nodes
         );
@@ -169,10 +166,7 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
                 ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-settings",
                 ConnectorTemplateRegistry.REGISTRY_VERSION - 1
             ),
-            Collections.singletonMap(
-                ConnectorTemplateRegistry.ENT_SEARCH_GENERIC_PIPELINE_NAME,
-                ConnectorTemplateRegistry.REGISTRY_VERSION
-            ),
+            Collections.singletonMap(ConnectorTemplateRegistry.SEARCH_DEFAULT_PIPELINE_NAME, ConnectorTemplateRegistry.REGISTRY_VERSION),
             Collections.emptyMap(),
             nodes
         );
@@ -189,10 +183,7 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent event = createClusterChangedEvent(
             Collections.emptyMap(),
             Collections.singletonMap(ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-mappings", null),
-            Collections.singletonMap(
-                ConnectorTemplateRegistry.ENT_SEARCH_GENERIC_PIPELINE_NAME,
-                ConnectorTemplateRegistry.REGISTRY_VERSION
-            ),
+            Collections.singletonMap(ConnectorTemplateRegistry.SEARCH_DEFAULT_PIPELINE_NAME, ConnectorTemplateRegistry.REGISTRY_VERSION),
             Collections.emptyMap(),
             nodes
         );

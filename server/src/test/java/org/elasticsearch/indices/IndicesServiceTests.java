@@ -44,6 +44,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SlowLogFieldProvider;
+import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -209,16 +210,18 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void init(IndexSettings indexSettings) {}
+        public SlowLogFields create(IndexSettings indexSettings) {
+            return new SlowLogFields() {
+                @Override
+                public Map<String, String> indexFields() {
+                    return fields;
+                }
 
-        @Override
-        public Map<String, String> indexSlowLogFields() {
-            return fields;
-        }
-
-        @Override
-        public Map<String, String> searchSlowLogFields() {
-            return fields;
+                @Override
+                public Map<String, String> searchFields() {
+                    return fields;
+                }
+            };
         }
     }
 
@@ -231,16 +234,18 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void init(IndexSettings indexSettings) {}
+        public SlowLogFields create(IndexSettings indexSettings) {
+            return new SlowLogFields() {
+                @Override
+                public Map<String, String> indexFields() {
+                    return fields;
+                }
 
-        @Override
-        public Map<String, String> indexSlowLogFields() {
-            return fields;
-        }
-
-        @Override
-        public Map<String, String> searchSlowLogFields() {
-            return fields;
+                @Override
+                public Map<String, String> searchFields() {
+                    return fields;
+                }
+            };
         }
     }
 
@@ -805,33 +810,34 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         TestAnotherSlowLogFieldProvider.setFields(Map.of("key2", "value2"));
 
         var indicesService = getIndicesService();
-        SlowLogFieldProvider fieldProvider = indicesService.loadSlowLogFieldProvider();
+        SlowLogFieldProvider fieldProvider = indicesService.slowLogFieldProvider;
+        SlowLogFields fields = fieldProvider.create(null);
 
         // The map of fields from the two providers are merged to a single map of fields
-        assertEquals(Map.of("key1", "value1", "key2", "value2"), fieldProvider.searchSlowLogFields());
-        assertEquals(Map.of("key1", "value1", "key2", "value2"), fieldProvider.indexSlowLogFields());
+        assertEquals(Map.of("key1", "value1", "key2", "value2"), fields.searchFields());
+        assertEquals(Map.of("key1", "value1", "key2", "value2"), fields.indexFields());
 
         TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
         TestAnotherSlowLogFieldProvider.setFields(Map.of("key1", "value2"));
 
         // There is an overlap of field names, since this isn't deterministic and probably a
         // programming error (two providers provide the same field) throw an exception
-        assertThrows(IllegalStateException.class, fieldProvider::searchSlowLogFields);
-        assertThrows(IllegalStateException.class, fieldProvider::indexSlowLogFields);
+        assertThrows(IllegalStateException.class, fields::searchFields);
+        assertThrows(IllegalStateException.class, fields::indexFields);
 
         TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
         TestAnotherSlowLogFieldProvider.setFields(Map.of());
 
         // One provider has no fields
-        assertEquals(Map.of("key1", "value1"), fieldProvider.searchSlowLogFields());
-        assertEquals(Map.of("key1", "value1"), fieldProvider.indexSlowLogFields());
+        assertEquals(Map.of("key1", "value1"), fields.searchFields());
+        assertEquals(Map.of("key1", "value1"), fields.indexFields());
 
         TestSlowLogFieldProvider.setFields(Map.of());
         TestAnotherSlowLogFieldProvider.setFields(Map.of());
 
         // Both providers have no fields
-        assertEquals(Map.of(), fieldProvider.searchSlowLogFields());
-        assertEquals(Map.of(), fieldProvider.indexSlowLogFields());
+        assertEquals(Map.of(), fields.searchFields());
+        assertEquals(Map.of(), fields.indexFields());
     }
 
     public void testWithTempIndexServiceHandlesExistingIndex() throws Exception {

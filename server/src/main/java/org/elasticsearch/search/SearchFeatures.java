@@ -11,7 +11,6 @@ package org.elasticsearch.search;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 
 import java.util.Set;
 
@@ -21,6 +20,13 @@ public final class SearchFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(KnnVectorQueryBuilder.K_PARAM_SUPPORTED, LUCENE_10_0_0_UPGRADE);
+        return Set.of(LUCENE_10_0_0_UPGRADE);
+    }
+
+    public static final NodeFeature RETRIEVER_RESCORER_ENABLED = new NodeFeature("search.retriever.rescorer.enabled");
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(RETRIEVER_RESCORER_ENABLED);
     }
 }

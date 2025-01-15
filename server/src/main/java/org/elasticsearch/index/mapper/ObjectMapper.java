@@ -20,7 +20,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -52,9 +51,6 @@ public class ObjectMapper extends Mapper {
 
     public static final String CONTENT_TYPE = "object";
     static final String STORE_ARRAY_SOURCE_PARAM = "store_array_source";
-    static final NodeFeature SUBOBJECTS_AUTO = new NodeFeature("mapper.subobjects_auto");
-    // No-op. All uses of this feature were reverted but node features can't be removed.
-    static final NodeFeature SUBOBJECTS_AUTO_FIXES = new NodeFeature("mapper.subobjects_auto_fixes");
 
     /**
      * Enhances the previously boolean option for subobjects support with an intermediate mode `auto` that uses
@@ -263,7 +259,11 @@ public class ObjectMapper extends Mapper {
 
     @Override
     public int getTotalFieldsCount() {
-        return 1 + mappers.values().stream().mapToInt(Mapper::getTotalFieldsCount).sum();
+        int sum = 1;
+        for (Mapper mapper : mappers.values()) {
+            sum += mapper.getTotalFieldsCount();
+        }
+        return sum;
     }
 
     public static class TypeParser implements Mapper.TypeParser {
@@ -855,7 +855,7 @@ public class ObjectMapper extends Mapper {
 
     }
 
-    ObjectMapper findParentMapper(String leafFieldPath) {
+    public ObjectMapper findParentMapper(String leafFieldPath) {
         var pathComponents = leafFieldPath.split("\\.");
         int startPathComponent = 0;
 

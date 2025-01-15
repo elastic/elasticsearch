@@ -107,10 +107,10 @@ public final class Expressions {
         return true;
     }
 
-    public static List<Object> fold(List<? extends Expression> exps) {
+    public static List<Object> fold(FoldContext ctx, List<? extends Expression> exps) {
         List<Object> folded = new ArrayList<>(exps.size());
         for (Expression exp : exps) {
-            folded.add(exp.fold());
+            folded.add(exp.fold(ctx));
         }
 
         return folded;
@@ -135,7 +135,7 @@ public final class Expressions {
     /**
      * Is this {@linkplain Expression} <strong>guaranteed</strong> to have
      * only the {@code null} value. {@linkplain Expression}s that
-     * {@link Expression#fold()} to {@code null} <strong>may</strong>
+     * {@link Expression#fold} to {@code null} <strong>may</strong>
      * return {@code false} here, but should <strong>eventually</strong> be folded
      * into a {@link Literal} containing {@code null} which will return
      * {@code true} from here.

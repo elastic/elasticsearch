@@ -649,9 +649,11 @@ public class RolloverIT extends ESIntegTestCase {
         final String openNonwriteIndex = "open-index-nonwrite";
         final String closedIndex = "closed-index-nonwrite";
         final String writeIndexPrefix = "write-index-";
-        assertAcked(prepareCreate(openNonwriteIndex).addAlias(new Alias(aliasName)).get());
-        assertAcked(prepareCreate(closedIndex).addAlias(new Alias(aliasName)).get());
-        assertAcked(prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
+        assertAcked(
+            prepareCreate(openNonwriteIndex).addAlias(new Alias(aliasName)),
+            prepareCreate(closedIndex).addAlias(new Alias(aliasName)),
+            prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true))
+        );
         ensureGreen();
 
         index(closedIndex, null, "{\"foo\": \"bar\"}");
@@ -674,17 +676,18 @@ public class RolloverIT extends ESIntegTestCase {
         final String openNonwriteIndex = "open-index-nonwrite";
         final String closedIndex = "closed-index-nonwrite";
         final String writeIndexPrefix = "write-index-";
-        assertAcked(prepareCreate(openNonwriteIndex).addAlias(new Alias(aliasName)).get());
-        assertAcked(prepareCreate(closedIndex).addAlias(new Alias(aliasName)).get());
-        assertAcked(prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
+        assertAcked(
+            prepareCreate(openNonwriteIndex).addAlias(new Alias(aliasName)),
+            prepareCreate(closedIndex).addAlias(new Alias(aliasName)),
+            prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true))
+        );
         ensureGreen(openNonwriteIndex, closedIndex, writeIndexPrefix + "000001");
         index(closedIndex, null, "{\"foo\": \"bar\"}");
         index(aliasName, null, "{\"foo\": \"bar\"}");
         index(aliasName, null, "{\"foo\": \"bar\"}");
         refresh(aliasName);
 
-        assertAcked(indicesAdmin().prepareClose(closedIndex).get());
-        assertAcked(indicesAdmin().prepareClose(writeIndexPrefix + "000001").get());
+        assertAcked(indicesAdmin().prepareClose(closedIndex, writeIndexPrefix + "000001").get());
         ensureGreen(aliasName);
 
         RolloverResponse rolloverResponse = indicesAdmin().prepareRolloverIndex(aliasName)
@@ -863,7 +866,7 @@ public class RolloverIT extends ESIntegTestCase {
 
         for (int i = 0; i < numOfThreads; i++) {
             var aliasName = "test-" + i;
-            var response = indicesAdmin().getAliases(new GetAliasesRequest(aliasName)).get();
+            var response = indicesAdmin().getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT, aliasName)).get();
             List<Map.Entry<String, List<AliasMetadata>>> actual = response.getAliases().entrySet().stream().toList();
             List<Map.Entry<String, List<AliasMetadata>>> expected = new ArrayList<>(numberOfRolloversPerThread);
             int numOfIndices = numberOfRolloversPerThread + 1;

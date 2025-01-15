@@ -967,9 +967,7 @@ public class OpenAiServiceTests extends ESTestCase {
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(
-                    List.of(
-                        new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null, null)
-                    )
+                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
                 ),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
@@ -1661,117 +1659,50 @@ public class OpenAiServiceTests extends ESTestCase {
             String content = XContentHelper.stripWhitespace(
                 """
                     {
-                            "provider": "openai",
-                            "task_types": [
-                                 {
-                                     "task_type": "text_embedding",
-                                     "configuration": {
-                                         "user": {
-                                             "default_value": null,
-                                             "depends_on": [],
-                                             "display": "textbox",
-                                             "label": "User",
-                                             "order": 1,
-                                             "required": false,
-                                             "sensitive": false,
-                                             "tooltip": "Specifies the user issuing the request.",
-                                             "type": "str",
-                                             "ui_restrictions": [],
-                                             "validations": [],
-                                             "value": ""
-                                         }
-                                     }
-                                 },
-                                 {
-                                     "task_type": "completion",
-                                     "configuration": {
-                                         "user": {
-                                             "default_value": null,
-                                             "depends_on": [],
-                                             "display": "textbox",
-                                             "label": "User",
-                                             "order": 1,
-                                             "required": false,
-                                             "sensitive": false,
-                                             "tooltip": "Specifies the user issuing the request.",
-                                             "type": "str",
-                                             "ui_restrictions": [],
-                                             "validations": [],
-                                             "value": ""
-                                         }
-                                     }
-                                 }
-                            ],
-                            "configuration": {
+                            "service": "openai",
+                            "name": "OpenAI",
+                            "task_types": ["text_embedding", "completion"],
+                            "configurations": {
                                 "api_key": {
-                                    "default_value": null,
-                                    "depends_on": [],
-                                    "display": "textbox",
+                                    "description": "The OpenAI API authentication key. For more details about generating OpenAI API keys, refer to the https://platform.openai.com/account/api-keys.",
                                     "label": "API Key",
-                                    "order": 1,
                                     "required": true,
                                     "sensitive": true,
-                                    "tooltip": "The OpenAI API authentication key. For more details about generating OpenAI API keys, refer to the https://platform.openai.com/account/api-keys.",
-                                    "type": "str",
-                                    "ui_restrictions": [],
-                                    "validations": [],
-                                    "value": null
+                                    "updatable": true,
+                                    "type": "str"
                                 },
                                 "organization_id": {
-                                    "default_value": null,
-                                    "depends_on": [],
-                                    "display": "textbox",
+                                    "description": "The unique identifier of your organization.",
                                     "label": "Organization ID",
-                                    "order": 3,
                                     "required": false,
                                     "sensitive": false,
-                                    "tooltip": "The unique identifier of your organization.",
-                                    "type": "str",
-                                    "ui_restrictions": [],
-                                    "validations": [],
-                                    "value": null
+                                    "updatable": false,
+                                    "type": "str"
                                 },
                                 "rate_limit.requests_per_minute": {
-                                    "default_value": null,
-                                    "depends_on": [],
-                                    "display": "numeric",
+                                    "description": "Default number of requests allowed per minute. For text_embedding is 3000. For completion is 500.",
                                     "label": "Rate Limit",
-                                    "order": 6,
                                     "required": false,
                                     "sensitive": false,
-                                    "tooltip": "Default number of requests allowed per minute. For text_embedding is 3000. For completion is 500.",
-                                    "type": "int",
-                                    "ui_restrictions": [],
-                                    "validations": [],
-                                    "value": null
+                                    "updatable": false,
+                                    "type": "int"
                                 },
                                 "model_id": {
-                                    "default_value": null,
-                                    "depends_on": [],
-                                    "display": "textbox",
+                                    "description": "The name of the model to use for the inference task.",
                                     "label": "Model ID",
-                                    "order": 2,
                                     "required": true,
                                     "sensitive": false,
-                                    "tooltip": "The name of the model to use for the inference task.",
-                                    "type": "str",
-                                    "ui_restrictions": [],
-                                    "validations": [],
-                                    "value": null
+                                    "updatable": false,
+                                    "type": "str"
                                 },
                                 "url": {
                                     "default_value": "https://api.openai.com/v1/chat/completions",
-                                    "depends_on": [],
-                                    "display": "textbox",
+                                    "description": "The OpenAI API endpoint URL. For more information on the URL, refer to the https://platform.openai.com/docs/api-reference.",
                                     "label": "URL",
-                                    "order": 4,
                                     "required": true,
                                     "sensitive": false,
-                                    "tooltip": "The OpenAI API endpoint URL. For more information on the URL, refer to the https://platform.openai.com/docs/api-reference.",
-                                    "type": "str",
-                                    "ui_restrictions": [],
-                                    "validations": [],
-                                    "value": null
+                                    "updatable": false,
+                                    "type": "str"
                                 }
                             }
                         }

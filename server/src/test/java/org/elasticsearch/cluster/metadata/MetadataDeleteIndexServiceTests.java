@@ -97,7 +97,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
                 Map.of(),
                 null,
                 SnapshotInfoTestUtils.randomUserMetadata(),
-                IndexVersionUtils.randomVersion(random())
+                IndexVersionUtils.randomVersion()
             )
         );
         ClusterState state = ClusterState.builder(clusterState(index)).putCustom(SnapshotsInProgress.TYPE, snaps).build();
@@ -153,7 +153,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         String alias = randomAlphaOfLength(5);
 
         IndexMetadata idxMetadata = IndexMetadata.builder(index)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random())))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion()))
             .putAlias(AliasMetadata.builder(alias).writeIndex(true).build())
             .numberOfShards(1)
             .numberOfReplicas(1)
@@ -348,7 +348,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
 
     private ClusterState clusterState(String index) {
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random())))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();

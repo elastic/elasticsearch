@@ -132,7 +132,6 @@ import java.util.stream.IntStream;
  */
 abstract class AbstractLookupService<R extends AbstractLookupService.Request, T extends AbstractLookupService.TransportRequest> {
     private final String actionName;
-    private final String privilegeName;
     private final ClusterService clusterService;
     private final SearchService searchService;
     private final TransportService transportService;
@@ -143,7 +142,6 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
 
     AbstractLookupService(
         String actionName,
-        String privilegeName,
         ClusterService clusterService,
         SearchService searchService,
         TransportService transportService,
@@ -152,7 +150,6 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         CheckedBiFunction<StreamInput, BlockFactory, T, IOException> readRequest
     ) {
         this.actionName = actionName;
-        this.privilegeName = privilegeName;
         this.clusterService = clusterService;
         this.searchService = searchService;
         this.transportService = transportService;
@@ -237,9 +234,21 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         }));
     }
 
+    /**
+     * Get the privilege required to perform the lookup.
+     * <p>
+     *     If null is returned, no privilege check will be performed.
+     * </p>
+     */
+    @Nullable
+    protected abstract String getRequiredPrivilege();
+
     private void hasPrivilege(ActionListener<Void> outListener) {
         final Settings settings = clusterService.getSettings();
-        if (settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) == false || XPackSettings.SECURITY_ENABLED.get(settings) == false) {
+        String privilegeName = getRequiredPrivilege();
+        if (privilegeName == null
+            || settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) == false
+            || XPackSettings.SECURITY_ENABLED.get(settings) == false) {
             outListener.onResponse(null);
             return;
         }

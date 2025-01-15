@@ -6,6 +6,12 @@
 <titleabbrev>Get query ruleset</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-query_rules[Query rules APIs].
+--
+
 Retrieves information about a query ruleset.
 
 [[get-query-ruleset-request]]

@@ -17,6 +17,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
@@ -30,6 +31,7 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
     public TransportUnifiedCompletionInferenceAction(
         TransportService transportService,
         ActionFilters actionFilters,
+        XPackLicenseState licenseState,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
@@ -39,6 +41,7 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
             UnifiedCompletionAction.NAME,
             transportService,
             actionFilters,
+            licenseState,
             modelRegistry,
             serviceRegistry,
             inferenceStats,

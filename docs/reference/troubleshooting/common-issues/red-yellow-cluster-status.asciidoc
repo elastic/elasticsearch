@@ -218,6 +218,7 @@ PUT _cluster/settings
 }
 ----
 // TEST[s/"30gb"/null/]
+
 [IMPORTANT]
 ====
 This is usually a temporary solution and may cause instability if disk space is not freed up.

@@ -47,10 +47,10 @@ public class NetworkEntitlement implements Entitlement {
         for (String actionString : actionsList) {
             var action = ACTION_MAP.get(actionString);
             if (action == null) {
-                throw new IllegalArgumentException("unknown network action [" + actionString + "]");
+                throw new PolicyIllegalArgumentException("unknown network action [" + actionString + "]");
             }
             if ((actionsInt & action) == action) {
-                throw new IllegalArgumentException(Strings.format("network action [%s] specified multiple times", actionString));
+                throw new PolicyIllegalArgumentException(Strings.format("network action [%s] specified multiple times", actionString));
             }
             actionsInt |= action;
         }

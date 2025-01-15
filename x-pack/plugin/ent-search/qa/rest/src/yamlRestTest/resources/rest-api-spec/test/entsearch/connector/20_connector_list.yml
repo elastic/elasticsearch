@@ -280,9 +280,7 @@ setup:
 
 ---
 "List Connectors - Soft deleted connectors / no deleted":
-  - requires:
-      cluster_features: ["connector_soft_deletes"]
-      reason: Soft deletes were introduced in 9.0 release
+
 
   - do:
       connector.list:
@@ -293,9 +291,7 @@ setup:
 
 ---
 "List Connectors - Single soft deleted connector":
-  - requires:
-      cluster_features: ["connector_soft_deletes"]
-      reason: Soft deletes were introduced in 9.0 release
+
 
   - do:
       connector.delete:
@@ -315,9 +311,7 @@ setup:
 
 ---
 "List Connectors - Single hard deleted connector":
-  - requires:
-      cluster_features: ["connector_soft_deletes"]
-      reason: Soft deletes were introduced in 9.0 release
+
 
   - do:
       connector.delete:
@@ -338,9 +332,7 @@ setup:
 
 ---
 "List Connectors - All hard deleted connectors":
-  - requires:
-      cluster_features: ["connector_soft_deletes"]
-      reason: Soft deletes were introduced in 9.0 release
+
 
   - do:
       connector.delete:
@@ -354,7 +346,7 @@ setup:
 
   - do:
       connector.delete:
-        connector_id: connector-b
+        connector_id: connector-c
         hard: true
 
   - do:
@@ -370,9 +362,7 @@ setup:
 
 ---
 "List Connectors - 2 hard deleted connectors, 1 soft deleted":
-  - requires:
-      cluster_features: ["connector_soft_deletes"]
-      reason: Soft deletes were introduced in 9.0 release
+
 
   - do:
       connector.delete:
@@ -386,7 +376,7 @@ setup:
 
   - do:
       connector.delete:
-        connector_id: connector-b
+        connector_id: connector-c
         hard: true
 
   - do:
@@ -402,9 +392,7 @@ setup:
 
 ---
 "List Connectors - Soft deleted connectors":
-  - requires:
-      cluster_features: ["connector_soft_deletes"]
-      reason: Soft deletes were introduced in 9.0 release
+
 
   - do:
       connector.delete:
@@ -441,9 +429,7 @@ setup:
 
 ---
 "List Connectors - Soft deleted with from":
-  - requires:
-      cluster_features: ["connector_soft_deletes"]
-      reason: Soft deletes were introduced in 9.0 release
+
 
   - do:
       connector.delete:
@@ -475,9 +461,7 @@ setup:
 
 ---
 "List Connector - Soft deleted with size":
-  - requires:
-      cluster_features: ["connector_soft_deletes"]
-      reason: Soft deletes were introduced in 9.0 release
+
 
   - do:
       connector.delete:

@@ -134,9 +134,7 @@ setup:
 
 ---
 "Delete Connector - Supports soft deletes":
-  - requires:
-      cluster_features: ["connector_soft_deletes"]
-      reason: Soft deletes were introduced in 9.0 release
+
 
   - do:
       connector.delete:

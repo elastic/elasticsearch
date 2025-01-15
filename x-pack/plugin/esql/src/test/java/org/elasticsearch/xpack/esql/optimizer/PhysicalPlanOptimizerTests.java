@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -164,6 +165,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
@@ -245,7 +247,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     @Before
     public void init() {
         parser = new EsqlParser();
-        logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
+        logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper();
@@ -1117,7 +1119,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var source = source(fieldExtract.child());
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES));
-        assertThat(source.limit().fold(), is(10));
+        assertThat(source.limit().fold(FoldContext.small()), is(10));
     }
 
     /**
@@ -1199,7 +1201,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var leaves = extract.collectLeaves();
         assertEquals(1, leaves.size());
         var source = as(leaves.get(0), EsQueryExec.class);
-        assertThat(source.limit().fold(), is(10));
+        assertThat(source.limit().fold(FoldContext.small()), is(10));
         // extra ints for doc id and emp_no_10
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2));
     }
@@ -1246,7 +1248,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var source = source(extract.child());
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2));
-        assertThat(source.limit().fold(), is(10));
+        assertThat(source.limit().fold(FoldContext.small()), is(10));
         var rq = as(sv(source.query(), "emp_no"), RangeQueryBuilder.class);
         assertThat(rq.fieldName(), equalTo("emp_no"));
         assertThat(rq.from(), equalTo(0));
@@ -2902,14 +2904,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var eval = as(project.child(), EvalExec.class);
         var limit = as(eval.child(), LimitExec.class);
         assertThat(limit.limit(), instanceOf(Literal.class));
-        assertThat(limit.limit().fold(), equalTo(10000));
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(10000));
         var aggFinal = as(limit.child(), AggregateExec.class);
         assertThat(aggFinal.getMode(), equalTo(FINAL));
         var aggPartial = as(aggFinal.child(), AggregateExec.class);
         assertThat(aggPartial.getMode(), equalTo(INITIAL));
         limit = as(aggPartial.child(), LimitExec.class);
         assertThat(limit.limit(), instanceOf(Literal.class));
-        assertThat(limit.limit().fold(), equalTo(10));
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(10));
 
         var exchange = as(limit.child(), ExchangeExec.class);
         project = as(exchange.child(), ProjectExec.class);
@@ -2918,7 +2920,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         assertThat(Expressions.names(fieldExtract.attributesToExtract()), is(expectedFields));
         var source = source(fieldExtract.child());
-        assertThat(source.limit().fold(), equalTo(10));
+        assertThat(source.limit().fold(FoldContext.small()), equalTo(10));
     }
 
     /**
@@ -4849,15 +4851,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var alias1 = as(eval.fields().get(0), Alias.class);
         assertThat(alias1.name(), is("poi"));
         var poi = as(alias1.child(), Literal.class);
-        assertThat(poi.fold(), instanceOf(BytesRef.class));
+        assertThat(poi.value(), instanceOf(BytesRef.class));
         var alias2 = as(eval.fields().get(1), Alias.class);
         assertThat(alias2.name(), is("distance"));
         var stDistance = as(alias2.child(), StDistance.class);
         var location = as(stDistance.left(), FieldAttribute.class);
         assertThat(location.fieldName(), is("location"));
         var poiRef = as(stDistance.right(), Literal.class);
-        assertThat(poiRef.fold(), instanceOf(BytesRef.class));
-        assertThat(poiRef.fold().toString(), is(poi.fold().toString()));
+        assertThat(poiRef.value(), instanceOf(BytesRef.class));
+        assertThat(poiRef.value().toString(), is(poi.value().toString()));
 
         // Validate the filter condition
         var and = as(filter.condition(), And.class);
@@ -6205,15 +6207,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var alias1 = as(evalExec.fields().get(0), Alias.class);
         assertThat(alias1.name(), is("poi"));
         var poi = as(alias1.child(), Literal.class);
-        assertThat(poi.fold(), instanceOf(BytesRef.class));
+        assertThat(poi.value(), instanceOf(BytesRef.class));
         var alias2 = as(evalExec.fields().get(1), Alias.class);
         assertThat(alias2.name(), is("distance"));
         var stDistance = as(alias2.child(), StDistance.class);
         var location = as(stDistance.left(), FieldAttribute.class);
         assertThat(location.fieldName(), is("location"));
         var poiRef = as(stDistance.right(), Literal.class);
-        assertThat(poiRef.fold(), instanceOf(BytesRef.class));
-        assertThat(poiRef.fold().toString(), is(poi.fold().toString()));
+        assertThat(poiRef.value(), instanceOf(BytesRef.class));
+        assertThat(poiRef.value().toString(), is(poi.value().toString()));
         extract = as(evalExec.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("location"));
         var source = source(extract.child());
@@ -6294,7 +6296,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var alias1 = as(evalExec.fields().get(0), Alias.class);
         assertThat(alias1.name(), is("poi"));
         var poi = as(alias1.child(), Literal.class);
-        assertThat(poi.fold(), instanceOf(BytesRef.class));
+        assertThat(poi.value(), instanceOf(BytesRef.class));
         var alias4 = as(evalExec.fields().get(3), Alias.class);
         assertThat(alias4.name(), is("loc2"));
         as(alias4.child(), FieldAttribute.class);
@@ -6307,8 +6309,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var refLocation = as(stDistance.left(), ReferenceAttribute.class);
         assertThat(refLocation.name(), is("loc3"));
         var poiRef = as(stDistance.right(), Literal.class);
-        assertThat(poiRef.fold(), instanceOf(BytesRef.class));
-        assertThat(poiRef.fold().toString(), is(poi.fold().toString()));
+        assertThat(poiRef.value(), instanceOf(BytesRef.class));
+        assertThat(poiRef.value().toString(), is(poi.value().toString()));
         var alias7 = as(evalExec.fields().get(6), Alias.class);
         assertThat(alias7.name(), is("distance"));
         as(alias7.child(), ReferenceAttribute.class);
@@ -6391,15 +6393,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var alias1 = as(evalExec.fields().get(0), Alias.class);
         assertThat(alias1.name(), is("poi"));
         var poi = as(alias1.child(), Literal.class);
-        assertThat(poi.fold(), instanceOf(BytesRef.class));
+        assertThat(poi.value(), instanceOf(BytesRef.class));
         var alias2 = as(evalExec.fields().get(1), Alias.class);
         assertThat(alias2.name(), is("distance"));
         var stDistance = as(alias2.child(), StDistance.class);
         var location = as(stDistance.left(), FieldAttribute.class);
         assertThat(location.fieldName(), is("location"));
         var poiRef = as(stDistance.right(), Literal.class);
-        assertThat(poiRef.fold(), instanceOf(BytesRef.class));
-        assertThat(poiRef.fold().toString(), is(poi.fold().toString()));
+        assertThat(poiRef.value(), instanceOf(BytesRef.class));
+        assertThat(poiRef.value().toString(), is(poi.value().toString()));
         extract = as(evalExec.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("location"));
         var source = source(extract.child());
@@ -6931,7 +6933,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var fragment = as(exchange.child(), FragmentExec.class);
             var partialTopN = as(fragment.fragment(), TopN.class);
             var enrich2 = as(partialTopN.child(), Enrich.class);
-            assertThat(BytesRefs.toString(enrich2.policyName().fold()), equalTo("departments"));
+            assertThat(BytesRefs.toString(enrich2.policyName().fold(FoldContext.small())), equalTo("departments"));
             assertThat(enrich2.mode(), equalTo(Enrich.Mode.ANY));
             var eval = as(enrich2.child(), Eval.class);
             as(eval.child(), EsRelation.class);
@@ -6957,7 +6959,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var fragment = as(exchange.child(), FragmentExec.class);
             var partialTopN = as(fragment.fragment(), TopN.class);
             var enrich2 = as(partialTopN.child(), Enrich.class);
-            assertThat(BytesRefs.toString(enrich2.policyName().fold()), equalTo("departments"));
+            assertThat(BytesRefs.toString(enrich2.policyName().fold(FoldContext.small())), equalTo("departments"));
             assertThat(enrich2.mode(), equalTo(Enrich.Mode.ANY));
             var eval = as(enrich2.child(), Eval.class);
             as(eval.child(), EsRelation.class);
@@ -7549,7 +7551,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // The TopN needs an estimated row size for the planner to work
         var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
         plan = useDataNodePlan ? plans.v2() : plans.v1();
-        plan = PlannerUtils.localPlan(List.of(), config, plan);
+        plan = PlannerUtils.localPlan(List.of(), config, FoldContext.small(), plan);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
             "",
@@ -7562,10 +7564,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             new ExchangeSinkHandler(null, 10, () -> 10),
             null,
             null,
-            new EsPhysicalOperationProviders(List.of(), null)
+            new EsPhysicalOperationProviders(FoldContext.small(), List.of(), null)
         );
 
-        return planner.plan(plan);
+        return planner.plan(FoldContext.small(), plan);
     }
 
     private List<Set<String>> findFieldNamesInLookupJoinDescription(LocalExecutionPlanner.LocalExecutionPlan physicalOperations) {
@@ -7662,7 +7664,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
         TopNExec reductionTopN = as(reduction, TopNExec.class);
         assertThat(reductionTopN.estimatedRowSize(), equalTo(allFieldRowSize));
-        assertThat(reductionTopN.limit().fold(), equalTo(limit));
+        assertThat(reductionTopN.limit().fold(FoldContext.small()), equalTo(limit));
     }
 
     public void testReductionPlanForAggs() {
@@ -7818,7 +7820,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // individually hence why here the plan is kept as is
 
         var l = p.transformUp(FragmentExec.class, fragment -> {
-            var localPlan = PlannerUtils.localPlan(config, fragment, searchStats);
+            var localPlan = PlannerUtils.localPlan(config, FoldContext.small(), fragment, searchStats);
             return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), localPlan);
         });
 

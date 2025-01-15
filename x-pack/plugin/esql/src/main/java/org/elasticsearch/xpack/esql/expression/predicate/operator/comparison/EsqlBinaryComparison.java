@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
@@ -234,8 +235,8 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
     }
 
     @Override
-    public Boolean fold() {
-        return (Boolean) EvaluatorMapper.super.fold();
+    public Boolean fold(FoldContext ctx) {
+        return (Boolean) EvaluatorMapper.super.fold(source(), ctx);
     }
 
     @Override
@@ -366,7 +367,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
     private Query translate(TranslatorHandler handler) {
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(left());
         String name = handler.nameOf(attribute);
-        Object value = valueOf(right());
+        Object value = valueOf(FoldContext.small() /* TODO remove me */, right());
         String format = null;
         boolean isDateLiteralComparison = false;
 
@@ -447,7 +448,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         if ((left() instanceof FieldAttribute) == false || left().dataType().isNumeric() == false) {
             return null;
         }
-        Object value = valueOf(right());
+        Object value = valueOf(FoldContext.small() /* TODO remove me */, right());
 
         // Comparisons with multi-values always return null in ESQL.
         if (value instanceof List<?>) {

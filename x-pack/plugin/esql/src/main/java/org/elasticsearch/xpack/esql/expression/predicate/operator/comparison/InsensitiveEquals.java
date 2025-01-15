@@ -17,6 +17,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -86,9 +87,9 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
     }
 
     @Override
-    public Boolean fold() {
-        BytesRef leftVal = BytesRefs.toBytesRef(left().fold());
-        BytesRef rightVal = BytesRefs.toBytesRef(right().fold());
+    public Boolean fold(FoldContext ctx) {
+        BytesRef leftVal = BytesRefs.toBytesRef(left().fold(ctx));
+        BytesRef rightVal = BytesRefs.toBytesRef(right().fold(ctx));
         if (leftVal == null || rightVal == null) {
             return null;
         }
@@ -119,7 +120,7 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
 
     private Query translate() {
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(left());
-        BytesRef value = BytesRefs.toBytesRef(valueOf(right()));
+        BytesRef value = BytesRefs.toBytesRef(valueOf(FoldContext.small() /* TODO remove me */, right()));
         String name = LucenePushdownPredicates.pushableAttributeName(attribute);
         return new TermQuery(source(), name, value.utf8ToString(), true);
     }

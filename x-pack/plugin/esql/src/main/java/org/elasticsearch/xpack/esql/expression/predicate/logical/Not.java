@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -60,8 +61,8 @@ public class Not extends UnaryScalarFunction implements Negatable<Expression>, T
     }
 
     @Override
-    public Object fold() {
-        return apply(field().fold());
+    public Object fold(FoldContext ctx) {
+        return apply(field().fold(ctx));
     }
 
     private static Boolean apply(Object input) {

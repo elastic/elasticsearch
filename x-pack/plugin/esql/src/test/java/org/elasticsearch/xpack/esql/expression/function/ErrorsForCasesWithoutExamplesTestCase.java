@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCountErrorTests;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -24,6 +25,10 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.hamcrest.Matchers.greaterThan;
 
+/**
+ * Extend me to test that all cases not mentioned in a subclass of
+ * {@link AbstractFunctionTestCase} produce type errors.
+ */
 public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
     protected abstract List<TestCaseSupplier> cases();
 
@@ -37,6 +42,15 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
      */
     protected abstract Expression build(Source source, List<Expression> args);
 
+    /**
+     * A matcher for the invalid type error message.
+     * <p>
+     *     If you are implementing this for a function that should process all types
+     *     then have a look how {@link MvCountErrorTests} does it. It's nice to throw
+     *     an error explaining this. But while someone is implementing a new type
+     *     they will want to turn that off temporarily. And we say that in the note too.
+     * </p>
+     */
     protected abstract Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature);
 
     protected final List<TestCaseSupplier> paramsToSuppliers(Iterable<Object[]> cases) {

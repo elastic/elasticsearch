@@ -38,7 +38,7 @@ To get started with Connector APIs, check out <<es-connectors-tutorial-api, our 
 (Required, string)
 
 `<hard>`::
-(Optional, boolean) If `true`, the connector doc is deleted. If `false`, connector doc is marked as deleted but doc stays in index (soft deletion). Defaults to `false`.
+(Optional, boolean) If `true`, the connector doc is deleted. If `false`, connector doc is marked as deleted (soft deletion). Defaults to `false`.
 
 `delete_sync_jobs`::
 (Optional, boolean) A flag indicating if associated sync jobs should be also removed. Defaults to `false`.

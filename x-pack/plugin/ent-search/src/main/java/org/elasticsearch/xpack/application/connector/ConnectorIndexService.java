@@ -250,7 +250,6 @@ public class ConnectorIndexService {
 
         try {
             if (hardDelete) {
-                // Hard-delete-case
                 final DeleteRequest deleteRequest = new DeleteRequest(CONNECTOR_INDEX_NAME).id(connectorId)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
@@ -272,9 +271,7 @@ public class ConnectorIndexService {
                     })
                 );
             }
-
             else {
-                // Soft-delete case
                 getConnector(connectorId, false, listener.delegateFailure((l, connector) -> {
                     final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).setRefreshPolicy(
                         WriteRequest.RefreshPolicy.IMMEDIATE

@@ -337,7 +337,7 @@ setup:
 
 
 ---
-"List Connectors - All hard deleted connector":
+"List Connectors - All hard deleted connectors":
   - requires:
       cluster_features: ["connector_soft_deletes"]
       reason: Soft deletes were introduced in 9.0 release
@@ -369,7 +369,7 @@ setup:
   - match: { count: 3 }
 
 ---
-"List Connectors - 2 hard deleted connector, 1 soft deleted":
+"List Connectors - 2 hard deleted connectors, 1 soft deleted":
   - requires:
       cluster_features: ["connector_soft_deletes"]
       reason: Soft deletes were introduced in 9.0 release

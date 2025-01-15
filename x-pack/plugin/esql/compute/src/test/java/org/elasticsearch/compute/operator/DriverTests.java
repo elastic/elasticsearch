@@ -46,7 +46,6 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DriverTests extends ESTestCase {
@@ -295,12 +294,16 @@ public class DriverTests extends ESTestCase {
             final var sourceOperator = new CannedSourceOperator(inPages.iterator());
             final int maxAllowedRows = between(1, 100);
             final AtomicInteger processedRows = new AtomicInteger(0);
+            var sinkHandler = new ExchangeSinkHandler(driverContext.blockFactory(), positions, System::currentTimeMillis);
+            var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(), Function.identity());
             final var delayOperator = new EvalOperator(driverContext.blockFactory(), new EvalOperator.ExpressionEvaluator() {
                 @Override
                 public Block eval(Page page) {
                     for (int i = 0; i < page.getPositionCount(); i++) {
                         driverContext.checkForEarlyTermination();
-                        processedRows.incrementAndGet();
+                        if (processedRows.incrementAndGet() >= maxAllowedRows) {
+                            sinkHandler.fetchPageAsync(true, ActionListener.noop());
+                        }
                     }
                     return driverContext.blockFactory().newConstantBooleanBlockWith(true, page.getPositionCount());
                 }
@@ -310,25 +313,12 @@ public class DriverTests extends ESTestCase {
 
                 }
             });
-            final List<Page> outputPages = new ArrayList<>();
-            var outputOperator = new PageConsumerOperator(outputPages::add) {
-                @Override
-                public boolean isFinished() {
-                    if (processedRows.get() >= maxAllowedRows) {
-                        return true;
-                    } else {
-                        return super.isFinished();
-                    }
-                }
-            };
-
-            Driver driver = new Driver(driverContext, sourceOperator, List.of(delayOperator), outputOperator, () -> {});
+            Driver driver = new Driver(driverContext, sourceOperator, List.of(delayOperator), sinkOperator, () -> {});
             ThreadContext threadContext = threadPool.getThreadContext();
             PlainActionFuture<Void> future = new PlainActionFuture<>();
 
             Driver.start(threadContext, threadPool.executor("esql"), driver, between(1, 1000), future);
             future.actionGet(30, TimeUnit.SECONDS);
-            assertThat(outputPages, empty());
             assertThat(processedRows.get(), equalTo(maxAllowedRows));
         } finally {
             terminate(threadPool);

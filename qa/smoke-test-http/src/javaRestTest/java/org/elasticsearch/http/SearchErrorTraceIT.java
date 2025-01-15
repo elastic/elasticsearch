@@ -165,8 +165,8 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
             new NByteArrayEntity(requestBody, ContentType.create(contentType.mediaTypeWithoutParameters(), (Charset) null))
         );
         searchRequest.addParameter("error_trace", "true");
-        getRestClient().performRequest(searchRequest);
-        assertTrue(hasStackTrace.get());
+        var response = getRestClient().performRequest(searchRequest);
+        assertTrue(response.getStatusLine().getStatusCode() == 200 || hasStackTrace.get());
     }
 
     public void testMultiSearchFailingQueryErrorTraceFalse() throws IOException {

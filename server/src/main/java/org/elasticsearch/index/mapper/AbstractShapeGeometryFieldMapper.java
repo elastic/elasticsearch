@@ -127,7 +127,6 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
                         reader.reset(binaryDocValues.binaryValue());
                         var extent = reader.getExtent();
                         // We store the 6 values as a single multi-valued field, in the same order as the fields in the Extent class
-                        // This requires that consumers also know the meaning of the values, which they can learn from the Extent class
                         builder.beginPositionEntry();
                         builder.appendInt(extent.top);
                         builder.appendInt(extent.bottom);

@@ -462,15 +462,15 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 for (int c = 0; c < docIndices.getPositionCount(); c++) {
                     int doc = docIndices.getInt(c);
                     int count = bytesRefBlock.getValueCount(doc);
-                    int i = bytesRefBlock.getFirstValueIndex(doc);
                     if (count == 0) {
                         builder.appendNull();
                     } else {
                         if (count > 1) {
                             builder.beginPositionEntry();
                         }
-                        for (int v = 0; v < count; v++) {
-                            builder.appendLong(encode(bytesRefBlock.getBytesRef(i + v, scratch)));
+                        int firstValueIndex = bytesRefBlock.getFirstValueIndex(doc);
+                        for (int i = firstValueIndex; i < firstValueIndex + count; i++) {
+                            builder.appendLong(encode(bytesRefBlock.getBytesRef(i, scratch)));
                         }
                         if (count > 1) {
                             builder.endPositionEntry();
@@ -518,13 +518,13 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 for (int c = 0; c < docIndices.getPositionCount(); c++) {
                     int doc = docIndices.getInt(c);
                     int count = bytesRefBlock.getValueCount(doc);
-                    int i = bytesRefBlock.getFirstValueIndex(doc);
                     if (count == 0) {
                         builder.appendNull();
                     } else {
                         pointVisitor.reset();
-                        for (int v = 0; v < count; v++) {
-                            BytesRef wkb = bytesRefBlock.getBytesRef(i + v, scratch);
+                        int firstValueIndex = bytesRefBlock.getFirstValueIndex(doc);
+                        for (int i = firstValueIndex; i < firstValueIndex + count; i++) {
+                            BytesRef wkb = bytesRefBlock.getBytesRef(i, scratch);
                             Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
                             geometry.visit(visitor);
                         }

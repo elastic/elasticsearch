@@ -525,7 +525,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
     private static final Version BATCHED_QUERY_PHASE_VERSION = Version.V_9_0_0;
 
     @Override
-    public void run() throws IOException {
+    protected void run() {
         // TODO: stupid but we kinda need to fill all of these in with the current logic, do something nicer before merging
         final Map<SearchShardIterator, Integer> shardIndexMap = Maps.newHashMapWithExpectedSize(shardIterators.length);
         for (int i = 0; i < shardIterators.length; i++) {

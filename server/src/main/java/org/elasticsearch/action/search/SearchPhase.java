@@ -11,20 +11,17 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.transport.Transport;
 
-import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Function;
 
 /**
  * Base class for all individual search phases like collecting distributed frequencies, fetching documents, querying shards.
  */
-abstract class SearchPhase implements CheckedRunnable<IOException> {
-
+abstract class SearchPhase {
     private static final Logger logger = LogManager.getLogger(SearchPhase.class);
 
     private final String name;
@@ -32,6 +29,8 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
     protected SearchPhase(String name) {
         this.name = Objects.requireNonNull(name, "name must not be null");
     }
+
+    protected abstract void run();
 
     /**
      * Returns the phases name.

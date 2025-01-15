@@ -37,6 +37,8 @@ import java.util.function.BiFunction;
 final class FetchSearchPhase extends SearchPhase {
     private static final Logger logger = LogManager.getLogger(FetchSearchPhase.class);
 
+    static final String NAME = "fetch";
+
     private final AtomicArray<SearchPhaseResult> searchPhaseShardResults;
     private final BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final AsyncSearchContext context;
@@ -73,7 +75,7 @@ final class FetchSearchPhase extends SearchPhase {
         @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory
     ) {
-        super("fetch");
+        super(NAME);
         this.searchPhaseShardResults = resultConsumer.getAtomicArray();
         this.numShards = resultConsumer.getNumShards();
         this.aggregatedDfs = aggregatedDfs;
@@ -85,7 +87,7 @@ final class FetchSearchPhase extends SearchPhase {
     }
 
     @Override
-    public void run() {
+    protected void run() {
         context.execute(new AbstractRunnable() {
 
             @Override
@@ -101,7 +103,7 @@ final class FetchSearchPhase extends SearchPhase {
     }
 
     private void failPhase(Exception e) {
-        context.onPhaseFailure(FetchSearchPhase.this.getName(), "", e);
+        context.onPhaseFailure(NAME, "", e);
     }
 
     private void innerRun() throws Exception {
@@ -267,7 +269,7 @@ final class FetchSearchPhase extends SearchPhase {
         AtomicArray<? extends SearchPhaseResult> fetchResultsArr,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
-        context.executeNextPhase(this.getName(), () -> {
+        context.executeNextPhase(NAME, () -> {
             var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
             context.addReleasable(resp);
             return nextPhaseFactory.apply(resp, searchPhaseShardResults);

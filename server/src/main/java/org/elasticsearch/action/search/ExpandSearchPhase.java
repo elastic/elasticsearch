@@ -31,12 +31,15 @@ import java.util.function.Supplier;
  * forwards to the next phase immediately.
  */
 final class ExpandSearchPhase extends SearchPhase {
+
+    static final String NAME = "expand";
+
     private final AsyncSearchContext context;
     private final SearchHits searchHits;
     private final Supplier<SearchPhase> nextPhase;
 
     ExpandSearchPhase(AsyncSearchContext context, SearchHits searchHits, Supplier<SearchPhase> nextPhase) {
-        super("expand");
+        super(NAME);
         this.context = context;
         this.searchHits = searchHits;
         this.nextPhase = nextPhase;
@@ -51,7 +54,7 @@ final class ExpandSearchPhase extends SearchPhase {
     }
 
     @Override
-    public void run() {
+    protected void run() {
         if (isCollapseRequest() == false || searchHits.getHits().length == 0) {
             onPhaseDone();
         } else {
@@ -123,7 +126,7 @@ final class ExpandSearchPhase extends SearchPhase {
     }
 
     private void phaseFailure(Exception ex) {
-        context.onPhaseFailure(this.getName(), "failed to expand hits", ex);
+        context.onPhaseFailure(NAME, "failed to expand hits", ex);
     }
 
     private static SearchSourceBuilder buildExpandSearchSourceBuilder(InnerHitBuilder options, CollapseBuilder innerCollapseBuilder) {
@@ -168,6 +171,6 @@ final class ExpandSearchPhase extends SearchPhase {
     }
 
     private void onPhaseDone() {
-        context.executeNextPhase(getName(), nextPhase);
+        context.executeNextPhase(NAME, nextPhase);
     }
 }

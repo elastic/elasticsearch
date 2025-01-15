@@ -37,6 +37,8 @@ import java.util.List;
  */
 public class RankFeaturePhase extends SearchPhase {
 
+    static final String NAME = "rank-feature";
+
     private static final Logger logger = LogManager.getLogger(RankFeaturePhase.class);
     private final AsyncSearchContext context;
     final SearchPhaseResults<SearchPhaseResult> queryPhaseResults;
@@ -51,7 +53,7 @@ public class RankFeaturePhase extends SearchPhase {
         AsyncSearchContext context,
         RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext
     ) {
-        super("rank-feature");
+        super(NAME);
         assert rankFeaturePhaseRankCoordinatorContext != null;
         this.rankFeaturePhaseRankCoordinatorContext = rankFeaturePhaseRankCoordinatorContext;
         this.context = context;
@@ -63,7 +65,7 @@ public class RankFeaturePhase extends SearchPhase {
     }
 
     @Override
-    public void run() {
+    protected void run() {
         context.execute(new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
@@ -82,7 +84,7 @@ public class RankFeaturePhase extends SearchPhase {
     }
 
     private void failPhase(String msg, Exception e) {
-        context.onPhaseFailure(RankFeaturePhase.this.getName(), msg, e);
+        context.onPhaseFailure(NAME, msg, e);
     }
 
     void innerRun(RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext) throws Exception {
@@ -235,6 +237,6 @@ public class RankFeaturePhase extends SearchPhase {
     }
 
     void moveToNextPhase(SearchPhaseResults<SearchPhaseResult> phaseResults, SearchPhaseController.ReducedQueryPhase reducedQueryPhase) {
-        context.executeNextPhase(this.getName(), () -> new FetchSearchPhase(phaseResults, aggregatedDfs, context, reducedQueryPhase));
+        context.executeNextPhase(NAME, () -> new FetchSearchPhase(phaseResults, aggregatedDfs, context, reducedQueryPhase));
     }
 }

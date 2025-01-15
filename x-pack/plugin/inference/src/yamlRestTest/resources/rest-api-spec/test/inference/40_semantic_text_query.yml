@@ -173,10 +173,6 @@ setup:
 
 ---
 "Query using a sparse embedding model via a search inference ID":
-  - requires:
-      cluster_features: "semantic_text.search_inference_id"
-      reason: search_inference_id introduced in 8.16.0
-
   - skip:
       features: [ "headers", "close_to" ]
 
@@ -357,10 +353,6 @@ setup:
 
 ---
 "Query using a dense embedding model via a search inference ID":
-  - requires:
-      cluster_features: "semantic_text.search_inference_id"
-      reason: search_inference_id introduced in 8.16.0
-
   - skip:
       features: [ "headers", "close_to" ]
 
@@ -737,10 +729,6 @@ setup:
 
 ---
 "Query a field with a search inference ID that uses the wrong task type":
-  - requires:
-      cluster_features: "semantic_text.search_inference_id"
-      reason: search_inference_id introduced in 8.16.0
-
   - do:
       indices.put_mapping:
         index: test-sparse-index
@@ -778,10 +766,6 @@ setup:
 
 ---
 "Query a field with a search inference ID that uses the wrong dimension count":
-  - requires:
-      cluster_features: "semantic_text.search_inference_id"
-      reason: search_inference_id introduced in 8.16.0
-
   - do:
       inference.put:
         task_type: text_embedding
@@ -835,10 +819,6 @@ setup:
 
 ---
 "Query a field with an invalid search inference ID":
-  - requires:
-      cluster_features: "semantic_text.search_inference_id"
-      reason: search_inference_id introduced in 8.16.0
-
   - do:
       indices.put_mapping:
         index: test-dense-index

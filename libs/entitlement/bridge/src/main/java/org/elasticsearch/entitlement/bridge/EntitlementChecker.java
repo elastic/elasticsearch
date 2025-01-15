@@ -32,7 +32,6 @@ import java.util.List;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocketFactory;
 
 @SuppressWarnings("unused") // Called from instrumentation code inserted by the Entitlements agent
@@ -192,9 +191,6 @@ public interface EntitlementChecker {
     void check$java_net_URL$(Class<?> callerClass, String protocol, String host, int port, String file, URLStreamHandler handler);
 
     void check$java_net_URL$(Class<?> callerClass, URL context, String spec, URLStreamHandler handler);
-
-    // The only implementation of SSLSession#getSessionContext(); unfortunately it's an interface, so we need to check the implementation
-    void check$sun_security_ssl_SSLSessionImpl$getSessionContext(Class<?> callerClass, SSLSession sslSession);
 
     void check$java_net_DatagramSocket$bind(Class<?> callerClass, DatagramSocket that, SocketAddress addr);
 

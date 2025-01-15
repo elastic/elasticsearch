@@ -46,26 +46,25 @@ public final class Lucene86MetadataOnlyPointsReader extends PointsReader {
     public Lucene86MetadataOnlyPointsReader(SegmentReadState readState) throws IOException {
         this.readState = readState;
 
-        String metaFileName =
-            IndexFileNames.segmentFileName(
-                readState.segmentInfo.name,
-                readState.segmentSuffix,
-                Lucene86MetadataOnlyPointsFormat.META_EXTENSION);
-        String indexFileName =
-            IndexFileNames.segmentFileName(
-                readState.segmentInfo.name,
-                readState.segmentSuffix,
-                Lucene86MetadataOnlyPointsFormat.INDEX_EXTENSION);
-        String dataFileName =
-            IndexFileNames.segmentFileName(
-                readState.segmentInfo.name,
-                readState.segmentSuffix,
-                Lucene86MetadataOnlyPointsFormat.DATA_EXTENSION);
+        String metaFileName = IndexFileNames.segmentFileName(
+            readState.segmentInfo.name,
+            readState.segmentSuffix,
+            Lucene86MetadataOnlyPointsFormat.META_EXTENSION
+        );
+        String indexFileName = IndexFileNames.segmentFileName(
+            readState.segmentInfo.name,
+            readState.segmentSuffix,
+            Lucene86MetadataOnlyPointsFormat.INDEX_EXTENSION
+        );
+        String dataFileName = IndexFileNames.segmentFileName(
+            readState.segmentInfo.name,
+            readState.segmentSuffix,
+            Lucene86MetadataOnlyPointsFormat.DATA_EXTENSION
+        );
 
         boolean success = false;
         try {
-            indexIn =
-                EndiannessReverserUtil.openInput(readState.directory, indexFileName, readState.context);
+            indexIn = EndiannessReverserUtil.openInput(readState.directory, indexFileName, readState.context);
             CodecUtil.checkIndexHeader(
                 indexIn,
                 Lucene86MetadataOnlyPointsFormat.INDEX_CODEC_NAME,
@@ -75,8 +74,7 @@ public final class Lucene86MetadataOnlyPointsReader extends PointsReader {
                 readState.segmentSuffix
             );
 
-            dataIn =
-                EndiannessReverserUtil.openInput(readState.directory, dataFileName, readState.context);
+            dataIn = EndiannessReverserUtil.openInput(readState.directory, dataFileName, readState.context);
             CodecUtil.checkIndexHeader(
                 dataIn,
                 Lucene86MetadataOnlyPointsFormat.DATA_CODEC_NAME,
@@ -87,9 +85,9 @@ public final class Lucene86MetadataOnlyPointsReader extends PointsReader {
             );
 
             long indexLength = -1, dataLength = -1;
-            try (ChecksumIndexInput metaIn =
-                     EndiannessReverserUtil.openChecksumInput(
-                         readState.directory, metaFileName, readState.context)) {
+            try (
+                ChecksumIndexInput metaIn = EndiannessReverserUtil.openChecksumInput(readState.directory, metaFileName, readState.context)
+            ) {
                 Throwable priorE = null;
                 try {
                     CodecUtil.checkIndexHeader(
@@ -98,7 +96,8 @@ public final class Lucene86MetadataOnlyPointsReader extends PointsReader {
                         Lucene86MetadataOnlyPointsFormat.VERSION_START,
                         Lucene86MetadataOnlyPointsFormat.VERSION_CURRENT,
                         readState.segmentInfo.getId(),
-                        readState.segmentSuffix);
+                        readState.segmentSuffix
+                    );
 
                     while (true) {
                         int fieldNumber = metaIn.readInt();

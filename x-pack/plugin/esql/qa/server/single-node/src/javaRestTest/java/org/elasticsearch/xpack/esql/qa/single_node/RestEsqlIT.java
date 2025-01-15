@@ -583,8 +583,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("rows_emitted", greaterThan(0))
                 .entry("aggregation_nanos", greaterThan(0))
                 .entry("aggregation_finish_nanos", greaterThan(0));
-            case "ExchangeSinkOperator" -> matchesMap().entry("pages_accepted", greaterThan(0));
-            case "ExchangeSourceOperator" -> matchesMap().entry("pages_emitted", greaterThan(0)).entry("pages_waiting", 0);
+            case "ExchangeSinkOperator" -> matchesMap().entry("pages_received", greaterThan(0)).entry("rows_received", greaterThan(0));
+            case "ExchangeSourceOperator" -> matchesMap().entry("pages_waiting", 0)
+                .entry("pages_emitted", greaterThan(0))
+                .entry("rows_emitted", greaterThan(0));
             case "ProjectOperator", "EvalOperator" -> basicProfile();
             case "LimitOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
                 .entry("limit", 1000)

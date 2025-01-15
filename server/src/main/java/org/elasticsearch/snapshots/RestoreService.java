@@ -69,7 +69,6 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -157,7 +156,7 @@ public final class RestoreService implements ClusterStateApplier {
         SETTING_CREATION_DATE,
         SETTING_HISTORY_UUID,
         IndexSettings.MODE.getKey(),
-        SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+        IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
         IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(),
         IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(),
         IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(),

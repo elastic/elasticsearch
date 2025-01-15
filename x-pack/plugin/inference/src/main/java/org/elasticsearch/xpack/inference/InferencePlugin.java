@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
+import org.elasticsearch.xpack.inference.rest.RestGetInferenceServicesAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestStreamInferenceAction;
@@ -219,7 +220,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             new RestPutInferenceModelAction(),
             new RestUpdateInferenceModelAction(),
             new RestDeleteInferenceEndpointAction(),
-            new RestGetInferenceDiagnosticsAction()
+            new RestGetInferenceDiagnosticsAction(),
+            new RestGetInferenceServicesAction()
         );
         List<RestHandler> conditionalRestActions = UnifiedCompletionFeature.UNIFIED_COMPLETION_FEATURE_FLAG.isEnabled()
             ? List.of(new RestUnifiedCompletionInferenceAction(threadPoolSetOnce))

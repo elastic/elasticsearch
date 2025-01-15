@@ -374,6 +374,11 @@ public class EsqlCapabilities {
         DATE_NANOS_AGGREGATIONS(),
 
         /**
+         * Support the {@link org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In} operator for date nanos
+         */
+        DATE_NANOS_IN_OPERATOR(),
+
+        /**
          * DATE_PARSE supports reading timezones
          */
         DATE_PARSE_TZ(),
@@ -592,7 +597,12 @@ public class EsqlCapabilities {
         /**
          * Full text functions can be used in disjunctions
          */
-        FULL_TEXT_FUNCTIONS_DISJUNCTIONS;
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS,
+
+        /**
+         * Change field caps response for semantic_text fields to be reported as text
+         */
+        SEMANTIC_TEXT_FIELD_CAPS;
 
         private final boolean enabled;
 

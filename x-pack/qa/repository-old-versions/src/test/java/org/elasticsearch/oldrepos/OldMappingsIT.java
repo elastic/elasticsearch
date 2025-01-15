@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -95,7 +96,18 @@ public class OldMappingsIT extends ESRestTestCase {
                 assertOK(oldEs.performRequest(createIndex("winlogbeat", "winlogbeat.json")));
             }
             assertOK(
-                oldEs.performRequest(createIndexStandardTokenFilter("standard_token_filter", "standard_token_filter.json"))
+                oldEs.performRequest(
+                    createIndex(
+                        "standard_token_filter",
+                        "standard_token_filter.json",
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                            .put("index.analysis.analyzer.custom_analyzer.type", "custom")
+                            .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
+                            .put("index.analysis.analyzer.custom_analyzer.filter", "standard")
+                            .build()
+                    )
+                )
             );
             assertOK(oldEs.performRequest(createIndex("custom", "custom.json")));
             assertOK(oldEs.performRequest(createIndex("nested", "nested.json")));
@@ -191,36 +203,21 @@ public class OldMappingsIT extends ESRestTestCase {
     }
 
     private Request createIndex(String indexName, String file) throws IOException {
-        Request createIndex = new Request("PUT", "/" + indexName);
-        int numberOfShards = randomIntBetween(1, 3);
-
-        XContentBuilder builder = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("settings")
-            .field(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-            .endObject()
-            .startObject("mappings");
-        builder.rawValue(OldMappingsIT.class.getResourceAsStream(file), XContentType.JSON);
-        builder.endObject().endObject();
-
-        createIndex.setJsonEntity(Strings.toString(builder));
-        return createIndex;
+        return createIndex(indexName, file, Settings.EMPTY);
     }
 
-    private Request createIndexStandardTokenFilter(String indexName, String file) throws IOException {
+    private Request createIndex(String indexName, String file, Settings settings) throws IOException {
         Request createIndex = new Request("PUT", "/" + indexName);
         int numberOfShards = randomIntBetween(1, 3);
 
-        XContentBuilder builder = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("settings")
-            .field(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-            .field(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .field("index.analysis.analyzer.custom_analyzer.type", "custom")
-            .field("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
-            .field("index.analysis.analyzer.custom_analyzer.filter", "standard")
-            .endObject()
-            .startObject("mappings");
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+
+        builder.startObject("settings");
+        builder.field(SETTING_NUMBER_OF_SHARDS, numberOfShards);
+        settings.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        builder.startObject("mappings");
         builder.rawValue(OldMappingsIT.class.getResourceAsStream(file), XContentType.JSON);
         builder.endObject().endObject();
 

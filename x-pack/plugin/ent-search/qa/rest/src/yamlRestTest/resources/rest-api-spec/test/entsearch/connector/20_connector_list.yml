@@ -312,6 +312,94 @@ setup:
 
   - match: { count: 3 }
 
+
+---
+"List Connectors - Single hard deleted connector":
+  - requires:
+      cluster_features: ["connector_soft_deletes"]
+      reason: Soft deletes were introduced in 9.0 release
+
+  - do:
+      connector.delete:
+        connector_id: connector-a
+        hard: true
+
+  - do:
+      connector.list: {}
+
+  - match: { count: 2 }
+
+  - do:
+      connector.list:
+        include_deleted: true
+
+  - match: { count: 2 }
+
+
+---
+"List Connectors - All hard deleted connector":
+  - requires:
+      cluster_features: ["connector_soft_deletes"]
+      reason: Soft deletes were introduced in 9.0 release
+
+  - do:
+      connector.delete:
+        connector_id: connector-a
+        hard: true
+
+  - do:
+      connector.delete:
+        connector_id: connector-b
+        hard: true
+
+  - do:
+      connector.delete:
+        connector_id: connector-b
+        hard: true
+
+  - do:
+      connector.list: {}
+
+  - match: { count: 0 }
+
+  - do:
+      connector.list:
+        include_deleted: true
+
+  - match: { count: 3 }
+
+---
+"List Connectors - 2 hard deleted connector, 1 soft deleted":
+  - requires:
+      cluster_features: ["connector_soft_deletes"]
+      reason: Soft deletes were introduced in 9.0 release
+
+  - do:
+      connector.delete:
+        connector_id: connector-a
+        hard: false
+
+  - do:
+      connector.delete:
+        connector_id: connector-b
+        hard: true
+
+  - do:
+      connector.delete:
+        connector_id: connector-b
+        hard: true
+
+  - do:
+      connector.list: {}
+
+  - match: { count: 0 }
+
+  - do:
+      connector.list:
+        include_deleted: true
+
+  - match: { count: 1 }
+
 ---
 "List Connectors - Soft deleted connectors":
   - requires:

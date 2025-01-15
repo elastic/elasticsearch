@@ -114,10 +114,11 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
         return markVerified;
     }
 
-    public AddIndexBlockRequest markVerified(boolean markVerified)  {
+    public AddIndexBlockRequest markVerified(boolean markVerified) {
         this.markVerified = markVerified;
         return this;
     }
+
     /**
      * Returns the block to be added
      */

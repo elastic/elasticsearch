@@ -11,6 +11,7 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.jdk.RuntimeVersionFeature;
 
@@ -26,7 +27,9 @@ final class SystemJvmOptions {
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
         String distroType = sysprops.get("es.distribution.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
-        boolean useEntitlements = Boolean.parseBoolean(sysprops.getOrDefault("es.entitlements.enabled", "false"));
+        boolean entitlementsExplicitlyEnabled = Booleans.parseBoolean(sysprops.getOrDefault("es.entitlements.enabled", "false"));
+        // java 24+ only supports entitlements, but it may be enabled on earlier versions explicitly
+        boolean useEntitlements = RuntimeVersionFeature.isSecurityManagerAvailable() == false || entitlementsExplicitlyEnabled;
         return Stream.of(
             Stream.of(
                 /*
@@ -141,7 +144,7 @@ final class SystemJvmOptions {
 
     @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     private static Stream<String> maybeAllowSecurityManager(boolean useEntitlements) {
-        if (useEntitlements == false && RuntimeVersionFeature.isSecurityManagerAvailable()) {
+        if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
             // Will become conditional on useEntitlements once entitlements can run without SM
             return Stream.of("-Djava.security.manager=allow");
         }

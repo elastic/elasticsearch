@@ -27,7 +27,7 @@ import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -46,6 +46,7 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -66,9 +67,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.datastreams.DataStreamFeatures;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -182,13 +181,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             () -> now,
             errorStore,
             allocationService,
-            new DataStreamLifecycleHealthInfoPublisher(
-                Settings.EMPTY,
-                client,
-                clusterService,
-                errorStore,
-                new FeatureService(List.of(new DataStreamFeatures()))
-            ),
+            new DataStreamLifecycleHealthInfoPublisher(Settings.EMPTY, client, clusterService, errorStore),
             globalRetentionSettings
         );
         clientDelegate = null;
@@ -225,11 +218,12 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
         RolloverRequest rolloverBackingIndexRequest = (RolloverRequest) clientSeenRequests.get(0);
         assertThat(rolloverBackingIndexRequest.getRolloverTarget(), is(dataStreamName));
-        assertThat(rolloverBackingIndexRequest.indicesOptions().selectorOptions(), equalTo(IndicesOptions.SelectorOptions.DATA));
         assertThat(clientSeenRequests.get(1), instanceOf(RolloverRequest.class));
         RolloverRequest rolloverFailureIndexRequest = (RolloverRequest) clientSeenRequests.get(1);
-        assertThat(rolloverFailureIndexRequest.getRolloverTarget(), is(dataStreamName));
-        assertThat(rolloverFailureIndexRequest.indicesOptions().selectorOptions(), equalTo(IndicesOptions.SelectorOptions.FAILURES));
+        assertThat(
+            rolloverFailureIndexRequest.getRolloverTarget(),
+            is(IndexNameExpressionResolver.combineSelector(dataStreamName, IndexComponentSelector.FAILURES))
+        );
         List<DeleteIndexRequest> deleteRequests = clientSeenRequests.subList(2, 5)
             .stream()
             .map(transportRequest -> (DeleteIndexRequest) transportRequest)
@@ -1463,13 +1457,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             () -> now.getAndAdd(delta),
             errorStore,
             mock(AllocationService.class),
-            new DataStreamLifecycleHealthInfoPublisher(
-                Settings.EMPTY,
-                getTransportRequestsRecordingClient(),
-                clusterService,
-                errorStore,
-                new FeatureService(List.of(new DataStreamFeatures()))
-            ),
+            new DataStreamLifecycleHealthInfoPublisher(Settings.EMPTY, getTransportRequestsRecordingClient(), clusterService, errorStore),
             globalRetentionSettings
         );
         assertThat(service.getLastRunDuration(), is(nullValue()));
@@ -1546,11 +1534,12 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
         RolloverRequest rolloverBackingIndexRequest = (RolloverRequest) clientSeenRequests.get(0);
         assertThat(rolloverBackingIndexRequest.getRolloverTarget(), is(dataStreamName));
-        assertThat(rolloverBackingIndexRequest.indicesOptions().selectorOptions(), equalTo(IndicesOptions.SelectorOptions.DATA));
         assertThat(clientSeenRequests.get(1), instanceOf(RolloverRequest.class));
         RolloverRequest rolloverFailureIndexRequest = (RolloverRequest) clientSeenRequests.get(1);
-        assertThat(rolloverFailureIndexRequest.getRolloverTarget(), is(dataStreamName));
-        assertThat(rolloverFailureIndexRequest.indicesOptions().selectorOptions(), equalTo(IndicesOptions.SelectorOptions.FAILURES));
+        assertThat(
+            rolloverFailureIndexRequest.getRolloverTarget(),
+            is(IndexNameExpressionResolver.combineSelector(dataStreamName, IndexComponentSelector.FAILURES))
+        );
         assertThat(
             ((DeleteIndexRequest) clientSeenRequests.get(2)).indices()[0],
             is(dataStream.getFailureIndices().getIndices().get(0).getName())

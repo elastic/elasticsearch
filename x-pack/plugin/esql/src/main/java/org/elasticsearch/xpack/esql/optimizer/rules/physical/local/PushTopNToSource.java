@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.function.BiFunction;
 
 /**
  * We handle two main scenarios here:
@@ -197,7 +198,10 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
 
     private static boolean canPushDownOrders(List<Order> orders, LucenePushdownPredicates lucenePushdownPredicates) {
         // allow only exact FieldAttributes (no expressions) for sorting
-        return orders.stream().allMatch(o -> lucenePushdownPredicates.isPushableAttribute(o.child()));
+        BiFunction<Expression, LucenePushdownPredicates, Boolean> isSortableAttribute = (exp, lpp) -> lpp.isPushableFieldAttribute(exp)
+            // TODO: https://github.com/elastic/elasticsearch/issues/120219
+            || (exp instanceof MetadataAttribute ma && MetadataAttribute.SCORE.equals(ma.name()));
+        return orders.stream().allMatch(o -> isSortableAttribute.apply(o.child(), lucenePushdownPredicates));
     }
 
     private static List<EsQueryExec.Sort> buildFieldSorts(List<Order> orders) {

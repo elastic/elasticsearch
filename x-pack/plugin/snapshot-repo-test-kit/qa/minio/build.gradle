@@ -23,5 +23,4 @@ restResources {
 
 tasks.named('javaRestTest') {
   usesDefaultDistribution()
-  systemProperty "org.slf4j.simpleLogger.defaultLogLevel", "DEBUG"
 }

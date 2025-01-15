@@ -160,6 +160,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
         List<QuerySearchResult> buffer;
         synchronized (this) {
+            // final reduce, we're done with the buffer so we just null it out and continue with a local variable to
+            // save field references. The synchronized block is never contended but needed to have a memory barrier and sync buffer's
+            // contents with all the previous writers to it
             buffer = this.buffer;
             buffer = buffer == null ? Collections.emptyList() : buffer;
             this.buffer = null;

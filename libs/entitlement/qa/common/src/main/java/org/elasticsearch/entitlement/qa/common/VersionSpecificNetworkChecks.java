@@ -7,13 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.inference;
+package org.elasticsearch.entitlement.qa.common;
 
-import java.util.Collections;
-import java.util.Map;
-
-public class EmptySettingsConfiguration {
-    public static Map<String, SettingsConfiguration> get() {
-        return Collections.emptyMap();
-    }
+class VersionSpecificNetworkChecks {
+    static void createInetAddressResolverProvider() {}
 }

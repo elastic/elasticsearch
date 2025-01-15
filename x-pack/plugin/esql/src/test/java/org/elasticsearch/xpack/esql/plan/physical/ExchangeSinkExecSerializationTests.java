@@ -25,7 +25,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.IntStream;
 
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.test.ByteSizeEqualsMatcher.byteSizeEquals;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -144,6 +148,26 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
     }
 
     /**
+     * Test the size of serializing a plan like
+     * FROM index* | LIMIT 10 | KEEP one_single_field
+     * with an index pattern pointing to a hundred actual indices with rather long names
+     */
+    public void testIndexPatternTargetingMultipleIndices() throws IOException {
+        /*
+         * History: 4996
+         */
+
+        var index = new EsIndex(
+            "index*",
+            Map.of(),
+            IntStream.range(0, 100)
+                .mapToObj(i -> "partial-.ds-index-service-logs-2025.01.01-000" + i)
+                .collect(toMap(Function.identity(), i -> IndexMode.STANDARD))
+        );
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(4996));
+    }
+
+    /**
      * Test the size of serializing the physical plan that will be sent to a data node.
      * The plan corresponds to `FROM index | LIMIT 10`.
      * Callers of this method intentionally use a very precise size for the serialized
@@ -167,7 +191,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
 
     private void testSerializePlanWithIndex(EsIndex index, ByteSizeValue expected, boolean keepAllFields) throws IOException {
         List<Attribute> allAttributes = Analyzer.mappingAsAttributes(randomSource(), index.mapping());
-        List<Attribute> keepAttributes = keepAllFields ? allAttributes : List.of(allAttributes.get(0));
+        List<Attribute> keepAttributes = keepAllFields || allAttributes.isEmpty() ? allAttributes : List.of(allAttributes.getFirst());
         EsRelation relation = new EsRelation(randomSource(), index.name(), IndexMode.STANDARD, index.indexNameWithModes(), keepAttributes);
         Limit limit = new Limit(randomSource(), new Literal(randomSource(), 10, DataType.INTEGER), relation);
         Project project = new Project(randomSource(), limit, limit.output());

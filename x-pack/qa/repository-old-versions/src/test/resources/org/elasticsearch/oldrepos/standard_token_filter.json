@@ -1,4 +1,4 @@
-"doc": {
+"_default_": {
   "properties": {
     "content": {
       "type": "text",

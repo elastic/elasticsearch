@@ -82,9 +82,9 @@ public class OldMappingsIT extends ESRestTestCase {
         String snapshotName = "snap";
         List<String> indices;
         if (oldVersion.before(Version.fromString("6.0.0"))) {
-            indices = Arrays.asList("filebeat", "winlogbeat", "custom", "nested", "standard_token_filter_v5");
+            indices = Arrays.asList("filebeat", "winlogbeat", "custom", "nested", "standard_token_filter");
         } else {
-            indices = Arrays.asList("filebeat", "custom", "nested", "standard_token_filter_v6");
+            indices = Arrays.asList("filebeat", "custom", "nested", "standard_token_filter");
         }
 
         int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
@@ -93,14 +93,10 @@ public class OldMappingsIT extends ESRestTestCase {
             assertOK(oldEs.performRequest(createIndex("filebeat", "filebeat.json")));
             if (oldVersion.before(Version.fromString("6.0.0"))) {
                 assertOK(oldEs.performRequest(createIndex("winlogbeat", "winlogbeat.json")));
-                assertOK(
-                    oldEs.performRequest(createIndexStandardTokenFilter("standard_token_filter_v5", "standard_token_filter_ES5.json"))
-                );
-            } else {
-                assertOK(
-                    oldEs.performRequest(createIndexStandardTokenFilter("standard_token_filter_v6", "standard_token_filter_ES6.json"))
-                );
             }
+            assertOK(
+                oldEs.performRequest(createIndexStandardTokenFilter("standard_token_filter", "standard_token_filter.json"))
+            );
             assertOK(oldEs.performRequest(createIndex("custom", "custom.json")));
             assertOK(oldEs.performRequest(createIndex("nested", "nested.json")));
 
@@ -154,10 +150,10 @@ public class OldMappingsIT extends ESRestTestCase {
 
             Request doc4;
             if (oldVersion.before(Version.fromString("6.0.0"))) {
-                doc4 = new Request("POST", "/" + "standard_token_filter_v5" + "/" + "my_type");
+                doc4 = new Request("POST", "/" + "standard_token_filter" + "/" + "my_type");
 
             } else {
-                doc4 = new Request("POST", "/" + "standard_token_filter_v6" + "/" + "doc");
+                doc4 = new Request("POST", "/" + "standard_token_filter" + "/" + "doc");
             }
             doc4.addParameter("refresh", "true");
             XContentBuilder bodyDoc4 = XContentFactory.jsonBuilder().startObject().field("content", "Doc 1").endObject();
@@ -245,12 +241,7 @@ public class OldMappingsIT extends ESRestTestCase {
     }
 
     public void testStandardTokenFilter() throws IOException {
-        Request search;
-        if (oldVersion.before(Version.fromString("6.0.0"))) {
-            search = new Request("POST", "/" + "standard_token_filter_v5" + "/_search");
-        } else {
-            search = new Request("POST", "/" + "standard_token_filter_v6" + "/_search");
-        }
+        Request search = new Request("POST", "/" + "standard_token_filter" + "/_search");
         XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("query")

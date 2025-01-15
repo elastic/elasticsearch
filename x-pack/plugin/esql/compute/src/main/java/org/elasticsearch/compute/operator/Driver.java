@@ -245,7 +245,7 @@ public class Driver implements Releasable, Describable {
         ensureNotCancelled();
         boolean movedPage = false;
 
-        if (activeOperators.isEmpty() == false && activeOperators.getLast().isFinished() == false) {
+        if (activeOperators.isEmpty() == false && activeOperators.get(activeOperators.size() - 1).isFinished() == false) {
             for (int i = 0; i < activeOperators.size() - 1; i++) {
                 Operator op = activeOperators.get(i);
                 Operator nextOp = activeOperators.get(i + 1);
@@ -339,8 +339,9 @@ public class Driver implements Releasable, Describable {
             // 1. When the query accumulates sufficient data (e.g., reaching the LIMIT).
             // 2. When users abort the query but want to retain the current result.
             // This allows the Driver to finish early without waiting for the scheduled task.
-            if (driver.activeOperators.isEmpty() == false) {
-                if (driver.activeOperators.getLast() instanceof ExchangeSinkOperator sinkOperator) {
+            final List<Operator> operators = driver.activeOperators;
+            if (operators.isEmpty() == false) {
+                if (operators.get(operators.size() - 1) instanceof ExchangeSinkOperator sinkOperator) {
                     sinkOperator.addCompletionListener(ActionListener.running(driver.scheduler::runPendingTasks));
                 }
             }

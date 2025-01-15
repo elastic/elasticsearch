@@ -270,8 +270,7 @@ public class ConnectorIndexService {
                         }
                     })
                 );
-            }
-            else {
+            } else {
                 getConnector(connectorId, false, listener.delegateFailure((l, connector) -> {
                     final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).setRefreshPolicy(
                         WriteRequest.RefreshPolicy.IMMEDIATE

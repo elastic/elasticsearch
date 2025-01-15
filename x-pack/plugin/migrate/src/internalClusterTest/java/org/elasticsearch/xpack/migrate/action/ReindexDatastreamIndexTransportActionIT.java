@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.migrate.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -224,16 +225,46 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         assertEquals("text", XContentMapValues.extractValue("properties.foo1.type", destMappings));
     }
 
-    public void testReadOnlyAddedBack() {
+    public void testFailIfMetadataBlockSet() {
         assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
 
-        // Create source index with read-only and/or block-writes
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        boolean isReadOnly = randomBoolean();
-        boolean isBlockWrites = randomBoolean();
+        var settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_METADATA, true).build();
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)).actionGet();
+
+        try {
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)).actionGet();
+        } catch (ElasticsearchException e) {
+            assertTrue(e.getMessage().contains("Cannot reindex index") || e.getCause().getMessage().equals("Cannot reindex index"));
+        }
+
+        cleanupMetadataBlocks(sourceIndex);
+    }
+
+    public void testFailIfReadBlockSet() {
+        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
+
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        var settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_READ, true).build();
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)).actionGet();
+
+        try {
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)).actionGet();
+        } catch (ElasticsearchException e) {
+            assertTrue(e.getMessage().contains("Cannot reindex index") || e.getCause().getMessage().equals("Cannot reindex index"));
+        }
+
+        cleanupMetadataBlocks(sourceIndex);
+    }
+
+    public void testReadOnlyBlocksNotAddedBack() {
+        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
+
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         var settings = Settings.builder()
-            .put(IndexMetadata.SETTING_READ_ONLY, isReadOnly)
-            .put(IndexMetadata.SETTING_BLOCKS_WRITE, isBlockWrites)
+            .put(IndexMetadata.SETTING_READ_ONLY, randomBoolean())
+            .put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, randomBoolean())
+            .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
             .build();
         indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)).actionGet();
 
@@ -242,13 +273,13 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             .actionGet()
             .getDestIndex();
 
-        // assert read-only settings added back to dest index
         var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
-        assertEquals(isReadOnly, Boolean.parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_READ_ONLY)));
-        assertEquals(isBlockWrites, Boolean.parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_BLOCKS_WRITE)));
+        assertFalse(Boolean.parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_READ_ONLY)));
+        assertFalse(Boolean.parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)));
+        assertFalse(Boolean.parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_BLOCKS_WRITE)));
 
-        removeReadOnly(sourceIndex);
-        removeReadOnly(destIndex);
+        cleanupMetadataBlocks(sourceIndex);
+        cleanupMetadataBlocks(destIndex);
     }
 
     public void testUpdateSettingsDefaultsRestored() {
@@ -428,10 +459,11 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     // TODO check other IndexMetadata fields that need to be fixed after the fact
     // TODO what happens if don't have necessary perms for a given index?
 
-    private static void removeReadOnly(String index) {
+    private static void cleanupMetadataBlocks(String index) {
         var settings = Settings.builder()
-            .put(IndexMetadata.SETTING_READ_ONLY, false)
-            .put(IndexMetadata.SETTING_BLOCKS_WRITE, false)
+            .putNull(IndexMetadata.SETTING_READ_ONLY)
+            .putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
+            .putNull(IndexMetadata.SETTING_BLOCKS_METADATA)
             .build();
         assertAcked(indicesAdmin().updateSettings(new UpdateSettingsRequest(settings, index)).actionGet());
     }

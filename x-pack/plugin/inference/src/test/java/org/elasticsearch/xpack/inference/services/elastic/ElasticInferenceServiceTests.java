@@ -583,7 +583,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "int",
-                               "supported_task_types": ["sparse_embedding" , "completion"]
+                               "supported_task_types": ["sparse_embedding" , "chat_completion"]
                            },
                            "model_id": {
                                "description": "The name of the model to use for the inference task.",
@@ -592,7 +592,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["sparse_embedding" , "completion"]
+                               "supported_task_types": ["sparse_embedding" , "chat_completion"]
                            },
                            "max_input_tokens": {
                                "description": "Allows you to specify the maximum number of tokens per input.",

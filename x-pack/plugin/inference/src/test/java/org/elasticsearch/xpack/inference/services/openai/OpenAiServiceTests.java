@@ -1750,7 +1750,7 @@ public class OpenAiServiceTests extends ESTestCase {
                                     "sensitive": true,
                                     "updatable": true,
                                     "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion"]
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                 },
                                 "organization_id": {
                                     "description": "The unique identifier of your organization.",
@@ -1759,7 +1759,7 @@ public class OpenAiServiceTests extends ESTestCase {
                                     "sensitive": false,
                                     "updatable": false,
                                     "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion"]
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                 },
                                 "rate_limit.requests_per_minute": {
                                     "description": "Default number of requests allowed per minute. For text_embedding is 3000. For completion is 500.",
@@ -1768,7 +1768,7 @@ public class OpenAiServiceTests extends ESTestCase {
                                     "sensitive": false,
                                     "updatable": false,
                                     "type": "int",
-                                    "supported_task_types": ["text_embedding", "completion"]
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                 },
                                 "model_id": {
                                     "description": "The name of the model to use for the inference task.",
@@ -1777,7 +1777,7 @@ public class OpenAiServiceTests extends ESTestCase {
                                     "sensitive": false,
                                     "updatable": false,
                                     "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion"]
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                 },
                                 "url": {
                                     "default_value": "https://api.openai.com/v1/chat/completions",
@@ -1787,7 +1787,7 @@ public class OpenAiServiceTests extends ESTestCase {
                                     "sensitive": false,
                                     "updatable": false,
                                     "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion"]
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                 }
                             }
                         }

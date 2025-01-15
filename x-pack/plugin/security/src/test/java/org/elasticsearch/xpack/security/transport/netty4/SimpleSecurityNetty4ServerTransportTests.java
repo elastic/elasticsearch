@@ -1043,6 +1043,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 sharedGroupFactory,
                 mock(CrossClusterAccessAuthenticationService.class)
             );
+            assert version.equals(TransportVersion.current());
             this.doHandshake = doHandshake;
         }
 
@@ -1056,7 +1057,6 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             if (doHandshake) {
                 super.executeHandshake(node, channel, profile, listener);
             } else {
-                assert getVersion().equals(TransportVersion.current());
                 listener.onResponse(TransportVersions.MINIMUM_COMPATIBLE);
             }
         }

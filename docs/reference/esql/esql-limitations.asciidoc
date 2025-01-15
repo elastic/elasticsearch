@@ -30,11 +30,11 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 ** You can use `to_datetime` to cast to millisecond dates to use unsupported functions
 * `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
 * `ip`
-* `keyword` family including `keyword`, `constant_keyword`, and `wildcard`
+* `keyword` <<keyword, family>> including `keyword`, `constant_keyword`, and `wildcard`
 * `int` (`short` and `byte` are represented as `int`)
 * `long`
 * `null`
-* `text`
+* `text` <<text, family>> including `text`, `semantic_text` and `match_only_text`
 * experimental:[] `unsigned_long`
 * `version`
 * Spatial types
@@ -150,7 +150,7 @@ FROM books
 
 Note that, because of <<esql-limitations-text-fields,the way {esql} treats `text` values>>,
 any queries on `text` fields that do not explicitly use the full-text functions,
-<<esql-match>> or <<esql-qstr>>, will behave as if the fields are actually `keyword` fields:
+<<esql-match>>, <<esql-qstr>> or <<esql-kql>>, will behave as if the fields are actually `keyword` fields:
 they are case-sensitive and need to match the full string.
 
 [discrete]

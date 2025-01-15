@@ -62,7 +62,7 @@ public abstract class TranslogOperationAsserter {
             );
             try (
                 LuceneSyntheticSourceChangesSnapshot snapshot = new LuceneSyntheticSourceChangesSnapshot(
-                    mappingLookup,
+                    engineConfig.getMapperService(),
                     searcher,
                     LuceneSyntheticSourceChangesSnapshot.DEFAULT_BATCH_SIZE,
                     Integer.MAX_VALUE,

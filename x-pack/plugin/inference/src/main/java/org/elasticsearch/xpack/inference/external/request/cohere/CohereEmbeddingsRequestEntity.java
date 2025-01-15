@@ -51,7 +51,7 @@ public record CohereEmbeddingsRequestEntity(
         }
 
         if (taskSettings.getInputType() != null) {
-            builder.field(INPUT_TYPE_FIELD, covertToString(taskSettings.getInputType()));
+            builder.field(INPUT_TYPE_FIELD, convertToString(taskSettings.getInputType()));
         }
 
         if (embeddingType != null) {
@@ -67,7 +67,7 @@ public record CohereEmbeddingsRequestEntity(
     }
 
     // default for testing
-    static String covertToString(InputType inputType) {
+    static String convertToString(InputType inputType) {
         return switch (inputType) {
             case INGEST -> SEARCH_DOCUMENT;
             case SEARCH -> SEARCH_QUERY;

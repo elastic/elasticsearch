@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -941,7 +942,7 @@ public class GetActionIT extends ESIntegTestCase {
             prepareCreate(index).setMapping("title", "type=keyword", "author", "type=nested")
                 .setSettings(
                     indexSettings(1, 0).put("index.refresh_interval", -1)
-                        .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), sourceMode)
+                        .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), sourceMode)
                 )
         );
         ensureGreen();

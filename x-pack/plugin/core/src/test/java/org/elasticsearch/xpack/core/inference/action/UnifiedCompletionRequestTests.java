@@ -35,7 +35,6 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                           "type": "string"
                         }
                     ],
-                    "name": "a name",
                     "tool_call_id": "100",
                     "tool_calls": [
                         {
@@ -83,7 +82,6 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                             List.of(new UnifiedCompletionRequest.ContentObject("some text", "string"))
                         ),
                         "user",
-                        "a name",
                         "100",
                         List.of(
                             new UnifiedCompletionRequest.ToolCall(
@@ -155,7 +153,6 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                         new UnifiedCompletionRequest.ContentString("What is the weather like in Boston today?"),
                         "user",
                         null,
-                        null,
                         null
                     )
                 ),
@@ -186,7 +183,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         return new UnifiedCompletionRequest(
             randomList(5, UnifiedCompletionRequestTests::randomMessage),
             randomAlphaOfLengthOrNull(10),
-            randomPositiveLongOrNull(),
+            randomNonNegativeLongOrNull(),
             randomStopOrNull(),
             randomFloatOrNull(),
             randomToolChoiceOrNull(),
@@ -199,7 +196,6 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         return new UnifiedCompletionRequest.Message(
             randomContent(),
             randomAlphaOfLength(10),
-            randomAlphaOfLengthOrNull(10),
             randomAlphaOfLengthOrNull(10),
             randomToolCallListOrNull()
         );

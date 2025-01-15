@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.core.expression.predicate;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
@@ -211,7 +212,11 @@ public class RangeTests extends ESTestCase {
                 (Boolean) test[7],
                 ZoneId.systemDefault()
             );
-            assertEquals("failed on test " + i + ": " + Arrays.toString(test), test[8], range.areBoundariesInvalid());
+            assertEquals(
+                "failed on test " + i + ": " + Arrays.toString(test),
+                test[8],
+                range.areBoundariesInvalid(range.lower().fold(FoldContext.small()), range.upper().fold(FoldContext.small()))
+            );
         }
     }
 
@@ -226,5 +231,4 @@ public class RangeTests extends ESTestCase {
     private static DataType randomTextType() {
         return randomFrom(KEYWORD, TEXT);
     }
-
 }

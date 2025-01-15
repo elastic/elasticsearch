@@ -449,7 +449,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                            "sensitive": false,
                            "updatable": false,
                            "type": "str",
-                           "available_for_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "api_key": {
                            "description": "A valid API key for the AlibabaCloud AI Search API.",
@@ -458,7 +458,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                            "sensitive": true,
                            "updatable": true,
                            "type": "str",
-                           "available_for_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "service_id": {
                            "description": "The name of the model service to use for the {infer} task.",
@@ -467,7 +467,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                            "sensitive": false,
                            "updatable": false,
                            "type": "str",
-                           "available_for_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "host": {
                            "description": "The name of the host address used for the {infer} task. You can find the host address at https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[ the API keys section] of the documentation.",
@@ -476,7 +476,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                            "sensitive": false,
                            "updatable": false,
                            "type": "str",
-                           "available_for_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "rate_limit.requests_per_minute": {
                            "description": "Minimize the number of rate limit errors.",
@@ -485,7 +485,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                            "sensitive": false,
                            "updatable": false,
                            "type": "int",
-                           "available_for_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "http_schema": {
                            "description": "",
@@ -494,7 +494,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                            "sensitive": false,
                            "updatable": false,
                            "type": "str",
-                           "available_for_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          }
                        }
                     }

@@ -1565,7 +1565,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": true,
                                "type": "int",
-                               "available_for_task_types": ["text_embedding", "sparse_embedding", "rerank"]
+                               "supported_task_types": ["text_embedding", "sparse_embedding", "rerank"]
                            },
                            "num_threads": {
                                "default_value": 2,
@@ -1575,7 +1575,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "int",
-                               "available_for_task_types": ["text_embedding", "sparse_embedding", "rerank"]
+                               "supported_task_types": ["text_embedding", "sparse_embedding", "rerank"]
                            },
                            "model_id": {
                                "default_value": ".multilingual-e5-small",
@@ -1585,7 +1585,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "available_for_task_types": ["text_embedding", "sparse_embedding", "rerank"]
+                               "supported_task_types": ["text_embedding", "sparse_embedding", "rerank"]
                            }
                        }
                    }

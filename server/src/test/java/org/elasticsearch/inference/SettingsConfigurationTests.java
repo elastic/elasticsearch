@@ -35,7 +35,7 @@ public class SettingsConfigurationTests extends ESTestCase {
                "sensitive": false,
                "updatable": true,
                "type": "str",
-               "available_for_task_types": ["text_embedding", "completion", "sparse_embedding", "rerank"]
+               "supported_task_types": ["text_embedding", "completion", "sparse_embedding", "rerank"]
             }
             """);
 
@@ -58,7 +58,7 @@ public class SettingsConfigurationTests extends ESTestCase {
                "sensitive": false,
                "updatable": true,
                "type": "str",
-               "available_for_task_types": ["text_embedding"]
+               "supported_task_types": ["text_embedding"]
             }
             """);
 
@@ -77,7 +77,7 @@ public class SettingsConfigurationTests extends ESTestCase {
             {
                "label": "nextSyncConfig",
                "value": null,
-               "available_for_task_types": ["text_embedding", "completion", "sparse_embedding", "rerank"]
+               "supported_task_types": ["text_embedding", "completion", "sparse_embedding", "rerank"]
             }
             """);
 

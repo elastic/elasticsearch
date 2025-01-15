@@ -1402,7 +1402,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                             "sensitive": false,
                             "updatable": false,
                             "type": "str",
-                            "available_for_task_types": ["text_embedding", "completion"]
+                            "supported_task_types": ["text_embedding", "completion"]
                         },
                         "provider": {
                             "description": "The model provider for your deployment.",
@@ -1411,7 +1411,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                             "sensitive": false,
                             "updatable": false,
                             "type": "str",
-                            "available_for_task_types": ["text_embedding", "completion"]
+                            "supported_task_types": ["text_embedding", "completion"]
                         },
                         "api_key": {
                             "description": "API Key for the provider you're connecting to.",
@@ -1420,7 +1420,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                             "sensitive": true,
                             "updatable": true,
                             "type": "str",
-                            "available_for_task_types": ["text_embedding", "completion"]
+                            "supported_task_types": ["text_embedding", "completion"]
                         },
                         "rate_limit.requests_per_minute": {
                             "description": "Minimize the number of rate limit errors.",
@@ -1429,7 +1429,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                             "sensitive": false,
                             "updatable": false,
                             "type": "int",
-                            "available_for_task_types": ["text_embedding", "completion"]
+                            "supported_task_types": ["text_embedding", "completion"]
                         },
                         "target": {
                             "description": "The target URL of your Azure AI Studio model deployment.",
@@ -1438,7 +1438,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                             "sensitive": false,
                             "updatable": false,
                             "type": "str",
-                            "available_for_task_types": ["text_embedding", "completion"]
+                            "supported_task_types": ["text_embedding", "completion"]
                         }
                     }
                 }

@@ -1134,7 +1134,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                                "sensitive": true,
                                "updatable": true,
                                "type": "str",
-                               "available_for_task_types": ["text_embedding", "completion"]
+                               "supported_task_types": ["text_embedding", "completion"]
                            },
                            "rate_limit.requests_per_minute": {
                                "description": "Minimize the number of rate limit errors.",
@@ -1143,7 +1143,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "int",
-                               "available_for_task_types": ["text_embedding", "completion"]
+                               "supported_task_types": ["text_embedding", "completion"]
                            },
                            "model_id": {
                                "description": "ID of the LLM you're using.",
@@ -1152,7 +1152,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "available_for_task_types": ["text_embedding", "completion"]
+                               "supported_task_types": ["text_embedding", "completion"]
                            }
                        }
                    }

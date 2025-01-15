@@ -1646,7 +1646,7 @@ public class CohereServiceTests extends ESTestCase {
                                 "sensitive": true,
                                 "updatable": true,
                                 "type": "str",
-                                "available_for_task_types": ["text_embedding", "rerank", "completion"]
+                                "supported_task_types": ["text_embedding", "rerank", "completion"]
                             },
                             "rate_limit.requests_per_minute": {
                                 "description": "Minimize the number of rate limit errors.",
@@ -1655,7 +1655,7 @@ public class CohereServiceTests extends ESTestCase {
                                 "sensitive": false,
                                 "updatable": false,
                                 "type": "int",
-                                "available_for_task_types": ["text_embedding", "rerank", "completion"]
+                                "supported_task_types": ["text_embedding", "rerank", "completion"]
                             }
                         }
                     }

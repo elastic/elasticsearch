@@ -105,7 +105,7 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
     static final ParseField SENSITIVE_FIELD = new ParseField("sensitive");
     static final ParseField UPDATABLE_FIELD = new ParseField("updatable");
     static final ParseField TYPE_FIELD = new ParseField("type");
-    static final ParseField SUPPORTED_TASK_TYPES = new ParseField("available_for_task_types");
+    static final ParseField SUPPORTED_TASK_TYPES = new ParseField("supported_task_types");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<SettingsConfiguration, Void> PARSER = new ConstructingObjectParser<>(

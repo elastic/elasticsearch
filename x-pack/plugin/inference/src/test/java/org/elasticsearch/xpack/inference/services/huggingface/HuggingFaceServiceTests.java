@@ -869,7 +869,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                                "sensitive": true,
                                "updatable": true,
                                "type": "str",
-                               "available_for_task_types": ["text_embedding", "sparse_embedding"]
+                               "supported_task_types": ["text_embedding", "sparse_embedding"]
                            },
                            "rate_limit.requests_per_minute": {
                                "description": "Minimize the number of rate limit errors.",
@@ -878,7 +878,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "int",
-                               "available_for_task_types": ["text_embedding", "sparse_embedding"]
+                               "supported_task_types": ["text_embedding", "sparse_embedding"]
                            },
                            "url": {
                                "default_value": "https://api.openai.com/v1/embeddings",
@@ -888,7 +888,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "available_for_task_types": ["text_embedding", "sparse_embedding"]
+                               "supported_task_types": ["text_embedding", "sparse_embedding"]
                            }
                        }
                    }

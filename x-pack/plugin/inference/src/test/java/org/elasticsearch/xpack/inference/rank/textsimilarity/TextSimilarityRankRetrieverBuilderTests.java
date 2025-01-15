@@ -70,8 +70,7 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
             parser,
             new RetrieverParserContext(
                 new SearchUsage(),
-                nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED
-                    || nf == TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_RETRIEVER_SUPPORTED
+                nf -> nf == TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_RETRIEVER_SUPPORTED
                     || nf == TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_COMPOSITION_SUPPORTED
             )
         );

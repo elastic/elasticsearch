@@ -79,11 +79,11 @@ public class MvExpandOperator implements Operator {
     /**
      * Count of rows this operator has received.
      */
-    private int rowsReceived;
+    private long rowsReceived;
     /**
      * Count of rows this operator has emitted.
      */
-    private int rowsEmitted;
+    private long rowsEmitted;
 
     public MvExpandOperator(int channel, int pageSize) {
         this.channel = channel;
@@ -271,8 +271,8 @@ public class MvExpandOperator implements Operator {
         private final int pagesReceived;
         private final int pagesEmitted;
         private final int noops;
-        private final int rowsReceived;
-        private final int rowsEmitted;
+        private final long rowsReceived;
+        private final long rowsEmitted;
 
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
@@ -280,7 +280,7 @@ public class MvExpandOperator implements Operator {
             Status::new
         );
 
-        Status(int pagesReceived, int pagesEmitted, int noops, int rowsReceived, int rowsEmitted) {
+        Status(int pagesReceived, int pagesEmitted, int noops, long rowsReceived, long rowsEmitted) {
             this.pagesReceived = pagesReceived;
             this.pagesEmitted = pagesEmitted;
             this.noops = noops;
@@ -293,8 +293,8 @@ public class MvExpandOperator implements Operator {
             pagesEmitted = in.readVInt();
             noops = in.readVInt();
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                rowsReceived = in.readVInt();
-                rowsEmitted = in.readVInt();
+                rowsReceived = in.readVLong();
+                rowsEmitted = in.readVLong();
             } else {
                 rowsReceived = 0;
                 rowsEmitted = 0;
@@ -307,8 +307,8 @@ public class MvExpandOperator implements Operator {
             out.writeVInt(pagesEmitted);
             out.writeVInt(noops);
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                out.writeVInt(rowsReceived);
-                out.writeVInt(rowsEmitted);
+                out.writeVLong(rowsReceived);
+                out.writeVLong(rowsEmitted);
             }
         }
 
@@ -356,11 +356,11 @@ public class MvExpandOperator implements Operator {
             return pagesEmitted;
         }
 
-        public int rowsReceived() {
+        public long rowsReceived() {
             return rowsReceived;
         }
 
-        public int rowsEmitted() {
+        public long rowsEmitted() {
             return rowsEmitted;
         }
 

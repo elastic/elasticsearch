@@ -47,8 +47,8 @@ public class AggregationOperatorStatusTests extends AbstractWireSerializingTestC
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeInt(),
-            randomNonNegativeInt(),
-            randomNonNegativeInt()
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
     }
 
@@ -57,14 +57,14 @@ public class AggregationOperatorStatusTests extends AbstractWireSerializingTestC
         long aggregationNanos = instance.aggregationNanos();
         long aggregationFinishNanos = instance.aggregationFinishNanos();
         int pagesProcessed = instance.pagesProcessed();
-        int rowsReceived = instance.rowsReceived();
-        int rowsEmitted = instance.rowsEmitted();
+        long rowsReceived = instance.rowsReceived();
+        long rowsEmitted = instance.rowsEmitted();
         switch (between(0, 4)) {
             case 0 -> aggregationNanos = randomValueOtherThan(aggregationNanos, ESTestCase::randomNonNegativeLong);
             case 1 -> aggregationFinishNanos = randomValueOtherThan(aggregationFinishNanos, ESTestCase::randomNonNegativeLong);
             case 2 -> pagesProcessed = randomValueOtherThan(pagesProcessed, ESTestCase::randomNonNegativeInt);
-            case 3 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeInt);
-            case 4 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeInt);
+            case 3 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
+            case 4 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
         return new AggregationOperator.Status(aggregationNanos, aggregationFinishNanos, pagesProcessed, rowsReceived, rowsEmitted);

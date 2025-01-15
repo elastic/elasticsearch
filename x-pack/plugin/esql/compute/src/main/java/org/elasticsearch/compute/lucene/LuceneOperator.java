@@ -71,7 +71,7 @@ public abstract class LuceneOperator extends SourceOperator {
     /**
      * Count of rows this operator has emitted.
      */
-    private int rowsEmitted;
+    private long rowsEmitted;
 
     protected LuceneOperator(BlockFactory blockFactory, int maxPageSize, LuceneSliceQueue sliceQueue) {
         this.blockFactory = blockFactory;
@@ -261,7 +261,7 @@ public abstract class LuceneOperator extends SourceOperator {
         private final int sliceMin;
         private final int sliceMax;
         private final int current;
-        private final int rowsEmitted;
+        private final long rowsEmitted;
 
         private Status(LuceneOperator operator) {
             processedSlices = operator.processedSlices;
@@ -300,7 +300,7 @@ public abstract class LuceneOperator extends SourceOperator {
             int sliceMin,
             int sliceMax,
             int current,
-            int rowsEmitted
+            long rowsEmitted
         ) {
             this.processedSlices = processedSlices;
             this.processedQueries = processedQueries;
@@ -332,7 +332,7 @@ public abstract class LuceneOperator extends SourceOperator {
             sliceMax = in.readVInt();
             current = in.readVInt();
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                rowsEmitted = in.readVInt();
+                rowsEmitted = in.readVLong();
             } else {
                 rowsEmitted = 0;
             }
@@ -355,7 +355,7 @@ public abstract class LuceneOperator extends SourceOperator {
             out.writeVInt(sliceMax);
             out.writeVInt(current);
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                out.writeVInt(rowsEmitted);
+                out.writeVLong(rowsEmitted);
             }
         }
 
@@ -404,7 +404,7 @@ public abstract class LuceneOperator extends SourceOperator {
             return current;
         }
 
-        public int rowsEmitted() {
+        public long rowsEmitted() {
             return rowsEmitted;
         }
 

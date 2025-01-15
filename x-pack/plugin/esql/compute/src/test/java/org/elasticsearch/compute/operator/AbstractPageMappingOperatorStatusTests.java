@@ -44,8 +44,8 @@ public class AbstractPageMappingOperatorStatusTests extends AbstractWireSerializ
         return new AbstractPageMappingOperator.Status(
             randomNonNegativeLong(),
             randomNonNegativeInt(),
-            randomNonNegativeInt(),
-            randomNonNegativeInt()
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
     }
 
@@ -53,13 +53,13 @@ public class AbstractPageMappingOperatorStatusTests extends AbstractWireSerializ
     protected AbstractPageMappingOperator.Status mutateInstance(AbstractPageMappingOperator.Status instance) {
         long processNanos = instance.processNanos();
         int pagesProcessed = instance.pagesProcessed();
-        int rowsReceived = instance.rowsReceived();
-        int rowsEmitted = instance.rowsEmitted();
+        long rowsReceived = instance.rowsReceived();
+        long rowsEmitted = instance.rowsEmitted();
         switch (between(0, 3)) {
             case 0 -> processNanos = randomValueOtherThan(processNanos, ESTestCase::randomNonNegativeLong);
             case 1 -> pagesProcessed = randomValueOtherThan(pagesProcessed, ESTestCase::randomNonNegativeInt);
-            case 2 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeInt);
-            case 3 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeInt);
+            case 2 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
+            case 3 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
         return new AbstractPageMappingOperator.Status(processNanos, pagesProcessed, rowsReceived, rowsEmitted);

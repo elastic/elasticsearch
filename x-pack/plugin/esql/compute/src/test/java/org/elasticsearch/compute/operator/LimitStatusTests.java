@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -29,11 +30,11 @@ public class LimitStatusTests extends AbstractWireSerializingTestCase<LimitOpera
     @Override
     protected LimitOperator.Status createTestInstance() {
         return new LimitOperator.Status(
-            between(0, Integer.MAX_VALUE),
-            between(0, Integer.MAX_VALUE),
-            between(0, Integer.MAX_VALUE),
-            between(0, Integer.MAX_VALUE),
-            between(0, Integer.MAX_VALUE)
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
     }
 
@@ -42,23 +43,23 @@ public class LimitStatusTests extends AbstractWireSerializingTestCase<LimitOpera
         int limit = instance.limit();
         int limitRemaining = instance.limitRemaining();
         int pagesProcessed = instance.pagesProcessed();
-        int rowsReceived = instance.rowsReceived();
-        int rowsEmitted = instance.rowsEmitted();
+        long rowsReceived = instance.rowsReceived();
+        long rowsEmitted = instance.rowsEmitted();
         switch (between(0, 4)) {
             case 0:
-                limit = randomValueOtherThan(limit, () -> between(0, Integer.MAX_VALUE));
+                limit = randomValueOtherThan(limit, ESTestCase::randomNonNegativeInt);
                 break;
             case 1:
-                limitRemaining = randomValueOtherThan(limitRemaining, () -> between(0, Integer.MAX_VALUE));
+                limitRemaining = randomValueOtherThan(limitRemaining, ESTestCase::randomNonNegativeInt);
                 break;
             case 2:
-                pagesProcessed = randomValueOtherThan(pagesProcessed, () -> between(0, Integer.MAX_VALUE));
+                pagesProcessed = randomValueOtherThan(pagesProcessed, ESTestCase::randomNonNegativeInt);
                 break;
             case 3:
-                rowsReceived = randomValueOtherThan(rowsReceived, () -> between(0, Integer.MAX_VALUE));
+                rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
                 break;
             case 4:
-                rowsEmitted = randomValueOtherThan(rowsEmitted, () -> between(0, Integer.MAX_VALUE));
+                rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
                 break;
             default:
                 throw new IllegalArgumentException();

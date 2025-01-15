@@ -47,8 +47,8 @@ public class AbstractPageMappingToIteratorOperatorStatusTests extends AbstractWi
             randomNonNegativeLong(),
             randomNonNegativeInt(),
             randomNonNegativeInt(),
-            randomNonNegativeInt(),
-            randomNonNegativeInt()
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
     }
 
@@ -57,14 +57,14 @@ public class AbstractPageMappingToIteratorOperatorStatusTests extends AbstractWi
         long processNanos = instance.processNanos();
         int pagesReceived = instance.pagesReceived();
         int pagesEmitted = instance.pagesEmitted();
-        int rowsReceived = instance.rowsReceived();
-        int rowsEmitted = instance.rowsEmitted();
+        long rowsReceived = instance.rowsReceived();
+        long rowsEmitted = instance.rowsEmitted();
         switch (between(0, 4)) {
             case 0 -> processNanos = randomValueOtherThan(processNanos, ESTestCase::randomNonNegativeLong);
             case 1 -> pagesReceived = randomValueOtherThan(pagesReceived, ESTestCase::randomNonNegativeInt);
             case 2 -> pagesEmitted = randomValueOtherThan(pagesEmitted, ESTestCase::randomNonNegativeInt);
-            case 3 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeInt);
-            case 4 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeInt);
+            case 3 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
+            case 4 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
         return new AbstractPageMappingToIteratorOperator.Status(processNanos, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);

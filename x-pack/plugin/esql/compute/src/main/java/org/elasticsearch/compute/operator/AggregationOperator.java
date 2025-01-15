@@ -61,11 +61,11 @@ public class AggregationOperator implements Operator {
     /**
      * Count of rows this operator has received.
      */
-    private int rowsReceived;
+    private long rowsReceived;
     /**
      * Count of rows this operator has emitted.
      */
-    private int rowsEmitted;
+    private long rowsEmitted;
 
     public record AggregationOperatorFactory(List<Factory> aggregators, AggregatorMode mode) implements OperatorFactory {
 
@@ -219,11 +219,11 @@ public class AggregationOperator implements Operator {
         /**
          * Count of rows this operator has received.
          */
-        private final int rowsReceived;
+        private final long rowsReceived;
         /**
          * Count of rows this operator has emitted.
          */
-        private final int rowsEmitted;
+        private final long rowsEmitted;
 
         /**
          * Build.
@@ -231,7 +231,7 @@ public class AggregationOperator implements Operator {
          * @param aggregationFinishNanos Nanoseconds this operator has spent running the aggregations.
          * @param pagesProcessed Count of pages this operator has processed.
          */
-        public Status(long aggregationNanos, long aggregationFinishNanos, int pagesProcessed, int rowsReceived, int rowsEmitted) {
+        public Status(long aggregationNanos, long aggregationFinishNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
             this.aggregationNanos = aggregationNanos;
             this.aggregationFinishNanos = aggregationFinishNanos;
             this.pagesProcessed = pagesProcessed;
@@ -248,8 +248,8 @@ public class AggregationOperator implements Operator {
             }
             pagesProcessed = in.readVInt();
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                rowsReceived = in.readVInt();
-                rowsEmitted = in.readVInt();
+                rowsReceived = in.readVLong();
+                rowsEmitted = in.readVLong();
             } else {
                 rowsReceived = 0;
                 rowsEmitted = 0;
@@ -264,8 +264,8 @@ public class AggregationOperator implements Operator {
             }
             out.writeVInt(pagesProcessed);
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                out.writeVInt(rowsReceived);
-                out.writeVInt(rowsEmitted);
+                out.writeVLong(rowsReceived);
+                out.writeVLong(rowsEmitted);
             }
         }
 
@@ -298,14 +298,14 @@ public class AggregationOperator implements Operator {
         /**
          * Count of rows this operator has received.
          */
-        public int rowsReceived() {
+        public long rowsReceived() {
             return rowsReceived;
         }
 
         /**
          * Count of rows this operator has emitted.
          */
-        public int rowsEmitted() {
+        public long rowsEmitted() {
             return rowsEmitted;
         }
 

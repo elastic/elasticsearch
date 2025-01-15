@@ -102,11 +102,11 @@ public class HashAggregationOperator implements Operator {
     /**
      * Count of rows this operator has received.
      */
-    private int rowsReceived;
+    private long rowsReceived;
     /**
      * Count of rows this operator has emitted.
      */
-    private int rowsEmitted;
+    private long rowsEmitted;
 
     @SuppressWarnings("this-escape")
     public HashAggregationOperator(
@@ -303,11 +303,11 @@ public class HashAggregationOperator implements Operator {
         /**
          * Count of rows this operator has received.
          */
-        private final int rowsReceived;
+        private final long rowsReceived;
         /**
          * Count of rows this operator has emitted.
          */
-        private final int rowsEmitted;
+        private final long rowsEmitted;
 
         /**
          * Build.
@@ -317,7 +317,7 @@ public class HashAggregationOperator implements Operator {
          * @param rowsReceived Count of rows this operator has received.
          * @param rowsEmitted Count of rows this operator has emitted.
          */
-        public Status(long hashNanos, long aggregationNanos, int pagesProcessed, int rowsReceived, int rowsEmitted) {
+        public Status(long hashNanos, long aggregationNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
             this.hashNanos = hashNanos;
             this.aggregationNanos = aggregationNanos;
             this.pagesProcessed = pagesProcessed;
@@ -331,8 +331,8 @@ public class HashAggregationOperator implements Operator {
             pagesProcessed = in.readVInt();
 
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                rowsReceived = in.readVInt();
-                rowsEmitted = in.readVInt();
+                rowsReceived = in.readVLong();
+                rowsEmitted = in.readVLong();
             } else {
                 rowsReceived = 0;
                 rowsEmitted = 0;
@@ -346,8 +346,8 @@ public class HashAggregationOperator implements Operator {
             out.writeVInt(pagesProcessed);
 
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                out.writeVInt(rowsReceived);
-                out.writeVInt(rowsEmitted);
+                out.writeVLong(rowsReceived);
+                out.writeVLong(rowsEmitted);
             }
         }
 
@@ -380,14 +380,14 @@ public class HashAggregationOperator implements Operator {
         /**
          * Count of rows this operator has received.
          */
-        public int rowsReceived() {
+        public long rowsReceived() {
             return rowsReceived;
         }
 
         /**
          * Count of rows this operator has emitted.
          */
-        public int rowsEmitted() {
+        public long rowsEmitted() {
             return rowsEmitted;
         }
 

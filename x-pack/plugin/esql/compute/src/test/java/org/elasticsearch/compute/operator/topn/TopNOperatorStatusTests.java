@@ -48,8 +48,8 @@ public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<Top
             randomNonNegativeLong(),
             randomNonNegativeInt(),
             randomNonNegativeInt(),
-            randomNonNegativeInt(),
-            randomNonNegativeInt()
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
     }
 
@@ -59,8 +59,8 @@ public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<Top
         long ramBytesUsed = instance.ramBytesUsed();
         int pagesReceived = instance.pagesReceived();
         int pagesEmitted = instance.pagesEmitted();
-        int rowsReceived = instance.rowsReceived();
-        int rowsEmitted = instance.rowsEmitted();
+        long rowsReceived = instance.rowsReceived();
+        long rowsEmitted = instance.rowsEmitted();
         switch (between(0, 5)) {
             case 0:
                 occupiedRows = randomValueOtherThan(occupiedRows, ESTestCase::randomNonNegativeInt);
@@ -75,10 +75,10 @@ public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<Top
                 pagesEmitted = randomValueOtherThan(pagesEmitted, ESTestCase::randomNonNegativeInt);
                 break;
             case 4:
-                rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeInt);
+                rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
                 break;
             case 5:
-                rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeInt);
+                rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
                 break;
             default:
                 throw new IllegalArgumentException();

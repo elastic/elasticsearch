@@ -39,8 +39,8 @@ public class MvExpandOperatorStatusTests extends AbstractWireSerializingTestCase
             randomNonNegativeInt(),
             randomNonNegativeInt(),
             randomNonNegativeInt(),
-            randomNonNegativeInt(),
-            randomNonNegativeInt()
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
     }
 
@@ -49,14 +49,14 @@ public class MvExpandOperatorStatusTests extends AbstractWireSerializingTestCase
         int pagesReceived = instance.pagesReceived();
         int pagesEmitted = instance.pagesEmitted();
         int noops = instance.noops();
-        int rowsReceived = instance.rowsReceived();
-        int rowsEmitted = instance.rowsEmitted();
+        long rowsReceived = instance.rowsReceived();
+        long rowsEmitted = instance.rowsEmitted();
         switch (between(0, 4)) {
             case 0 -> pagesReceived = randomValueOtherThan(instance.pagesReceived(), ESTestCase::randomNonNegativeInt);
             case 1 -> pagesEmitted = randomValueOtherThan(instance.pagesEmitted(), ESTestCase::randomNonNegativeInt);
             case 2 -> noops = randomValueOtherThan(instance.noops(), ESTestCase::randomNonNegativeInt);
-            case 3 -> rowsReceived = randomValueOtherThan(instance.rowsReceived(), ESTestCase::randomNonNegativeInt);
-            case 4 -> rowsEmitted = randomValueOtherThan(instance.rowsEmitted(), ESTestCase::randomNonNegativeInt);
+            case 3 -> rowsReceived = randomValueOtherThan(instance.rowsReceived(), ESTestCase::randomNonNegativeLong);
+            case 4 -> rowsEmitted = randomValueOtherThan(instance.rowsEmitted(), ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
         return new MvExpandOperator.Status(pagesReceived, pagesEmitted, noops, rowsReceived, rowsEmitted);

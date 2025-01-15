@@ -291,12 +291,12 @@ public class TopNOperator implements Operator, Accountable {
     /**
      * Count of rows this operator has received.
      */
-    private int rowsReceived;
+    private long rowsReceived;
 
     /**
      * Count of rows this operator has emitted.
      */
-    private int rowsEmitted;
+    private long rowsEmitted;
 
     public TopNOperator(
         BlockFactory blockFactory,

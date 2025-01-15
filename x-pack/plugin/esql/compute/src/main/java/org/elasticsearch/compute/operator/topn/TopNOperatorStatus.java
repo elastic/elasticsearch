@@ -29,10 +29,17 @@ public class TopNOperatorStatus implements Operator.Status {
     private final long ramBytesUsed;
     private final int pagesReceived;
     private final int pagesEmitted;
-    private final int rowsReceived;
-    private final int rowsEmitted;
+    private final long rowsReceived;
+    private final long rowsEmitted;
 
-    public TopNOperatorStatus(int occupiedRows, long ramBytesUsed, int pagesReceived, int pagesEmitted, int rowsReceived, int rowsEmitted) {
+    public TopNOperatorStatus(
+        int occupiedRows,
+        long ramBytesUsed,
+        int pagesReceived,
+        int pagesEmitted,
+        long rowsReceived,
+        long rowsEmitted
+    ) {
         this.occupiedRows = occupiedRows;
         this.ramBytesUsed = ramBytesUsed;
         this.pagesReceived = pagesReceived;
@@ -48,8 +55,8 @@ public class TopNOperatorStatus implements Operator.Status {
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
             this.pagesReceived = in.readVInt();
             this.pagesEmitted = in.readVInt();
-            this.rowsReceived = in.readVInt();
-            this.rowsEmitted = in.readVInt();
+            this.rowsReceived = in.readVLong();
+            this.rowsEmitted = in.readVLong();
         } else {
             this.pagesReceived = 0;
             this.pagesEmitted = 0;
@@ -66,8 +73,8 @@ public class TopNOperatorStatus implements Operator.Status {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
             out.writeVInt(pagesReceived);
             out.writeVInt(pagesEmitted);
-            out.writeVInt(rowsReceived);
-            out.writeVInt(rowsEmitted);
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
         }
     }
 
@@ -92,11 +99,11 @@ public class TopNOperatorStatus implements Operator.Status {
         return pagesEmitted;
     }
 
-    public int rowsReceived() {
+    public long rowsReceived() {
         return rowsReceived;
     }
 
-    public int rowsEmitted() {
+    public long rowsEmitted() {
         return rowsEmitted;
     }
 

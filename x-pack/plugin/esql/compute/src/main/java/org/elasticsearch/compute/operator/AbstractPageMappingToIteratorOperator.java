@@ -52,12 +52,12 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
     /**
      * Count of rows this operator has received.
      */
-    private int rowsReceived;
+    private long rowsReceived;
 
     /**
      * Count of rows this operator has emitted.
      */
-    private int rowsEmitted;
+    private long rowsEmitted;
 
     /**
      * Build and Iterator of results for a new page.
@@ -125,8 +125,8 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
         long processNanos,
         int pagesReceived,
         int pagesEmitted,
-        int rowsReceived,
-        int rowsEmitted
+        long rowsReceived,
+        long rowsEmitted
     ) {
         return new AbstractPageMappingToIteratorOperator.Status(processNanos, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
     }
@@ -172,10 +172,10 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
         private final long processNanos;
         private final int pagesReceived;
         private final int pagesEmitted;
-        private final int rowsReceived;
-        private final int rowsEmitted;
+        private final long rowsReceived;
+        private final long rowsEmitted;
 
-        public Status(long processNanos, int pagesProcessed, int pagesEmitted, int rowsReceived, int rowsEmitted) {
+        public Status(long processNanos, int pagesProcessed, int pagesEmitted, long rowsReceived, long rowsEmitted) {
             this.processNanos = processNanos;
             this.pagesReceived = pagesProcessed;
             this.pagesEmitted = pagesEmitted;
@@ -188,8 +188,8 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
             pagesReceived = in.readVInt();
             pagesEmitted = in.readVInt();
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                rowsReceived = in.readVInt();
-                rowsEmitted = in.readVInt();
+                rowsReceived = in.readVLong();
+                rowsEmitted = in.readVLong();
             } else {
                 rowsReceived = 0;
                 rowsEmitted = 0;
@@ -202,8 +202,8 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
             out.writeVInt(pagesReceived);
             out.writeVInt(pagesEmitted);
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                out.writeVInt(rowsReceived);
-                out.writeVInt(rowsEmitted);
+                out.writeVLong(rowsReceived);
+                out.writeVLong(rowsEmitted);
             }
         }
 
@@ -220,11 +220,11 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
             return pagesEmitted;
         }
 
-        public int rowsReceived() {
+        public long rowsReceived() {
             return rowsReceived;
         }
 
-        public int rowsEmitted() {
+        public long rowsEmitted() {
             return rowsEmitted;
         }
 

@@ -546,7 +546,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     }
 
     @Override
-    protected Status status(long processNanos, int pagesProcessed, int rowsReceived, int rowsEmitted) {
+    protected Status status(long processNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
         return new Status(new TreeMap<>(readersBuilt), processNanos, pagesProcessed, rowsReceived, rowsEmitted);
     }
 
@@ -559,7 +559,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         private final Map<String, Integer> readersBuilt;
 
-        Status(Map<String, Integer> readersBuilt, long processNanos, int pagesProcessed, int rowsReceived, int rowsEmitted) {
+        Status(Map<String, Integer> readersBuilt, long processNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
             super(processNanos, pagesProcessed, rowsReceived, rowsEmitted);
             this.readersBuilt = readersBuilt;
         }

@@ -52,8 +52,8 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
             randomReadersBuilt(),
             randomNonNegativeLong(),
             randomNonNegativeInt(),
-            randomNonNegativeInt(),
-            randomNonNegativeInt()
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
     }
 
@@ -71,14 +71,14 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
         Map<String, Integer> readersBuilt = instance.readersBuilt();
         long processNanos = instance.processNanos();
         int pagesProcessed = instance.pagesProcessed();
-        int rowsReceived = instance.rowsReceived();
-        int rowsEmitted = instance.rowsEmitted();
+        long rowsReceived = instance.rowsReceived();
+        long rowsEmitted = instance.rowsEmitted();
         switch (between(0, 4)) {
             case 0 -> readersBuilt = randomValueOtherThan(readersBuilt, this::randomReadersBuilt);
             case 1 -> processNanos = randomValueOtherThan(processNanos, ESTestCase::randomNonNegativeLong);
             case 2 -> pagesProcessed = randomValueOtherThan(pagesProcessed, ESTestCase::randomNonNegativeInt);
-            case 3 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeInt);
-            case 4 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeInt);
+            case 3 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
+            case 4 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
         return new ValuesSourceReaderOperator.Status(readersBuilt, processNanos, pagesProcessed, rowsReceived, rowsEmitted);

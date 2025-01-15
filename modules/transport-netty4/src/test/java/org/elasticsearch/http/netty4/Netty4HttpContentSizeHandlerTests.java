@@ -1,0 +1,195 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.http.netty4;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.http.DefaultHttpContent;
+import io.netty.handler.codec.http.DefaultHttpRequest;
+import io.netty.handler.codec.http.DefaultLastHttpContent;
+import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpObject;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpRequestDecoder;
+import io.netty.handler.codec.http.HttpRequestEncoder;
+import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpUtil;
+import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.http.LastHttpContent;
+
+import org.elasticsearch.test.ESTestCase;
+
+import java.util.Arrays;
+
+public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
+
+    private static final int MAX_CONTENT_LENGTH = 1024;
+    private static final int OVERSIZED_LENGTH = MAX_CONTENT_LENGTH + 1;
+    private static final int REPS = 1000;
+    Netty4HttpContentSizeHandler sizeHandler;
+    private EmbeddedChannel channel;
+    private EmbeddedChannel encoder; // channel to encode HTTP objects into bytes
+
+    private static HttpContent httpContent(int size) {
+        return new DefaultHttpContent(Unpooled.wrappedBuffer(randomByteArrayOfLength(size)));
+    }
+
+    private static LastHttpContent lastHttpContent(int size) {
+        return new DefaultLastHttpContent(Unpooled.wrappedBuffer(randomByteArrayOfLength(size)));
+    }
+
+    private HttpRequest httpRequest() {
+        return new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
+    }
+
+    // encodes multiple HTTP objects into single ByteBuf
+    private ByteBuf encode(HttpObject... objs) {
+        var out = Unpooled.compositeBuffer();
+        Arrays.stream(objs).forEach(encoder::writeOutbound);
+        while (encoder.outboundMessages().isEmpty() == false) {
+            out.addComponent(true, encoder.readOutbound());
+        }
+        return out;
+    }
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        var decoder = new HttpRequestDecoder();
+        encoder = new EmbeddedChannel(new HttpRequestEncoder());
+        sizeHandler = new Netty4HttpContentSizeHandler(decoder, MAX_CONTENT_LENGTH);
+        channel = new EmbeddedChannel(decoder, sizeHandler);
+    }
+
+    /**
+     * Assert that handler replies 100-continue for acceptable request and pass request further.
+     */
+    public void testContinue() {
+        for (var i = 0; i < REPS; i++) {
+            var sendRequest = httpRequest();
+            HttpUtil.set100ContinueExpected(sendRequest, true);
+            channel.writeInbound(encode(sendRequest));
+            var resp = channel.readOutbound();
+            assertEquals("should send back 100-continue", Netty4HttpContentSizeHandler.CONTINUE, resp);
+            var recvReq = (HttpRequest) channel.readInbound();
+            assertNotNull(recvReq);
+            assertFalse(HttpUtil.is100ContinueExpected(recvReq));
+            channel.writeInbound(encode(LastHttpContent.EMPTY_LAST_CONTENT));
+            assertEquals(LastHttpContent.EMPTY_LAST_CONTENT, channel.readInbound());
+        }
+    }
+
+    /**
+     * Assert that handler pass through acceptable request.
+     */
+    public void testWithoutContinue() {
+        for (var i = 0; i < REPS; i++) {
+            var sendRequest = httpRequest();
+            channel.writeInbound(encode(sendRequest));
+            assertNull("should not receive response", channel.readOutbound());
+            assertNotNull("request should pass", channel.readInbound());
+            channel.writeInbound(encode(LastHttpContent.EMPTY_LAST_CONTENT));
+            assertEquals(LastHttpContent.EMPTY_LAST_CONTENT, channel.readInbound());
+        }
+    }
+
+    /**
+     * Assert that handler pass through request and content for acceptable request.
+     */
+    public void testContinueWithContent() {
+        for (var i = 0; i < REPS; i++) {
+            var sendRequest = httpRequest();
+            HttpUtil.set100ContinueExpected(sendRequest, true);
+            HttpUtil.setContentLength(sendRequest, MAX_CONTENT_LENGTH);
+            var sendContent = lastHttpContent(MAX_CONTENT_LENGTH);
+            channel.writeInbound(encode(sendRequest, sendContent));
+            assertEquals("should send back 100-continue", Netty4HttpContentSizeHandler.CONTINUE, channel.readOutbound());
+            var recvRequest = (HttpRequest) channel.readInbound();
+            assertNotNull(recvRequest);
+            var recvContent = (HttpContent) channel.readInbound();
+            assertNotNull(recvContent);
+            assertEquals(MAX_CONTENT_LENGTH, recvContent.content().readableBytes());
+            recvContent.release();
+        }
+    }
+
+    /**
+     * Assert that handler returns 413 Request Entity Too Large for oversized request and does not close channel if following content is not
+     * present.
+     */
+    public void testExpectationFailed() {
+        for (var i = 0; i < REPS; i++) {
+            var sendRequest = httpRequest();
+            HttpUtil.set100ContinueExpected(sendRequest, true);
+            HttpUtil.setContentLength(sendRequest, OVERSIZED_LENGTH);
+            channel.writeInbound(encode(sendRequest, LastHttpContent.EMPTY_LAST_CONTENT));
+            var resp = (HttpResponse) channel.readOutbound();
+            assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
+            assertNull("request should not pass", channel.readInbound());
+            assertTrue("should not close channel", channel.isActive());
+        }
+    }
+
+    /**
+     * Assert that handler returns 413 Request Entity Too Large and emit decoding failure on
+     * oversized request with expect-100-continue header and content present.
+     */
+    public void testExpectationFailedWithContent() {
+        var sendRequest = httpRequest();
+        HttpUtil.set100ContinueExpected(sendRequest, true);
+        HttpUtil.setContentLength(sendRequest, OVERSIZED_LENGTH);
+        var unexpectedContent = lastHttpContent(OVERSIZED_LENGTH);
+        channel.writeInbound(encode(sendRequest, unexpectedContent));
+        var resp = (HttpResponse) channel.readOutbound();
+        assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
+        assertTrue(((HttpRequest) channel.readInbound()).decoderResult().isFailure());
+    }
+
+    /**
+     * Assert that handler returns 413 Request Entity Too Large and close channel for
+     * oversized request with content.
+     */
+    public void testExpectationFailedWithContentNoContinue() {
+        var sendRequest = httpRequest();
+        HttpUtil.setContentLength(sendRequest, OVERSIZED_LENGTH);
+        var unexpectedContent = lastHttpContent(OVERSIZED_LENGTH);
+        channel.writeInbound(encode(sendRequest, unexpectedContent));
+        var resp = (HttpResponse) channel.readOutbound();
+        assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
+        assertFalse(channel.isActive());
+    }
+
+    /**
+     * Assert that handler return 413 Request Entity Too Large and closes channel for oversized
+     * requests with chunked content.
+     */
+    public void testChunkedOversized() {
+        var sendRequest = httpRequest();
+        HttpUtil.setTransferEncodingChunked(sendRequest, true);
+        channel.writeInbound(encode(sendRequest));
+        assertTrue("request should pass", channel.readInbound() instanceof HttpRequest);
+
+        var part1 = httpContent(MAX_CONTENT_LENGTH);
+        channel.writeInbound(encode(part1));
+        assertTrue("first part should pass", channel.readInbound() instanceof HttpContent);
+
+        var part2 = httpContent(MAX_CONTENT_LENGTH);
+        channel.writeInbound(encode(part2));
+
+        var resp = (HttpResponse) channel.readOutbound();
+        assertNull("second part should not pass", channel.readInbound());
+        assertEquals("should respond with 413", HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
+        assertFalse("should close channel", channel.isActive());
+    }
+
+}

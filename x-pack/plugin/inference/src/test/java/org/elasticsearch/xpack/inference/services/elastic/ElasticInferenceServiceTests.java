@@ -367,7 +367,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var service = new ElasticInferenceService(
                 factory,
                 createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(null)
+                new ElasticInferenceServiceComponents(null, ElasticInferenceServiceACLTests.createEnabledAcl())
             )
         ) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -412,7 +412,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var service = new ElasticInferenceService(
                 factory,
                 createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(null)
+                new ElasticInferenceServiceComponents(null, ElasticInferenceServiceACLTests.createEnabledAcl())
             )
         ) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -586,7 +586,9 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testHideFromConfigurationApi_ReturnsFalse_WithAvailableModels() throws Exception {
         try (
-            var service = createServiceWithMockSender(new ElasticInferenceServiceACL(Map.of("model-1", EnumSet.of(TaskType.COMPLETION))))
+            var service = createServiceWithMockSender(
+                new ElasticInferenceServiceACL(Map.of("model-1", EnumSet.of(TaskType.CHAT_COMPLETION)))
+            )
         ) {
             assertFalse(service.hideFromConfigurationApi());
         }
@@ -595,7 +597,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     public void testGetConfiguration() throws Exception {
         try (
             var service = createServiceWithMockSender(
-                new ElasticInferenceServiceACL(Map.of("model-1", EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.COMPLETION)))
+                new ElasticInferenceServiceACL(Map.of("model-1", EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)))
             )
         ) {
             String content = XContentHelper.stripWhitespace("""

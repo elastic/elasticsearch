@@ -107,7 +107,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
 
     public void testIncompatibleVersion() {
         IndexMetadataVerifier service = getIndexMetadataVerifier();
-        IndexVersion minCompat = IndexVersions.MINIMUM_COMPATIBLE;
+        IndexVersion minCompat = IndexVersions.MINIMUM_READONLY_COMPATIBLE;
         IndexVersion indexCreated = IndexVersion.fromId(randomIntBetween(1000099, minCompat.id() - 1));
         final IndexMetadata metadata = newIndexMeta(
             "foo",
@@ -126,7 +126,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                     + indexCreated.toReleaseVersion()
                     + "] "
                     + "but the minimum compatible version is ["
-                    + minCompat.toReleaseVersion()
+                    + IndexVersions.MINIMUM_COMPATIBLE.toReleaseVersion()
                     + "]. It should be re-indexed in Elasticsearch "
                     + (Version.CURRENT.major - 1)
                     + ".x before upgrading to "
@@ -135,7 +135,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
             )
         );
 
-        indexCreated = randomVersionBetween(random(), minCompat, IndexVersion.current());
+        indexCreated = randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
         IndexMetadata goodMeta = newIndexMeta("foo", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated).build());
         service.verifyIndexMetadata(goodMeta, IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.MINIMUM_READONLY_COMPATIBLE);
     }

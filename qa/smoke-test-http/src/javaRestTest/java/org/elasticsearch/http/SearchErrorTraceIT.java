@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 
 public class SearchErrorTraceIT extends HttpSmokeTestCase {
-    private AtomicBoolean hasStackTrace;
+    private final AtomicBoolean hasStackTrace = new AtomicBoolean(false);
 
     @Before
     private void setupMessageListener() {
@@ -43,13 +43,15 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
                     if (SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME.equals(action)) {
                         Object[] res = asInstanceOf(SearchQueryThenFetchAsyncAction.NodeQueryResponse.class, response).getResults();
                         boolean hasStackTraces = true;
+                        boolean hasException = false;
                         for (Object r : res) {
                             if (r instanceof Exception e) {
+                                hasException = true;
                                 hasStackTraces &= ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t.getStackTrace().length > 0)
                                     .isPresent();
                             }
                         }
-                        hasStackTrace.set(hasStackTraces);
+                        hasStackTrace.set(hasStackTraces && hasException);
                     }
                 }
 
@@ -79,7 +81,6 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
     }
 
     public void testSearchFailingQueryErrorTraceDefault() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_search");
@@ -98,7 +99,6 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
     }
 
     public void testSearchFailingQueryErrorTraceTrue() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_search");
@@ -118,7 +118,6 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
     }
 
     public void testSearchFailingQueryErrorTraceFalse() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_search");
@@ -138,7 +137,6 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
     }
 
     public void testMultiSearchFailingQueryErrorTraceDefault() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         XContentType contentType = XContentType.JSON;
@@ -155,7 +153,6 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
     }
 
     public void testMultiSearchFailingQueryErrorTraceTrue() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         XContentType contentType = XContentType.JSON;
@@ -173,7 +170,6 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
     }
 
     public void testMultiSearchFailingQueryErrorTraceFalse() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         XContentType contentType = XContentType.JSON;

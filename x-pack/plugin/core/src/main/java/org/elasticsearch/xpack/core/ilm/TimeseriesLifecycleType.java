@@ -508,7 +508,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 if (hasReplicateFor) {
                     throw new IllegalArgumentException(
                         Strings.format(
-                            "Only the first searchable_snapshot action in a policy may specify 'replicate_for', "
+                            "only the first searchable_snapshot action in a policy may specify 'replicate_for', "
                                 + "but it was specified in the [%s] phase",
                             phase
                         )
@@ -525,6 +525,26 @@ public class TimeseriesLifecycleType implements LifecycleType {
         if (firstReplicateFor != null) {
             final Map<String, Phase> allPhases = phases.stream().collect(Collectors.toMap(Phase::getName, Function.identity()));
             final List<Phase> allPhasesInOrder = INSTANCE.getOrderedPhases(allPhases);
+
+            // find the 'implied min_age' of the phase that contains the searchable_snapshot action with a replicate_for,
+            // it's the latest non-zero min_age of the phases up to and including the phase in question (reminder that min_age values
+            // are either absent/zero or increasing)
+            TimeValue impliedMinAge = TimeValue.ZERO;
+            for (Phase phase : allPhasesInOrder) {
+                // if there's a rollover (in the hot phase) then the hot phase is implicitly a 'zero', since we calculate subsequent
+                // phases from the time of *rollover*
+                final var phaseMinAge = phase.getActions().containsKey(RolloverAction.NAME) ? TimeValue.ZERO : phase.getMinimumAge();
+
+                // TimeValue.ZERO is the null value for minimumAge in Phase
+                if (phaseMinAge != TimeValue.ZERO) {
+                    impliedMinAge = phaseMinAge;
+                }
+                // loop until we find the phase that has the searchable_snapshot action with a replicate_for
+                if (phase.getName().equals(firstSearchableSnapshotPhase)) {
+                    break;
+                }
+            }
+
             boolean afterReplicatorFor = false;
             for (Phase phase : allPhasesInOrder) {
                 // loop until we find the phase after the one that has a searchable_snapshot with replicate_for
@@ -536,14 +556,19 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 if (afterReplicatorFor) {
                     final var phaseMinAge = phase.getMinimumAge();
                     // TimeValue.ZERO is the null value for minimumAge in Phase
-                    if (phaseMinAge != TimeValue.ZERO && phaseMinAge.compareTo(firstReplicateFor) < 0) {
+                    final long minAgeDeltaMillis = phaseMinAge.millis() - impliedMinAge.millis();
+                    if (phaseMinAge != TimeValue.ZERO && minAgeDeltaMillis < firstReplicateFor.millis()) {
                         throw new IllegalArgumentException(
                             Strings.format(
-                                "The value for replicate_for [%s] must be less than or equal to the specified min_age for "
-                                    + "subsequent phases, but the [%s] phase has a min_age of [%s]",
+                                "the value for replicate_for [%s] must be less than or equal to the difference in min_age for "
+                                    + "the current phase and subsequent phases, but the [%s] phase has a min_age of [%s] "
+                                    + "and the [%s] phase has a min_age of [%s], so the difference was only [%s]",
                                 firstReplicateFor,
+                                firstSearchableSnapshotPhase,
+                                impliedMinAge,
                                 phase.getName(),
-                                phaseMinAge
+                                phaseMinAge,
+                                TimeValue.timeValueMillis(minAgeDeltaMillis).toString()
                             )
                         );
                     }

@@ -1,0 +1,5 @@
+pr: 119968
+summary: Reset relocation/allocation failure counter on node join/shutdown
+area: Allocation
+type: enhancement
+issues: []

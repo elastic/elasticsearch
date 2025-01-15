@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
@@ -31,6 +34,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldType;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent.MapParams;
@@ -324,6 +328,17 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
                 pre8version,
                 fieldMapping(b -> b.field("type", getFieldName()).field(deprecatedParam, value))
             );
+
+            // check mapper
+            Mapper mapper = m.mappingLookup().getMapper("field");
+            assertThat(mapper, instanceOf(LegacyGeoShapeFieldMapper.class));
+
+            // check document parsing
+            MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(false);
+            assertNotNull(m.documentMapper().parse(source(b -> {
+                b.field("field");
+                GeoJson.toXContent(multiPoint, b, null);
+            })));
 
             // check for correct field type and that a query can be created
             MappedFieldType fieldType = m.fieldType("field");

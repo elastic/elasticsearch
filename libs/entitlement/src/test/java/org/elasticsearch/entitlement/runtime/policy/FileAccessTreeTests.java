@@ -31,9 +31,9 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testEmpty() {
-       var tree = new FileAccessTree(List.of());
-       assertThat(tree.canRead(path("path")), is(false));
-       assertThat(tree.canWrite(path("path")), is(false));
+        var tree = new FileAccessTree(List.of());
+        assertThat(tree.canRead(path("path")), is(false));
+        assertThat(tree.canWrite(path("path")), is(false));
     }
 
     public void testRead() {

@@ -10,7 +10,6 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;

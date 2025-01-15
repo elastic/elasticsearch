@@ -48,8 +48,12 @@ public class PolicyManager {
         public static ModuleEntitlements from(List<Entitlement> entitlements) {
             var fileEntitlements = entitlements.stream()
                 .filter(e -> e.getClass().equals(FileEntitlement.class))
-                .map(e -> (FileEntitlement) e).toList();
-            return new ModuleEntitlements(entitlements.stream().collect(groupingBy(Entitlement::getClass)), new FileAccessTree(fileEntitlements));
+                .map(e -> (FileEntitlement) e)
+                .toList();
+            return new ModuleEntitlements(
+                entitlements.stream().collect(groupingBy(Entitlement::getClass)),
+                new FileAccessTree(fileEntitlements)
+            );
         }
 
         public boolean hasEntitlement(Class<? extends Entitlement> entitlementClass) {

@@ -10,16 +10,23 @@
 package org.elasticsearch.entitlement.runtime.api;
 
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
+import org.elasticsearch.entitlement.runtime.policy.NetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.net.ContentHandlerFactory;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.net.DatagramSocketImplFactory;
 import java.net.FileNameMap;
+import java.net.InetAddress;
+import java.net.MulticastSocket;
+import java.net.NetworkInterface;
 import java.net.ProxySelector;
 import java.net.ResponseCache;
+import java.net.SocketAddress;
 import java.net.SocketImplFactory;
 import java.net.URL;
 import java.net.URLStreamHandler;
@@ -29,7 +36,6 @@ import java.util.List;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocketFactory;
 
 /**
@@ -346,7 +352,66 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
-    public void check$sun_security_ssl_SSLSessionImpl$getSessionContext(Class<?> callerClass, SSLSession sslSession) {
-        policyManager.checkReadSensitiveNetworkInformation(callerClass);
+    public void check$java_net_DatagramSocket$bind(Class<?> callerClass, DatagramSocket that, SocketAddress addr) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION);
+    }
+
+    @Override
+    public void check$java_net_DatagramSocket$connect(Class<?> callerClass, DatagramSocket that, InetAddress addr) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_DatagramSocket$connect(Class<?> callerClass, DatagramSocket that, SocketAddress addr) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_DatagramSocket$send(Class<?> callerClass, DatagramSocket that, DatagramPacket p) {
+        var actions = NetworkEntitlement.CONNECT_ACTION;
+        if (p.getAddress().isMulticastAddress()) {
+            actions |= NetworkEntitlement.ACCEPT_ACTION;
+        }
+        policyManager.checkNetworkAccess(callerClass, actions);
+    }
+
+    @Override
+    public void check$java_net_DatagramSocket$receive(Class<?> callerClass, DatagramSocket that, DatagramPacket p) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_DatagramSocket$joinGroup(Class<?> caller, DatagramSocket that, SocketAddress addr, NetworkInterface ni) {
+        policyManager.checkNetworkAccess(caller, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_DatagramSocket$leaveGroup(Class<?> caller, DatagramSocket that, SocketAddress addr, NetworkInterface ni) {
+        policyManager.checkNetworkAccess(caller, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_MulticastSocket$joinGroup(Class<?> callerClass, MulticastSocket that, InetAddress addr) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_MulticastSocket$joinGroup(Class<?> caller, MulticastSocket that, SocketAddress addr, NetworkInterface ni) {
+        policyManager.checkNetworkAccess(caller, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_MulticastSocket$leaveGroup(Class<?> caller, MulticastSocket that, InetAddress addr) {
+        policyManager.checkNetworkAccess(caller, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_MulticastSocket$leaveGroup(Class<?> caller, MulticastSocket that, SocketAddress addr, NetworkInterface ni) {
+        policyManager.checkNetworkAccess(caller, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_MulticastSocket$send(Class<?> callerClass, MulticastSocket that, DatagramPacket p, byte ttl) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
     }
 }

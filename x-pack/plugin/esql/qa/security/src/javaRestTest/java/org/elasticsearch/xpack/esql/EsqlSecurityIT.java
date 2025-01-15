@@ -548,7 +548,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     public void testLookupJoinIndexAllowed() throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
-            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V10.capabilityName()))
+            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V11.capabilityName()))
         );
 
         Response resp = runESQLCommand(
@@ -587,7 +587,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     public void testLookupJoinIndexForbidden() throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
-            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V10.capabilityName()))
+            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V11.capabilityName()))
         );
 
         var resp = expectThrows(

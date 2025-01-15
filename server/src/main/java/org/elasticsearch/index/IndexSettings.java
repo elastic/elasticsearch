@@ -433,7 +433,8 @@ public final class IndexSettings {
         "index.soft_deletes.enabled",
         true,
         Property.IndexScope,
-        Property.Final
+        Property.Final,
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
     /**
@@ -460,7 +461,8 @@ public final class IndexSettings {
         TimeValue.MINUS_ONE,
         TimeValue.MINUS_ONE,
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
     /**
@@ -473,7 +475,8 @@ public final class IndexSettings {
         "index.translog.retention.size",
         settings -> "-1",
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
     /**

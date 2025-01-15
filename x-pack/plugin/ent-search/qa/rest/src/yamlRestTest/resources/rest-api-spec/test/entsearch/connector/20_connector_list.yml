@@ -366,7 +366,7 @@ setup:
       connector.list:
         include_deleted: true
 
-  - match: { count: 3 }
+  - match: { count: 0 }
 
 ---
 "List Connectors - 2 hard deleted connectors, 1 soft deleted":

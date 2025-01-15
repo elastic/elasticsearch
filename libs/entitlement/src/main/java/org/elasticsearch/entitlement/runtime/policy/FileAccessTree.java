@@ -1,0 +1,74 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.entitlement.runtime.policy;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+class FileAccessTree {
+    static final FileAccessTree EMPTY = new FileAccessTree(List.of());
+
+    private final String[] readPaths;
+    private final String[] writePaths;
+
+    FileAccessTree(List<FileEntitlement> fileEntitlements) {
+        List<String> readPaths = new ArrayList<>();
+        List<String> writePaths = new ArrayList<>();
+        for (FileEntitlement fileEntitlement : fileEntitlements) {
+            var mode = fileEntitlement.mode();
+            if (mode == FileEntitlement.Mode.READ_WRITE) {
+                writePaths.add(fileEntitlement.path());
+            }
+            readPaths.add(fileEntitlement.path());
+        }
+
+        readPaths.sort(String::compareTo);
+        writePaths.sort(String::compareTo);
+
+        this.readPaths = readPaths.toArray(new String[0]);
+        this.writePaths = writePaths.toArray(new String[0]);
+    }
+
+    boolean canRead(Path path) {
+        return checkPath(normalize(path), readPaths);
+    }
+
+    boolean canRead(File file) {
+        return checkPath(normalize(file.toPath()), readPaths);
+    }
+
+    boolean canWrite(Path path) {
+        return checkPath(normalize(path), writePaths);
+    }
+
+    boolean canWrite(File file) {
+        return checkPath(normalize(file.toPath()), writePaths);
+    }
+
+    private static String normalize(Path path) {
+        return path.toAbsolutePath().normalize().toString();
+    }
+
+    private static boolean checkPath(String path, String[] paths) {
+        if (paths.length == 0) {
+            return false;
+        }
+        int ndx = Arrays.binarySearch(paths, path);
+        if (ndx < -1) {
+            String maybeParent = paths[-ndx - 2];
+            return path.startsWith(maybeParent);
+        }
+        return ndx >= 0;
+    }
+}

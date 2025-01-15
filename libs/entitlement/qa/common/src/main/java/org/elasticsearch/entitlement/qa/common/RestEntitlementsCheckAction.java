@@ -32,6 +32,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -55,6 +57,7 @@ import java.net.spi.URLStreamHandlerProvider;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -404,6 +407,14 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         try (var socket = new DummyImplementations.DummyDatagramSocket()) {
             socket.receive(new DatagramPacket(new byte[1], 1, InetAddress.getLocalHost(), 1234));
         }
+    }
+
+    private static void createScanner1() throws FileNotFoundException {
+        new Scanner(new File(""));
+    }
+
+    private static void createScanner2() throws FileNotFoundException {
+        new Scanner(new File(""));
     }
 
     public RestEntitlementsCheckAction(String prefix) {

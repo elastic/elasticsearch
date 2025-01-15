@@ -9,6 +9,8 @@
 
 package org.elasticsearch.entitlement.bridge;
 
+import java.io.File;
+import java.io.FileDescriptor;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -27,6 +29,10 @@ import java.net.SocketImplFactory;
 import java.net.URL;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
 import java.util.List;
 
 import javax.net.ssl.HostnameVerifier;
@@ -215,4 +221,23 @@ public interface EntitlementChecker {
     void check$java_net_MulticastSocket$leaveGroup(Class<?> callerClass, MulticastSocket that, SocketAddress addr, NetworkInterface ni);
 
     void check$java_net_MulticastSocket$send(Class<?> callerClass, MulticastSocket that, DatagramPacket p, byte ttl);
+
+    ////////////////////
+    //
+    // File access
+    //
+
+    void check$java_util_Scanner$(Class<?> callerClass, File source);
+    void check$java_util_Scanner$(Class<?> callerClass, File source, String charsetName);
+    void check$java_util_Scanner$(Class<?> callerClass, File source, Charset charset);
+    void check$java_util_Scanner$(Class<?> callerClass, File source, CharsetDecoder charsetDecoder);
+
+    void check$java_io_FileOutputStream$(Class<?> callerClass, String name);
+    void check$java_io_FileOutputStream$(Class<?> callerClass, String name, boolean append);
+    void check$java_io_FileOutputStream$(Class<?> callerClass, File file);
+    void check$java_io_FileOutputStream$(Class<?> callerClass, File file, boolean append);
+    void check$java_io_FileOutputStream$(Class<?> callerClass, FileDescriptor fdObj);
+
+    void check$java_nio_file_Files$newInputStream(Class<?> callerClass, Path path, OpenOption... options);
+    void check$java_nio_file_Files$newOutputStream(Class<?> callerClass, Path path, OpenOption... options);
 }

@@ -13,6 +13,8 @@ import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.NetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
+import java.io.File;
+import java.io.FileDescriptor;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -31,6 +33,10 @@ import java.net.SocketImplFactory;
 import java.net.URL;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
 import java.util.List;
 
 import javax.net.ssl.HostnameVerifier;
@@ -413,5 +419,60 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void check$java_net_MulticastSocket$send(Class<?> callerClass, MulticastSocket that, DatagramPacket p, byte ttl) {
         policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION | NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_util_Scanner$(Class<?> callerClass, File source) {
+        policyManager.checkFileRead(callerClass, source);
+    }
+
+    @Override
+    public void check$java_util_Scanner$(Class<?> callerClass, File source, String charsetName) {
+        policyManager.checkFileRead(callerClass, source);
+    }
+
+    @Override
+    public void check$java_util_Scanner$(Class<?> callerClass, File source, Charset charset) {
+        policyManager.checkFileRead(callerClass, source);
+    }
+
+    @Override
+    public void check$java_util_Scanner$(Class<?> callerClass, File source, CharsetDecoder charsetDecoder) {
+        policyManager.checkFileRead(callerClass, source);
+    }
+
+    @Override
+    public void check$java_io_FileOutputStream$(Class<?> callerClass, String name) {
+        policyManager.checkFileWrite(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileOutputStream$(Class<?> callerClass, String name, boolean append) {
+        policyManager.checkFileWrite(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileOutputStream$(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileOutputStream$(Class<?> callerClass, File file, boolean append) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileOutputStream$(Class<?> callerClass, FileDescriptor fdObj) {
+        // TODO: not entitled
+    }
+
+    @Override
+    public void check$java_nio_file_Files$newInputStream(Class<?> callerClass, Path path, OpenOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$newOutputStream(Class<?> callerClass, Path path, OpenOption... options) {
+        policyManager.checkFileWrite(callerClass, path);
     }
 }

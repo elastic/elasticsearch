@@ -92,6 +92,7 @@ import static org.elasticsearch.core.Strings.format;
 public class SearchQueryThenFetchAsyncAction extends SearchPhase implements AsyncSearchContext {
 
     private static final Logger logger = LogManager.getLogger(SearchQueryThenFetchAsyncAction.class);
+
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final SearchTransportService searchTransportService;
     private final Executor executor;
@@ -1107,6 +1108,13 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
 
     private static final class QueryPerNodeState {
 
+        private static final QueryPhaseResultConsumer.MergeResult EMPTY_PARTIAL_MERGE_RESULT = new QueryPhaseResultConsumer.MergeResult(
+            List.of(),
+            Lucene.EMPTY_TOP_DOCS,
+            null,
+            0L
+        );
+
         private final AtomicInteger currentShardIndex;
         private final QueryPhaseResultConsumer queryPhaseResultConsumer;
         private final NodeQueryRequest searchRequest;
@@ -1165,14 +1173,9 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                                 assert results[i] != null;
                             }
                         }
-                        // TODO: facepalm
                         queryPhaseResultConsumer.buffer.clear();
                         channelListener.onResponse(
-                            new NodeQueryResponse(
-                                new QueryPhaseResultConsumer.MergeResult(List.of(), Lucene.EMPTY_TOP_DOCS, null, 0L),
-                                results,
-                                queryPhaseResultConsumer.topDocsStats
-                            )
+                            new NodeQueryResponse(EMPTY_PARTIAL_MERGE_RESULT, results, queryPhaseResultConsumer.topDocsStats)
                         );
                     } catch (Throwable e) {
                         throw new AssertionError(e);

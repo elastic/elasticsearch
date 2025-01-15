@@ -1,0 +1,13 @@
+pr: 119072
+summary: Turn `_source` meta fieldmapper's mode attribute into a noop
+area: Mapping
+type: breaking
+issues:
+ - 118596
+breaking:
+  title: Turn `_source` meta fieldmapper's mode attribute into a noop
+  area: Mapping
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

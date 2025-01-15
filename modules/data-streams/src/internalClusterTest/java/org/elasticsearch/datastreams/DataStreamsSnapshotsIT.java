@@ -1282,6 +1282,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             SnapshotInfo retrievedSnapshot = getSnapshot(REPO, SNAPSHOT);
             assertThat(retrievedSnapshot.dataStreams(), contains(dataStreamName));
             assertThat(retrievedSnapshot.indices(), containsInAnyOrder(fsBackingIndexName));
+            assertThat(retrievedSnapshot.indices(), not(containsInAnyOrder(fsFailureIndexName)));
 
             assertAcked(
                 safeGet(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "*")))

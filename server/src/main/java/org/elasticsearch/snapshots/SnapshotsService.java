@@ -4003,7 +4003,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final CreateSnapshotRequest request = createSnapshotTask.createSnapshotRequest;
             // Store newSnapshot here to be processed in clusterStateProcessed
             Map<Boolean, List<String>> requestedIndices = Arrays.stream(
-                indexNameExpressionResolver.concreteIndexNamesWithFailureStore(currentState, request)
+                indexNameExpressionResolver.concreteIndexNames(currentState, request)
             ).collect(Collectors.partitioningBy(systemIndices::isSystemIndex));
 
             List<String> requestedSystemIndices = requestedIndices.get(true);

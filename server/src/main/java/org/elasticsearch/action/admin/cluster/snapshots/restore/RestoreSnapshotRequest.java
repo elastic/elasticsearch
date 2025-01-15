@@ -44,7 +44,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private String snapshot;
     private String repository;
     private String[] indices = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenNoSelectors();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenFailureNoSelectors();
     private String[] featureStates = Strings.EMPTY_ARRAY;
     private String renamePattern;
     private String renameReplacement;

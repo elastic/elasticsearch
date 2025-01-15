@@ -4725,7 +4725,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShard(shard, false);
     }
 
-    public void testResetEngineToReadOnlyEngineWithBrokenTranslog() throws Exception {
+    public void testResetEngineWithBrokenTranslog() throws Exception {
         IndexShard shard = newStartedShard(false);
         updateMappings(
             shard,

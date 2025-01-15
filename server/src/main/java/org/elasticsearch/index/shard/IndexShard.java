@@ -764,6 +764,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final AtomicBoolean primaryReplicaResyncInProgress = new AtomicBoolean();
 
+    /**
+     * Completes the relocation. Operations are blocked and current operations are drained before changing state to relocated. The provided
+     * {@link BiConsumer} is executed after all operations are successfully blocked.
+     *
+     * @param consumer a {@link BiConsumer} that is executed after operations are blocked and that consumes the primary context as well as
+     *                 a listener to resolve once it finished
+     * @param listener listener to resolve once this method actions including executing {@code consumer} in the non-failure case complete
+     * @throws IllegalIndexShardStateException if the shard is not relocating due to concurrent cancellation
+     * @throws IllegalStateException           if the relocation target is no longer part of the replication group
+     */
     public void relocated(
         final String targetNodeId,
         final String targetAllocationId,
@@ -774,22 +784,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Completes the relocation. Operations are blocked and current operations are drained before changing state to relocated. The provided
-     * {@link BiConsumer} is executed after all operations are successfully blocked.
+     * Provides an variant of {@link IndexShard#relocated(String, String, BiConsumer, ActionListener, Releasable)} with an option
+     * to relocate the shard under externally acquired primary permits.
      *
-     * @param consumer a {@link BiConsumer} that is executed after operations are blocked and that consumes the primary context as well as
-     *                 a listener to resolve once it finished
-     * @param listener listener to resolve once this method actions including executing {@code consumer} in the non-failure case complete
-     * @param acquiredPrimaryPermits the primary permits held by the caller
-     * @throws IllegalIndexShardStateException if the shard is not relocating due to concurrent cancellation
-     * @throws IllegalStateException           if the relocation target is no longer part of the replication group
+     * @param acquiredPrimaryPermits if null, waits until all the primary permits are acquired, otherwise completes relocation immediately
      */
     public void relocated(
         final String targetNodeId,
         final String targetAllocationId,
         final BiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>> consumer,
         final ActionListener<Void> listener,
-        final Releasable acquiredPrimaryPermits
+        @Nullable final Releasable acquiredPrimaryPermits
     ) throws IllegalIndexShardStateException, IllegalStateException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         try (Releasable forceRefreshes = refreshListeners.forceRefreshes()) {

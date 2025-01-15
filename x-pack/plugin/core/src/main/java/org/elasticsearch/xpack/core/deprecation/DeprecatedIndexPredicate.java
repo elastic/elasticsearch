@@ -33,7 +33,9 @@ public class DeprecatedIndexPredicate {
     }
 
     public static boolean reindexRequired(IndexMetadata indexMetadata) {
-        return creationVersionBeforeMinimumWritableVersion(indexMetadata) && isNotSearchableSnapshot(indexMetadata);
+        return creationVersionBeforeMinimumWritableVersion(indexMetadata)
+            && isNotSearchableSnapshot(indexMetadata)
+            && isNotClosed(indexMetadata);
     }
 
     private static boolean isNotSearchableSnapshot(IndexMetadata indexMetadata) {
@@ -42,6 +44,10 @@ public class DeprecatedIndexPredicate {
 
     private static boolean creationVersionBeforeMinimumWritableVersion(IndexMetadata metadata) {
         return metadata.getCreationVersion().before(MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE);
+    }
+
+    private static boolean isNotClosed(IndexMetadata indexMetadata) {
+        return indexMetadata.getState().equals(IndexMetadata.State.CLOSE) == false;
     }
 
 }

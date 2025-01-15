@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.planner.ExpressionTranslator;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -21,10 +21,11 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.planner.ExpressionTranslators;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Full text function that performs a {@link QueryStringQuery} .
@@ -99,8 +100,8 @@ public class QueryString extends FullTextFunction {
     }
 
     @Override
-    protected ExpressionTranslator<QueryString> translator() {
-        return new ExpressionTranslators.QueryStringFunctionTranslator();
+    protected Query translate(TranslatorHandler handler) {
+        return new QueryStringQuery(source(), (String) queryAsObject(), Map.of(), Map.of());
     }
 
     @Override

@@ -11,13 +11,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.optimizer.OptimizerRulesTests;
 
 import java.util.List;
 
@@ -46,8 +47,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 public class CombineBinaryComparisonsTests extends ESTestCase {
 
-    private static final Expression DUMMY_EXPRESSION =
-        new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRulesTests.DummyBooleanExpression(EMPTY, 0);
+    private static final Expression DUMMY_EXPRESSION = new OptimizerRulesTests.DummyBooleanExpression(EMPTY, 0);
 
     public void testCombineBinaryComparisonsNotComparable() {
         FieldAttribute fa = getFieldAttribute();

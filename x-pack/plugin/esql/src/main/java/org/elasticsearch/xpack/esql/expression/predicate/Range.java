@@ -4,16 +4,23 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.esql.core.expression.predicate;
+package org.elasticsearch.xpack.esql.expression.predicate;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -22,10 +29,19 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
 // BETWEEN or range - is a mix of gt(e) AND lt(e)
-public class Range extends ScalarFunction {
+public class Range extends ScalarFunction implements TranslationAware {
 
     private final Expression value, lower, upper;
     private final boolean includeLower, includeUpper;
@@ -176,5 +192,58 @@ public class Range extends ScalarFunction {
             && Objects.equals(lower, other.lower)
             && Objects.equals(upper, other.upper)
             && Objects.equals(zoneId, other.zoneId);
+    }
+
+    @Override
+    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+        return pushdownPredicates.isPushableAttribute(value) && lower.foldable() && upper.foldable();
+    }
+
+    @Override
+    public Query asQuery(TranslatorHandler handler) {
+        return handler.wrapFunctionQuery(this, value, () -> translate(handler));
+    }
+
+    private RangeQuery translate(TranslatorHandler handler) {
+        Object l = valueOf(lower);
+        Object u = valueOf(upper);
+        String format = null;
+
+        DataType dataType = value.dataType();
+        if (DataType.isDateTime(dataType) && DataType.isDateTime(lower.dataType()) && DataType.isDateTime(upper.dataType())) {
+            l = dateTimeToString((Long) l);
+            u = dateTimeToString((Long) u);
+            format = DEFAULT_DATE_TIME_FORMATTER.pattern();
+        }
+
+        if (dataType == IP) {
+            if (l instanceof BytesRef bytesRef) {
+                l = ipToString(bytesRef);
+            }
+            if (u instanceof BytesRef bytesRef) {
+                u = ipToString(bytesRef);
+            }
+        } else if (dataType == VERSION) {
+            // VersionStringFieldMapper#indexedValueForSearch() only accepts as input String or BytesRef with the String (i.e. not
+            // encoded) representation of the version as it'll do the encoding itself.
+            if (l instanceof BytesRef bytesRef) {
+                l = versionToString(bytesRef);
+            } else if (l instanceof Version version) {
+                l = versionToString(version);
+            }
+            if (u instanceof BytesRef bytesRef) {
+                u = versionToString(bytesRef);
+            } else if (u instanceof Version version) {
+                u = versionToString(version);
+            }
+        } else if (dataType == UNSIGNED_LONG) {
+            if (l instanceof Long ul) {
+                l = unsignedLongAsNumber(ul);
+            }
+            if (u instanceof Long ul) {
+                u = unsignedLongAsNumber(ul);
+            }
+        }
+        return new RangeQuery(source(), handler.nameOf(value), l, includeLower(), u, includeUpper(), format, zoneId);
     }
 }

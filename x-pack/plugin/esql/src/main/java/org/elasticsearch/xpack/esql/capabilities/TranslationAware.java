@@ -7,14 +7,31 @@
 
 package org.elasticsearch.xpack.esql.capabilities;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 /**
- * Expressions can implement this interface to control how they would be translated and pushed down as Lucene queries.
- * When an expression implements {@link TranslationAware}, we call {@link #asQuery(TranslatorHandler)} to get the
- * {@link Query} translation, instead of relying on the registered translators from ExpressionTranslators.
+ * Expressions implementing this interface can get called on data nodes to provide an Elasticsearch/Lucene query.
  */
 public interface TranslationAware {
+    /**
+     * Indicates whether the expression can be translated or not.
+     * Usually checks whether the expression arguments are actual fields that exist in Lucene.
+     */
+    boolean translatable(LucenePushdownPredicates pushdownPredicates);
+
     Query asQuery(TranslatorHandler translatorHandler);
+
+    static TranslationAware checkIsTranslationAware(Expression expression) {
+        Check.isTrue(
+            expression instanceof TranslationAware,
+            "Expected a TranslationAware but received [{}] of type [{}]",
+            expression,
+            expression.getClass()
+        );
+        return (TranslationAware) expression;
+    }
 }

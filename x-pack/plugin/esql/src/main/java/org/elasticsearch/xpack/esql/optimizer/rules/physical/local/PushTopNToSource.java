@@ -157,7 +157,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                             order.nullsPosition()
                         )
                     );
-                } else if (lucenePushdownPredicates.isPushableMetadataAttribute(order.child())) {
+                } else if (LucenePushdownPredicates.isPushableMetadataAttribute(order.child())) {
                     pushableSorts.add(new EsQueryExec.ScoreSort(order.direction()));
                 } else if (order.child() instanceof ReferenceAttribute referenceAttribute) {
                     Attribute resolvedAttribute = aliasReplacedBy.resolve(referenceAttribute, referenceAttribute);
@@ -196,11 +196,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
 
     private static boolean canPushDownOrders(List<Order> orders, LucenePushdownPredicates lucenePushdownPredicates) {
         // allow only exact FieldAttributes (no expressions) for sorting
-        return orders.stream()
-            .allMatch(
-                o -> lucenePushdownPredicates.isPushableFieldAttribute(o.child())
-                    || lucenePushdownPredicates.isPushableMetadataAttribute(o.child())
-            );
+        return orders.stream().allMatch(o -> lucenePushdownPredicates.isPushableAttribute(o.child()));
     }
 
     private static List<EsQueryExec.Sort> buildFieldSorts(List<Order> orders) {

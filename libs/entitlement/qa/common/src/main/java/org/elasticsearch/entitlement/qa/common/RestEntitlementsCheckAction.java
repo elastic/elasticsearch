@@ -59,9 +59,6 @@ import java.util.stream.Stream;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.qa.common.RestEntitlementsCheckAction.CheckAction.alwaysDenied;
@@ -149,7 +146,6 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("createURLStreamHandlerProvider", alwaysDenied(RestEntitlementsCheckAction::createURLStreamHandlerProvider)),
         entry("createURLWithURLStreamHandler", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler)),
         entry("createURLWithURLStreamHandler2", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler2)),
-        entry("sslSessionImpl_getSessionContext", alwaysDenied(RestEntitlementsCheckAction::sslSessionImplGetSessionContext)),
         entry("datagram_socket_bind", forPlugins(RestEntitlementsCheckAction::bindDatagramSocket)),
         entry("datagram_socket_connect", forPlugins(RestEntitlementsCheckAction::connectDatagramSocket)),
         entry("datagram_socket_send", forPlugins(RestEntitlementsCheckAction::sendDatagramSocket)),
@@ -167,15 +163,6 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                 return null;
             }
         };
-    }
-
-    private static void sslSessionImplGetSessionContext() throws IOException {
-        SSLSocketFactory factory = HttpsURLConnection.getDefaultSSLSocketFactory();
-        try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
-            SSLSession session = socket.getSession();
-
-            session.getSessionContext();
-        }
     }
 
     @SuppressWarnings("deprecation")

@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -75,6 +76,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
 
     private final SetOnce<MutableSearchResponse> searchResponse = new SetOnce<>();
 
+    private final ShardsInfo shardsInfo;
+
     /**
      * Creates an instance of {@link AsyncSearchTask}.
      *
@@ -112,6 +115,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         this.aggReduceContextSupplier = aggReduceContextSupplierFactory.apply(this::isCancelled);
         this.progressListener = new Listener();
         setProgressListener(progressListener);
+        shardsInfo = new ShardsInfo();
     }
 
     /**
@@ -352,7 +356,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                 ExceptionsHelper.status(e),
                 e
             );
-            asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, exception);
+            asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(shardsInfo, this, expirationTimeMillis, exception);
         }
         return asyncSearchResponse;
     }
@@ -373,6 +377,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         MutableSearchResponse mutableSearchResponse = asyncTask.searchResponse.get();
         assert mutableSearchResponse != null;
         return mutableSearchResponse.toStatusResponse(
+            asyncTask.shardsInfo,
             asyncTask.searchId.getEncoded(),
             asyncTask.getStartTime(),
             asyncTask.expirationTimeMillis
@@ -384,10 +389,18 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         Releasables.close(searchResponse.get());
     }
 
+    public ShardsInfo getShardsInfo() {
+        return shardsInfo;
+    }
+
     class Listener extends SearchProgressActionListener {
 
         // needed when there's a single coordinator for all CCS search phases (minimize_roundtrips=false)
         private CCSSingleCoordinatorSearchProgressListener delegate;
+
+        Listener() {
+            searchResponse.set(new MutableSearchResponse(threadPool.getThreadContext()));
+        }
 
         @Override
         protected void onQueryResult(int shardIndex, QuerySearchResult queryResult) {
@@ -424,7 +437,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                 .addQueryFailure(
                     shardIndex,
                     // the nodeId is null if all replicas of this shard failed
-                    new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null)
+                    new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null),
+                    shardsInfo.getQueryFailures()
                 );
         }
 
@@ -467,14 +481,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                 delegate = new CCSSingleCoordinatorSearchProgressListener();
                 delegate.onListShards(shards, skipped, clusters, fetchPhase, timeProvider);
             }
-
-            MutableSearchResponse mutableSearchResponse = searchResponse.get();
-            if (mutableSearchResponse == null) {
-                mutableSearchResponse = new MutableSearchResponse(clusters, threadPool.getThreadContext());
-                searchResponse.set(mutableSearchResponse);
-            }
-
-            mutableSearchResponse.updateShardsCount(shards.size() + skipped.size(), skipped.size());
+            shardsInfo.setShardDetails(shards.size() + skipped.size(), skipped.size(), clusters);
             executeInitListeners();
         }
 
@@ -501,7 +508,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                  */
                 reducedAggs = () -> InternalAggregations.topLevelReduce(singletonList(aggregations), aggReduceContextSupplier.get());
             }
-            searchResponse.get().updatePartialResponse(shards.size(), totalHits, reducedAggs, reducePhase);
+            searchResponse.get().updatePartialResponse(shards.size(), shardsInfo.getSkippedShards(), totalHits, reducedAggs, reducePhase);
         }
 
         /**
@@ -515,7 +522,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             if (delegate != null) {
                 delegate.onFinalReduce(shards, totalHits, aggregations, reducePhase);
             }
-            searchResponse.get().updatePartialResponse(shards.size(), totalHits, () -> aggregations, reducePhase);
+            searchResponse.get()
+                .updatePartialResponse(shards.size(), shardsInfo.getSkippedShards(), totalHits, () -> aggregations, reducePhase);
         }
 
         /**
@@ -528,32 +536,99 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         @Override
         public void onClusterResponseMinimizeRoundtrips(String clusterAlias, SearchResponse clusterResponse) {
             // no need to call the delegate progress listener, since this method is only called for minimize_roundtrips=true
-            if (searchResponse.get() == null) {
-                searchResponse.set(new MutableSearchResponse(getResponseClusters(), threadPool.getThreadContext()));
-            }
-
             searchResponse.get().updateResponseMinimizeRoundtrips(clusterAlias, clusterResponse);
         }
 
         @Override
         public void onResponse(SearchResponse response) {
-            searchResponse.get().updateFinalResponse(response, ccsMinimizeRoundtrips);
+            searchResponse.get()
+                .updateFinalResponse(shardsInfo.getTotalShards(), shardsInfo.getSkippedShards(), response, ccsMinimizeRoundtrips);
             executeCompletionListeners();
         }
 
         @Override
         public void onFailure(Exception exc) {
             // if the failure occurred before calling onListShards
-            var r = new MutableSearchResponse(null, threadPool.getThreadContext());
+            var r = new MutableSearchResponse(threadPool.getThreadContext());
             if (searchResponse.trySet(r) == false) {
-                r.updateShardsCount(-1, -1);
                 r.close();
+            } else {
+                shardsInfo.setShardDetails(-1, -1, null);
             }
 
             searchResponse.get()
                 .updateWithFailure(new ElasticsearchStatusException("error while executing search", ExceptionsHelper.status(exc), exc));
             executeInitListeners();
             executeCompletionListeners();
+        }
+    }
+
+    /**
+     * Captures shards information such as number of total shards and skipped shards once
+     * they're made available via onListShards().
+     */
+    class ShardsInfo {
+        private int totalShards;
+        private int skippedShards;
+        private AtomicArray<ShardSearchFailure> queryFailures;
+        private Clusters clusters;
+
+        /**
+         *
+         * @param totalShards The number of shards that participate in the request, or -1 to indicate a failure.
+         * @param skippedShards The number of skipped shards, or -1 to indicate a failure.
+         * @param clusters The remote clusters statistics.
+         */
+        public void setShardDetails(int totalShards, int skippedShards, Clusters clusters) {
+            this.totalShards = totalShards;
+            this.skippedShards = skippedShards;
+            this.queryFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards - skippedShards);
+            this.clusters = clusters;
+        }
+
+        /**
+         * @return The total number of shards participating in the search.
+         */
+        public int getTotalShards() {
+            return totalShards;
+        }
+
+        /**
+         * @return The total number of shards skipped.
+         */
+        public int getSkippedShards() {
+            return skippedShards;
+        }
+
+        /**
+         * @return All the query failures occurred.
+         */
+        public AtomicArray<ShardSearchFailure> getQueryFailures() {
+            return queryFailures;
+        }
+
+        /**
+         * @return Clusters participating in the search.
+         */
+        public Clusters getClusters() {
+            return clusters;
+        }
+
+        /**
+         * @return An array that holds query failures represented by {@link ShardSearchFailure}-s.
+         */
+        public ShardSearchFailure[] buildQueryFailures() {
+            if (queryFailures == null) {
+                return ShardSearchFailure.EMPTY_ARRAY;
+            }
+            List<ShardSearchFailure> failures = new ArrayList<>();
+            for (int i = 0; i < queryFailures.length(); i++) {
+                ShardSearchFailure shardSearchFailure = queryFailures.get(i);
+                if (shardSearchFailure != null) {
+                    failures.add(shardSearchFailure);
+                }
+            }
+            return failures.toArray(ShardSearchFailure[]::new);
         }
     }
 

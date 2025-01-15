@@ -111,9 +111,6 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
             // This should mean one of the two things: either bad request ID, or the query has already finished
             // In both cases, let regular async get deal with it.
             var getAsyncResultRequest = new GetAsyncResultRequest(asyncIdStr);
-            // TODO: this should not be happening, but if the listener is not registered and the query is not finished,
-            // we give it some time to finish
-            getAsyncResultRequest.setWaitForCompletionTimeout(new TimeValue(1, TimeUnit.SECONDS));
             getResultsAction.execute(task, getAsyncResultRequest, listener);
             return;
         }

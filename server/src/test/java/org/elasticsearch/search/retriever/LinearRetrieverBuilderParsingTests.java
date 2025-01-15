@@ -84,6 +84,6 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
     }
 
     private static ScoreNormalizer randomScoreNormalizer() {
-        return new MinMaxScoreNormalizer(1f, 10f);
+        return new MinMaxScoreNormalizer(1f, 10f, 1f, 1f);
     }
 }

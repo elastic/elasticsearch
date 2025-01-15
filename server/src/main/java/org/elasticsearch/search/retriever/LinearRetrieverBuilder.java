@@ -47,6 +47,8 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     public static final NodeFeature LINEAR_RETRIEVER_SUPPORTED = new NodeFeature("linear_retriever_supported");
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
 
+    private static final float EPSILON = 1e-6f;
+
     private final float[] weights;
     private final ScoreNormalizer[] normalizers;
 
@@ -143,6 +145,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         for (int rank = 0; rank < topResults.length; ++rank) {
             topResults[rank] = sortedResults[rank];
             topResults[rank].rank = rank + 1;
+            topResults[rank].score = Math.max(EPSILON * (topResults.length - rank), topResults[rank].score);
         }
         return topResults;
     }
@@ -159,7 +162,9 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             for (var entry : innerRetrievers) {
                 builder.startObject();
                 builder.startObject(LinearRetrieverComponent.NAME);
-                builder.field(LinearRetrieverComponent.RETRIEVER_FIELD.getPreferredName(), entry.retriever());
+                builder.startObject(LinearRetrieverComponent.RETRIEVER_FIELD.getPreferredName());
+                entry.retriever().toXContent(builder, params);
+                builder.endObject();
                 builder.field(LinearRetrieverComponent.WEIGHT_FIELD.getPreferredName(), weights[index]);
                 builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizers[index]);
                 builder.endObject();

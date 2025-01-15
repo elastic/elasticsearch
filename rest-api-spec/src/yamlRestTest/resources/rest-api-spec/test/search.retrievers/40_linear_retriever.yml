@@ -19,6 +19,8 @@ setup:
                 type: keyword
               other_keyword:
                 type: keyword
+              timestamp:
+                type: date
 
   - do:
       bulk:
@@ -26,13 +28,13 @@ setup:
         index: test
         body:
           - '{"index": {"_id": 1 }}'
-          - '{"vector": [1], "keyword": "one", "other_keyword": "other"}'
+          - '{"vector": [1], "keyword": "one", "other_keyword": "other", "timestamp": "2021-01-01T00:00:00"}'
           - '{"index": {"_id": 2 }}'
-          - '{"vector": [2], "keyword": "two"}'
+          - '{"vector": [2], "keyword": "two", "timestamp": "2022-01-01T00:00:00"}'
           - '{"index": {"_id": 3 }}'
-          - '{"vector": [3], "keyword": "three"}'
+          - '{"vector": [3], "keyword": "three", "timestamp": "2023-01-01T00:00:00"}'
           - '{"index": {"_id": 4 }}'
-          - '{"vector": [4], "keyword": "four", "other_keyword": "other"}'
+          - '{"vector": [4], "keyword": "four", "other_keyword": "other", "timestamp": "2024-01-01T00:00:00"}'
 
 ---
 "basic linear weighted combination of a standard and knn retrievers":
@@ -143,9 +145,7 @@ setup:
                       }
                     },
                     weight: 10.0,
-                    normalizer: {
-                      minmax: { }
-                    }
+                    normalizer: "minmax"
                   }
                 },
                 {
@@ -165,13 +165,118 @@ setup:
 
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._id: "1" }
-  - close_to: { hits.hits.0._score: { value: 10.0, error: 0.001 } }
+  - match: {hits.hits.0._score: 10.0}
   - match: { hits.hits.1._id: "2" }
-  - close_to: { hits.hits.1._score: { value: 8.0, error: 0.001 } }
+  - match: {hits.hits.1._score: 8.0}
   - match: { hits.hits.2._id: "4" }
+  - match: {hits.hits.2._score: 2.0}
   - match: { hits.hits.2._score: 2.0 }
   - match: { hits.hits.3._id: "3" }
   - close_to: { hits.hits.3._score: { value: 0.0, error: 0.001 } }
+
+---
+"should normalize initial scores with a custom minmax normalizer":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  component: {
+                    retriever: {
+                      standard: {
+                        query: {
+                          bool: {
+                            should: [
+                              {
+                                constant_score: {
+                                  filter: {
+                                    term: {
+                                      keyword: {
+                                        value: "one"
+                                      }
+                                    }
+                                  },
+                                  boost: 10.0  # normalized score for this would be -0.55
+                                }
+                              },
+                              {
+                                constant_score: {
+                                  filter: {
+                                    term: {
+                                      keyword: {
+                                        value: "two"
+                                      }
+                                    }
+                                  },
+                                  boost: 9.0  # normalized score for this would be -0.56
+                                }
+                              },
+                              {
+                                constant_score: {
+                                  filter: {
+                                    term: {
+                                      keyword: {
+                                        value: "three"
+                                      }
+                                    }
+                                  },
+                                  boost: 5.0  # normalized score for this would be -0.63
+                                }
+                              },
+                              {
+                                constant_score: {
+                                  filter: {
+                                    term: {
+                                      keyword: {
+                                        value: "four"
+                                      }
+                                    }
+                                  },
+                                  boost: 1.0  # normalized score for this would be -0.7
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    weight: 10.0,
+                    normalizer: {
+                      minmax: {
+                        min: 42,
+                        max: 100
+                      }
+                    }
+                  }
+                },
+                {
+                  # this only provides a score of 10 for doc 4
+                  component: {
+                    retriever: {
+                      knn: {
+                        field: "vector",
+                        query_vector: [ 4 ],
+                        k: 1,
+                        num_candidates: 1
+                      }
+                    },
+                    weight: 10.0
+                  }
+                }
+              ]
+
+  - match: { hits.total.value: 4 }
+  - match: { hits.hits.0._id: "4" }
+  - close_to: { hits.hits.0._score: { value: 2.93103, error: 0.001 } }
+  - match: { hits.hits.1._id: "1" }
+  - close_to: { hits.hits.1._score: { value: 0.000003, error: 0.001 } }
+  - match: { hits.hits.2._id: "2" }
+  - close_to: { hits.hits.2._score: { value: 0.000002, error: 0.001 } }
+  - match: { hits.hits.3._id: "3" }
+  - close_to: { hits.hits.3._score: { value: 0.000001, error: 0.001 } }
 
 ---
 "should throw on unknown normalizer":
@@ -280,9 +385,7 @@ setup:
                       }
                     },
                     weight: 10.0,
-                    normalizer: {
-                      minmax: { }
-                    }
+                    normalizer: "minmax"
                   }
                 },
                 {
@@ -303,6 +406,7 @@ setup:
           size: 1
 
   - match: { hits.total.value: 4 }
+  - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: "4" }
   - match: { hits.hits.0._score: 2.0 }
 
@@ -362,9 +466,7 @@ setup:
                       }
                     },
                     weight: 10.0,
-                    normalizer: {
-                      minmax: { }
-                    }
+                    normalizer: "minmax"
                   }
                 },
                 {
@@ -408,9 +510,7 @@ setup:
                       }
                     },
                     weight: 10.0,
-                    normalizer: {
-                      minmax: { }
-                    }
+                    normalizer: "minmax"
                   }
                 },
                 {
@@ -487,9 +587,7 @@ setup:
                       }
                     },
                     weight: 1.0,
-                    normalizer: {
-                      minmax: { }
-                    }
+                    normalizer: "minmax"
                   }
                 },
                 {
@@ -511,9 +609,9 @@ setup:
 
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._id: "4" }
-  - close_to: { hits.hits.0._score: { value: 2.0, error: 0.001 } }
+  - match: { hits.hits.0._score: 2.0 }
   - match: { hits.hits.1._id: "1" }
-  - close_to: { hits.hits.1._score: { value: 1.0, error: 0.001 } }
+  - match: { hits.hits.1._score: 1.0 }
 
 ---
 "explain should provide info on weights and inner retrievers":
@@ -562,9 +660,7 @@ setup:
                       }
                     },
                     weight: 10.0,
-                    normalizer: {
-                      minmax: { }
-                    }
+                    normalizer: "minmax"
                   }
                 },
                 {
@@ -586,15 +682,15 @@ setup:
 
   - match: { hits.hits.0._id: "4" }
   - match: { hits.hits.0._explanation.description: "/weighted.linear.combination.score:.\\[20.0].computed.for.normalized.scores.\\[.*,.1.0\\].and.weights.\\[10.0,.20.0\\].as.sum.of.\\(weight\\[i\\].*.score\\[i\\]\\).for.each.query./"}
-  - close_to: { hits.hits.0._explanation.details.0.value: { value: 0.0, error: 0.001 } }
-  - match: { hits.hits.0._explanation.details.0.description: "/.*weighted.score.*\\[my_standard_retriever\\].*using.score.normalizer.\\[minmax\\].*/" }
-  - close_to: { hits.hits.0._explanation.details.1.value: { value: 20.0, error: 0.001 } }
+  - match: { hits.hits.0._explanation.details.0.value: 0.0 }
+  - match: { hits.hits.0._explanation.details.0.description: "/.*weighted.score.*result.not.found.in.query.at.index.\\[0\\].\\[my_standard_retriever\\]/" }
+  - match: { hits.hits.0._explanation.details.1.value: 20.0 }
   - match: { hits.hits.0._explanation.details.1.description: "/.*weighted.score.*using.score.normalizer.\\[none\\].*/" }
   - match: { hits.hits.1._id: "1" }
   - match: { hits.hits.1._explanation.description: "/weighted.linear.combination.score:.\\[10.0].computed.for.normalized.scores.\\[1.0,.0.0\\].and.weights.\\[10.0,.20.0\\].as.sum.of.\\(weight\\[i\\].*.score\\[i\\]\\).for.each.query./"}
-  - close_to: { hits.hits.1._explanation.details.0.value: { value: 10.0, error: 0.001 } }
-  - match: { hits.hits.1._explanation.details.0.description: "/.*weighted.score.*using.score.normalizer.\\[minmax\\].*/" }
-  - close_to: { hits.hits.1._explanation.details.1.value: { value: 0.0, error: 0.001 } }
+  - match: { hits.hits.1._explanation.details.0.value:  10.0 }
+  - match: { hits.hits.1._explanation.details.0.description: "/.*weighted.score.*\\[my_standard_retriever\\].*using.score.normalizer.\\[minmax\\].*/" }
+  - match: { hits.hits.1._explanation.details.1.value: 0.0 }
   - match: { hits.hits.1._explanation.details.1.description: "/.*weighted.score.*result.not.found.in.query.at.index.\\[1\\]/" }
 
 ---
@@ -849,3 +945,148 @@ setup:
   - length: {hits.hits: 1}
   - match: { hits.hits.0._id: "4" }
   - match: { hits.hits.0._score: 2.0 }
+
+
+---
+"linear retriever with custom sort and score for nested retrievers":
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  component: {
+                    retriever: {
+                      standard: {
+                        query: {
+                          constant_score: {
+                            filter: {
+                              bool: {
+                                should: [
+                                  {
+                                    term: {
+                                      keyword: {
+                                        value: "one"  # this will give doc 1 a normalized score of 0.5
+                                      }
+                                    }
+                                  },
+                                  {
+                                    term: {
+                                      keyword: {
+                                        value: "two" # this will give doc 2 a normalized score of 0.5
+                                      }
+                                    }
+                                  } ]
+                              }
+                            },
+                            boost: 10.0
+                          }
+                        },
+                        sort: {
+                          timestamp: {
+                            order: "asc"
+                          }
+                        }
+                      }
+                    },
+                    weight: 1.0,
+                    normalizer: "minmax"
+                  }
+                },
+                {
+                  # because we're sorting on timestamp and use a rank window size of 2, we will only get to see
+                  # docs 3 and 2.
+                  # their `scores` (which are the timestamps) are:
+                  # doc 3: 1672531200000 (2023-01-01T00:00:00)
+                  # doc 2: 1640995200000 (2022-01-01T00:00:00)
+                  # and their normalized scores based on the provided conf
+                  # will be:
+                  # normalized(doc3) = 1.59989
+                  # normalized(doc2) = 1.40010
+                  component: {
+                    retriever: {
+                      standard: {
+                        query: {
+                          function_score: {
+                            query: {
+                              bool: {
+                                should: [
+                                  {
+                                    constant_score: {
+                                      filter: {
+                                        term: {
+                                          keyword: {
+                                            value: "one"
+                                          }
+                                        }
+                                      },
+                                      boost: 10.0
+                                    }
+                                  },
+                                  {
+                                    constant_score: {
+                                      filter: {
+                                        term: {
+                                          keyword: {
+                                            value: "two"
+                                          }
+                                        }
+                                      },
+                                      boost: 9.0
+                                    }
+                                  },
+                                  {
+                                    constant_score: {
+                                      filter: {
+                                        term: {
+                                          keyword: {
+                                            value: "three"
+                                          }
+                                        }
+                                      },
+                                      boost: 1.0
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            functions: [ {
+                              script_score: {
+                                script: {
+                                  source: "doc['timestamp'].value.millis"
+                                }
+                              }
+                            } ],
+                            "boost_mode": "replace"
+                          }
+                        },
+                        sort: {
+                          timestamp: {
+                            order: "desc"
+                          }
+                        }
+                      }
+                    },
+                    weight: 1.0,
+                    normalizer: {
+                      minmax: {
+                        min: 1577836800000, # 2020-01-01T00:00:00
+                        max: 1735689600000, # 2025-01-01T00:00:00
+                        lower_bound: 1,
+                        upper_bound: 2
+                      }
+                    }
+                  }
+                }
+              ]
+              rank_window_size: 2
+          size: 2
+
+  - match: { hits.total.value: 3 }
+  - length: {hits.hits: 2}
+  - match: { hits.hits.0._id: "2" }
+  - close_to: { hits.hits.0._score: { value: 1.9, error: 0.001 } }
+  - match: { hits.hits.1._id: "3" }
+  - close_to: { hits.hits.1._score: { value: 1.599, error: 0.001 } }

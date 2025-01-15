@@ -53,7 +53,6 @@ public class LinearRetrieverComponent implements ToXContentObject {
             return retrieverBuilder;
         }, RETRIEVER_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), WEIGHT_FIELD);
-
         PARSER.declareField(optionalConstructorArg(), (p, c) -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 final String normalizer = p.text();
@@ -86,9 +85,5 @@ public class LinearRetrieverComponent implements ToXContentObject {
 
     public static LinearRetrieverComponent fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
         return PARSER.apply(parser, context);
-    }
-
-    private void setNormalizerField(ScoreNormalizer normalizer) {
-        this.normalizer = normalizer;
     }
 }

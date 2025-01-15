@@ -25,26 +25,53 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
 
     public static final ParseField MIN_FIELD = new ParseField("min");
     public static final ParseField MAX_FIELD = new ParseField("max");
+    public static final ParseField LOWER_BOUND_FIELD = new ParseField("lower_bound");
+    public static final ParseField UPPER_BOUND_FIELD = new ParseField("upper_bound");
+
+    private static final float DEFAULT_LOWER_BOUND = 0f;
+    private static final float DEFAULT_UPPER_BOUND = 1f;
 
     public static final ConstructingObjectParser<MinMaxScoreNormalizer, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
         Float min = (Float) args[0];
         Float max = (Float) args[1];
-        return new MinMaxScoreNormalizer(min, max);
+        float lowerBound = args[2] == null ? DEFAULT_LOWER_BOUND : (float) args[2];
+        float upperBound = args[3] == null ? DEFAULT_UPPER_BOUND : (float) args[3];
+        return new MinMaxScoreNormalizer(min, max, lowerBound, upperBound);
     });
 
     static {
         PARSER.declareFloat(optionalConstructorArg(), MIN_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), MAX_FIELD);
+        PARSER.declareFloat(optionalConstructorArg(), LOWER_BOUND_FIELD);
+        PARSER.declareFloat(optionalConstructorArg(), UPPER_BOUND_FIELD);
     }
 
     private Float min;
     private Float max;
+    private final float lowerBound;
+    private final float upperBound;
 
-    public MinMaxScoreNormalizer() {}
+    public MinMaxScoreNormalizer() {
+        this.min = null;
+        this.max = null;
+        this.lowerBound = DEFAULT_LOWER_BOUND;
+        this.upperBound = DEFAULT_UPPER_BOUND;
+    }
 
-    public MinMaxScoreNormalizer(Float min, Float max) {
+    public MinMaxScoreNormalizer(Float min, Float max, float lowerBound, float upperBound) {
+        if (min != null && max != null && min >= max) {
+            throw new IllegalArgumentException("[min] must be less than [max]");
+        }
+        if (lowerBound >= upperBound) {
+            throw new IllegalArgumentException("[lowerBound] must be less than [upperBound]");
+        }
+        if (lowerBound < 0) {
+            throw new IllegalArgumentException("[lowerBound] must be greater than or equal to 0");
+        }
         this.min = min;
         this.max = max;
+        this.lowerBound = lowerBound;
+        this.upperBound = upperBound;
     }
 
     @Override
@@ -57,26 +84,33 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
         // create a new array to avoid changing ScoreDocs in place
         ScoreDoc[] scoreDocs = new ScoreDoc[docs.length];
         if (min == null || max == null) {
-            float localMin = Float.MAX_VALUE;
-            float localMax = Float.MIN_VALUE;
+            float xMin = Float.MAX_VALUE;
+            float xMax = Float.MIN_VALUE;
             for (ScoreDoc rd : docs) {
-                if (max == null && rd.score > localMax) {
-                    localMax = rd.score;
+                if (rd.score > xMax) {
+                    xMax = rd.score;
                 }
-                if (min == null && rd.score < localMin) {
-                    localMin = rd.score;
+                if (rd.score < xMin) {
+                    xMin = rd.score;
                 }
             }
             if (min == null) {
-                min = localMin;
+                min = xMin;
             }
             if (max == null) {
-                max = localMax;
+                max = xMax;
             }
         }
-        float epsilon = Float.MIN_NORMAL;
+        if (min > max) {
+            throw new IllegalArgumentException("[min=" + min + "] must be less than [max=" + max + "]");
+        }
         for (int i = 0; i < docs.length; i++) {
-            float score = epsilon + ((docs[i].score - min) / (max - min));
+            float score;
+            if (min.equals(max)) {
+                score = (upperBound + lowerBound) / 2;
+            } else {
+                score = ((docs[i].score - min) / (max - min) * (upperBound - lowerBound)) + lowerBound;
+            }
             scoreDocs[i] = new ScoreDoc(docs[i].doc, score, docs[i].shardIndex);
         }
         return scoreDocs;
@@ -90,6 +124,8 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(MIN_FIELD.getPreferredName(), min);
         builder.field(MAX_FIELD.getPreferredName(), max);
+        builder.field(LOWER_BOUND_FIELD.getPreferredName(), lowerBound);
+        builder.field(UPPER_BOUND_FIELD.getPreferredName(), upperBound);
         return builder;
     }
 }

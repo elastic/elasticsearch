@@ -244,6 +244,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
     }
 
     private void handleException(Exception e) {
+        boolean isUnexpectedFailure = false;
         if (e instanceof BulkRolesResponseException bulkException) {
             final boolean isBulkDeleteFailure = bulkException instanceof BulkDeleteRolesResponseException;
             for (final Map.Entry<String, Exception> bulkFailure : bulkException.getFailures().entrySet()) {
@@ -255,15 +256,18 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
                 if (isExpectedFailure(bulkFailure.getValue())) {
                     logger.info(logMessage, bulkFailure.getValue());
                 } else {
-                    failedSyncAttempts.incrementAndGet();
+                    isUnexpectedFailure = true;
                     logger.warn(logMessage, bulkFailure.getValue());
                 }
             }
         } else if (isExpectedFailure(e)) {
             logger.info("Failed to sync built-in roles to .security index", e);
         } else {
-            failedSyncAttempts.incrementAndGet();
+            isUnexpectedFailure = true;
             logger.warn("Failed to sync built-in roles to .security index due to unexpected exception", e);
+        }
+        if (isUnexpectedFailure) {
+            failedSyncAttempts.incrementAndGet();
         }
     }
 

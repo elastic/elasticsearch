@@ -399,7 +399,7 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         when(featureService.clusterHasFeature(any(), eq(QUERYABLE_BUILT_IN_ROLES_FEATURE))).thenReturn(true);
 
-        final Set<String> roles = randomReservedRoles(randomIntBetween(1, QueryableBuiltInRolesSynchronizer.MAX_FAILED_SYNC_ATTEMPTS - 1));
+        final Set<String> roles = randomReservedRoles(randomIntBetween(1, 10));
         final QueryableBuiltInRoles builtInRoles = buildQueryableBuiltInRoles(
             roles.stream().map(ReservedRolesStore::roleDescriptor).collect(Collectors.toSet())
         );
@@ -407,81 +407,30 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
         mockNativeRolesStoreWithFailure(builtInRoles.roleDescriptors(), Set.of(), new IllegalStateException("unexpected failure"));
         assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
 
-        // the first sync attempt should fail
-        synchronizer.clusterChanged(event(clusterState));
-        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(roles.size()));
+        for (int i = 1; i <= QueryableBuiltInRolesSynchronizer.MAX_FAILED_SYNC_ATTEMPTS + 5; i++) {
+            synchronizer.clusterChanged(event(clusterState));
+            if (i < QueryableBuiltInRolesSynchronizer.MAX_FAILED_SYNC_ATTEMPTS) {
+                assertThat(synchronizer.getFailedSyncAttempts(), equalTo(i));
+            } else {
+                assertThat(synchronizer.getFailedSyncAttempts(), equalTo(QueryableBuiltInRolesSynchronizer.MAX_FAILED_SYNC_ATTEMPTS));
+            }
+        }
 
-        verify(nativeRolesStore, times(1)).isEnabled();
-        verify(featureService, times(1)).clusterHasFeature(any(), eq(QUERYABLE_BUILT_IN_ROLES_FEATURE));
-        verify(reservedRolesProvider, times(1)).getRoles();
-        verify(nativeRolesStore, times(1)).putRoles(
+        verify(nativeRolesStore, times(QueryableBuiltInRolesSynchronizer.MAX_FAILED_SYNC_ATTEMPTS)).isEnabled();
+        verify(featureService, times(QueryableBuiltInRolesSynchronizer.MAX_FAILED_SYNC_ATTEMPTS)).clusterHasFeature(
+            any(),
+            eq(QUERYABLE_BUILT_IN_ROLES_FEATURE)
+        );
+        verify(reservedRolesProvider, times(QueryableBuiltInRolesSynchronizer.MAX_FAILED_SYNC_ATTEMPTS)).getRoles();
+        verify(nativeRolesStore, times(QueryableBuiltInRolesSynchronizer.MAX_FAILED_SYNC_ATTEMPTS)).putRoles(
             eq(WriteRequest.RefreshPolicy.IMMEDIATE),
             eq(builtInRoles.roleDescriptors()),
             eq(false),
             any()
         );
-        verify(clusterService, times(1)).state();
+        verify(clusterService, times(QueryableBuiltInRolesSynchronizer.MAX_FAILED_SYNC_ATTEMPTS)).state();
         verifyNoMoreInteractions(nativeRolesStore, featureService, taskQueue, reservedRolesProvider, threadPool, clusterService);
         assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
-
-        // the next cluster change event should trigger a sync since the previous sync did not reach the max number of failed attempts
-        synchronizer.clusterChanged(event(clusterState));
-        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(roles.size() * 2));
-
-        verify(nativeRolesStore, times(2)).isEnabled();
-        verify(featureService, times(2)).clusterHasFeature(any(), eq(QUERYABLE_BUILT_IN_ROLES_FEATURE));
-        verify(reservedRolesProvider, times(2)).getRoles();
-        verify(nativeRolesStore, times(2)).putRoles(
-            eq(WriteRequest.RefreshPolicy.IMMEDIATE),
-            eq(builtInRoles.roleDescriptors()),
-            eq(false),
-            any()
-        );
-        verify(clusterService, times(2)).state();
-        verifyNoMoreInteractions(nativeRolesStore, featureService, taskQueue, reservedRolesProvider, threadPool, clusterService);
-        assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
-    }
-
-    public void testMaxUnexpectedSyncFailureAttempts() {
-        assertInitialState();
-
-        ClusterState clusterState = markShardsAvailable(createClusterStateWithOpenSecurityIndex()).nodes(localNodeMaster())
-            .blocks(emptyClusterBlocks())
-            .build();
-
-        when(clusterService.state()).thenReturn(clusterState);
-        when(featureService.clusterHasFeature(any(), eq(QUERYABLE_BUILT_IN_ROLES_FEATURE))).thenReturn(true);
-
-        final Set<String> roles = randomReservedRoles(QueryableBuiltInRolesSynchronizer.MAX_FAILED_SYNC_ATTEMPTS);
-        final QueryableBuiltInRoles builtInRoles = buildQueryableBuiltInRoles(
-            roles.stream().map(ReservedRolesStore::roleDescriptor).collect(Collectors.toSet())
-        );
-        when(reservedRolesProvider.getRoles()).thenReturn(builtInRoles);
-        mockNativeRolesStoreWithFailure(builtInRoles.roleDescriptors(), Set.of(), new IllegalStateException("unexpected failure"));
-        assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
-
-        synchronizer.clusterChanged(event(clusterState));
-
-        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(QueryableBuiltInRolesSynchronizer.MAX_FAILED_SYNC_ATTEMPTS));
-
-        verify(nativeRolesStore, times(1)).isEnabled();
-        verify(featureService, times(1)).clusterHasFeature(any(), eq(QUERYABLE_BUILT_IN_ROLES_FEATURE));
-        verify(reservedRolesProvider, times(1)).getRoles();
-        verify(nativeRolesStore, times(1)).putRoles(
-            eq(WriteRequest.RefreshPolicy.IMMEDIATE),
-            eq(builtInRoles.roleDescriptors()),
-            eq(false),
-            any()
-        );
-        verify(clusterService, times(1)).state();
-        verifyNoMoreInteractions(nativeRolesStore, featureService, taskQueue, reservedRolesProvider, threadPool, clusterService);
-        assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
-
-        // the next cluster change event should not trigger a sync since the max number of failed attempts has been reached in previous sync
-        synchronizer.clusterChanged(event(clusterState));
-        verifyNoMoreInteractions(nativeRolesStore, featureService, taskQueue, reservedRolesProvider, threadPool, clusterService);
-        assertThat(synchronizer.isSynchronizationInProgress(), equalTo(false));
-        assertThat(synchronizer.getFailedSyncAttempts(), equalTo(QueryableBuiltInRolesSynchronizer.MAX_FAILED_SYNC_ATTEMPTS));
     }
 
     public void testExpectedSyncFailuresAreNotCounted() {
@@ -494,7 +443,7 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         when(featureService.clusterHasFeature(any(), eq(QUERYABLE_BUILT_IN_ROLES_FEATURE))).thenReturn(true);
 
-        final Set<String> roles = randomReservedRoles(randomIntBetween(1, QueryableBuiltInRolesSynchronizer.MAX_FAILED_SYNC_ATTEMPTS));
+        final Set<String> roles = randomReservedRoles(randomIntBetween(1, 10));
         final QueryableBuiltInRoles builtInRoles = buildQueryableBuiltInRoles(
             roles.stream().map(ReservedRolesStore::roleDescriptor).collect(Collectors.toSet())
         );

@@ -15,7 +15,7 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 public final class MinioTestContainer extends DockerEnvironmentAwareTestContainer {
 
     private static final int servicePort = 9000;
-    public static final String DOCKER_BASE_IMAGE = "minio/minio:RELEASE.2021-03-01T04-20-55Z";
+    public static final String DOCKER_BASE_IMAGE = "minio/minio:RELEASE.2024-12-18T13-15-44Z";
     private final boolean enabled;
 
     public MinioTestContainer(boolean enabled, String accessKey, String secretKey, String bucketName) {

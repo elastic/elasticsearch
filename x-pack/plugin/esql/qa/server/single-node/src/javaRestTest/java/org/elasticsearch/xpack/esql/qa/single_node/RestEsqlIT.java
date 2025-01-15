@@ -574,23 +574,35 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("slice_min", 0)
                 .entry("current", DocIdSetIterator.NO_MORE_DOCS)
                 .entry("pages_emitted", greaterThan(0))
+                .entry("rows_emitted", greaterThan(0))
                 .entry("processing_nanos", greaterThan(0))
                 .entry("processed_queries", List.of("*:*"));
             case "ValuesSourceReaderOperator" -> basicProfile().entry("readers_built", matchesMap().extraOk());
             case "AggregationOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
+                .entry("rows_received", greaterThan(0))
+                .entry("rows_emitted", greaterThan(0))
                 .entry("aggregation_nanos", greaterThan(0))
                 .entry("aggregation_finish_nanos", greaterThan(0));
-            case "ExchangeSinkOperator" -> matchesMap().entry("pages_accepted", greaterThan(0));
-            case "ExchangeSourceOperator" -> matchesMap().entry("pages_emitted", greaterThan(0)).entry("pages_waiting", 0);
+            case "ExchangeSinkOperator" -> matchesMap().entry("pages_received", greaterThan(0)).entry("rows_received", greaterThan(0));
+            case "ExchangeSourceOperator" -> matchesMap().entry("pages_waiting", 0)
+                .entry("pages_emitted", greaterThan(0))
+                .entry("rows_emitted", greaterThan(0));
             case "ProjectOperator", "EvalOperator" -> basicProfile();
             case "LimitOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
                 .entry("limit", 1000)
-                .entry("limit_remaining", 999);
+                .entry("limit_remaining", 999)
+                .entry("rows_received", greaterThan(0))
+                .entry("rows_emitted", greaterThan(0));
             case "OutputOperator" -> null;
             case "TopNOperator" -> matchesMap().entry("occupied_rows", 0)
+                .entry("pages_received", greaterThan(0))
+                .entry("pages_emitted", greaterThan(0))
+                .entry("rows_received", greaterThan(0))
+                .entry("rows_emitted", greaterThan(0))
                 .entry("ram_used", instanceOf(String.class))
                 .entry("ram_bytes_used", greaterThan(0));
             case "LuceneTopNSourceOperator" -> matchesMap().entry("pages_emitted", greaterThan(0))
+                .entry("rows_emitted", greaterThan(0))
                 .entry("current", greaterThan(0))
                 .entry("processed_slices", greaterThan(0))
                 .entry("processed_shards", List.of("rest-esql-test:0"))
@@ -611,7 +623,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     private MapMatcher basicProfile() {
-        return matchesMap().entry("pages_processed", greaterThan(0)).entry("process_nanos", greaterThan(0));
+        return matchesMap().entry("pages_processed", greaterThan(0))
+            .entry("process_nanos", greaterThan(0))
+            .entry("rows_received", greaterThan(0))
+            .entry("rows_emitted", greaterThan(0));
     }
 
     private void assertException(String query, String... errorMessages) throws IOException {

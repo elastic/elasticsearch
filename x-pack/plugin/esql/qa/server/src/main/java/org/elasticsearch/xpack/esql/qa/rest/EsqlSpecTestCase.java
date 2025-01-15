@@ -75,9 +75,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
-    // To avoid referencing the main module, we replicate EsqlFeatures.ASYNC_QUERY.id() here
-    protected static final String ASYNC_QUERY_FEATURE_ID = "esql.async_query";
-
     private static final Logger LOGGER = LogManager.getLogger(EsqlSpecTestCase.class);
     private final String fileName;
     private final String groupName;
@@ -138,10 +135,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (indexExists(availableDatasetsForEs(client(), supportsIndexModeLookup()).iterator().next().indexName()) == false) {
             loadDataSetIntoEs(client(), supportsIndexModeLookup());
         }
-    }
-
-    protected boolean supportsAsync() {
-        return clusterHasFeature(ASYNC_QUERY_FEATURE_ID); // the Async API was introduced in 8.13.0
     }
 
     @AfterClass
@@ -281,7 +274,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     private Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
         if (mode == Mode.ASYNC) {
-            assert supportsAsync();
             return RestEsqlTestCase.runEsqlAsync(requestObject, assertWarnings);
         } else {
             return RestEsqlTestCase.runEsqlSync(requestObject, assertWarnings);

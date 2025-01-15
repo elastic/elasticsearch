@@ -1213,7 +1213,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             try (var indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 int start = randomBoolean() ? 0 : randomIntBetween(1, maxDocs - 10);
                 var snapshot = new LuceneSyntheticSourceChangesSnapshot(
-                    mapperService.mappingLookup(),
+                    mapperService,
                     new Engine.Searcher(
                         "recovery",
                         indexReader,

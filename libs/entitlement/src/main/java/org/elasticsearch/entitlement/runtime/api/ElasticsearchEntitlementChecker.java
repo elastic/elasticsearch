@@ -36,7 +36,6 @@ import java.util.List;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocketFactory;
 
 /**
@@ -350,11 +349,6 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void check$java_net_URL$(Class<?> callerClass, URL context, String spec, URLStreamHandler handler) {
         policyManager.checkChangeNetworkHandling(callerClass);
-    }
-
-    @Override
-    public void check$sun_security_ssl_SSLSessionImpl$getSessionContext(Class<?> callerClass, SSLSession sslSession) {
-        policyManager.checkReadSensitiveNetworkInformation(callerClass);
     }
 
     @Override

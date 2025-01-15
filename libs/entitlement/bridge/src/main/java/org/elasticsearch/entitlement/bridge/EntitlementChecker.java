@@ -224,9 +224,15 @@ public interface EntitlementChecker {
     void check$java_net_MulticastSocket$send(Class<?> callerClass, MulticastSocket that, DatagramPacket p, byte ttl);
 
     // Binding/connecting ctor
+    void check$java_net_ServerSocket$(Class<?> callerClass, int port);
+
+    void check$java_net_ServerSocket$(Class<?> callerClass, int port, int backlog);
+
     void check$java_net_ServerSocket$(Class<?> callerClass, int port, int backlog, InetAddress bindAddr);
 
     void check$java_net_ServerSocket$accept(Class<?> callerClass, ServerSocket that);
+
+    void check$java_net_ServerSocket$implAccept(Class<?> callerClass, ServerSocket that, Socket s);
 
     void check$java_net_ServerSocket$bind(Class<?> callerClass, ServerSocket that, SocketAddress endpoint);
 

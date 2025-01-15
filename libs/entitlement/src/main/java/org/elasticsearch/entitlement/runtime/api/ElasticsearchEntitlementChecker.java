@@ -425,12 +425,27 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$java_net_ServerSocket$(Class<?> callerClass, int port) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION);
+    }
+
+    @Override
+    public void check$java_net_ServerSocket$(Class<?> callerClass, int port, int backlog) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION);
+    }
+
+    @Override
     public void check$java_net_ServerSocket$(Class<?> callerClass, int port, int backlog, InetAddress bindAddr) {
         policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION);
     }
 
     @Override
     public void check$java_net_ServerSocket$accept(Class<?> callerClass, ServerSocket that) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.ACCEPT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_ServerSocket$implAccept(Class<?> callerClass, ServerSocket that, Socket s) {
         policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.ACCEPT_ACTION);
     }
 

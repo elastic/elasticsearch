@@ -13,7 +13,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
@@ -100,7 +99,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
                 RowResults result = currentResults.pop();
                 DataFrameDataExtractor.Row row = dataFrameRowsIterator.next();
                 checkChecksumsMatch(row, result);
-                bulkIndexer.addAndExecuteIfNeeded(createIndexRequest(result, row.getHit()));
+                bulkIndexer.addAndExecuteIfNeeded(createIndexRequest(result, row));
             }
         }
 
@@ -120,19 +119,19 @@ class DataFrameRowsJoiner implements AutoCloseable {
 
     private static void checkChecksumsMatch(DataFrameDataExtractor.Row row, RowResults result) {
         if (row.getChecksum() != result.getChecksum()) {
-            String msg = "Detected checksum mismatch for document with id [" + row.getHit().getId() + "]; ";
+            String msg = "Detected checksum mismatch for document with id [" + row.getId() + "]; ";
             msg += "expected [" + row.getChecksum() + "] but result had [" + result.getChecksum() + "]; ";
-            msg += "this implies the data frame index [" + row.getHit().getIndex() + "] was modified while the analysis was running. ";
+            msg += "this implies the data frame index [" + row.getIndex() + "] was modified while the analysis was running. ";
             msg += "We rely on this index being immutable during a running analysis and so the results will be unreliable.";
             throw ExceptionsHelper.serverError(msg);
         }
     }
 
-    private IndexRequest createIndexRequest(RowResults result, SearchHit hit) {
-        Map<String, Object> source = new LinkedHashMap<>(hit.getSourceAsMap());
+    private IndexRequest createIndexRequest(RowResults result, DataFrameDataExtractor.Row row) {
+        Map<String, Object> source = new LinkedHashMap<>(row.source());
         source.putAll(result.getResults());
-        IndexRequest indexRequest = new IndexRequest(hit.getIndex());
-        indexRequest.id(hit.getId());
+        IndexRequest indexRequest = new IndexRequest(row.getIndex());
+        indexRequest.id(row.getId());
         indexRequest.source(source);
         indexRequest.opType(DocWriteRequest.OpType.INDEX);
         indexRequest.setParentTask(parentTaskId);

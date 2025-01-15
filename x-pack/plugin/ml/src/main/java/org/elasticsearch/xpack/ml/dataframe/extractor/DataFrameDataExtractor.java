@@ -159,8 +159,13 @@ public class DataFrameDataExtractor {
                 List<Row> rows = new ArrayList<>(searchResponse.getHits().getHits().length);
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     var unpooled = hit.asUnpooled();
+                    SourceSupplier sourceSupplier = new SourceSupplier(unpooled);
                     String[] extractedValues = extractValues(unpooled, new SourceSupplier(unpooled));
-                    rows.add(extractedValues == null ? new Row(null, unpooled, true) : new Row(extractedValues, unpooled, false));
+                    rows.add(
+                        extractedValues == null
+                            ? new Row(null, unpooled, sourceSupplier, true)
+                            : new Row(extractedValues, unpooled, sourceSupplier, false)
+                    );
                 }
                 delegate.onResponse(rows);
             })
@@ -323,10 +328,10 @@ public class DataFrameDataExtractor {
         assert hit.isPooled() == false;
         String[] extractedValues = extractValues(hit, sourceSupplier);
         if (extractedValues == null) {
-            return new Row(null, hit, true);
+            return new Row(null, hit, sourceSupplier, true);
         }
         boolean isTraining = trainTestSplitter.get().isTraining(extractedValues);
-        Row row = new Row(extractedValues, hit, isTraining);
+        Row row = new Row(extractedValues, hit, sourceSupplier, isTraining);
         LOGGER.trace(
             () -> format(
                 "[%s] Extracted row: sort key = [%s], is_training = [%s], values = %s",
@@ -451,25 +456,23 @@ public class DataFrameDataExtractor {
     public static class Row {
 
         private final SearchHit hit;
+        private final SourceSupplier sourceSupplier;
 
         @Nullable
         private final String[] values;
 
         private final boolean isTraining;
 
-        private Row(String[] values, SearchHit hit, boolean isTraining) {
+        private Row(String[] values, SearchHit hit, SourceSupplier sourceSupplier, boolean isTraining) {
             this.values = values;
             this.hit = hit;
+            this.sourceSupplier = sourceSupplier;
             this.isTraining = isTraining;
         }
 
         @Nullable
         public String[] getValues() {
             return values;
-        }
-
-        public SearchHit getHit() {
-            return hit;
         }
 
         public boolean shouldSkip() {
@@ -486,6 +489,18 @@ public class DataFrameDataExtractor {
 
         public long getSortKey() {
             return (long) hit.getSortValues()[0];
+        }
+
+        public String getId() {
+            return hit.getId();
+        }
+
+        public String getIndex() {
+            return hit.getIndex();
+        }
+
+        public Map<String, Object> source() {
+            return sourceSupplier.get();
         }
     }
 }

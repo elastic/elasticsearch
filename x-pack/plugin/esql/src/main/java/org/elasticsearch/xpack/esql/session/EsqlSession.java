@@ -327,6 +327,7 @@ public class EsqlSession {
         var listener = SubscribableListener.<EnrichResolution>newForked(
             l -> enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, l)
         ).<PreAnalysisResult>andThen((l, enrichResolution) -> resolveFieldNames(parsed, enrichResolution, l));
+
         // first resolve the lookup indices, then the main indices
         for (TableInfo lookupIndex : preAnalysis.lookupIndices) {
             listener = listener.andThen((l, preAnalysisResult) -> { preAnalyzeLookupIndex(lookupIndex, preAnalysisResult, l); });

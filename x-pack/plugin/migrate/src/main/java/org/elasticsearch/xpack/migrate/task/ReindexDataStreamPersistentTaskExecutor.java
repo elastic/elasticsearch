@@ -221,7 +221,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             .<AcknowledgedResponse>andThen(
                 (l, result) -> updateDataStream(sourceDataStream, index.getName(), result.getDestIndex(), l, reindexClient, parentTaskId)
             )
-            .<AcknowledgedResponse>andThen(l -> deleteIndex(index.getName(), reindexClient, l))
+            .<AcknowledgedResponse>andThen(l -> deleteIndex(index.getName(), reindexClient, parentTaskId, l))
             .addListener(ActionListener.wrap(unused -> {
                 reindexDataStreamTask.reindexSucceeded(index.getName());
                 listener.onResponse(null);
@@ -249,8 +249,15 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         reindexClient.execute(ModifyDataStreamsAction.INSTANCE, modifyDataStreamRequest, listener);
     }
 
-    private void deleteIndex(String indexName, ExecuteWithHeadersClient reindexClient, ActionListener<AcknowledgedResponse> listener) {
-        reindexClient.execute(TransportDeleteIndexAction.TYPE, new DeleteIndexRequest(indexName), listener);
+    private void deleteIndex(
+        String indexName,
+        ExecuteWithHeadersClient reindexClient,
+        TaskId parentTaskId,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName);
+        deleteIndexRequest.setParentTask(parentTaskId);
+        reindexClient.execute(TransportDeleteIndexAction.TYPE, deleteIndexRequest, listener);
     }
 
     private void completeSuccessfulPersistentTask(

@@ -96,6 +96,7 @@ class ESRestTestFeatureService implements TestFeatureService {
                 // the feature is therefore logically present, but not specified by the cluster
                 return true;
             }
+
             throw new IllegalArgumentException(
                 Strings.format(
                     "Unknown feature %s: check the respective FeatureSpecification is provided both in module-info.java "

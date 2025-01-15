@@ -287,28 +287,28 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         {
             GetMappingsResponse getMappingsResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-            ).admin().indices().prepareGetMappings("test").get();
+            ).admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
             assertExpectedMetadataFields(getMappingsResponse.getMappings(), "field1");
         }
 
         {
             GetMappingsResponse getMappingsResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
-            ).admin().indices().prepareGetMappings("test").get();
+            ).admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
             assertExpectedMetadataFields(getMappingsResponse.getMappings(), "field2");
         }
 
         {
             GetMappingsResponse getMappingsResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD))
-            ).admin().indices().prepareGetMappings("test").get();
+            ).admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
             assertExpectedMetadataFields(getMappingsResponse.getMappings(), "field1");
         }
 
         {
             GetMappingsResponse getMappingsResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD))
-            ).admin().indices().prepareGetMappings("test").get();
+            ).admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
             assertExpectedMetadataFields(getMappingsResponse.getMappings(), "field1", "field2");
         }
     }

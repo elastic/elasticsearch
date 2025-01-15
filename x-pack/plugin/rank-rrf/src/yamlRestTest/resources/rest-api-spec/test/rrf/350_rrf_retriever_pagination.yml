@@ -4,10 +4,6 @@ setup:
         - close_to
         - contains
 
-  - requires:
-      cluster_features: 'rrf_retriever_composition_supported'
-      reason: 'test requires rrf retriever composition support'
-
   - do:
       indices.create:
         index: test

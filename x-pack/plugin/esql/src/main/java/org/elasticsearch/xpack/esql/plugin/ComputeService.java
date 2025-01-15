@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -140,6 +141,7 @@ public class ComputeService {
         CancellableTask rootTask,
         PhysicalPlan physicalPlan,
         Configuration configuration,
+        FoldContext foldContext,
         EsqlExecutionInfo execInfo,
         ActionListener<Result> listener
     ) {
@@ -174,6 +176,7 @@ public class ComputeService {
                 RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                 List.of(),
                 configuration,
+                foldContext,
                 null,
                 null
             );
@@ -226,6 +229,7 @@ public class ComputeService {
                         RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                         List.of(),
                         configuration,
+                        foldContext,
                         exchangeSource,
                         null
                     ),
@@ -358,19 +362,22 @@ public class ComputeService {
                             exchangeSource.addRemoteSink(remoteSink, true, queryPragmas.concurrentExchangeClients(), ActionListener.noop());
                             ActionListener<ComputeResponse> computeResponseListener = computeListener.acquireCompute(clusterAlias);
                             var dataNodeListener = ActionListener.runBefore(computeResponseListener, () -> l.onResponse(null));
+                            final boolean sameNode = transportService.getLocalNode().getId().equals(node.connection.getNode().getId());
+                            var dataNodeRequest = new DataNodeRequest(
+                                childSessionId,
+                                configuration,
+                                clusterAlias,
+                                node.shardIds,
+                                node.aliasFilters,
+                                dataNodePlan,
+                                originalIndices.indices(),
+                                originalIndices.indicesOptions(),
+                                sameNode == false && queryPragmas.nodeLevelReduction()
+                            );
                             transportService.sendChildRequest(
                                 node.connection,
                                 DATA_ACTION_NAME,
-                                new DataNodeRequest(
-                                    childSessionId,
-                                    configuration,
-                                    clusterAlias,
-                                    node.shardIds,
-                                    node.aliasFilters,
-                                    dataNodePlan,
-                                    originalIndices.indices(),
-                                    originalIndices.indicesOptions()
-                                ),
+                                dataNodeRequest,
                                 parentTask,
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(dataNodeListener, ComputeResponse::new, esqlExecutor)
@@ -457,16 +464,16 @@ public class ComputeService {
                 context.exchangeSink(),
                 enrichLookupService,
                 lookupFromIndexService,
-                new EsPhysicalOperationProviders(contexts, searchService.getIndicesService().getAnalysis())
+                new EsPhysicalOperationProviders(context.foldCtx(), contexts, searchService.getIndicesService().getAnalysis())
             );
 
             LOGGER.debug("Received physical plan:\n{}", plan);
 
-            plan = PlannerUtils.localPlan(context.searchExecutionContexts(), context.configuration, plan);
+            plan = PlannerUtils.localPlan(context.searchExecutionContexts(), context.configuration, context.foldCtx(), plan);
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
-            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(plan);
+            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(context.foldCtx(), plan);
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
             }
@@ -712,7 +719,15 @@ public class ComputeService {
             };
             acquireSearchContexts(clusterAlias, shardIds, configuration, request.aliasFilters(), ActionListener.wrap(searchContexts -> {
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ESQL_WORKER_THREAD_POOL_NAME);
-                var computeContext = new ComputeContext(sessionId, clusterAlias, searchContexts, configuration, null, exchangeSink);
+                var computeContext = new ComputeContext(
+                    sessionId,
+                    clusterAlias,
+                    searchContexts,
+                    configuration,
+                    configuration.newFoldContext(),
+                    null,
+                    exchangeSink
+                );
                 runCompute(parentTask, computeContext, request.plan(), batchListener);
             }, batchListener::onFailure));
         }
@@ -763,6 +778,7 @@ public class ComputeService {
                     request.clusterAlias(),
                     List.of(),
                     request.configuration(),
+                    new FoldContext(request.pragmas().foldLimit().getBytes()),
                     exchangeSource,
                     externalSink
                 ),
@@ -803,7 +819,7 @@ public class ComputeService {
             final ActionListener<ComputeResponse> listener = new ChannelActionListener<>(channel);
             final PhysicalPlan reductionPlan;
             if (request.plan() instanceof ExchangeSinkExec plan) {
-                reductionPlan = reductionPlan(plan, request.pragmas().nodeLevelReduction());
+                reductionPlan = reductionPlan(plan, request.runNodeLevelReduction());
             } else {
                 listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + request.plan()));
                 return;
@@ -817,7 +833,8 @@ public class ComputeService {
                 request.aliasFilters(),
                 request.plan(),
                 request.indices(),
-                request.indicesOptions()
+                request.indicesOptions(),
+                request.runNodeLevelReduction()
             );
             try (var computeListener = ComputeListener.create(transportService, (CancellableTask) task, listener)) {
                 runComputeOnDataNode((CancellableTask) task, sessionId, reductionPlan, request, computeListener);
@@ -897,7 +914,15 @@ public class ComputeService {
             exchangeSink.addCompletionListener(computeListener.acquireAvoid());
             runCompute(
                 parentTask,
-                new ComputeContext(localSessionId, clusterAlias, List.of(), configuration, exchangeSource, exchangeSink),
+                new ComputeContext(
+                    localSessionId,
+                    clusterAlias,
+                    List.of(),
+                    configuration,
+                    configuration.newFoldContext(),
+                    exchangeSource,
+                    exchangeSink
+                ),
                 coordinatorPlan,
                 computeListener.acquireCompute(clusterAlias)
             );
@@ -921,6 +946,7 @@ public class ComputeService {
         String clusterAlias,
         List<SearchContext> searchContexts,
         Configuration configuration,
+        FoldContext foldCtx,
         ExchangeSourceHandler exchangeSource,
         ExchangeSinkHandler exchangeSink
     ) {

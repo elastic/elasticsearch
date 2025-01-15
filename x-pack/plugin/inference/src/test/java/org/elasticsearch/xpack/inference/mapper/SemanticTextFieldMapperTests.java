@@ -115,7 +115,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         var settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
-                SemanticInferenceMetadataFieldMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat)
+                SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat)
             )
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
             .build();
@@ -536,7 +536,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             assertTrue(embeddingsFieldMapper.fieldType() == mapperService.mappingLookup().getFieldType(getEmbeddingsFieldName(fieldName)));
             assertThat(embeddingsMapper.fullPath(), equalTo(getEmbeddingsFieldName(fieldName)));
             switch (semanticFieldMapper.fieldType().getModelSettings().taskType()) {
-                case SPARSE_EMBEDDING -> assertThat(embeddingsMapper, instanceOf(SparseVectorFieldMapper.class));
+                case SPARSE_EMBEDDING -> {
+                    assertThat(embeddingsMapper, instanceOf(SparseVectorFieldMapper.class));
+                    SparseVectorFieldMapper sparseMapper = (SparseVectorFieldMapper) embeddingsMapper;
+                    assertEquals(sparseMapper.fieldType().isStored(), semanticTextFieldType.useLegacyFormat() == false);
+                }
                 case TEXT_EMBEDDING -> assertThat(embeddingsMapper, instanceOf(DenseVectorFieldMapper.class));
                 default -> throw new AssertionError("Invalid task type");
             }
@@ -916,7 +920,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         mappingBuilder.endObject();
     }
 
-    private static void addSemanticTextInferenceResults(
+    public static void addSemanticTextInferenceResults(
         boolean useLegacyFormat,
         XContentBuilder sourceBuilder,
         List<SemanticTextField> semanticTextInferenceResults

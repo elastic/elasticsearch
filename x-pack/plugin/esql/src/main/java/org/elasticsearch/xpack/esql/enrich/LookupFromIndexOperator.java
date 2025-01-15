@@ -146,7 +146,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     public Page getOutput() {
         if (ongoing == null) {
             // No ongoing join, start a new one if we can.
-            ongoing = getResultFromBuffer();
+            ongoing = fetchFromBuffer();
             if (ongoing == null) {
                 // Buffer empty, wait for the next time we're called.
                 return null;
@@ -174,7 +174,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     }
 
     @Override
-    protected void releaseResultOnAnyThread(OngoingJoin ongoingJoin) {
+    protected void releaseFetchedOnAnyThread(OngoingJoin ongoingJoin) {
         ongoingJoin.releaseOnAnyThread();
     }
 
@@ -286,7 +286,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), totalTerms);
+            return Objects.hash(super.hashCode(), totalTerms, emittedPages);
         }
     }
 

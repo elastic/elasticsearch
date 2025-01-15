@@ -212,7 +212,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             long bytes = pages.stream().mapToLong(Page::ramBytesUsedByBlocks).sum();
-            blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize lookup response");
+            blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize lookup join response");
             reservedBytes += bytes;
             out.writeCollection(pages);
         }

@@ -96,9 +96,9 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
- * {@link AbstractLookupService} performs a single valued {@code LEFT JOIN} for a
- * given input page against another index. This is quite similar to a nested loop
- * join. It is restricted to indices with only a single shard.
+ * {@link AbstractLookupService} performs a {@code LEFT JOIN} for a given input
+ * page against another index that <strong>must</strong> have only a single
+ * shard.
  * <p>
  *     This registers a {@link TransportRequestHandler} so we can handle requests
  *     to join data that isn't local to the node, but it is much faster if the
@@ -106,7 +106,7 @@ import java.util.stream.IntStream;
  * </p>
  * <p>
  *     The join process spawns a {@link Driver} per incoming page which runs in
- *     three stages:
+ *     two or three stages:
  * </p>
  * <p>
  *     Stage 1: Finding matching document IDs for the input page. This stage is done
@@ -119,9 +119,9 @@ import java.util.stream.IntStream;
  *     {@code [DocVector, IntBlock: positions, Block: field1, Block: field2,...]}.
  * </p>
  * <p>
- *     Stage 3: Combining the extracted values based on positions and filling nulls for
- *     positions without matches. This is done by {@link MergePositionsOperator}. The output
- *     page is represented as {@code [Block: field1, Block: field2,...]}.
+ *     Stage 3: Optionally this combines the extracted values based on positions and filling
+ *     nulls for positions without matches. This is done by {@link MergePositionsOperator}.
+ *     The output page is represented as {@code [Block: field1, Block: field2,...]}.
  * </p>
  * <p>
  *     The {@link Page#getPositionCount()} of the output {@link Page} is  equal to the
@@ -138,6 +138,14 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
+    /**
+     * Should output {@link Page pages} be combined into a single resulting page?
+     * If this is {@code true} we'll run a {@link MergePositionsOperator} to merge
+     * all output Pages into a single result, merging each found document into
+     * one row per input row, squashing the fields into multivalued fields. If this
+     * is {@code false} then we'll skip this step, and it's up to the caller to
+     * figure out what to do with a {@link List} of resulting pages.
+     */
     private final boolean mergePages;
 
     AbstractLookupService(
@@ -183,9 +191,9 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
     protected abstract QueryList queryList(T request, SearchExecutionContext context, Block inputBlock, DataType inputDataType);
 
     /**
-     * Read the response from a {@link StreamInput}.
+     * Build the response.
      */
-    protected abstract LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) throws IOException;
+    protected abstract LookupResponse createLookupResponse(List<Page> resultPages, BlockFactory blockFactory) throws IOException;
 
     /**
      * Read the response from a {@link StreamInput}.
@@ -332,7 +340,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
             final int[] mergingChannels = IntStream.range(0, request.extractFields.size()).map(i -> i + 2).toArray();
             final Operator finishPages;
             final OrdinalBytesRefBlock ordinalsBytesRefBlock;
-            if (mergePages  // TODO fix this faster branch with mergePages == false
+            if (mergePages  // TODO fix this optimization for Lookup.
                 && inputBlock instanceof BytesRefBlock bytesRefBlock
                 && (ordinalsBytesRefBlock = bytesRefBlock.asOrdinals()) != null) {
 
@@ -374,6 +382,13 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
             var extractFieldsOperator = extractFieldsOperator(searchContext, driverContext, request.extractFields);
             releasables.add(extractFieldsOperator);
 
+            /*
+             * Collect all result Pages in a synchronizedList mostly out of paranoia. We'll
+             * be collecting these results in the Driver thread and reading them in its
+             * completion listener which absolutely happens-after the insertions. So,
+             * technically, we don't need synchronization here. But we're doing it anyway
+             * because the list will never grow mega large.
+             */
             List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
             OutputOperator outputOperator = new OutputOperator(List.of(), Function.identity(), collectedPages::add);
             releasables.add(outputOperator);
@@ -449,8 +464,10 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         );
     }
 
+    /**
+     * Drop just the first block, keeping the remaining.
+     */
     private Operator dropDocBlockOperator(List<NamedExpression> extractFields) {
-        // Drop just the first block, keeping the remaining
         int end = extractFields.size() + 1;
         List<Integer> projection = new ArrayList<>(end);
         for (int i = 1; i <= end; i++) {
@@ -482,7 +499,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
                 request,
                 (CancellableTask) task,
                 listener.delegateFailureAndWrap(
-                    (l, outPage) -> ActionListener.respondAndRelease(l, createLookupResponse(outPage, blockFactory))
+                    (l, resultPages) -> ActionListener.respondAndRelease(l, createLookupResponse(resultPages, blockFactory))
                 )
             );
         }

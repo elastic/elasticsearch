@@ -120,11 +120,11 @@ public class AsyncOperatorTests extends ESTestCase {
 
             @Override
             public Page getOutput() {
-                return getResultFromBuffer();
+                return fetchFromBuffer();
             }
 
             @Override
-            protected void releaseResultOnAnyThread(Page page) {
+            protected void releaseFetchedOnAnyThread(Page page) {
                 releasePageOnAnyThread(page);
             }
 
@@ -183,11 +183,11 @@ public class AsyncOperatorTests extends ESTestCase {
 
         @Override
         public Page getOutput() {
-            return getResultFromBuffer();
+            return fetchFromBuffer();
         }
 
         @Override
-        protected void releaseResultOnAnyThread(Page page) {
+        protected void releaseFetchedOnAnyThread(Page page) {
             releasePageOnAnyThread(page);
         }
 
@@ -278,11 +278,11 @@ public class AsyncOperatorTests extends ESTestCase {
 
             @Override
             public Page getOutput() {
-                return getResultFromBuffer();
+                return fetchFromBuffer();
             }
 
             @Override
-            protected void releaseResultOnAnyThread(Page page) {
+            protected void releaseFetchedOnAnyThread(Page page) {
                 releasePageOnAnyThread(page);
             }
 
@@ -334,11 +334,11 @@ public class AsyncOperatorTests extends ESTestCase {
 
                 @Override
                 public Page getOutput() {
-                    return getResultFromBuffer();
+                    return fetchFromBuffer();
                 }
 
                 @Override
-                protected void releaseResultOnAnyThread(Page page) {
+                protected void releaseFetchedOnAnyThread(Page page) {
                     releasePageOnAnyThread(page);
                 }
 

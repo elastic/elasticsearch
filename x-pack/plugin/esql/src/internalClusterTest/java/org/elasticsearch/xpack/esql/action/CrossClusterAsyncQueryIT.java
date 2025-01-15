@@ -49,11 +49,11 @@ import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.deleteAsync
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.getAsyncResponse;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.runAsyncQuery;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.startAsyncQuery;
+import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.startAsyncQueryWithPragmas;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.waitForCluster;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
@@ -266,15 +266,16 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remote1NumShards = (Integer) testClusterInfo.get("remote1.num_shards");
         // Create large index so we could be sure we're stopping before the end
-        populateRuntimeIndex(REMOTE_CLUSTER_2, "pause_count", INDEX_WITH_RUNTIME_MAPPING, 100_000);
+        populateRuntimeIndex(REMOTE_CLUSTER_2, "pause_count", INDEX_WITH_RUNTIME_MAPPING);
 
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
-        final String asyncExecutionId = startAsyncQuery(
+        final String asyncExecutionId = startAsyncQueryWithPragmas(
             client(),
             "FROM logs-*,cluster-a:logs-*,remote-b:blocking | STATS total=sum(coalesce(const,v)) | LIMIT 1",
-            includeCCSMetadata.v1()
+            includeCCSMetadata.v1(),
+            Map.of("page_size", 1)
         );
 
         // wait until we know that the query against 'remote-b:blocking' has started
@@ -307,7 +308,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         try (EsqlQueryResponse asyncResponse = stopAction.actionGet(30, TimeUnit.SECONDS)) {
             // Check that we did not process all the fields on remote-b
             // In general, we should not be getting more than one page here, but we don't know what the page size is
-            assertThat(CountingPauseFieldPlugin.count.get(), lessThan(100_000L));
+            assertThat(CountingPauseFieldPlugin.count.get(), lessThanOrEqualTo(1L));
             assertThat(asyncResponse.isRunning(), is(false));
             assertThat(asyncResponse.columns().size(), equalTo(1));
             assertThat(asyncResponse.values().hasNext(), is(true));

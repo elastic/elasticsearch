@@ -127,8 +127,7 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
         }
         // Here we will wait for both the response to become available and for the finish operation to complete
         var responseHolder = new AtomicReference<EsqlQueryResponse>();
-        ActionListener<Void> resultListener = listener.delegateFailureIgnoreResponseAndWrap(l -> l.onResponse(responseHolder.get()));
-        try (var refs = new EsqlRefCountingListener(resultListener)) {
+        try (var refs = new EsqlRefCountingListener(listener.map(unused -> responseHolder.get()))) {
             asyncListener.addListener(refs.acquire().map(r -> {
                 responseHolder.set(r);
                 return null;

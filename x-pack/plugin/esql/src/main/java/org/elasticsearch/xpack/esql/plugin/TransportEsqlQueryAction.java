@@ -196,8 +196,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // other endpoints, such as _query/async/stop
         EsqlQueryListener subListener = new EsqlQueryListener(task.executionInfo());
         String asyncExecutionId = task.getExecutionId().getEncoded();
-        // TODO: is runBefore correct here?
-        subListener.addListener(ActionListener.runBefore(listener, () -> asyncListeners.remove(asyncExecutionId)));
+        subListener.addListener(ActionListener.runAfter(listener, () -> asyncListeners.remove(asyncExecutionId)));
         asyncListeners.put(asyncExecutionId, subListener);
         ActionListener.run(subListener, l -> innerExecute(task, request, l));
     }

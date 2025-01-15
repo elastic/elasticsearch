@@ -10,11 +10,15 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -29,7 +33,11 @@ import static org.junit.Assert.assertTrue;
 
 public final class EsqlAsyncTestUtils {
     public static String startAsyncQuery(Client client, String q, Boolean includeCCSMetadata) {
-        try (EsqlQueryResponse resp = runAsyncQuery(client, q, includeCCSMetadata, TimeValue.timeValueMillis(100))) {
+        return startAsyncQueryWithPragmas(client, q, includeCCSMetadata, null);
+    }
+
+    public static String startAsyncQueryWithPragmas(Client client, String q, Boolean includeCCSMetadata, Map<String, Object> pragmas) {
+        try (EsqlQueryResponse resp = runAsyncQuery(client, q, includeCCSMetadata, TimeValue.timeValueMillis(100), pragmas)) {
             assertTrue(resp.isRunning());
             assertNotNull("async execution id is null", resp.asyncExecutionId());
             // executionInfo may or may not be set on the initial response when there is a relatively low wait_for_completion_timeout
@@ -39,9 +47,29 @@ public final class EsqlAsyncTestUtils {
     }
 
     public static EsqlQueryResponse runAsyncQuery(Client client, String query, Boolean ccsMetadata, TimeValue waitCompletionTime) {
+        return runAsyncQuery(client, query, ccsMetadata, waitCompletionTime, null);
+    }
+
+    private static QueryPragmas randomPragmasWithOverride(@Nullable Map<String, Object> pragmas) {
+        if (pragmas == null || pragmas.isEmpty()) {
+            return AbstractEsqlIntegTestCase.randomPragmas();
+        }
+        Settings.Builder settings = Settings.builder();
+        settings.put(AbstractEsqlIntegTestCase.randomPragmas().getSettings());
+        settings.loadFromMap(pragmas);
+        return new QueryPragmas(settings.build());
+    }
+
+    public static EsqlQueryResponse runAsyncQuery(
+        Client client,
+        String query,
+        Boolean ccsMetadata,
+        TimeValue waitCompletionTime,
+        @Nullable Map<String, Object> pragmas
+    ) {
         EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest();
         request.query(query);
-        request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
+        request.pragmas(randomPragmasWithOverride(pragmas));
         request.profile(randomInt(5) == 2);
         request.columnar(randomBoolean());
         if (ccsMetadata != null) {

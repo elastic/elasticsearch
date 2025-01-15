@@ -479,3 +479,5 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120169
 - class: org.elasticsearch.xpack.searchablesnapshots.minio.MinioSearchableSnapshotsIT
   issue: https://github.com/elastic/elasticsearch/issues/120101
+- class: org.elasticsearch.repositories.s3.RepositoryS3MinioBasicCredentialsRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/120117

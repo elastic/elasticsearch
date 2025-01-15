@@ -275,7 +275,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             client(),
             "FROM logs-*,cluster-a:logs-*,remote-b:blocking | STATS total=sum(coalesce(const,v)) | LIMIT 1",
             includeCCSMetadata.v1(),
-            Map.of("page_size", 1)
+            Map.of("page_size", 1, "data_partitioning", "shard")
         );
 
         // wait until we know that the query against 'remote-b:blocking' has started
@@ -307,7 +307,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         // Since part of the query has not been stopped, we expect some result to emerge here
         try (EsqlQueryResponse asyncResponse = stopAction.actionGet(30, TimeUnit.SECONDS)) {
             // Check that we did not process all the fields on remote-b
-            // In general, we should not be getting more than one page here, but we don't know what the page size is
+            // Should not be getting more than one page here, and we set page size to 1
             assertThat(CountingPauseFieldPlugin.count.get(), lessThanOrEqualTo(1L));
             assertThat(asyncResponse.isRunning(), is(false));
             assertThat(asyncResponse.columns().size(), equalTo(1));

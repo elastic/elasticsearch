@@ -50,7 +50,7 @@ import java.util.stream.Collectors;
 public class SpatialShapeBoundsExtraction extends ParameterizedOptimizerRule<AggregateExec, LocalPhysicalOptimizerContext> {
     @Override
     protected PhysicalPlan rule(AggregateExec aggregate, LocalPhysicalOptimizerContext ctx) {
-        var foundAttributes = findSpatialShapeBoundsAttributes(aggregate, ctx);
+        Set<Attribute> foundAttributes = findSpatialShapeBoundsAttributes(aggregate, ctx);
         if (foundAttributes.isEmpty()) {
             return aggregate;
         }

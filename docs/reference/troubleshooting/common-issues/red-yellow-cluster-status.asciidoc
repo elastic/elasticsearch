@@ -218,6 +218,7 @@ PUT _cluster/settings
 }
 ----
 // TEST[s/"90%"/null/]
+// TEST[s/"95%"/null/]
 
 [IMPORTANT]
 ====

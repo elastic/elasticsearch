@@ -481,3 +481,5 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120101
 - class: org.elasticsearch.repositories.s3.RepositoryS3MinioBasicCredentialsRestIT
   issue: https://github.com/elastic/elasticsearch/issues/120117
+- class: org.elasticsearch.repositories.s3.S3RepositoryThirdPartyTests
+  issue: https://github.com/elastic/elasticsearch/issues/120115

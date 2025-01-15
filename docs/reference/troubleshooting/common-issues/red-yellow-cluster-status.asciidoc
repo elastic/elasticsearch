@@ -217,7 +217,7 @@ PUT _cluster/settings
   }
 }
 ----
-// TEST[s/"30gb"/null/]
+// TEST[s/"90%"/null/]
 
 [IMPORTANT]
 ====

@@ -11,6 +11,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.ByteBuffersDirectory;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -54,7 +55,10 @@ public abstract class TranslogOperationAsserter {
         final DocumentParser documentParser = engineConfig.getMapperService().documentParser();
         try (
             var directory = new ByteBuffersDirectory();
-            var reader = TranslogDirectoryReader.createInMemoryReader(shardId, engineConfig, directory, documentParser, mappingLookup, op)
+            var reader = ElasticsearchDirectoryReader.wrap(
+                TranslogDirectoryReader.createInMemoryReader(shardId, engineConfig, directory, documentParser, mappingLookup, op),
+                new ShardId("index", "_na_", 0)
+            )
         ) {
             final Engine.Searcher searcher = new Engine.Searcher(
                 "assert_translog",
@@ -66,7 +70,7 @@ public abstract class TranslogOperationAsserter {
             );
             try (
                 LuceneSyntheticSourceChangesSnapshot snapshot = new LuceneSyntheticSourceChangesSnapshot(
-                    mappingLookup,
+                    engineConfig.getMapperService(),
                     searcher,
                     LuceneSyntheticSourceChangesSnapshot.DEFAULT_BATCH_SIZE,
                     Integer.MAX_VALUE,

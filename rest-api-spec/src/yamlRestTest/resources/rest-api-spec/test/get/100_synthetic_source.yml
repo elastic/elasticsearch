@@ -1014,10 +1014,6 @@ flattened field:
 
 ---
 flattened field with ignore_above:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
@@ -1070,10 +1066,6 @@ flattened field with ignore_above:
 
 ---
 flattened field with ignore_above and arrays:
-  - requires:
-      cluster_features: ["mapper.flattened.ignore_above_with_arrays_support"]
-      reason: requires support of ignore_above synthetic source with arrays
-
   - do:
       indices.create:
         index: test
@@ -1127,10 +1119,6 @@ flattened field with ignore_above and arrays:
 
 ---
 completion:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_fallback"]
-      reason: introduced in 8.15.0
-
   - do:
       indices.create:
         index: test

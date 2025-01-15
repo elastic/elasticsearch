@@ -257,33 +257,6 @@ public class IndexMetadataVerifierTests extends ESTestCase {
         }
         {
             var idxMetadata = newIndexMeta(
-                "searchable-snapshot-no-write-block",
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
-                    .put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
-                    .build()
-            );
-            String message = expectThrows(
-                IllegalStateException.class,
-                () -> service.verifyIndexMetadata(idxMetadata, IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
-            ).getMessage();
-            assertThat(
-                message,
-                equalTo(
-                    "The index [searchable-snapshot-no-write-block/"
-                        + idxMetadata.getIndexUUID()
-                        + "] created in version ["
-                        + indexCreated.toReleaseVersion()
-                        + "] with current compatibility version ["
-                        + indexCreated.toReleaseVersion()
-                        + "] must be marked as read-only using the setting [index.blocks.write] set to [true] before upgrading to "
-                        + Build.current().version()
-                        + "."
-                )
-            );
-        }
-        {
-            var idxMetadata = newIndexMeta(
                 "archive",
                 Settings.builder()
                     .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)

@@ -98,6 +98,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
 
     @FunctionInfo(
         returnType = "boolean",
+        operator = "MATCH",
         preview = true,
         description = """
             Use `MATCH` to perform a <<query-dsl-match-query,match query>> on the specified field.

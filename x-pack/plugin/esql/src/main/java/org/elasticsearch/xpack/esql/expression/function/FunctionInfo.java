@@ -19,6 +19,15 @@ import java.lang.annotation.Target;
 @Target(ElementType.CONSTRUCTOR)
 public @interface FunctionInfo {
     /**
+     * If this function implements an operator, what is its symbol?
+     * <p>
+     *     This exists entirely to add to the Kibana function definition
+     *     json files.
+     * </p>
+     */
+    String operator() default "";
+
+    /**
      * The type(s) this function returns.
      */
     String[] returnType();

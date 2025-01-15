@@ -239,15 +239,15 @@ public record SemanticTextField(
         }
         try {
             Map<String, Object> map = XContentMapValues.nodeMapValue(node, INDEX_OPTIONS_FIELD);
-            String type = map.remove(TYPE_FIELD).toString();
-            DenseVectorFieldMapper.VectorIndexType vectorIndexType = DenseVectorFieldMapper.VectorIndexType.fromString(
-                XContentMapValues.nodeStringValue(type, null)
-            ).orElse(null);
-            if (vectorIndexType != null) {
-                return vectorIndexType.parseIndexOptions(fieldName, map);
+            Object type = map.remove(TYPE_FIELD);
+            if (type == null) {
+                throw new IllegalArgumentException("Required [" + TYPE_FIELD + "]");
             }
+            DenseVectorFieldMapper.VectorIndexType vectorIndexType = DenseVectorFieldMapper.VectorIndexType.fromString(
+                XContentMapValues.nodeStringValue(type.toString(), null)
+            ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + " [" + type + "]"));
 
-            return null;
+            return vectorIndexType.parseIndexOptions(fieldName, map);
         } catch (Exception exc) {
             throw new ElasticsearchException(exc);
         }

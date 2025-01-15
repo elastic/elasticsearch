@@ -441,7 +441,6 @@ setup:
       indices.get_mapping:
         index: test-index-options
 
-  - exists: test-index-options.mappings.properties.semantic_field.index_options
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.type": "int8_hnsw" }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.m": 16 }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.ef_construction": 100 }
@@ -479,7 +478,7 @@ setup:
 
 
 ---
-"Users can set partial dense vector index options and index documents using those options":
+"Users can set partial dense vector index options and use dense vector defaults for nonspecified options":
   - requires:
       cluster_features: "semantic_text.index_options"
       reason: Index options introduced in 8.18.0
@@ -499,17 +498,15 @@ setup:
                 type: semantic_text
                 inference_id: dense-inference-id
                 index_options:
-                  type: int4_flat
+                  type: int8_hnsw
 
   - do:
       indices.get_mapping:
         index: test-index-options
 
-  - exists: test-index-options.mappings.properties.semantic_field.index_options
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.type": "int4_flat" }
-  - not_exists: test-index-options.mappings.properties.semantic_field.index_options.m
-  - not_exists: test-index-options.mappings.properties.semantic_field.index_options.ef_construction
-  - not_exists: test-index-options.mappings.properties.semantic_field.index_options.confidence_interval
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.type": "int8_hnsw" }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.m": 16 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.ef_construction": 100 }
 
   - do:
       index:
@@ -562,17 +559,15 @@ setup:
                 type: semantic_text
                 inference_id: sparse-inference-id
                 index_options:
-                  type: bbq_hnsw
+                  type: int8_hnsw
 
   - do:
       indices.get_mapping:
         index: test-index-options
 
-  - exists: test-index-options.mappings.properties.semantic_field.index_options
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.type": "bbq_hnsw" }
-  - not_exists: test-index-options.mappings.properties.semantic_field.index_options.m
-  - not_exists: test-index-options.mappings.properties.semantic_field.index_options.ef_construction
-  - not_exists: test-index-options.mappings.properties.semantic_field.index_options.confidence_interval
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.type": "int8_hnsw" }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.m": 16 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.ef_construction": 100 }
 
   - do:
       catch: /Unsupported/

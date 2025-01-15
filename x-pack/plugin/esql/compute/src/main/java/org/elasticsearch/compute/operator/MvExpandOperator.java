@@ -101,7 +101,7 @@ public class MvExpandOperator implements Operator {
         return result;
     }
 
-    public final Page getOutputInternal() {
+    private Page getOutputInternal() {
         if (prev == null) {
             return null;
         }

@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
@@ -110,6 +111,7 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioSer
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceACL;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
@@ -125,6 +127,7 @@ import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -274,7 +277,12 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
             ElasticInferenceServiceSettings inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
             String elasticInferenceUrl = this.getElasticInferenceServiceUrl(inferenceServiceSettings);
-            elasticInferenceServiceComponents.set(new ElasticInferenceServiceComponents(elasticInferenceUrl));
+            elasticInferenceServiceComponents.set(
+                new ElasticInferenceServiceComponents(
+                    elasticInferenceUrl,
+                    new ElasticInferenceServiceACL(Map.of("model-abc", EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.COMPLETION)))
+                )
+            );
 
             inferenceServices.add(
                 () -> List.of(

@@ -69,8 +69,11 @@ public class ElasticInferenceService extends SenderService {
 
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
 
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.COMPLETION);
+    private static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.COMPLETION);
     private static final String SERVICE_NAME = "Elastic";
+
+    private final Configuration configuration;
+    private final EnumSet<TaskType> enabledTaskTypes;
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
@@ -79,11 +82,26 @@ public class ElasticInferenceService extends SenderService {
     ) {
         super(factory, serviceComponents);
         this.elasticInferenceServiceComponents = elasticInferenceServiceComponents;
+        enabledTaskTypes = enabledTaskTypes(this.elasticInferenceServiceComponents.acl());
+        configuration = new Configuration(enabledTaskTypes);
+    }
+
+    private static EnumSet<TaskType> enabledTaskTypes(ElasticInferenceServiceACL acl) {
+        var implementedTaskTypes = EnumSet.copyOf(IMPLEMENTED_TASK_TYPES);
+        implementedTaskTypes.retainAll(acl.enabledTaskTypes());
+        return implementedTaskTypes;
     }
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
-        return COMPLETION_ONLY;
+        var enabledStreamingTaskTypes = EnumSet.of(TaskType.COMPLETION);
+        enabledStreamingTaskTypes.retainAll(enabledTaskTypes);
+
+        if (enabledStreamingTaskTypes.isEmpty() == false) {
+            enabledStreamingTaskTypes.add(TaskType.ANY);
+        }
+
+        return enabledStreamingTaskTypes;
     }
 
     @Override
@@ -202,12 +220,17 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public InferenceServiceConfiguration getConfiguration() {
-        return Configuration.get();
+        return configuration.get();
     }
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return enabledTaskTypes;
+    }
+
+    @Override
+    public boolean hideFromConfigurationApi() {
+        return enabledTaskTypes.isEmpty();
     }
 
     private static ElasticInferenceServiceModel createModel(
@@ -349,12 +372,17 @@ public class ElasticInferenceService extends SenderService {
     }
 
     public static class Configuration {
-        public static InferenceServiceConfiguration get() {
-            return configuration.getOrCompute();
+
+        private final EnumSet<TaskType> enabledTaskTypes;
+        private final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration;
+
+        public Configuration(EnumSet<TaskType> enabledTaskTypes) {
+            this.enabledTaskTypes = enabledTaskTypes;
+            configuration = initConfiguration();
         }
 
-        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
-            () -> {
+        private LazyInitializable<InferenceServiceConfiguration, RuntimeException> initConfiguration() {
+            return new LazyInitializable<>(() -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 
                 configurationMap.put(
@@ -383,10 +411,14 @@ public class ElasticInferenceService extends SenderService {
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(enabledTaskTypes)
                     .setConfigurations(configurationMap)
                     .build();
-            }
-        );
+            });
+        }
+
+        public InferenceServiceConfiguration get() {
+            return configuration.getOrCompute();
+        }
     }
 }

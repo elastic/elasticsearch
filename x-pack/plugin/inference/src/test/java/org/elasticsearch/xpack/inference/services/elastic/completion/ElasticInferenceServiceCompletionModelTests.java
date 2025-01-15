@@ -12,6 +12,7 @@ import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceACLTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -29,7 +30,7 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings("model_id", new RateLimitSettings(100)),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
-            new ElasticInferenceServiceComponents("url")
+            new ElasticInferenceServiceComponents("url", ElasticInferenceServiceACLTests.createEnabledAcl())
         );
 
         var request = new UnifiedCompletionRequest(

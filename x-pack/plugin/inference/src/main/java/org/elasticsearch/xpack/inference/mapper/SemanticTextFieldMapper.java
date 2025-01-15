@@ -125,12 +125,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     public static BiConsumer<String, MappingParserContext> validateParserContext(String type) {
         return (n, c) -> {
-            if (InferenceMetadataFieldsMapper.isEnabled(c.getIndexSettings().getSettings()) == false && c.isWithinMultiField()) {
-                throw new MapperParsingException("Field [" + n + "] of type [" + type + "] can't be used in multifields");
+            if (InferenceMetadataFieldsMapper.isEnabled(c.getIndexSettings().getSettings()) == false) {
+                notInMultiFields(type).accept(n, c);
             }
-            if (c.isFromDynamicTemplate()) {
-                throw new MapperParsingException("Field [" + n + "] of type [" + type + "] can't be used in dynamic templates");
-            }
+            notFromDynamicTemplates(type).accept(n, c);
         };
     }
 
@@ -292,7 +290,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     private void ensureMultiFields(Iterator<FieldMapper> mappers) {
         while (mappers.hasNext()) {
             var mapper = mappers.next();
-            if (mapper.leafName().equals(CHUNKED_EMBEDDINGS_FIELD)) {
+            if (mapper.leafName().equals(INFERENCE_FIELD)) {
                 throw new IllegalArgumentException(
                     "Field ["
                         + mapper.fullPath()
@@ -457,8 +455,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     }
 
     private SemanticTextFieldMapper addDynamicUpdate(DocumentParserContext context, SemanticTextField field) {
-        context.path().remove();
         Builder builder = (Builder) getMergeBuilder();
+        context.path().remove();
         try {
             builder.setModelSettings(field.inference().modelSettings()).setInferenceId(field.inference().inferenceId());
             if (context.mappingLookup().isMultiField(fullPath())) {

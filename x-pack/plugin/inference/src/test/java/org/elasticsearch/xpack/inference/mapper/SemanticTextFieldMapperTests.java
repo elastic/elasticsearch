@@ -361,7 +361,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 b.field("type", "semantic_text");
                 b.field("inference_id", "my_inference_id");
                 b.startObject("fields");
-                b.startObject("embeddings");
+                b.startObject("inference");
                 b.field("type", "text");
                 b.endObject();
                 b.endObject();

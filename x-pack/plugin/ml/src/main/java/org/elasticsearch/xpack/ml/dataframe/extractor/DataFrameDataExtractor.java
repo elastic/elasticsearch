@@ -160,7 +160,7 @@ public class DataFrameDataExtractor {
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     var unpooled = hit.asUnpooled();
                     SourceSupplier sourceSupplier = new SourceSupplier(unpooled);
-                    String[] extractedValues = extractValues(unpooled, new SourceSupplier(unpooled));
+                    String[] extractedValues = extractValues(unpooled, sourceSupplier);
                     rows.add(
                         extractedValues == null
                             ? new Row(null, unpooled, sourceSupplier, true)

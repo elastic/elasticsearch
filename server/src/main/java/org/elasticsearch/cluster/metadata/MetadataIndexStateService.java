@@ -513,7 +513,7 @@ public class MetadataIndexStateService {
                                             task.request,
                                             blockedIndices,
                                             verifyResults,
-                                            clusterService.state()
+                                            task.request().markVerified() && clusterService.state()
                                                 .getMinTransportVersion()
                                                 .onOrAfter(TransportVersions.ADD_INDEX_BLOCK_TWO_PHASE),
                                             delegate2
@@ -546,7 +546,7 @@ public class MetadataIndexStateService {
                 task.blockedIndices,
                 task.verifyResults,
                 task.request.block(),
-                task.flushed()
+                task.markVerified()
             );
             assert finalizeResult.v2().size() == task.verifyResults.size();
             return finalizeResult;
@@ -563,7 +563,7 @@ public class MetadataIndexStateService {
         AddIndexBlockClusterStateUpdateRequest request,
         Map<Index, ClusterBlock> blockedIndices,
         Map<Index, AddBlockResult> verifyResults,
-        boolean flushed,
+        boolean markVerified,
         ActionListener<AddIndexBlockResponse> listener
     ) implements ClusterStateTaskListener {
         @Override
@@ -983,7 +983,7 @@ public class MetadataIndexStateService {
      * @param blockedIndices the indices and their temporary UUID-based blocks to convert
      * @param verifyResult the index-level results for adding the block
      * @param block the full block to convert to
-     * @param flushed if we are guaranteed that data has been flushed in case of a write-level block.
+     * @param markVerified if the index should be marked verified in case of a write-level block.
      * @return the updated cluster state, as well as the (failed and successful) index-level results for adding the block
      */
     private static Tuple<ClusterState, List<AddBlockResult>> finalizeBlock(
@@ -991,7 +991,7 @@ public class MetadataIndexStateService {
         final Map<Index, ClusterBlock> blockedIndices,
         final Map<Index, AddBlockResult> verifyResult,
         final APIBlock block,
-        final boolean flushed
+        final boolean markVerified
     ) {
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
         final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
@@ -1043,7 +1043,7 @@ public class MetadataIndexStateService {
                 logger.debug("add block {} to index {} succeeded", block.block, index);
                 effectivelyBlockedIndices.add(index.getName());
 
-                if (block.getBlock().contains(ClusterBlockLevel.WRITE) && flushed) {
+                if (block.getBlock().contains(ClusterBlockLevel.WRITE) && markVerified) {
                     final IndexMetadata indexMetadata = metadata.getSafe(index);
                     final IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.CLOSE);
                     metadata.put(

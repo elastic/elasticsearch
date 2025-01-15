@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.rank.rrf;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.SearchModule;
@@ -33,10 +34,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
     public void testRetrieverVersions() throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"retriever\":{\"rrf\":{}}}")) {
             SearchSourceBuilder ssb = new SearchSourceBuilder();
-            ParsingException iae = expectThrows(
-                ParsingException.class,
-                () -> ssb.parseXContent(parser, true, nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED)
-            );
+            ParsingException iae = expectThrows(ParsingException.class, () -> ssb.parseXContent(parser, true, Predicates.never()));
             assertEquals("unknown retriever [rrf]", iae.getMessage());
         }
     }

@@ -466,6 +466,10 @@ and index a couple of documents.
 ----
 PUT retrievers_example_nested
 {
+    "settings": {
+         "number_of_shards": 1,
+         "number_of_replicas": 0
+     },
     "mappings": {
         "properties": {
             "nested_field": {
@@ -478,7 +482,10 @@ PUT retrievers_example_nested
                         "type": "dense_vector",
                         "dims": 3,
                         "similarity": "l2_norm",
-                        "index": true
+                        "index": true,
+                        "index_options": {
+                            "type": "flat"
+                        }
                     }
                 }
             },

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 
@@ -29,6 +30,11 @@ public interface ExchangeSink {
      * Whether the sink has received all pages
      */
     boolean isFinished();
+
+    /**
+     * Adds a listener that will be notified when this exchange sink is finished.
+     */
+    void addCompletionListener(ActionListener<Void> listener);
 
     /**
      * Whether the sink is blocked on adding more pages

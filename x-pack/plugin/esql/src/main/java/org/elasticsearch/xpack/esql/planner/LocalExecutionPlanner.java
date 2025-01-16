@@ -610,7 +610,7 @@ public class LocalExecutionPlanner {
 
     private record MatchConfig(String fieldName, int channel, DataType type) {
         private MatchConfig(FieldAttribute match, Layout.ChannelAndType input) {
-            // Note, this handles TEXT fields with KEYWORD subfields, and we assume tha has been validated earlier during planning
+            // Note, this handles TEXT fields with KEYWORD subfields, and we assume that has been validated earlier during planning
             this(match.exactAttribute().name(), input.channel(), input.type());
         }
     }

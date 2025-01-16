@@ -1416,6 +1416,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         private final String[] expectedBuildEvaluatorWarnings;
 
+        /**
+         * @deprecated use subclasses of {@link ErrorsForCasesWithoutExamplesTestCase}
+         */
+        @Deprecated
         private final String expectedTypeError;
         private final boolean canBuildEvaluator;
 
@@ -1436,6 +1440,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this(data, evaluatorToString, expectedType, matcher, null, null, null, null, null, null);
         }
 
+        /**
+         * Build a test case for type errors.
+         * @deprecated use a subclass of {@link ErrorsForCasesWithoutExamplesTestCase} instead
+         */
+        @Deprecated
         public static TestCase typeError(List<TypedData> data, String expectedTypeError) {
             return new TestCase(data, null, null, null, null, null, expectedTypeError, null, null, null);
         }
@@ -1556,6 +1565,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return foldingExceptionMessage;
         }
 
+        /**
+         * @deprecated use subclasses of {@link ErrorsForCasesWithoutExamplesTestCase}
+         */
+        @Deprecated
         public String getExpectedTypeError() {
             return expectedTypeError;
         }

@@ -384,7 +384,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     /**
      * Build a test case that asserts that the combination of parameter types is an error.
+     * @deprecated use an extension of {@link ErrorsForCasesWithoutExamplesTestCase}
      */
+    @Deprecated
     protected static TestCaseSupplier typeErrorSupplier(
         boolean includeOrdinal,
         List<Set<DataType>> validPerPosition,
@@ -643,11 +645,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     protected Object toJavaObjectUnsignedLongAware(Block block, int position) {
         Object result;
         result = toJavaObject(block, position);
-        if (result != null && testCase.expectedType() == DataType.UNSIGNED_LONG) {
-            assertThat(result, instanceOf(Long.class));
-            result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+        if (result == null || testCase.expectedType() != DataType.UNSIGNED_LONG) {
+            return result;
         }
-        return result;
+        if (result instanceof List<?> l) {
+            return l.stream().map(v -> {
+                assertThat(v, instanceOf(Long.class));
+                return NumericUtils.unsignedLongAsBigInteger((Long) v);
+            }).toList();
+        }
+        assertThat(result, instanceOf(Long.class));
+        return NumericUtils.unsignedLongAsBigInteger((Long) result);
     }
 
     /**

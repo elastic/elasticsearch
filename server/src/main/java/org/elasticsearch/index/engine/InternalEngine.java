@@ -2824,7 +2824,64 @@ public class InternalEngine extends Engine {
     }
 
     protected ElasticsearchMergeScheduler createMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
-        return new EngineMergeScheduler(shardId, indexSettings);
+//        return new EngineMergeScheduler(shardId, indexSettings);
+        return new ExecutorMergeScheduler(shardId, indexSettings, engineConfig.getThreadPool().executor(ThreadPool.Names.MERGE)) {
+            private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
+            private final AtomicBoolean isThrottling = new AtomicBoolean();
+            @Override
+            public synchronized void beforeMerge(OnGoingMerge merge) {
+                int maxNumMerges = getMaxMergeCount();
+                if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
+                    if (isThrottling.getAndSet(true) == false) {
+                        logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+                        activateThrottling();
+                    }
+                }
+            }
+
+            @Override
+            public synchronized void afterMerge(OnGoingMerge merge) {
+                int maxNumMerges = getMaxMergeCount();
+                if (numMergesInFlight.decrementAndGet() < maxNumMerges) {
+                    if (isThrottling.getAndSet(false)) {
+                        logger.info("stop throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+                        deactivateThrottling();
+                    }
+                }
+                if (indexWriter.hasPendingMerges() == false
+                        && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
+                    // NEVER do this on a merge thread since we acquire some locks blocking here and if we concurrently rollback the writer
+                    // we deadlock on engine#close for instance.
+                    engineConfig.getThreadPool().executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (isClosed.get() == false) {
+                                logger.warn("failed to flush after merge has finished", e);
+                            } else {
+                                logger.info("failed to flush after merge has finished during shard close");
+                            }
+                        }
+
+                        @Override
+                        protected void doRun() {
+                            // if we have no pending merges and we are supposed to flush once merges have finished to
+                            // free up transient disk usage of the (presumably biggish) segments that were just merged
+                            flush();
+                        }
+                    });
+                } else if (merge.getTotalBytesSize() >= engineConfig.getIndexSettings().getFlushAfterMergeThresholdSize().getBytes()) {
+                    // we hit a significant merge which would allow us to free up memory if we'd commit it hence on the next change
+                    // we should execute a flush on the next operation if that's a flush after inactive or indexing a document.
+                    // we could fork a thread and do it right away but we try to minimize forking and piggyback on outside events.
+                    shouldPeriodicallyFlushAfterBigMerge.set(true);
+                }
+            }
+
+            @Override
+            protected void handleMergeException(final Throwable exc) {
+                mergeException(exc);
+            }
+        };
     }
 
     private final class EngineMergeScheduler extends ElasticsearchConcurrentMergeScheduler {

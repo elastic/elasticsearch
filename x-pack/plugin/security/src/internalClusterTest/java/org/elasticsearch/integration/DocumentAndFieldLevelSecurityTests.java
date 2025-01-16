@@ -355,26 +355,30 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         {
             GetIndexResponse getIndexResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-            ).admin().indices().prepareGetIndex().setIndices("test").get();
-            assertExpectedFields(getIndexResponse.getMappings(), "field1");
+            ).admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices("test").get();
+            Map<String, MappingMetadata> mappings = getIndexResponse.getMappings();
+            assertExpectedFields(mappings, "field1");
         }
         {
             GetIndexResponse getIndexResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
-            ).admin().indices().prepareGetIndex().setIndices("test").get();
-            assertExpectedFields(getIndexResponse.getMappings(), "field2");
+            ).admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices("test").get();
+            Map<String, MappingMetadata> mappings = getIndexResponse.getMappings();
+            assertExpectedFields(mappings, "field2");
         }
         {
             GetIndexResponse getIndexResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD))
-            ).admin().indices().prepareGetIndex().setIndices("test").get();
-            assertExpectedFields(getIndexResponse.getMappings(), "field1");
+            ).admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices("test").get();
+            Map<String, MappingMetadata> mappings = getIndexResponse.getMappings();
+            assertExpectedFields(mappings, "field1");
         }
         {
             GetIndexResponse getIndexResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD))
-            ).admin().indices().prepareGetIndex().setIndices("test").get();
-            assertExpectedFields(getIndexResponse.getMappings(), "field1", "field2");
+            ).admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices("test").get();
+            Map<String, MappingMetadata> mappings = getIndexResponse.getMappings();
+            assertExpectedFields(mappings, "field1", "field2");
         }
     }
 

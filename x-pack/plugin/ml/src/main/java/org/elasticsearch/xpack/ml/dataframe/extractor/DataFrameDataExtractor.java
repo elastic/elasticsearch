@@ -19,7 +19,6 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -32,6 +31,7 @@ import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.extractor.ProcessedField;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -125,7 +125,7 @@ public class DataFrameDataExtractor {
      * Does no sorting of the results.
      * @param listener To alert with the extracted rows
      */
-    public void preview(ActionListener<SearchHit[]> listener) {
+    public void preview(ActionListener<List<PreviewRow>> listener) {
 
         SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client)
             // This ensures the search throws if there are failures and the scroll context gets cleared automatically
@@ -150,10 +150,16 @@ public class DataFrameDataExtractor {
             searchRequestBuilder.request(),
             listener.delegateFailureAndWrap((delegate, searchResponse) -> {
                 if (searchResponse.getHits().getHits().length == 0) {
-                    delegate.onResponse(SearchHits.EMPTY);
+                    delegate.onResponse(Collections.emptyList());
                     return;
                 }
-                delegate.onResponse(searchResponse.getHits().getHits());
+
+                List<PreviewRow> rows = new ArrayList<>(searchResponse.getHits().getHits().length);
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    String[] extractedValues = extractValues(hit);
+                    rows.add(new PreviewRow(extractedValues));
+                }
+                delegate.onResponse(rows);
             })
         );
     }
@@ -425,6 +431,21 @@ public class DataFrameDataExtractor {
         public DataSummary(long rows, int cols) {
             this.rows = rows;
             this.cols = cols;
+        }
+    }
+
+    public static class PreviewRow {
+
+        @Nullable
+        private final String[] values;
+
+        private PreviewRow(String[] values) {
+            this.values = values;
+        }
+
+        @Nullable
+        public String[] getValues() {
+            return values;
         }
     }
 

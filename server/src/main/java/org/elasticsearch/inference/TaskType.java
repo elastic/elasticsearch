@@ -29,7 +29,8 @@ public enum TaskType implements Writeable {
         public boolean isAnyOrSame(TaskType other) {
             return true;
         }
-    };
+    },
+    CHAT_COMPLETION;
 
     public static String NAME = "task_type";
 

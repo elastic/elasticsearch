@@ -27,6 +27,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -61,6 +63,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersi
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.useChatCompletionUrlMessage;
 
 public class ElasticInferenceService extends SenderService {
 
@@ -69,8 +72,16 @@ public class ElasticInferenceService extends SenderService {
 
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
 
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.COMPLETION);
+    // The task types exposed via the _inference/_services API
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES_FOR_SERVICES_API = EnumSet.of(
+        TaskType.SPARSE_EMBEDDING,
+        TaskType.CHAT_COMPLETION
+    );
     private static final String SERVICE_NAME = "Elastic";
+    /**
+     * The task types that the {@link InferenceAction.Request} can accept.
+     */
+    private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(TaskType.SPARSE_EMBEDDING);
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
@@ -83,7 +94,7 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
-        return COMPLETION_ONLY;
+        return EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY);
     }
 
     @Override
@@ -129,6 +140,15 @@ public class ElasticInferenceService extends SenderService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
+        if (SUPPORTED_INFERENCE_ACTION_TASK_TYPES.contains(model.getTaskType()) == false) {
+            var responseString = ServiceUtils.unsupportedTaskTypeForInference(model, SUPPORTED_INFERENCE_ACTION_TASK_TYPES);
+
+            if (model.getTaskType() == TaskType.CHAT_COMPLETION) {
+                responseString = responseString + " " + useChatCompletionUrlMessage(model);
+            }
+            listener.onFailure(new ElasticsearchStatusException(responseString, RestStatus.BAD_REQUEST));
+        }
+
         if (model instanceof ElasticInferenceServiceExecutableActionModel == false) {
             listener.onFailure(createInvalidModelException(model));
             return;
@@ -207,7 +227,7 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES_FOR_SERVICES_API;
     }
 
     private static ElasticInferenceServiceModel createModel(
@@ -375,7 +395,7 @@ public class ElasticInferenceService extends SenderService {
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES_FOR_SERVICES_API)
                     .setConfigurations(configurationMap)
                     .build();
             }

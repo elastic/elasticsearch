@@ -257,7 +257,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
 
     private void assertWatchesExist() {
         // Check if watches index exists
-        if (client().admin().indices().prepareGetIndex().addIndices(".watches").get().getIndices().length == 0) {
+        if (client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(".watches").get().getIndices().length == 0) {
             fail("Expected [.watches] index with cluster alerts present, but no [.watches] index was found");
         }
 
@@ -284,7 +284,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
 
     private void assertNoWatchesExist() {
         // Check if watches index exists
-        if (client().admin().indices().prepareGetIndex().addIndices(".watches").get().getIndices().length == 0) {
+        if (client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(".watches").get().getIndices().length == 0) {
             fail("Expected [.watches] index with cluster alerts present, but no [.watches] index was found");
         }
 

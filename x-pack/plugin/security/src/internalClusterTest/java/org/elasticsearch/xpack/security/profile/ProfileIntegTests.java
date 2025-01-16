@@ -872,7 +872,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
     }
 
     private GetIndexResponse getProfileIndexResponse() {
-        final GetIndexRequest getIndexRequest = new GetIndexRequest();
+        final GetIndexRequest getIndexRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT);
         getIndexRequest.indices(".*");
         return client().execute(GetIndexAction.INSTANCE, getIndexRequest).actionGet();
     }

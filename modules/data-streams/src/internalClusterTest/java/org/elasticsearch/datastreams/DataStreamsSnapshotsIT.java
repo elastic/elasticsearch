@@ -1304,7 +1304,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(RestStatus.OK, restoreSnapshotResponse.status());
 
         assertThat(getDataStreamInfo("*"), hasSize(3));
-        assertNotNull(client.admin().indices().prepareGetIndex().setIndices(indexName).get());
+        assertNotNull(client.admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(indexName).get());
     }
 
     public void testRestoreDataStreamAliasWithConflictingDataStream() throws Exception {

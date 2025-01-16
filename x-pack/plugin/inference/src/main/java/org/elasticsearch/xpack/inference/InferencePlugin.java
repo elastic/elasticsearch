@@ -137,7 +137,14 @@ import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenc
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG;
 
-public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin, MapperPlugin, SearchPlugin, InternalSearchPlugin {
+public class InferencePlugin extends Plugin
+    implements
+        ActionPlugin,
+        ExtensiblePlugin,
+        SystemIndexPlugin,
+        MapperPlugin,
+        SearchPlugin,
+        InternalSearchPlugin {
 
     /**
      * When this setting is true the verification check that

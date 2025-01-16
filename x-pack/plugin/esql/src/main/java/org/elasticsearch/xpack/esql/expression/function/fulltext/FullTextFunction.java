@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
+import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.ShardConfig;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -27,12 +30,14 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.TranslationAwareExpressi
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 
 import java.util.List;
 import java.util.Locale;
@@ -50,7 +55,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * These functions needs to be pushed down to Lucene queries to be executed - there's no Evaluator for them, but depend on
  * {@link org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer} to rewrite them into Lucene queries.
  */
-public abstract class FullTextFunction extends Function implements TranslationAware, PostAnalysisPlanVerificationAware {
+public abstract class FullTextFunction extends Function implements TranslationAware, PostAnalysisPlanVerificationAware, EvaluatorMapper {
 
     private final Expression query;
     private final QueryBuilder queryBuilder;
@@ -380,5 +385,17 @@ public abstract class FullTextFunction extends Function implements TranslationAw
             }
         }
         return null;
+    }
+
+
+    @Override
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        List<EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
+        ShardConfig[] shardConfigs = new ShardConfig[shardContexts.size()];
+        int i = 0;
+        for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
+            shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
+        }
+        return new LuceneQueryExpressionEvaluator.Factory(shardConfigs);
     }
 }

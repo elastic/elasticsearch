@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEqualsMapper;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.planner.Layout;
@@ -63,9 +62,7 @@ public final class EvalMapper {
         Layout layout,
         List<ShardContext> shardContexts
     ) {
-        if (exp instanceof Match m) {
-            return m.toEvaluator(shardContexts);
-        } else if (exp instanceof EvaluatorMapper m) {
+        if (exp instanceof EvaluatorMapper m) {
             return m.toEvaluator(new EvaluatorMapper.ToEvaluator() {
                 @Override
                 public ExpressionEvaluator.Factory apply(Expression expression) {
@@ -75,6 +72,11 @@ public final class EvalMapper {
                 @Override
                 public FoldContext foldCtx() {
                     return foldCtx;
+                }
+
+                @Override
+                public List<ShardContext> shardContexts() {
+                    return shardContexts;
                 }
             });
         }

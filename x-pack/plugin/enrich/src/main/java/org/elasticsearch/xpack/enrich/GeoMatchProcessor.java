@@ -40,7 +40,7 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
     ) {
         super(tag, description, searchRunner, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
         this.shapeRelation = shapeRelation;
-        parser = new GeometryParser(orientation.getAsBoolean(), true, true);
+        this.parser = new GeometryParser(orientation.getAsBoolean(), true, true);
     }
 
     @Override

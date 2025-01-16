@@ -688,7 +688,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 settings,
                 dispatcher,
                 httpValidator,
-                (restRequest, threadContext) -> { throw new AssertionError("Request dispatched but shouldn't"); }
+                (restRequest, threadContext) -> {
+                    throw new AssertionError("Request dispatched but shouldn't");
+                }
             )
         ) {
             transport.start();
@@ -744,7 +746,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             Netty4HttpServerTransport transport = getTestNetty4HttpServerTransport(
                 dispatcher,
                 failureHeadersValidator,
-                (restRequest, threadContext) -> { throw new AssertionError("Request that failed validation should not be dispatched"); }
+                (restRequest, threadContext) -> {
+                    throw new AssertionError("Request that failed validation should not be dispatched");
+                }
             )
         ) {
             transport.start();

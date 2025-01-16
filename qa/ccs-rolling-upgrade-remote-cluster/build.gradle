@@ -27,13 +27,13 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
    * - Only node-0 and node-2 of the remote cluster can accept remote connections. This can creates a test
    *   scenario where a query request and fetch request are sent via **proxy nodes** that have different version.
    */
-  def localCluster = testClusters.register("${baseName}-local") {
+  def localClusterProvider = testClusters.register("${baseName}-local") {
     numberOfNodes = 2
     versions = [bwcVersion.toString(), project.version]
     setting 'cluster.remote.node.attr', 'gateway'
     setting 'xpack.security.enabled', 'false'
   }
-  def remoteCluster = testClusters.register("${baseName}-remote") {
+  def remoteClusterProvider = testClusters.register("${baseName}-remote") {
     numberOfNodes = 3
     versions = [bwcVersion.toString(), project.version]
     firstNode.setting 'node.attr.gateway', 'true'
@@ -43,13 +43,13 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
 
 
   tasks.withType(StandaloneRestIntegTestTask).matching { it.name.startsWith("${baseName}#") }.configureEach {
-    useCluster localCluster
-    useCluster remoteCluster
+    useCluster localClusterProvider
+    useCluster remoteClusterProvider
     systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
 
     doFirst {
-      nonInputProperties.systemProperty('tests.rest.cluster', localCluster.map(c -> c.allHttpSocketURI.join(",")))
-      nonInputProperties.systemProperty('tests.rest.remote_cluster', remoteCluster.map(c -> c.allHttpSocketURI.join(",")))
+      nonInputProperties.systemProperty('tests.rest.cluster', localClusterProvider.map(c -> c.allHttpSocketURI.join(",")))
+      nonInputProperties.systemProperty('tests.rest.remote_cluster', remoteClusterProvider.map(c -> c.allHttpSocketURI.join(",")))
     }
   }
 

@@ -51,13 +51,13 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
                     pattern = pattern.replace(replacement[0], replacement[1]);
                 }
                 final String javaPattern = pattern;
-                return DateTimeFormatter.ofPattern(javaPattern, Locale.ROOT)::format;
+                return DateTimeFormatter.ofPattern(javaPattern, Locale.ENGLISH)::format;
             }
         },
         DATE_TIME_FORMAT {
             @Override
             protected Function<TemporalAccessor, String> formatterFor(String pattern) {
-                return DateTimeFormatter.ofPattern(pattern, Locale.ROOT)::format;
+                return DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH)::format;
             }
         },
         TO_CHAR {

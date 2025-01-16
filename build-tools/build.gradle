@@ -6,6 +6,12 @@
  * Side Public License, v 1.
  */
 
+buildscript {
+  repositories {
+    mavenCentral()
+  }
+}
+
 plugins {
     id 'java-gradle-plugin'
     id 'groovy'

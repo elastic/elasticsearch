@@ -662,10 +662,9 @@ public class JobManager {
                         if (isJobOpen(clusterState, job.getId())) {
                             updateJobProcessNotifier.submitJobUpdate(
                                 UpdateParams.filterUpdate(job.getId(), filter),
-                                ActionListener.wrap(
-                                    isUpdated -> { auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems); },
-                                    e -> {}
-                                )
+                                ActionListener.wrap(isUpdated -> {
+                                    auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems);
+                                }, e -> {})
                             );
                         } else {
                             auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems);
@@ -735,13 +734,9 @@ public class JobManager {
 
     private void submitJobEventUpdate(Collection<String> jobIds, ActionListener<Boolean> updateListener) {
         for (String jobId : jobIds) {
-            updateJobProcessNotifier.submitJobUpdate(
-                UpdateParams.scheduledEventsUpdate(jobId),
-                ActionListener.wrap(
-                    isUpdated -> { auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS)); },
-                    e -> logger.error("[" + jobId + "] failed submitting process update on calendar change", e)
-                )
-            );
+            updateJobProcessNotifier.submitJobUpdate(UpdateParams.scheduledEventsUpdate(jobId), ActionListener.wrap(isUpdated -> {
+                auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS));
+            }, e -> logger.error("[" + jobId + "] failed submitting process update on calendar change", e)));
         }
 
         updateListener.onResponse(Boolean.TRUE);

@@ -402,14 +402,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         MarkerFilter auditMarkerFilter = MarkerFilter.createFilter(AUDIT_MARKER.getName(), Result.ACCEPT, Result.NEUTRAL);
         ctx.addFilter(auditMarkerFilter);
         ctx.updateLoggers();
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(
-                ignored -> {
-                    LogManager.getLogger(Security.class)
-                        .warn("Changing log level for [" + LoggingAuditTrail.class.getName() + "] has no effect");
-                },
-                Collections.singletonList(Loggers.LOG_LEVEL_SETTING.getConcreteSettingForNamespace(LoggingAuditTrail.class.getName()))
-            );
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ignored -> {
+            LogManager.getLogger(Security.class).warn("Changing log level for [" + LoggingAuditTrail.class.getName() + "] has no effect");
+        }, Collections.singletonList(Loggers.LOG_LEVEL_SETTING.getConcreteSettingForNamespace(LoggingAuditTrail.class.getName())));
     }
 
     @Override

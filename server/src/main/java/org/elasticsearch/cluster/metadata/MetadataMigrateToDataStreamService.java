@@ -79,7 +79,9 @@ public class MetadataMigrateToDataStreamService {
                     new String[] { writeIndexName },
                     ActiveShardCount.DEFAULT,
                     request.masterNodeTimeout(),
-                    shardsAcked -> { finalListener.onResponse(AcknowledgedResponse.TRUE); },
+                    shardsAcked -> {
+                        finalListener.onResponse(AcknowledgedResponse.TRUE);
+                    },
                     finalListener::onFailure
                 );
             } else {

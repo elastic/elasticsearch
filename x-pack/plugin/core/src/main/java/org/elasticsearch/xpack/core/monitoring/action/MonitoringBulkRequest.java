@@ -105,7 +105,9 @@ public class MonitoringBulkRequest extends ActionRequest {
             add(new MonitoringBulkDoc(system, indexRequest.type(), indexRequest.id(), timestamp, intervalMillis, source, xContentType));
         },
             updateRequest -> { throw new IllegalArgumentException("monitoring bulk requests should only contain index requests"); },
-            deleteRequest -> { throw new IllegalArgumentException("monitoring bulk requests should only contain index requests"); }
+            deleteRequest -> {
+                throw new IllegalArgumentException("monitoring bulk requests should only contain index requests");
+            }
         );
 
         return this;

@@ -113,15 +113,10 @@ public class TransformAuditorIT extends TransformRestTestCase {
         request.setOptions(options);
         client().performRequest(request);
 
-        assertBusy(
-            () -> {
-                assertTrue(
-                    aliasExists(
-                        TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED,
-                        TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS
-                    )
-                );
-            }
-        );
+        assertBusy(() -> {
+            assertTrue(
+                aliasExists(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED, TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS)
+            );
+        });
     }
 }

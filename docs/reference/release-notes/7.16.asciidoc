@@ -113,6 +113,8 @@ include::7.16.asciidoc[tag=painless-functional-interface-resolution-81696-known-
 
 include::7.7.asciidoc[tag=jackson-filtering-bug]
 
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
+
 [[enhancement-7.16.1]]
 [float]
 === Enhancements
@@ -258,6 +260,8 @@ for (int i = 0; i < l.size(); ++i) {
 // end::painless-functional-interface-resolution-81696-known-issue[]
 
 include::7.7.asciidoc[tag=jackson-filtering-bug]
+
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
 
 [[feature-7.16.0]]
 [float]

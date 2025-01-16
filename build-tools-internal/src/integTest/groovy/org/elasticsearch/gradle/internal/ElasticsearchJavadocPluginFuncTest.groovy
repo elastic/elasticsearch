@@ -19,22 +19,22 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
         given:
         someLibProject()
         subProject("some-depending-lib") {
-            buildFile << """               
+            buildFile << """
                 plugins {
                     id 'elasticsearch.java-doc'
                     id 'java'
                 }
                 group = 'org.acme.depending'
-                
+
                 dependencies {
                     implementation project(':some-lib')
                 }
             """
             classFile('org.acme.depending.SomeDepending') << """
                 package org.acme.depending;
-                
+
                 import org.acme.Something;
-                
+
                 public class SomeDepending {
                     public Something createSomething() {
                         return new Something();
@@ -68,14 +68,14 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
         given:
         someLibProject() << """version = 1.0"""
         subProject("some-depending-lib") {
-            buildFile << """               
+            buildFile << """
                 plugins {
                     id 'elasticsearch.java-doc'
-                    id 'com.github.johnrengelman.shadow' version '7.1.2'
+                    id 'com.gradleup.shadow'
                     id 'java'
                 }
                 group = 'org.acme.depending'
-                
+
                 dependencies {
                     implementation project(':some-lib')
                     shadow project(':some-shadowed-lib')
@@ -83,9 +83,9 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
             """
             classFile('org.acme.depending.SomeDepending') << """
                 package org.acme.depending;
-                
+
                 import org.acme.Something;
-                
+
                 public class SomeDepending {
                     public Something createSomething() {
                         return new Something();
@@ -94,9 +94,9 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
             """
             classFile('org.acme.depending.SomeShadowedDepending') << """
                 package org.acme.depending;
-                
+
                 import org.acme.shadowed.Shadowed;
-                
+
                 public class SomeShadowedDepending {
                     public Shadowed createShadowed() {
                         return new Shadowed();
@@ -114,7 +114,7 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
             """
             classFile('org.acme.shadowed.Shadowed') << """
                 package org.acme.shadowed;
-                
+
                 public class Shadowed {
                 }
             """
@@ -145,22 +145,22 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
             tasks.named("javadoc").configure { enabled = false }
         """
         subProject("some-depending-lib") {
-            buildFile << """               
+            buildFile << """
                 plugins {
                     id 'elasticsearch.java-doc'
                     id 'java'
                 }
                 group = 'org.acme.depending'
-                
+
                 dependencies {
                     implementation project(':some-lib')
                 }
             """
             classFile('org.acme.depending.SomeDepending') << """
                 package org.acme.depending;
-                
+
                 import org.acme.Something;
-                
+
                 public class SomeDepending {
                     public Something createSomething() {
                         return new Something();
@@ -196,7 +196,7 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
 
             classFile('org.acme.Something') << """
                 package org.acme;
-                
+
                 public class Something {
                 }
             """

@@ -45,6 +45,10 @@ public class BootstrapJvmOptions {
         for (Path pluginDir : pluginDirs) {
             final List<String> jarFiles = new ArrayList<>();
             final Properties props = new Properties();
+            if (pluginDir.getFileName().toString().equals(".elasticsearch-plugins.yml.cache") == false) {
+                // skip plugins cache, see SyncPluginsAction
+                continue;
+            }
 
             final List<Path> pluginFiles = Files.list(pluginDir).collect(Collectors.toList());
             for (Path pluginFile : pluginFiles) {

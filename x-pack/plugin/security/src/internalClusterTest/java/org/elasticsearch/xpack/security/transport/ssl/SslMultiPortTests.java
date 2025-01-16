@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.transport.ssl;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -39,14 +40,24 @@ import static org.hamcrest.Matchers.containsString;
 
 public class SslMultiPortTests extends SecurityIntegTestCase {
 
+    private static final int NUMBER_OF_CLIENT_PORTS = Constants.WINDOWS ? 300 : 100;
+
     private static int randomClientPort;
+    private static String randomClientPortRange;
     private static int randomNoClientAuthPort;
+    private static String randomNoClientAuthPortRange;
     private static InetAddress localAddress;
 
     @BeforeClass
     public static void getRandomPort() {
-        randomClientPort = randomIntBetween(49000, 65500); // ephemeral port
-        randomNoClientAuthPort = randomIntBetween(49000, 65500);
+        randomClientPort = randomIntBetween(49152, 65535 - NUMBER_OF_CLIENT_PORTS);
+        randomClientPortRange = randomClientPort + "-" + (randomClientPort + NUMBER_OF_CLIENT_PORTS);
+
+        randomNoClientAuthPort = randomValueOtherThanMany(
+            port -> port >= randomClientPort - NUMBER_OF_CLIENT_PORTS && port <= randomClientPort + NUMBER_OF_CLIENT_PORTS,
+            () -> randomIntBetween(49152, 65535 - NUMBER_OF_CLIENT_PORTS)
+        );
+        randomNoClientAuthPortRange = randomNoClientAuthPort + "-" + (randomNoClientAuthPort + NUMBER_OF_CLIENT_PORTS);
         localAddress = InetAddress.getLoopbackAddress();
     }
 
@@ -60,9 +71,6 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      */
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        String randomClientPortRange = randomClientPort + "-" + (randomClientPort + 100);
-        String randomNoClientAuthPortRange = randomNoClientAuthPort + "-" + (randomNoClientAuthPort + 100);
-
         Path trustCert;
         try {
             trustCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.crt");

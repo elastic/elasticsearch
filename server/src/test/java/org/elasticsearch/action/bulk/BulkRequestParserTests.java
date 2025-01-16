@@ -35,49 +35,19 @@ public class BulkRequestParserTests extends ESTestCase {
         }, req -> fail(), req -> fail());
         assertTrue(parsed.get());
 
-        parser.parse(
-            request,
-            "foo",
-            null,
-            null,
-            null,
-            true,
-            false,
-            XContentType.JSON,
-            indexRequest -> { assertTrue(indexRequest.isRequireAlias()); },
-            req -> fail(),
-            req -> fail()
-        );
+        parser.parse(request, "foo", null, null, null, true, false, XContentType.JSON, indexRequest -> {
+            assertTrue(indexRequest.isRequireAlias());
+        }, req -> fail(), req -> fail());
 
         request = new BytesArray("{ \"index\":{ \"_id\": \"bar\", \"require_alias\": true } }\n{}\n");
-        parser.parse(
-            request,
-            "foo",
-            null,
-            null,
-            null,
-            null,
-            false,
-            XContentType.JSON,
-            indexRequest -> { assertTrue(indexRequest.isRequireAlias()); },
-            req -> fail(),
-            req -> fail()
-        );
+        parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON, indexRequest -> {
+            assertTrue(indexRequest.isRequireAlias());
+        }, req -> fail(), req -> fail());
 
         request = new BytesArray("{ \"index\":{ \"_id\": \"bar\", \"require_alias\": false } }\n{}\n");
-        parser.parse(
-            request,
-            "foo",
-            null,
-            null,
-            null,
-            true,
-            false,
-            XContentType.JSON,
-            indexRequest -> { assertFalse(indexRequest.isRequireAlias()); },
-            req -> fail(),
-            req -> fail()
-        );
+        parser.parse(request, "foo", null, null, null, true, false, XContentType.JSON, indexRequest -> {
+            assertFalse(indexRequest.isRequireAlias());
+        }, req -> fail(), req -> fail());
     }
 
     public void testDeleteRequest() throws IOException {
@@ -106,49 +76,19 @@ public class BulkRequestParserTests extends ESTestCase {
         }, req -> fail());
         assertTrue(parsed.get());
 
-        parser.parse(
-            request,
-            "foo",
-            null,
-            null,
-            null,
-            true,
-            false,
-            XContentType.JSON,
-            req -> fail(),
-            updateRequest -> { assertTrue(updateRequest.isRequireAlias()); },
-            req -> fail()
-        );
+        parser.parse(request, "foo", null, null, null, true, false, XContentType.JSON, req -> fail(), updateRequest -> {
+            assertTrue(updateRequest.isRequireAlias());
+        }, req -> fail());
 
         request = new BytesArray("{ \"update\":{ \"_id\": \"bar\", \"require_alias\": true } }\n{}\n");
-        parser.parse(
-            request,
-            "foo",
-            null,
-            null,
-            null,
-            null,
-            false,
-            XContentType.JSON,
-            req -> fail(),
-            updateRequest -> { assertTrue(updateRequest.isRequireAlias()); },
-            req -> fail()
-        );
+        parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON, req -> fail(), updateRequest -> {
+            assertTrue(updateRequest.isRequireAlias());
+        }, req -> fail());
 
         request = new BytesArray("{ \"update\":{ \"_id\": \"bar\", \"require_alias\": false } }\n{}\n");
-        parser.parse(
-            request,
-            "foo",
-            null,
-            null,
-            null,
-            true,
-            false,
-            XContentType.JSON,
-            req -> fail(),
-            updateRequest -> { assertFalse(updateRequest.isRequireAlias()); },
-            req -> fail()
-        );
+        parser.parse(request, "foo", null, null, null, true, false, XContentType.JSON, req -> fail(), updateRequest -> {
+            assertFalse(updateRequest.isRequireAlias());
+        }, req -> fail());
     }
 
     public void testBarfOnLackOfTrailingNewline() {

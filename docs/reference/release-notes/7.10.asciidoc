@@ -22,6 +22,9 @@ https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-22132[CVE-2021-22132]
 include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
 
 include::7.7.asciidoc[tag=jackson-filtering-bug]
+
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
+
 [[bug-7.10.2]]
 [float]
 === Bug fixes
@@ -102,6 +105,7 @@ include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
 
 include::7.7.asciidoc[tag=jackson-filtering-bug]
 
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
 
 [[bug-7.10.1]]
 [float]
@@ -203,6 +207,7 @@ include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
 
 include::7.7.asciidoc[tag=jackson-filtering-bug]
 
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
 
 [[breaking-7.10.0]]
 [float]

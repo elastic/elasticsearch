@@ -20,6 +20,7 @@ version>>, we recommend you avoid to upgrade to this version, as the settings to
 from JDK 21.
 // end::no-preventive-gc-issue[]
 
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
 
 [[bug-7.17.14]]
 [float]

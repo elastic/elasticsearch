@@ -24,6 +24,8 @@ https://bugs.openjdk.org/browse/JDK-8297639[has been removed]. Specifying those 
 JVM (and therefore Elasticsearch Nodes) from starting.
 // end::no-preventive-gc-issue[]
 
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
+
 [[bug-7.17.10]]
 [float]
 === Bug fixes

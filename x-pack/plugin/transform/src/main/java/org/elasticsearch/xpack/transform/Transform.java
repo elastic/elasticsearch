@@ -198,7 +198,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         public boolean isEnabledByDefault(final Settings settings) {
             return super.isEnabledByDefault(settings) &&
             // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
-            (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) || DataTier.isExplicitDataTier(settings));
+                (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) || DataTier.isExplicitDataTier(settings));
         }
 
     };

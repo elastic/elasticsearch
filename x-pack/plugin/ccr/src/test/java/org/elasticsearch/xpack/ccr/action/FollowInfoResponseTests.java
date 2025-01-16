@@ -46,10 +46,9 @@ public class FollowInfoResponseTests extends AbstractSerializingTestCase<FollowI
     }
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<FollowInfoAction.Response, Void> PARSER = new ConstructingObjectParser<>(
-        "response",
-        args -> { return new FollowInfoAction.Response((List<FollowerInfo>) args[0]); }
-    );
+    static final ConstructingObjectParser<FollowInfoAction.Response, Void> PARSER = new ConstructingObjectParser<>("response", args -> {
+        return new FollowInfoAction.Response((List<FollowerInfo>) args[0]);
+    });
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), INFO_PARSER, FOLLOWER_INDICES_FIELD);

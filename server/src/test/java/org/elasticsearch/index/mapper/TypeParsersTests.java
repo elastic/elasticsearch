@@ -77,7 +77,9 @@ public class TypeParsersTests extends ESTestCase {
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
             mapperService.getIndexSettings(),
-            () -> { throw new UnsupportedOperationException(); }
+            () -> {
+                throw new UnsupportedOperationException();
+            }
         );
 
         TextFieldMapper.PARSER.parse("some-field", fieldNode, olderContext);

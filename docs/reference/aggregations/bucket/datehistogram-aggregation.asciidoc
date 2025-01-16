@@ -749,7 +749,7 @@ POST /sales/_search?size=0
   "runtime_mappings": {
     "date.day_of_week": {
       "type": "keyword",
-      "script": "emit(doc['date'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+      "script": "emit(doc['date'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH))"
     }
   },
   "aggs": {

@@ -360,7 +360,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         ActionListener<ShardSnapshotResult> listener
     ) {
         try {
-            final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id());
+            final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
             if (indexShard.routingEntry().primary() == false) {
                 throw new IndexShardSnapshotFailedException(shardId, "snapshot should be performed only on primary");
             }

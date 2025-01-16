@@ -81,7 +81,9 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             trainedModelProvider,
             analyticsConfig,
             new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class)),
-            (ex) -> { throw new ElasticsearchException(ex); },
+            (ex) -> {
+                throw new ElasticsearchException(ex);
+            },
             new ExtractedFields(extractedFieldList, Collections.emptyList(), Collections.emptyMap())
         );
 

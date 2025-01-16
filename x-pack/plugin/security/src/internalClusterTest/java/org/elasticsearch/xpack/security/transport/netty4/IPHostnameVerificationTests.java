@@ -57,10 +57,9 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
             throw new RuntimeException(e);
         }
 
-        SecuritySettingsSource.addSecureSettings(
-            settingsBuilder,
-            secureSettings -> { secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode-ip-only"); }
-        );
+        SecuritySettingsSource.addSecureSettings(settingsBuilder, secureSettings -> {
+            secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode-ip-only");
+        });
         return settingsBuilder.put("xpack.security.transport.ssl.key", keyPath.toAbsolutePath())
             .put("xpack.security.transport.ssl.certificate", certPath.toAbsolutePath())
             .put("xpack.security.transport.ssl.certificate_authorities", certPath.toAbsolutePath())

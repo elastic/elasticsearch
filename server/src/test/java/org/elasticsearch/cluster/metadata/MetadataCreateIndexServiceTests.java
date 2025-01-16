@@ -728,9 +728,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testAggregateSettingsAppliesSettingsFromTemplatesAndRequest() {
-        IndexTemplateMetadata templateMetadata = addMatchingTemplate(
-            builder -> { builder.settings(Settings.builder().put("template_setting", "value1")); }
-        );
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
+            builder.settings(Settings.builder().put("template_setting", "value1"));
+        });
         ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templatesBuilder = ImmutableOpenMap.builder();
         templatesBuilder.put("template_1", templateMetadata);
         Metadata metadata = new Metadata.Builder().templates(templatesBuilder.build()).build();

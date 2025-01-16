@@ -665,10 +665,9 @@ public class JobConfigProvider {
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             searchRequest,
-            ActionListener.<SearchResponse>wrap(
-                response -> { listener.onResponse(response.getHits().getTotalHits().value > 0); },
-                listener::onFailure
-            ),
+            ActionListener.<SearchResponse>wrap(response -> {
+                listener.onResponse(response.getHits().getTotalHits().value > 0);
+            }, listener::onFailure),
             client::search
         );
     }

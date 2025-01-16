@@ -462,13 +462,10 @@ public class AnalysisRegistryTests extends ESTestCase {
             .build();
         IndexSettings exceptionSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> {
-                new AnalysisModule(TestEnvironment.newEnvironment(settings), singletonList(plugin)).getAnalysisRegistry()
-                    .build(exceptionSettings);
-            }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            new AnalysisModule(TestEnvironment.newEnvironment(settings), singletonList(plugin)).getAnalysisRegistry()
+                .build(exceptionSettings);
+        });
         assertEquals("Cannot use token filter [exception]", e.getMessage());
 
     }

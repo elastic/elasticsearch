@@ -243,31 +243,27 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     }
 
     public void testRequiredParameters() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { new PercolateQueryBuilder(null, new BytesArray("{}"), XContentType.JSON); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            new PercolateQueryBuilder(null, new BytesArray("{}"), XContentType.JSON);
+        });
         assertThat(e.getMessage(), equalTo("[field] is a required argument"));
 
         e = expectThrows(IllegalArgumentException.class, () -> new PercolateQueryBuilder("_field", "_document_type", null, null));
         assertThat(e.getMessage(), equalTo("[document] is a required argument"));
 
-        e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { new PercolateQueryBuilder(null, null, "_index", "_type", "_id", null, null, null); }
-        );
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            new PercolateQueryBuilder(null, null, "_index", "_type", "_id", null, null, null);
+        });
         assertThat(e.getMessage(), equalTo("[field] is a required argument"));
 
-        e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { new PercolateQueryBuilder("_field", "_document_type", null, "_type", "_id", null, null, null); }
-        );
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            new PercolateQueryBuilder("_field", "_document_type", null, "_type", "_id", null, null, null);
+        });
         assertThat(e.getMessage(), equalTo("[index] is a required argument"));
 
-        e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { new PercolateQueryBuilder("_field", "_document_type", "_index", "_type", null, null, null, null); }
-        );
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            new PercolateQueryBuilder("_field", "_document_type", "_index", "_type", null, null, null, null);
+        });
         assertThat(e.getMessage(), equalTo("[id] is a required argument"));
     }
 

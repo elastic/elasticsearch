@@ -248,6 +248,7 @@ import org.elasticsearch.xpack.security.authz.interceptor.ResizeRequestIntercept
 import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ShardSearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.ValidateRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorConsumer;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
@@ -451,6 +452,28 @@ public class Security extends Plugin
         null,
         "operator-privileges",
         License.OperationMode.ENTERPRISE
+    );
+
+    /**
+     * 7.17.x only setting to help mitigate any potential issues for how DLS applies to terms aggs + min_doc_count=0.
+     * New versions default to stricter DLS rules and setting this to false will allow to revert to the less strict DLS behavior.
+     */
+    public static final Setting<Boolean> DLS_FORCE_TERMS_AGGS_TO_EXCLUDE_DELETED_DOCS = Setting.boolSetting(
+        "xpack.security.dls.force_terms_aggs_to_exclude_deleted_docs.enabled",
+        true,
+        Property.NodeScope,
+        Property.Deprecated
+    );
+
+    /**
+     * 7.17.x only setting to help mitigate any potential issues for how DLS applies to the validate API + rewrite=true.
+     * New versions default to stricter DLS rules and setting this to false will allow to revert to the less strict DLS behavior.
+     */
+    public static final Setting<Boolean> DLS_ERROR_WHEN_VALIDATE_QUERY_WITH_REWRITE = Setting.boolSetting(
+        "xpack.security.dls.error_when_validate_query_with_rewrite.enabled",
+        true,
+        Property.NodeScope,
+        Property.Deprecated
     );
 
     private static final Logger logger = LogManager.getLogger(Security.class);
@@ -842,7 +865,8 @@ public class Security extends Plugin
                     new ShardSearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
                     new UpdateRequestInterceptor(threadPool, getLicenseState()),
                     new BulkShardRequestInterceptor(threadPool, getLicenseState()),
-                    new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState())
+                    new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState()),
+                    new ValidateRequestInterceptor(threadPool, getLicenseState(), settings)
                 )
             );
         }
@@ -1088,6 +1112,8 @@ public class Security extends Plugin
         settingsList.add(CachingServiceAccountTokenStore.CACHE_TTL_SETTING);
         settingsList.add(CachingServiceAccountTokenStore.CACHE_HASH_ALGO_SETTING);
         settingsList.add(CachingServiceAccountTokenStore.CACHE_MAX_TOKENS_SETTING);
+        settingsList.add(DLS_FORCE_TERMS_AGGS_TO_EXCLUDE_DELETED_DOCS);
+        settingsList.add(DLS_ERROR_WHEN_VALIDATE_QUERY_WITH_REWRITE);
 
         // hide settings
         settingsList.add(

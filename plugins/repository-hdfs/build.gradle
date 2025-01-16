@@ -47,7 +47,7 @@ dependencies {
     }
     runtimeOnly "org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}"
     implementation "org.apache.hadoop:hadoop-hdfs:${versions.hadoop}"
-    api 'com.google.protobuf:protobuf-java:3.21.9'
+    api "com.google.protobuf:protobuf-java:${versions.protobuf}"
     api 'commons-logging:commons-logging:1.1.3'
     api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
     api 'commons-cli:commons-cli:1.2'
@@ -187,7 +187,11 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
                 }
             }
             testClassesDirs = sourceSets.javaRestTest.output.classesDirs
-            classpath = sourceSets.javaRestTest.runtimeClasspath + files(portsFileDir)
+            // Set the keytab files in the classpath so that we can access them from test code without the security manager
+            // freaking out.
+            classpath = sourceSets.javaRestTest.runtimeClasspath +
+              configurations.krb5Keytabs +
+              files(portsFileDir)
         }
     }
 

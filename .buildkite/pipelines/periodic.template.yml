@@ -65,6 +65,9 @@ steps:
               - openjdk18
               - openjdk19
               - openjdk20
+              - openjdk21
+              - openjdk22
+              - openjdk23
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004

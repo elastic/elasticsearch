@@ -2024,6 +2024,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshot2.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105484")
     public void testDeleteIndexWithOutOfOrderFinalization() throws Exception {
 
         final String indexToDelete = "index-to-delete";

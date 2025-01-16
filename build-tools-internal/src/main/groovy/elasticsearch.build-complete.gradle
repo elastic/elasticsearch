@@ -7,6 +7,7 @@
  */
 
 import java.nio.file.Files
+import java.util.concurrent.TimeUnit
 
 String buildNumber = System.getenv('BUILD_NUMBER') ?: System.getenv('BUILDKITE_BUILD_NUMBER')
 Boolean isNested = System.getProperty("scan.tag.NESTED") != null
@@ -68,9 +69,13 @@ if (buildNumber && isNested == false) {
     if (uploadFile.exists() && System.getenv("BUILDKITE") == "true") {
       try {
         println "Uploading buildkite artifact: ${uploadFilePath}..."
-        new ProcessBuilder("buildkite-agent", "artifact", "upload", uploadFilePath)
-          .start()
-          .waitFor()
+        try {
+          new ProcessBuilder("buildkite-agent", "artifact", "upload", uploadFilePath)
+            .start()
+            .waitFor(30, TimeUnit.MINUTES)
+        } catch (InterruptedException e) {
+          System.out.println("Failed to upload buildkite artifact " + e.getMessage());
+        }
 
         println "Generating buildscan link for artifact..."
 

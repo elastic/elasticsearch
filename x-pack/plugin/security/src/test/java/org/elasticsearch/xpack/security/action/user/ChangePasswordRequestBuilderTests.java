@@ -58,10 +58,9 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
         final char[] hash = userHasher.hash(new SecureString("superlongpassword".toCharArray()));
         final String json = "{\n" + "    \"password_hash\": \"" + new String(hash) + "\"" + "}";
         ChangePasswordRequestBuilder builder = new ChangePasswordRequestBuilder(mock(Client.class));
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { builder.source(new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher).request(); }
-        );
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            builder.source(new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher).request();
+        });
         assertThat(e.getMessage(), containsString(userHasher.name()));
         assertThat(e.getMessage(), containsString(systemHasher.name()));
     }
@@ -71,10 +70,9 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
         final char[] hash = randomAlphaOfLength(20).toCharArray();
         final String json = "{\n" + "    \"password_hash\": \"" + new String(hash) + "\"" + "}";
         ChangePasswordRequestBuilder builder = new ChangePasswordRequestBuilder(mock(Client.class));
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { builder.source(new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher).request(); }
-        );
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            builder.source(new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher).request();
+        });
         assertThat(e.getMessage(), containsString(Hasher.NOOP.name()));
         assertThat(e.getMessage(), containsString(systemHasher.name()));
     }
@@ -91,10 +89,9 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
         );
 
         ChangePasswordRequestBuilder builder = new ChangePasswordRequestBuilder(mock(Client.class));
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { builder.source(json, XContentType.JSON, hasher).request(); }
-        );
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            builder.source(json, XContentType.JSON, hasher).request();
+        });
         assertThat(e.getMessage(), containsString("password_hash has already been set"));
 
     }

@@ -25,10 +25,12 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInfo;
 
-import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.TRANSPORT;
@@ -64,17 +66,28 @@ public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase
         return builder.build();
     }
 
-    public void testThatTransportClientCanConnect() throws Exception {
+    public void testThatTransportClientCanConnect() {
         Settings settings = Settings.builder()
             .put("cluster.name", internalCluster().getClusterName())
             .put(NetworkModule.TRANSPORT_TYPE_KEY, Netty4Plugin.NETTY_TRANSPORT_NAME)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        // we have to test all the ports that the data node might be bound to
         try (TransportClient transportClient = new MockTransportClient(settings, Arrays.asList(Netty4Plugin.class))) {
-            for (int i = 0; i <= 10; i++) {
-                transportClient.addTransportAddress(new TransportAddress(InetAddress.getByName("127.0.0.1"), randomPort + i));
+            final List<TransportAddress> addresses = new ArrayList<>();
+            for (final Transport transport : internalCluster().getInstances(Transport.class)) {
+                for (final TransportAddress transportAddress : transport.boundAddress().boundAddresses()) {
+                    addresses.add(transportAddress);
+                }
+                for (final BoundTransportAddress profileAddresses : transport.profileBoundAddresses().values()) {
+                    for (final TransportAddress transportAddress : profileAddresses.boundAddresses()) {
+                        addresses.add(transportAddress);
+                    }
+                }
             }
+            logger.info("--> all addresses: {}", addresses);
+            final TransportAddress[] targetAddresses = randomNonEmptySubsetOf(addresses).toArray(new TransportAddress[0]);
+            logger.info("--> target addresses: {}", Arrays.toString(targetAddresses));
+            transportClient.addTransportAddresses(targetAddresses);
             ClusterHealthResponse response = transportClient.admin().cluster().prepareHealth().get();
             assertThat(response.getStatus(), is(ClusterHealthStatus.GREEN));
         }

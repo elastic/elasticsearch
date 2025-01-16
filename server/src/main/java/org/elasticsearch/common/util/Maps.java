@@ -148,15 +148,9 @@ public class Maps {
         Function<T, ? extends K> keyMapper,
         Function<T, ? extends V> valueMapper
     ) {
-        return Collectors.collectingAndThen(
-            Collectors.toMap(
-                keyMapper,
-                valueMapper,
-                (v1, v2) -> { throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")"); },
-                () -> new TreeMap<K, V>()
-            ),
-            Collections::unmodifiableNavigableMap
-        );
+        return Collectors.collectingAndThen(Collectors.toMap(keyMapper, valueMapper, (v1, v2) -> {
+            throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")");
+        }, () -> new TreeMap<K, V>()), Collections::unmodifiableNavigableMap);
     }
 
     /**
@@ -170,15 +164,9 @@ public class Maps {
         Function<T, ? extends K> keyMapper,
         Function<T, ? extends V> valueMapper
     ) {
-        return Collectors.collectingAndThen(
-            Collectors.toMap(
-                keyMapper,
-                valueMapper,
-                (v1, v2) -> { throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")"); },
-                (Supplier<LinkedHashMap<K, V>>) LinkedHashMap::new
-            ),
-            Collections::unmodifiableMap
-        );
+        return Collectors.collectingAndThen(Collectors.toMap(keyMapper, valueMapper, (v1, v2) -> {
+            throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")");
+        }, (Supplier<LinkedHashMap<K, V>>) LinkedHashMap::new), Collections::unmodifiableMap);
     }
 
 }

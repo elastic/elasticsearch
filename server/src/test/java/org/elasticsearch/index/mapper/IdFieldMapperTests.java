@@ -52,10 +52,9 @@ public class IdFieldMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(() -> enabled[0], mapping(b -> {}));
         IdFieldMapper.IdFieldType ft = (IdFieldMapper.IdFieldType) mapperService.fieldType("_id");
 
-        IllegalArgumentException exc = expectThrows(
-            IllegalArgumentException.class,
-            () -> ft.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }).build(null, null)
-        );
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> ft.fielddataBuilder("test", () -> {
+            throw new UnsupportedOperationException();
+        }).build(null, null));
         assertThat(exc.getMessage(), containsString(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
         assertFalse(ft.isAggregatable());
 
@@ -68,21 +67,19 @@ public class IdFieldMapperTests extends MapperServiceTestCase {
     public void testFetchIdFieldValue() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
         String id = randomAlphaOfLength(12);
-        withLuceneIndex(
-            mapperService,
-            iw -> { iw.addDocument(mapperService.documentMapper().parse(source(id, b -> b.field("field", "value"), null)).rootDoc()); },
-            iw -> {
-                SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
-                SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-                when(searchExecutionContext.lookup()).thenReturn(lookup);
-                IdFieldMapper.IdFieldType ft = (IdFieldMapper.IdFieldType) mapperService.fieldType("_id");
-                ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
-                IndexSearcher searcher = newSearcher(iw);
-                LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
-                lookup.source().setSegmentAndDocument(context, 0);
-                valueFetcher.setNextReader(context);
-                assertEquals(Collections.singletonList(id), valueFetcher.fetchValues(lookup.source(), List.of()));
-            }
-        );
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(mapperService.documentMapper().parse(source(id, b -> b.field("field", "value"), null)).rootDoc());
+        }, iw -> {
+            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+            SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+            when(searchExecutionContext.lookup()).thenReturn(lookup);
+            IdFieldMapper.IdFieldType ft = (IdFieldMapper.IdFieldType) mapperService.fieldType("_id");
+            ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
+            lookup.source().setSegmentAndDocument(context, 0);
+            valueFetcher.setNextReader(context);
+            assertEquals(Collections.singletonList(id), valueFetcher.fetchValues(lookup.source(), List.of()));
+        });
     }
 }

@@ -58,7 +58,7 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
     private static final String PREFIX_PUBLIC_IP = "8.8.8.";
     private static final String PREFIX_PRIVATE_IP = "10.0.0.";
 
-    private Map<String, TransportAddress> poorMansDNS = new ConcurrentHashMap<>();
+    private final Map<String, TransportAddress> poorMansDNS = new ConcurrentHashMap<>();
 
     protected MockTransportService createTransportService() {
         final Transport transport = new MockNioTransport(
@@ -142,6 +142,7 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
                                 exchange.getResponseHeaders().set("Content-Type", "text/xml; charset=UTF-8");
                                 exchange.sendResponseHeaders(HttpStatus.SC_OK, responseBody.length);
                                 exchange.getResponseBody().write(responseBody);
+                                exchange.getResponseBody().flush();
                                 return;
                             }
                         }
@@ -158,14 +159,14 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
         }
     }
 
-    public void testDefaultSettings() throws InterruptedException {
+    public void testDefaultSettings() {
         int nodes = randomInt(10);
         Settings nodeSettings = Settings.builder().build();
         List<TransportAddress> discoveryNodes = buildDynamicHosts(nodeSettings, nodes);
         assertThat(discoveryNodes, hasSize(nodes));
     }
 
-    public void testPrivateIp() throws InterruptedException {
+    public void testPrivateIp() {
         int nodes = randomInt(10);
         for (int i = 0; i < nodes; i++) {
             poorMansDNS.put(PREFIX_PRIVATE_IP + (i + 1), buildNewFakeTransportAddress());
@@ -181,7 +182,7 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
         }
     }
 
-    public void testPublicIp() throws InterruptedException {
+    public void testPublicIp() {
         int nodes = randomInt(10);
         for (int i = 0; i < nodes; i++) {
             poorMansDNS.put(PREFIX_PUBLIC_IP + (i + 1), buildNewFakeTransportAddress());
@@ -197,7 +198,7 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
         }
     }
 
-    public void testPrivateDns() throws InterruptedException {
+    public void testPrivateDns() {
         int nodes = randomInt(10);
         for (int i = 0; i < nodes; i++) {
             String instanceId = "node" + (i + 1);
@@ -215,7 +216,7 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
         }
     }
 
-    public void testPublicDns() throws InterruptedException {
+    public void testPublicDns() {
         int nodes = randomInt(10);
         for (int i = 0; i < nodes; i++) {
             String instanceId = "node" + (i + 1);
@@ -233,14 +234,14 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
         }
     }
 
-    public void testInvalidHostType() throws InterruptedException {
+    public void testInvalidHostType() {
         Settings nodeSettings = Settings.builder().put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "does_not_exist").build();
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> { buildDynamicHosts(nodeSettings, 1); });
         assertThat(exception.getMessage(), containsString("does_not_exist is unknown for discovery.ec2.host_type"));
     }
 
-    public void testFilterByTags() throws InterruptedException {
+    public void testFilterByTags() {
         int nodes = randomIntBetween(5, 10);
         Settings nodeSettings = Settings.builder().put(AwsEc2Service.TAG_SETTING.getKey() + "stage", "prod").build();
 
@@ -263,7 +264,7 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
         assertThat(dynamicHosts, hasSize(prodInstances));
     }
 
-    public void testFilterByMultipleTags() throws InterruptedException {
+    public void testFilterByMultipleTags() {
         int nodes = randomIntBetween(5, 10);
         Settings nodeSettings = Settings.builder().putList(AwsEc2Service.TAG_SETTING.getKey() + "stage", "prod", "preprod").build();
 

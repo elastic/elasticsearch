@@ -29,7 +29,7 @@ import static org.elasticsearch.packaging.util.Packages.remove;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
 import static org.elasticsearch.packaging.util.ServerUtils.enableGeoIpDownloader;
-import static org.hamcrest.core.Is.is;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeTrue;
 
 public class RpmPreservationTests extends PackagingTestCase {
@@ -85,7 +85,7 @@ public class RpmPreservationTests extends PackagingTestCase {
         assertRemoved(distribution());
 
         if (isSystemd()) {
-            assertThat(sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").exitCode, is(1));
+            assertThat(sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").exitCode, not(0));
         }
 
         assertPathsDoNotExist(

@@ -212,10 +212,9 @@ public class ServiceAccountService {
     }
 
     private void findIndexTokens(ServiceAccountId accountId, ActionListener<GetServiceAccountCredentialsResponse> listener) {
-        indexServiceAccountTokenStore.findTokensFor(
-            accountId,
-            ActionListener.wrap(indexTokenInfos -> { findFileTokens(indexTokenInfos, accountId, listener); }, listener::onFailure)
-        );
+        indexServiceAccountTokenStore.findTokensFor(accountId, ActionListener.wrap(indexTokenInfos -> {
+            findFileTokens(indexTokenInfos, accountId, listener);
+        }, listener::onFailure));
     }
 
     private void findFileTokens(

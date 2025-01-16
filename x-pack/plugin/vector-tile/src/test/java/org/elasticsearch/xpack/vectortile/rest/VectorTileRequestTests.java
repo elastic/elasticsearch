@@ -62,10 +62,9 @@ public class VectorTileRequestTests extends ESTestCase {
 
     public void testFieldSize() throws IOException {
         final int size = randomIntBetween(0, 10000);
-        assertRestRequest(
-            (builder) -> { builder.field(SearchSourceBuilder.SIZE_FIELD.getPreferredName(), size); },
-            (vectorTileRequest) -> { assertThat(vectorTileRequest.getSize(), Matchers.equalTo(size)); }
-        );
+        assertRestRequest((builder) -> { builder.field(SearchSourceBuilder.SIZE_FIELD.getPreferredName(), size); }, (vectorTileRequest) -> {
+            assertThat(vectorTileRequest.getSize(), Matchers.equalTo(size));
+        });
     }
 
     public void testFieldTrackTotalHitsAsBoolean() throws IOException {
@@ -87,7 +86,9 @@ public class VectorTileRequestTests extends ESTestCase {
         final int trackTotalHits = randomIntBetween(1, 10000);
         assertRestRequest(
             (builder) -> { builder.field(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName(), trackTotalHits); },
-            (vectorTileRequest) -> { assertThat(vectorTileRequest.getTrackTotalHitsUpTo(), Matchers.equalTo(trackTotalHits)); }
+            (vectorTileRequest) -> {
+                assertThat(vectorTileRequest.getTrackTotalHitsUpTo(), Matchers.equalTo(trackTotalHits));
+            }
         );
     }
 
@@ -95,7 +96,9 @@ public class VectorTileRequestTests extends ESTestCase {
         final int extent = randomIntBetween(256, 8192);
         assertRestRequest(
             (builder) -> { builder.field(VectorTileRequest.EXTENT_FIELD.getPreferredName(), extent); },
-            (vectorTileRequest) -> { assertThat(vectorTileRequest.getExtent(), Matchers.equalTo(extent)); }
+            (vectorTileRequest) -> {
+                assertThat(vectorTileRequest.getExtent(), Matchers.equalTo(extent));
+            }
         );
     }
 
@@ -114,7 +117,9 @@ public class VectorTileRequestTests extends ESTestCase {
         final VectorTileRequest.GRID_TYPE grid_type = RandomPicks.randomFrom(random(), VectorTileRequest.GRID_TYPE.values());
         assertRestRequest(
             (builder) -> { builder.field(VectorTileRequest.GRID_TYPE_FIELD.getPreferredName(), grid_type.name()); },
-            (vectorTileRequest) -> { assertThat(vectorTileRequest.getGridType(), Matchers.equalTo(grid_type)); }
+            (vectorTileRequest) -> {
+                assertThat(vectorTileRequest.getGridType(), Matchers.equalTo(grid_type));
+            }
         );
     }
 
@@ -122,7 +127,9 @@ public class VectorTileRequestTests extends ESTestCase {
         final int grid_precision = randomIntBetween(1, 8);
         assertRestRequest(
             (builder) -> { builder.field(VectorTileRequest.GRID_PRECISION_FIELD.getPreferredName(), grid_precision); },
-            (vectorTileRequest) -> { assertThat(vectorTileRequest.getGridPrecision(), Matchers.equalTo(grid_precision)); }
+            (vectorTileRequest) -> {
+                assertThat(vectorTileRequest.getGridPrecision(), Matchers.equalTo(grid_precision));
+            }
         );
     }
 
@@ -130,7 +137,9 @@ public class VectorTileRequestTests extends ESTestCase {
         final boolean exactBounds = randomBoolean();
         assertRestRequest(
             (builder) -> { builder.field(VectorTileRequest.EXACT_BOUNDS_FIELD.getPreferredName(), exactBounds); },
-            (vectorTileRequest) -> { assertThat(vectorTileRequest.getExactBounds(), Matchers.equalTo(exactBounds)); }
+            (vectorTileRequest) -> {
+                assertThat(vectorTileRequest.getExactBounds(), Matchers.equalTo(exactBounds));
+            }
         );
     }
 
@@ -179,20 +188,17 @@ public class VectorTileRequestTests extends ESTestCase {
 
     public void testFieldSort() throws IOException {
         final String sortName = randomAlphaOfLength(10);
-        assertRestRequest(
-            (builder) -> {
-                builder.startArray(SearchSourceBuilder.SORT_FIELD.getPreferredName())
-                    .startObject()
-                    .field(sortName, "desc")
-                    .endObject()
-                    .endArray();
-            },
-            (vectorTileRequest) -> {
-                assertThat(vectorTileRequest.getSortBuilders(), Matchers.iterableWithSize(1));
-                FieldSortBuilder sortBuilder = (FieldSortBuilder) vectorTileRequest.getSortBuilders().get(0);
-                assertThat(sortBuilder.getFieldName(), Matchers.equalTo(sortName));
-            }
-        );
+        assertRestRequest((builder) -> {
+            builder.startArray(SearchSourceBuilder.SORT_FIELD.getPreferredName())
+                .startObject()
+                .field(sortName, "desc")
+                .endObject()
+                .endArray();
+        }, (vectorTileRequest) -> {
+            assertThat(vectorTileRequest.getSortBuilders(), Matchers.iterableWithSize(1));
+            FieldSortBuilder sortBuilder = (FieldSortBuilder) vectorTileRequest.getSortBuilders().get(0);
+            assertThat(sortBuilder.getFieldName(), Matchers.equalTo(sortName));
+        });
     }
 
     public void testWrongTile() {

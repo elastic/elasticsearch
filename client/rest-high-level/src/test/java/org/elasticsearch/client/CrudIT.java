@@ -687,10 +687,9 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("_doc", indexResponse.getType());
             assertEquals("with_create_op_type", indexResponse.getId());
 
-            ElasticsearchStatusException exception = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> { execute(indexRequest, highLevelClient()::index, highLevelClient()::indexAsync); }
-            );
+            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
+                execute(indexRequest, highLevelClient()::index, highLevelClient()::indexAsync);
+            });
 
             assertEquals(RestStatus.CONFLICT, exception.status());
             assertEquals(

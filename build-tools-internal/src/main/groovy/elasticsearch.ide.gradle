@@ -120,7 +120,7 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
           defaults(JUnit) {
             vmParameters = [
               '-ea',
-              '-Djava.locale.providers=SPI,COMPAT',
+              '-Djava.locale.providers=SPI,CLDR',
               "--illegal-access=deny",
               // TODO: only open these for mockito when it is modularized
               '--add-opens=java.base/java.security.cert=ALL-UNNAMED',

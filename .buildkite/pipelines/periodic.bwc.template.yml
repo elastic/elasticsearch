@@ -6,5 +6,13 @@
           image: family/elasticsearch-ubuntu-2004
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
+          preemptible: true
         env:
           BWC_VERSION: $BWC_VERSION
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3

@@ -286,14 +286,12 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformIntegTestCase 
         waitUntilCheckpoint(configWithRuntimeFields.getId(), 1L);
 
         stopTransform(configWithRuntimeFields.getId());
-        assertBusy(
-            () -> {
-                assertEquals(
-                    TransformStats.State.STOPPED,
-                    getTransformStats(configWithRuntimeFields.getId()).getTransformsStats().get(0).getState()
-                );
-            }
-        );
+        assertBusy(() -> {
+            assertEquals(
+                TransformStats.State.STOPPED,
+                getTransformStats(configWithRuntimeFields.getId()).getTransformsStats().get(0).getState()
+            );
+        });
 
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             restClient.indices().refresh(new RefreshRequest(destIndexName), RequestOptions.DEFAULT);

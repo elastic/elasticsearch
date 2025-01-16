@@ -8,10 +8,13 @@
 
 package org.elasticsearch.gradle.internal.conventions;
 
-import org.elasticsearch.gradle.internal.conventions.precommit.PomValidationPrecommitPlugin;
+import groovy.util.Node;
+
 import com.github.jengelman.gradle.plugins.shadow.ShadowExtension;
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
-import groovy.util.Node;
+
+import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
+import org.elasticsearch.gradle.internal.conventions.precommit.PomValidationPrecommitPlugin;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.gradle.api.NamedDomainObjectSet;
@@ -35,6 +38,7 @@ import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.initialization.layout.BuildLayout;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
+import org.w3c.dom.Element;
 
 import javax.inject.Inject;
 import java.io.File;
@@ -64,6 +68,7 @@ public class PublishPlugin implements Plugin<Project> {
         configureSourcesJar(project);
         configurePomGeneration(project);
         configurePublications(project);
+        formatGeneratedPom(project);
     }
 
     private void configurePublications(Project project) {
@@ -186,5 +191,32 @@ public class PublishPlugin implements Plugin<Project> {
             });
             project.getTasks().named(BasePlugin.ASSEMBLE_TASK_NAME).configure(t -> t.dependsOn(sourcesJarTask));
         });
+    }
+
+    /**
+     * Format the generated pom files to be in a sort of reproducible order.
+     */
+    private void formatGeneratedPom(Project project) {
+        var publishing = project.getExtensions().getByType(PublishingExtension.class);
+        final var mavenPublications = publishing.getPublications().withType(MavenPublication.class);
+        mavenPublications.configureEach(publication -> {
+            publication.getPom().withXml(xml -> {
+                // Add some pom formatting
+                formatDependencies(xml);
+            });
+        });
+    }
+
+    /**
+     * just ensure we put dependencies to the end. more a cosmetic thing than anything else
+     * */
+    private void formatDependencies(XmlProvider xml) {
+        Element rootElement = xml.asElement();
+        var dependencies = rootElement.getElementsByTagName("dependencies");
+        if (dependencies.getLength() == 1 && dependencies.item(0) != null) {
+            org.w3c.dom.Node item = dependencies.item(0);
+            rootElement.removeChild(item);
+            rootElement.appendChild(item);
+        }
     }
 }

@@ -9,6 +9,7 @@
 package org.elasticsearch.cli;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.jdk.JavaVersion;
 
 import java.io.BufferedReader;
 import java.io.Console;
@@ -17,6 +18,8 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.Reader;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Locale;
@@ -217,8 +220,8 @@ public abstract class Terminal {
     }
 
     private static class ConsoleTerminal extends Terminal {
-
-        private static final Console CONSOLE = System.console();
+        private static final int JDK_VERSION_WITH_IS_TERMINAL = 22;
+        private static final Console CONSOLE = detectTerminal();
 
         ConsoleTerminal() {
             super(System.lineSeparator());
@@ -226,6 +229,23 @@ public abstract class Terminal {
 
         static boolean isSupported() {
             return CONSOLE != null;
+        }
+
+        static Console detectTerminal() {
+            // JDK >= 22 returns a console even if the terminal is redirected unless using -Djdk.console=java.base
+            // https://bugs.openjdk.org/browse/JDK-8308591
+            Console console = System.console();
+            if (console != null && JavaVersion.current().getVersion().get(0) >= JDK_VERSION_WITH_IS_TERMINAL) {
+                try {
+                    // verify the console is a terminal using isTerminal() on JDK >= 22
+                    // TODO: Remove reflection once Java 22 sources are supported, e.g. using a MRJAR
+                    Method isTerminal = Console.class.getMethod("isTerminal");
+                    return Boolean.TRUE.equals(isTerminal.invoke(console)) ? console : null;
+                } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+                    throw new AssertionError(e);
+                }
+            }
+            return console;
         }
 
         @Override

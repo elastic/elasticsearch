@@ -1,0 +1,19 @@
+[[release-notes-7.17.24]]
+== {es} version 7.17.24
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[bug-7.17.24]]
+[float]
+=== Bug fixes
+
+Authentication::
+* Improve security-crypto threadpool overflow handling {es-pull}111369[#111369]
+
+Geo::
+* Add maximum nested depth check to WKT parser {es-pull}111843[#111843]
+
+Snapshot/Restore::
+* Fix `NullPointerException` in shard snapshot code {es-pull}111524[#111524]
+
+

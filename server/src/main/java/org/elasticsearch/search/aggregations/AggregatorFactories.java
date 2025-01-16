@@ -41,12 +41,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.search.aggregations.InternalAggregation.EXCLUDE_DELETED_DOCS;
 
 /**
  * An immutable collection of {@link AggregatorFactories}.
@@ -328,6 +330,56 @@ public class AggregatorFactories {
 
             }
             return false;
+        }
+
+        /**
+         * Return true if any of the builders is a terms aggregation with min_doc_count=0
+         */
+        public boolean hasZeroMinDocTermsAggregation() {
+            final Queue<AggregationBuilder> queue = new LinkedList<>(aggregationBuilders);
+            while (queue.isEmpty() == false) {
+                final AggregationBuilder current = queue.poll();
+                if (current == null) {
+                    continue;
+                }
+                if (current instanceof TermsAggregationBuilder) {
+                    TermsAggregationBuilder termsBuilder = (TermsAggregationBuilder) current;
+                    if (termsBuilder.minDocCount() == 0) {
+                        return true;
+                    }
+                }
+                queue.addAll(current.getSubAggregations());
+            }
+            return false;
+        }
+
+        /**
+         * Force all min_doc_count=0 terms aggregations to exclude deleted docs.
+         */
+        public void forceTermsAggsToExcludeDeletedDocs() {
+            assert hasZeroMinDocTermsAggregation();
+            final Queue<AggregationBuilder> queue = new LinkedList<>(aggregationBuilders);
+            while (queue.isEmpty() == false) {
+                final AggregationBuilder current = queue.poll();
+                if (current == null) {
+                    continue;
+                }
+                if (current instanceof TermsAggregationBuilder) {
+                    TermsAggregationBuilder termsBuilder = (TermsAggregationBuilder) current;
+                    if (termsBuilder.minDocCount() == 0) {
+                        termsBuilder.excludeDeletedDocs(true);
+                        // 7.17.x serialization compatibility
+                        // due to a long-standing issue with transport serialization, you can not introduce new serialization in 7.17.x
+                        // since it will break serialization for mixed clusters with 7.17.x and earlier versions of 8.x. This hack uses the
+                        // metadata field to serialize the excludeDeletedDocs flag.
+                        Map<String, Object> metadata = new HashMap<>(termsBuilder.getMetadata());
+                        metadata.put(EXCLUDE_DELETED_DOCS, true);
+                        termsBuilder.setMetadata(metadata);
+                        // end 7.17.x serialization compatibility
+                    }
+                }
+                queue.addAll(current.getSubAggregations());
+            }
         }
 
         public Builder addAggregator(AggregationBuilder factory) {

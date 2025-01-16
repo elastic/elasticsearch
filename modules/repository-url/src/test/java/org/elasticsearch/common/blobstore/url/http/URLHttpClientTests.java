@@ -248,11 +248,9 @@ public class URLHttpClientTests extends ESTestCase {
     }
 
     private URLHttpClient.HttpResponse executeRequest(String endpoint) throws Exception {
-        return AccessController.doPrivileged(
-            (PrivilegedExceptionAction<URLHttpClient.HttpResponse>) () -> {
-                return httpClient.get(getURIForEndpoint(endpoint), Collections.emptyMap());
-            }
-        );
+        return AccessController.doPrivileged((PrivilegedExceptionAction<URLHttpClient.HttpResponse>) () -> {
+            return httpClient.get(getURIForEndpoint(endpoint), Collections.emptyMap());
+        });
     }
 
     private URI getURIForEndpoint(String endpoint) throws Exception {

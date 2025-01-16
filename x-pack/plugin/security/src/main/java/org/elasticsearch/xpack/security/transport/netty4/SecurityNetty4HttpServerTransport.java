@@ -110,7 +110,11 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
                 sslEngine.setUseClientMode(false);
                 ch.pipeline().addFirst("ssl", new SslHandler(sslEngine));
             }
-            ch.pipeline().addFirst("ip_filter", new IpFilterRemoteAddressFilter(ipFilter, IPFilter.HTTP_PROFILE_NAME));
+            ch.pipeline()
+                .addFirst(
+                    "ip_filter",
+                    new IpFilterRemoteAddressFilter(ipFilter, IPFilter.HTTP_PROFILE_NAME, threadPool.getThreadContext())
+                );
         }
     }
 }

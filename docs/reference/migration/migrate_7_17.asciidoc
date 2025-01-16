@@ -80,6 +80,23 @@ To avoid deprecation warnings, remove any SSL truststores that do not
 contain any trusted entries.
 ====
 
+[[deprecation_for_dls_settings]]
+.Deprecation for DLS settings
+[%collapsible]
+====
+*Details* +
+Two settings available in the latest versions of 7.17 are not available in the next major version.
+Newer versions of 7.17 default to stricter Document Level Security (DLS) rules and the follow
+settings can be used to disable those stricter DLS rules:
+`xpack.security.dls.force_terms_aggs_to_exclude_deleted_docs.enabled` and
+`xpack.security.dls.error_when_validate_query_with_rewrite.enabled`.
+Newer versions, of next major version of {es}, also default to the stricter DLS rules but don't allow
+usage of the less strict rules.
+
+*Impact* +
+To avoid deprecation warnings, remove these settings from elasticsearch.yml.
+====
+
 [discrete]
 [[deprecations_717_mapping]]
 ==== Mapping deprecations

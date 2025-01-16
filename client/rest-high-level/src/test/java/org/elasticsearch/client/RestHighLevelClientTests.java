@@ -512,13 +512,9 @@ public class RestHighLevelClientTests extends ESTestCase {
         {
             IOException ioe = expectThrows(
                 IOException.class,
-                () -> restHighLevelClient.performRequest(
-                    mainRequest,
-                    requestConverter,
-                    RequestOptions.DEFAULT,
-                    response -> { throw new IllegalStateException(); },
-                    Collections.emptySet()
-                )
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT, response -> {
+                    throw new IllegalStateException();
+                }, Collections.emptySet())
             );
             assertEquals(
                 "Unable to parse response body for Response{requestLine=GET / http/1.1, host=http://localhost:9200, "
@@ -660,13 +656,9 @@ public class RestHighLevelClientTests extends ESTestCase {
         when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
         ElasticsearchException elasticsearchException = expectThrows(
             ElasticsearchException.class,
-            () -> restHighLevelClient.performRequest(
-                mainRequest,
-                requestConverter,
-                RequestOptions.DEFAULT,
-                response -> { throw new IllegalStateException(); },
-                Collections.singleton(404)
-            )
+            () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT, response -> {
+                throw new IllegalStateException();
+            }, Collections.singleton(404))
         );
         assertEquals(RestStatus.NOT_FOUND, elasticsearchException.status());
         assertSame(responseException, elasticsearchException.getCause());
@@ -683,13 +675,9 @@ public class RestHighLevelClientTests extends ESTestCase {
         when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
         ElasticsearchException elasticsearchException = expectThrows(
             ElasticsearchException.class,
-            () -> restHighLevelClient.performRequest(
-                mainRequest,
-                requestConverter,
-                RequestOptions.DEFAULT,
-                response -> { throw new IllegalStateException(); },
-                Collections.singleton(404)
-            )
+            () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT, response -> {
+                throw new IllegalStateException();
+            }, Collections.singleton(404))
         );
         assertEquals(RestStatus.NOT_FOUND, elasticsearchException.status());
         assertSame(responseException, elasticsearchException.getSuppressed()[0]);
@@ -1163,7 +1151,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                                 &&
                             // IndicesClientIT.getIndexTemplate should be renamed "getTemplate" in version 8.0 when we
                             // can get rid of 7.0's deprecated "getTemplate"
-                            apiName.equals("indices.get_index_template") == false
+                                apiName.equals("indices.get_index_template") == false
                                 && org.elasticsearch.core.List.of(
                                     "indices.data_streams_stats",
                                     "indices.delete_data_stream",

@@ -186,10 +186,9 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         }, listener::onFailure);
 
         // <3> Validate transform function config
-        ActionListener<Boolean> validateSourceDestListener = ActionListener.wrap(
-            validateSourceDestResponse -> { function.validateConfig(validateConfigListener); },
-            listener::onFailure
-        );
+        ActionListener<Boolean> validateSourceDestListener = ActionListener.wrap(validateSourceDestResponse -> {
+            function.validateConfig(validateConfigListener);
+        }, listener::onFailure);
 
         // <2> Validate source and destination indices
         ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(aVoid -> {

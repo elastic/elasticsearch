@@ -27,6 +27,8 @@ include::7.13.asciidoc[tag=snapshot-repo-corruption-75598-known-issue]
 
 include::7.7.asciidoc[tag=jackson-filtering-bug]
 
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
+
 [[bug-7.13.4]]
 [float]
 === Bug fixes
@@ -63,6 +65,8 @@ include::7.12.asciidoc[tag=frozen-tier-79371-known-issue]
 include::7.13.asciidoc[tag=snapshot-repo-corruption-75598-known-issue]
 
 include::7.7.asciidoc[tag=jackson-filtering-bug]
+
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
 
 [[bug-7.13.3]]
 [float]
@@ -120,6 +124,8 @@ include::7.12.asciidoc[tag=frozen-tier-79371-known-issue]
 include::7.13.asciidoc[tag=snapshot-repo-corruption-75598-known-issue]
 
 include::7.7.asciidoc[tag=jackson-filtering-bug]
+
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
 
 [[bug-7.13.2]]
 [float]
@@ -188,6 +194,8 @@ details, see {es-issue}75598[#75598].
 
 include::7.7.asciidoc[tag=jackson-filtering-bug]
 
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
+
 [[bug-7.13.1]]
 [discrete]
 === Bug fixes
@@ -243,6 +251,8 @@ This issue is fixed in {es} version 7.13.3 and later. For more details, see
 {es-issue}74504[#74504].
 
 include::7.7.asciidoc[tag=jackson-filtering-bug]
+
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
 
 [[deprecation-7.13.0]]
 [float]

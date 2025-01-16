@@ -194,7 +194,7 @@ accurately.
                                                                                     When a search generates a large response, you can use `extract` to select the
                                                                                     relevant fields instead of loading the entire response.
 
-| `timeout`                                     | no        | 30s                 | The timeout for waiting for the search api call to return. If no response is
+| `timeout`                                     | no        | 1m                  | The timeout for waiting for the search api call to return. If no response is
                                                                                     returned within this time, the search input times out and fails. This setting
                                                                                     overrides the default search operations timeouts.
 |======

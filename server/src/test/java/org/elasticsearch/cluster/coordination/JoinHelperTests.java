@@ -72,7 +72,9 @@ public class JoinHelperTests extends ESTestCase {
             transportService,
             () -> 0L,
             () -> null,
-            (joinRequest, joinCallback) -> { throw new AssertionError(); },
+            (joinRequest, joinCallback) -> {
+                throw new AssertionError();
+            },
             startJoinRequest -> { throw new AssertionError(); },
             Collections.emptyList(),
             (s, p, r) -> {},
@@ -226,7 +228,9 @@ public class JoinHelperTests extends ESTestCase {
             transportService,
             () -> 0L,
             () -> localClusterState,
-            (joinRequest, joinCallback) -> { throw new AssertionError(); },
+            (joinRequest, joinCallback) -> {
+                throw new AssertionError();
+            },
             startJoinRequest -> { throw new AssertionError(); },
             Collections.emptyList(),
             (s, p, r) -> {},
@@ -326,7 +330,9 @@ public class JoinHelperTests extends ESTestCase {
             transportService,
             () -> 0L,
             () -> null,
-            (joinRequest, joinCallback) -> { throw new AssertionError(); },
+            (joinRequest, joinCallback) -> {
+                throw new AssertionError();
+            },
             startJoinRequest -> { throw new AssertionError(); },
             Collections.emptyList(),
             (s, p, r) -> {},

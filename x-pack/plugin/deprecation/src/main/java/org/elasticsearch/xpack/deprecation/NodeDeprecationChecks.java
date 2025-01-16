@@ -2502,4 +2502,49 @@ class NodeDeprecationChecks {
         }
         return null;
     }
+
+    static DeprecationIssue checkDLSForceTermsAggsToExcludeDeleteDocsEnabledSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = Setting.boolSetting(
+            "xpack.security.dls.force_terms_aggs_to_exclude_deleted_docs.enabled",
+            true,
+            Setting.Property.NodeScope,
+            Setting.Property.Deprecated
+        );
+        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.17/migrating-7.17.html#deprecation_for_dls_settings";
+        return checkRemovedSetting(
+            clusterState.metadata().settings(),
+            settings,
+            deprecatedSetting,
+            url,
+            "Stricter DLS rules are the default and are not configurable in newer versions."
+        );
+    }
+
+    static DeprecationIssue checkDLSErrorWhenValidateQueryWithRewrite(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = Setting.boolSetting(
+            "xpack.security.dls.error_when_validate_query_with_rewrite.enabled",
+            true,
+            Setting.Property.NodeScope,
+            Setting.Property.Deprecated
+        );
+        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.17/migrating-7.17.html#deprecation_for_dls_settings";
+        return checkRemovedSetting(
+            clusterState.metadata().settings(),
+            settings,
+            deprecatedSetting,
+            url,
+            "Stricter DLS rules are the default and are not configurable in newer versions."
+        );
+    }
+
 }

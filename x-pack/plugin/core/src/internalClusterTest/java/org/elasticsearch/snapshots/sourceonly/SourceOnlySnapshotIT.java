@@ -115,14 +115,9 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         boolean sourceHadDeletions = deleted > 0; // we use indexRandom which might create holes ie. deleted docs
         assertHits(sourceIdx, builders.length, sourceHadDeletions);
         assertMappings(sourceIdx, requireRouting, useNested);
-        SearchPhaseExecutionException e = expectThrows(
-            SearchPhaseExecutionException.class,
-            () -> {
-                client().prepareSearch(sourceIdx)
-                    .setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length)))
-                    .get();
-            }
-        );
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> {
+            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length))).get();
+        });
         assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
 
         // can-match phase pre-filters access to non-existing field

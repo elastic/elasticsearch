@@ -29,26 +29,31 @@ public class SimpleChatCompletionServiceIntegrationValidator implements ServiceI
 
     @Override
     public void validate(InferenceService service, Model model, ActionListener<InferenceServiceResults> listener) {
-        var a = new UnifiedChatInput(TEST_INPUT, USER_ROLE, false);
-        service.unifiedCompletionInfer(model, a.getRequest(), InferenceAction.Request.DEFAULT_TIMEOUT, ActionListener.wrap(r -> {
-            if (r != null) {
-                listener.onResponse(r);
-            } else {
+        var chatCompletionInput = new UnifiedChatInput(TEST_INPUT, USER_ROLE, false);
+        service.unifiedCompletionInfer(
+            model,
+            chatCompletionInput.getRequest(),
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            ActionListener.wrap(r -> {
+                if (r != null) {
+                    listener.onResponse(r);
+                } else {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Could not complete inference endpoint creation as validation call to service returned null response.",
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
+                }
+            }, e -> {
                 listener.onFailure(
                     new ElasticsearchStatusException(
-                        "Could not complete inference endpoint creation as validation call to service returned null response.",
-                        RestStatus.BAD_REQUEST
+                        "Could not complete inference endpoint creation as validation call to service threw an exception.",
+                        RestStatus.BAD_REQUEST,
+                        e
                     )
                 );
-            }
-        }, e -> {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    "Could not complete inference endpoint creation as validation call to service threw an exception.",
-                    RestStatus.BAD_REQUEST,
-                    e
-                )
-            );
-        }));
+            })
+        );
     }
 }

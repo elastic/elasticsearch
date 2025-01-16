@@ -491,6 +491,10 @@ public class EsqlCapabilities {
          * Support the {@link org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In} operator for date nanos
          */
         DATE_NANOS_IN_OPERATOR(),
+        /**
+         * Support running date format function on nanosecond dates
+         */
+        DATE_NANOS_DATE_FORMAT(),
 
         /**
          * DATE_PARSE supports reading timezones
@@ -676,7 +680,7 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP_V10(Build.current().isSnapshot()),
+        JOIN_LOOKUP_V11(Build.current().isSnapshot()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054

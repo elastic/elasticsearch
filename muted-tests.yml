@@ -193,9 +193,6 @@ tests:
 - class: org.elasticsearch.cluster.service.MasterServiceTests
   method: testThreadContext
   issue: https://github.com/elastic/elasticsearch/issues/118914
-- class: org.elasticsearch.xpack.security.authc.AuthenticationServiceTests
-  method: testInvalidToken
-  issue: https://github.com/elastic/elasticsearch/issues/119019
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryRunAsIT
   issue: https://github.com/elastic/elasticsearch/issues/115727
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
@@ -213,9 +210,6 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
   issue: https://github.com/elastic/elasticsearch/issues/119548
-- class: org.elasticsearch.index.engine.LuceneSyntheticSourceChangesSnapshotTests
-  method: testSkipNonRootOfNestedDocuments
-  issue: https://github.com/elastic/elasticsearch/issues/119553
 - class: org.elasticsearch.xpack.ml.integration.ForecastIT
   method: testOverflowToDisk
   issue: https://github.com/elastic/elasticsearch/issues/117740
@@ -235,16 +229,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.actions.SearchableSnapshotActionIT
   method: testUpdatePolicyToAddPhasesYieldsInvalidActionsToBeSkipped
   issue: https://github.com/elastic/elasticsearch/issues/118406
-- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
-  issue: https://github.com/elastic/elasticsearch/issues/120088
-- class: org.elasticsearch.xpack.searchablesnapshots.minio.MinioSearchableSnapshotsIT
-  issue: https://github.com/elastic/elasticsearch/issues/120101
-- class: org.elasticsearch.repositories.s3.S3RepositoryThirdPartyTests
-  issue: https://github.com/elastic/elasticsearch/issues/120115
-- class: org.elasticsearch.repositories.s3.RepositoryS3MinioBasicCredentialsRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/120117
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/118548
 - class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
   method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
   issue: https://github.com/elastic/elasticsearch/issues/120127
@@ -254,6 +238,9 @@ tests:
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldSourceOnlyRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/120080
+- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
+  method: testTsdbStartEndSet
+  issue: https://github.com/elastic/elasticsearch/issues/120314
 
 # Examples:
 #

@@ -9,13 +9,10 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -23,10 +20,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link SpatialExtentGeoPointSourceValuesAggregator}.
+ * {@link AggregatorFunction} implementation for {@link SpatialExtentGeoShapeDocValuesAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialExtentGeoPointSourceValuesAggregatorFunction implements AggregatorFunction {
+public final class SpatialExtentGeoShapeDocValuesAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("top", ElementType.INT),
       new IntermediateStateDesc("bottom", ElementType.INT),
@@ -41,16 +38,16 @@ public final class SpatialExtentGeoPointSourceValuesAggregatorFunction implement
 
   private final List<Integer> channels;
 
-  public SpatialExtentGeoPointSourceValuesAggregatorFunction(DriverContext driverContext,
+  public SpatialExtentGeoShapeDocValuesAggregatorFunction(DriverContext driverContext,
       List<Integer> channels, SpatialExtentStateWrappedLongitudeState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static SpatialExtentGeoPointSourceValuesAggregatorFunction create(
-      DriverContext driverContext, List<Integer> channels) {
-    return new SpatialExtentGeoPointSourceValuesAggregatorFunction(driverContext, channels, SpatialExtentGeoPointSourceValuesAggregator.initSingle());
+  public static SpatialExtentGeoShapeDocValuesAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels) {
+    return new SpatialExtentGeoShapeDocValuesAggregatorFunction(driverContext, channels, SpatialExtentGeoShapeDocValuesAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -70,8 +67,8 @@ public final class SpatialExtentGeoPointSourceValuesAggregatorFunction implement
     }
     if (mask.allTrue()) {
       // No masking
-      BytesRefBlock block = page.getBlock(channels.get(0));
-      BytesRefVector vector = block.asVector();
+      IntBlock block = page.getBlock(channels.get(0));
+      IntVector vector = block.asVector();
       if (vector != null) {
         addRawVector(vector);
       } else {
@@ -80,8 +77,8 @@ public final class SpatialExtentGeoPointSourceValuesAggregatorFunction implement
       return;
     }
     // Some positions masked away, others kept
-    BytesRefBlock block = page.getBlock(channels.get(0));
-    BytesRefVector vector = block.asVector();
+    IntBlock block = page.getBlock(channels.get(0));
+    IntVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector, mask);
     } else {
@@ -89,39 +86,30 @@ public final class SpatialExtentGeoPointSourceValuesAggregatorFunction implement
     }
   }
 
-  private void addRawVector(BytesRefVector vector) {
-    BytesRef scratch = new BytesRef();
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      SpatialExtentGeoPointSourceValuesAggregator.combine(state, vector.getBytesRef(i, scratch));
-    }
+  private void addRawVector(IntVector vector) {
+    // This type does not support vectors because all values are multi-valued
   }
 
-  private void addRawVector(BytesRefVector vector, BooleanVector mask) {
-    BytesRef scratch = new BytesRef();
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
-        continue;
-      }
-      SpatialExtentGeoPointSourceValuesAggregator.combine(state, vector.getBytesRef(i, scratch));
-    }
+  private void addRawVector(IntVector vector, BooleanVector mask) {
+    // This type does not support vectors because all values are multi-valued
   }
 
-  private void addRawBlock(BytesRefBlock block) {
-    BytesRef scratch = new BytesRef();
+  private void addRawBlock(IntBlock block) {
     for (int p = 0; p < block.getPositionCount(); p++) {
       if (block.isNull(p)) {
         continue;
       }
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
+      int[] valuesArray = new int[end - start];
       for (int i = start; i < end; i++) {
-        SpatialExtentGeoPointSourceValuesAggregator.combine(state, block.getBytesRef(i, scratch));
+        valuesArray[i-start] = block.getInt(i);
       }
+      SpatialExtentGeoShapeDocValuesAggregator.combine(state, valuesArray);
     }
   }
 
-  private void addRawBlock(BytesRefBlock block, BooleanVector mask) {
-    BytesRef scratch = new BytesRef();
+  private void addRawBlock(IntBlock block, BooleanVector mask) {
     for (int p = 0; p < block.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
@@ -131,9 +119,11 @@ public final class SpatialExtentGeoPointSourceValuesAggregatorFunction implement
       }
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
+      int[] valuesArray = new int[end - start];
       for (int i = start; i < end; i++) {
-        SpatialExtentGeoPointSourceValuesAggregator.combine(state, block.getBytesRef(i, scratch));
+        valuesArray[i-start] = block.getInt(i);
       }
+      SpatialExtentGeoShapeDocValuesAggregator.combine(state, valuesArray);
     }
   }
 
@@ -177,7 +167,7 @@ public final class SpatialExtentGeoPointSourceValuesAggregatorFunction implement
     }
     IntVector posRight = ((IntBlock) posRightUncast).asVector();
     assert posRight.getPositionCount() == 1;
-    SpatialExtentGeoPointSourceValuesAggregator.combineIntermediate(state, top.getInt(0), bottom.getInt(0), negLeft.getInt(0), negRight.getInt(0), posLeft.getInt(0), posRight.getInt(0));
+    SpatialExtentGeoShapeDocValuesAggregator.combineIntermediate(state, top.getInt(0), bottom.getInt(0), negLeft.getInt(0), negRight.getInt(0), posLeft.getInt(0), posRight.getInt(0));
   }
 
   @Override
@@ -187,7 +177,7 @@ public final class SpatialExtentGeoPointSourceValuesAggregatorFunction implement
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = SpatialExtentGeoPointSourceValuesAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = SpatialExtentGeoShapeDocValuesAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

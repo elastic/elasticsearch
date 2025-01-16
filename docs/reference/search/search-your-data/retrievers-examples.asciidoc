@@ -270,7 +270,7 @@ GET /retrievers_example/_search
     "_source": false
 }
 ----
-// TEST
+// TEST[continued]
 
 This returns the following response based on the normalized weighted score for each result.
 
@@ -307,7 +307,7 @@ This returns the following response based on the normalized weighted score for e
             },
             {
                 "_index": "retrievers_example",
-                "_id": "5",
+                "_id": "3",
                 "_score": -3
             }
         ]
@@ -316,9 +316,9 @@ This returns the following response based on the normalized weighted score for e
 ----
 // TESTRESPONSE[s/"took": 42/"took": $body.took/]
 // TESTRESPONSE[s/"max_score": -1/"max_score": $body.hits.max_score/]
-// TESTRESPONSE[s/"score": -1/"score": $body.hits.hits.0._score/]
-// TESTRESPONSE[s/"score": -2/"score": $body.hits.hits.1._score/]
-// TESTRESPONSE[s/"score": -3/"score": $body.hits.hits.2._score/]
+// TESTRESPONSE[s/"_score": -1/"_score": $body.hits.hits.0._score/]
+// TESTRESPONSE[s/"_score": -2/"_score": $body.hits.hits.1._score/]
+// TESTRESPONSE[s/"_score": -3/"_score": $body.hits.hits.2._score/]
 ==============
 
 By normalizing scores and leveraging `function_score` queries, we can also implement more complex ranking strategies,
@@ -395,7 +395,7 @@ GET /retrievers_example/_search
     "_source": false
 }
 ----
-// TEST
+// TEST[continued]
 
 Which would return the following results:
 
@@ -446,10 +446,10 @@ Which would return the following results:
 ----
 // TESTRESPONSE[s/"took": 42/"took": $body.took/]
 // TESTRESPONSE[s/"max_score": -1/"max_score": $body.hits.max_score/]
-// TESTRESPONSE[s/"score": -1/"score": $body.hits.hits.0._score/]
-// TESTRESPONSE[s/"score": -2/"score": $body.hits.hits.1._score/]
-// TESTRESPONSE[s/"score": -3/"score": $body.hits.hits.2._score/]
-// TESTRESPONSE[s/"score": -4/"score": $body.hits.hits.3._score/]
+// TESTRESPONSE[s/"_score": -1/"_score": $body.hits.hits.0._score/]
+// TESTRESPONSE[s/"_score": -2/"_score": $body.hits.hits.1._score/]
+// TESTRESPONSE[s/"_score": -3/"_score": $body.hits.hits.2._score/]
+// TESTRESPONSE[s/"_score": -4/"_score": $body.hits.hits.3._score/]
 ==============
 
 [discrete]

@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -782,14 +783,23 @@ public class HeapAttackIT extends ESRestTestCase {
 
     private void initSensorData(int docCount, int sensorCount) throws IOException {
         logger.info("loading sensor data");
+        createIndex("sensor_data", Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()).build(), """
+            {
+                "properties": {
+                    "@timestamp": { "type": "date" },
+                    "id": { "type": "long" },
+                    "value": { "type": "double" }
+                }
+            }""");
         int docsPerBulk = 1000;
+        long firstDate = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-01-01T00:00:00Z");
 
         StringBuilder data = new StringBuilder();
         for (int i = 0; i < docCount; i++) {
             data.append(String.format(Locale.ROOT, """
                 {"create":{}}
-                {"timestamp":"2025-01-01T00:%d:00Z", "id": %d, "value": %f}
-                """, i, i % sensorCount, i * 1.1));
+                {"timestamp":"%s", "id": %d, "value": %f}
+                """, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(i * 10L + firstDate), i % sensorCount, i * 1.1));
             if (i % docsPerBulk == docsPerBulk - 1) {
                 bulk("sensor_data", data.toString());
                 data.setLength(0);

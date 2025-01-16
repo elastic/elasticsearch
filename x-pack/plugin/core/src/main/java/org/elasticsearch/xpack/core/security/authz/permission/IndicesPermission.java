@@ -152,32 +152,6 @@ public final class IndicesPermission {
             && Arrays.stream(groups).anyMatch(g -> g.hasQuery() || g.getFieldPermissions().hasFieldLevelSecurity());
     }
 
-    /**
-     * This function constructs an index matcher that can be used to find indices allowed by
-     * permissions groups.
-     *
-     * @param ordinaryIndices A list of ordinary indices. If this collection contains restricted indices,
-     *                        according to the restrictedNamesAutomaton, they will not be matched.
-     * @param restrictedIndices A list of restricted index names. All of these will be matched.
-     * @return A matcher that will match all non-restricted index names in the ordinaryIndices
-     * collection and all index names in the restrictedIndices collection.
-     */
-    private StringMatcher indexMatcher(Collection<String> ordinaryIndices, Collection<String> restrictedIndices) {
-        StringMatcher matcher;
-        if (ordinaryIndices.isEmpty()) {
-            matcher = StringMatcher.of(restrictedIndices);
-        } else {
-            matcher = StringMatcher.of(ordinaryIndices);
-            if (this.restrictedIndices != null) {
-                matcher = matcher.and("<not-restricted>", name -> this.restrictedIndices.isRestricted(name) == false);
-            }
-            if (restrictedIndices.isEmpty() == false) {
-                matcher = StringMatcher.of(restrictedIndices).or(matcher);
-            }
-        }
-        return matcher;
-    }
-
     public Group[] groups() {
         return groups;
     }
@@ -367,22 +341,6 @@ public final class IndicesPermission {
             this.name = name;
             this.indexAbstraction = abstraction;
             this.selector = selector;
-        }
-
-        /**
-         * @return {@code true} if-and-only-if this object is related to a data-stream, either by having a
-         * {@link IndexAbstraction#getType()} of {@link IndexAbstraction.Type#DATA_STREAM} or by being the backing index for a
-         * {@link IndexAbstraction#getParentDataStream()}  data-stream}.
-         */
-        public boolean isPartOfDataStream() {
-            if (indexAbstraction == null) {
-                return false;
-            }
-            return switch (indexAbstraction.getType()) {
-                case DATA_STREAM -> true;
-                case CONCRETE_INDEX -> indexAbstraction.getParentDataStream() != null;
-                default -> false;
-            };
         }
 
         /**

@@ -7,10 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.mrjar'
+package org.elasticsearch.entitlement.qa.common;
 
-dependencies {
-  implementation project(':server')
-  implementation project(':libs:logging')
+class VersionSpecificNetworkChecks {
+    static void createInetAddressResolverProvider() {}
 }

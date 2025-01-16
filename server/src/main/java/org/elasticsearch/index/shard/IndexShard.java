@@ -4369,18 +4369,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert getActiveOperationsCount() == OPERATIONS_BLOCKED
             : "resetting engine without blocking operations; active operations are [" + getActiveOperationsCount() + ']';
         var engineConfig = newEngineConfig(replicationTracker);
-        synchronized (engineMutex) {
-            verifyNotClosed();
-            IOUtils.close(currentEngineReference.get());
+        try {
+            synchronized (engineMutex) {
+                verifyNotClosed();
+                IOUtils.close(currentEngineReference.get());
 
-            var newEngine = createEngine(engineConfig);
-            assert newEngine instanceof ReadOnlyEngine;
-            currentEngineReference.set(newEngine);
-            onNewEngine(newEngine);
-            active.set(true);
+                var newEngine = createEngine(engineConfig);
+                assert newEngine instanceof ReadOnlyEngine;
+                currentEngineReference.set(newEngine);
+                onNewEngine(newEngine);
+                active.set(true);
+            }
+            onSettingsChanged();
+            checkAndCallWaitForEngineOrClosedShardListeners();
+        } catch (Exception e) {
+            failShard("Unable to reset engine", e);
         }
-        onSettingsChanged();
-        checkAndCallWaitForEngineOrClosedShardListeners();
     }
 
     /**

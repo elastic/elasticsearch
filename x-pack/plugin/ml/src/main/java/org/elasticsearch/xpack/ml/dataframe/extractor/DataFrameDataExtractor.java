@@ -19,7 +19,6 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -107,14 +106,14 @@ public class DataFrameDataExtractor {
         isCancelled = true;
     }
 
-    public Optional<List<Row>> next() throws IOException {
+    public Optional<SearchHit[]> next() throws IOException {
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
-        Optional<List<Row>> hits = Optional.ofNullable(nextSearch());
-        if (hits.isPresent() && hits.get().isEmpty() == false) {
-            lastSortKey = hits.get().get(hits.get().size() - 1).getSortKey();
+        Optional<SearchHit[]> hits = Optional.ofNullable(nextSearch());
+        if (hits.isPresent() && hits.get().length > 0) {
+            lastSortKey = (long) hits.get()[hits.get().length - 1].getSortValues()[0];
         } else {
             hasNext = false;
         }
@@ -126,7 +125,7 @@ public class DataFrameDataExtractor {
      * Does no sorting of the results.
      * @param listener To alert with the extracted rows
      */
-    public void preview(ActionListener<List<Row>> listener) {
+    public void preview(ActionListener<List<PreviewRow>> listener) {
 
         SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client)
             // This ensures the search throws if there are failures and the scroll context gets cleared automatically
@@ -155,22 +154,21 @@ public class DataFrameDataExtractor {
                     return;
                 }
 
-                List<Row> rows = new ArrayList<>(searchResponse.getHits().getHits().length);
+                List<PreviewRow> rows = new ArrayList<>(searchResponse.getHits().getHits().length);
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
-                    var unpooled = hit.asUnpooled();
-                    String[] extractedValues = extractValues(unpooled);
-                    rows.add(extractedValues == null ? new Row(null, unpooled, true) : new Row(extractedValues, unpooled, false));
+                    String[] extractedValues = extractValues(hit);
+                    rows.add(new PreviewRow(extractedValues));
                 }
                 delegate.onResponse(rows);
             })
         );
     }
 
-    protected List<Row> nextSearch() throws IOException {
+    protected SearchHit[] nextSearch() throws IOException {
         return tryRequestWithSearchResponse(() -> executeSearchRequest(buildSearchRequest()));
     }
 
-    private List<Row> tryRequestWithSearchResponse(Supplier<SearchResponse> request) throws IOException {
+    private SearchHit[] tryRequestWithSearchResponse(Supplier<SearchResponse> request) throws IOException {
         try {
 
             // We've set allow_partial_search_results to false which means if something
@@ -179,7 +177,7 @@ public class DataFrameDataExtractor {
             try {
                 LOGGER.trace(() -> "[" + context.jobId + "] Search response was obtained");
 
-                List<Row> rows = processSearchResponse(searchResponse);
+                SearchHit[] rows = processSearchResponse(searchResponse);
 
                 // Request was successfully executed and processed so we can restore the flag to retry if a future failure occurs
                 hasPreviousSearchFailed = false;
@@ -246,22 +244,12 @@ public class DataFrameDataExtractor {
         }
     }
 
-    private List<Row> processSearchResponse(SearchResponse searchResponse) {
+    private SearchHit[] processSearchResponse(SearchResponse searchResponse) {
         if (searchResponse.getHits().getHits().length == 0) {
             hasNext = false;
             return null;
         }
-
-        SearchHits hits = searchResponse.getHits();
-        List<Row> rows = new ArrayList<>(hits.getHits().length);
-        for (SearchHit hit : hits) {
-            if (isCancelled) {
-                hasNext = false;
-                break;
-            }
-            rows.add(createRow(hit));
-        }
-        return rows;
+        return searchResponse.getHits().getHits();
     }
 
     private String extractNonProcessedValues(SearchHit hit, String organicFeature) {
@@ -317,7 +305,7 @@ public class DataFrameDataExtractor {
         return extractedValue;
     }
 
-    private Row createRow(SearchHit hit) {
+    public Row createRow(SearchHit hit) {
         var unpooled = hit.asUnpooled();
         String[] extractedValues = extractValues(unpooled);
         if (extractedValues == null) {
@@ -443,6 +431,21 @@ public class DataFrameDataExtractor {
         public DataSummary(long rows, int cols) {
             this.rows = rows;
             this.cols = cols;
+        }
+    }
+
+    public static class PreviewRow {
+
+        @Nullable
+        private final String[] values;
+
+        private PreviewRow(String[] values) {
+            this.values = values;
+        }
+
+        @Nullable
+        public String[] getValues() {
+            return values;
         }
     }
 

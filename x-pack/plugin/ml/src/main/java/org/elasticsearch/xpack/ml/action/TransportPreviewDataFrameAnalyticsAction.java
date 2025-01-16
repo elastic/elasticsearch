@@ -77,7 +77,7 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
         this.clusterService = clusterService;
     }
 
-    private static Map<String, Object> mergeRow(DataFrameDataExtractor.Row row, List<String> fieldNames) {
+    private static Map<String, Object> mergeRow(DataFrameDataExtractor.PreviewRow row, List<String> fieldNames) {
         return row.getValues() == null
             ? Collections.emptyMap()
             : IntStream.range(0, row.getValues().length).boxed().collect(Collectors.toMap(fieldNames::get, i -> row.getValues()[i]));

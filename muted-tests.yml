@@ -234,14 +234,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/118406
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   issue: https://github.com/elastic/elasticsearch/issues/120088
-- class: org.elasticsearch.xpack.searchablesnapshots.minio.MinioSearchableSnapshotsIT
-  issue: https://github.com/elastic/elasticsearch/issues/120101
-- class: org.elasticsearch.repositories.s3.S3RepositoryThirdPartyTests
-  issue: https://github.com/elastic/elasticsearch/issues/120115
-- class: org.elasticsearch.repositories.s3.RepositoryS3MinioBasicCredentialsRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/120117
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/118548
 - class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
   method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
   issue: https://github.com/elastic/elasticsearch/issues/120127

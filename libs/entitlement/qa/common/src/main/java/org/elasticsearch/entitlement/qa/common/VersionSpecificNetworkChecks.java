@@ -7,16 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+package org.elasticsearch.entitlement.qa.common;
 
-apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.mrjar'
-
-dependencies {
-  implementation project(':server')
-  implementation project(':libs:logging')
-}
-
-tasks.withType(CheckForbiddenApisTask).configureEach {
-  replaceSignatureFiles 'jdk-signatures'
+class VersionSpecificNetworkChecks {
+    static void createInetAddressResolverProvider() {}
 }

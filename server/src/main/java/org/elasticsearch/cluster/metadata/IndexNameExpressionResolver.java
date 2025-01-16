@@ -631,14 +631,14 @@ public class IndexNameExpressionResolver {
         }
     }
 
-    private static boolean shouldIncludeRegularIndices(IndicesOptions indicesOptions, IndexComponentSelector expressionSelector) {
+    public static boolean shouldIncludeRegularIndices(IndicesOptions indicesOptions, IndexComponentSelector expressionSelector) {
         if (indicesOptions.allowSelectors()) {
             return expressionSelector == null || expressionSelector.shouldIncludeData();
         }
         return true;
     }
 
-    private static boolean shouldIncludeFailureIndices(IndicesOptions indicesOptions, IndexComponentSelector expressionSelector) {
+    public static boolean shouldIncludeFailureIndices(IndicesOptions indicesOptions, IndexComponentSelector expressionSelector) {
         // We return failure indices regardless of whether the data stream actually has the `failureStoreEnabled` flag set to true.
         if (indicesOptions.allowSelectors()) {
             return expressionSelector != null && expressionSelector.shouldIncludeFailures();

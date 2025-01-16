@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
@@ -109,6 +111,9 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
             // This should mean one of the two things: either bad request ID, or the query has already finished
             // In both cases, let regular async get deal with it.
             var getAsyncResultRequest = new GetAsyncResultRequest(asyncIdStr);
+            // TODO: this should not be happening, but if the listener is not registered and the query is not finished,
+            // we give it some time to finish
+            getAsyncResultRequest.setWaitForCompletionTimeout(new TimeValue(1, TimeUnit.SECONDS));
             getResultsAction.execute(task, getAsyncResultRequest, listener);
             return;
         }

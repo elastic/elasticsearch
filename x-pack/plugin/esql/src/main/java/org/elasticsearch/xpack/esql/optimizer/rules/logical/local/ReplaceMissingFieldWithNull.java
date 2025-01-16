@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.UnmappedEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedEsField;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -74,7 +74,7 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
                 if (projection instanceof FieldAttribute f
                     && stats.exists(f.fieldName()) == false
                     && joinAttributes.contains(f) == false
-                    && f.field() instanceof UnmappedEsField == false) {
+                    && f.field() instanceof PotentiallyUnmappedEsField == false) {
                     // TODO: Should do a searchStats lookup for join attributes instead of just ignoring them here
                     // See TransportSearchShardsAction
                     DataType dt = f.dataType();
@@ -109,7 +109,7 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
                     // Do not use the attribute name, this can deviate from the field name for union types.
                     // Also skip fields from lookup indices because we do not have stats for these.
                     // TODO: We do have stats for lookup indices in case they are being used in the FROM clause; this can be refined.
-                    f -> f.field() instanceof UnmappedEsField || (stats.exists(f.fieldName()) || lookupFields.contains(f))
+                    f -> f.field() instanceof PotentiallyUnmappedEsField || (stats.exists(f.fieldName()) || lookupFields.contains(f))
                         ? f
                         : Literal.of(f, null)
                 );

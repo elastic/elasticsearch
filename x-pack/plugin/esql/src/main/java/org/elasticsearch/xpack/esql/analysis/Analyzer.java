@@ -40,7 +40,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
-import org.elasticsearch.xpack.esql.core.type.UnmappedEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -1396,8 +1396,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private Expression resolveConvertFunction(AbstractConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
             if (convert.field() instanceof FieldAttribute fa) {
-                if (fa.field() instanceof UnmappedEsField unmapped) {
-                    if (unmapped.getState() instanceof UnmappedEsField.SimpleConflict sf) {
+                if (fa.field() instanceof PotentiallyUnmappedEsField unmapped) {
+                    if (unmapped.getState() instanceof PotentiallyUnmappedEsField.SimpleConflict sf) {
                         var otherType = sf.otherType();
                         var imf = new InvalidMappedField(
                             fa.name(),
@@ -1408,7 +1408,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             return e;
                         }
                     }
-                    if (unmapped.getState() instanceof UnmappedEsField.Invalid invalid) {
+                    if (unmapped.getState() instanceof PotentiallyUnmappedEsField.Invalid invalid) {
                         var imf = invalid.invalidMappedField();
                         Optional<Expression> expr = convertHelper(convert, fa, imf, f -> unmappedMultiType(convert, fa, imf, f));
                         if (expr.orElse(null) instanceof Expression e) {
@@ -1428,17 +1428,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 : convert;
         }
 
-        private static UnmappedEsField unmappedMultiType(
+        private static PotentiallyUnmappedEsField unmappedMultiType(
             AbstractConvertFunction convert,
             FieldAttribute fa,
             InvalidMappedField imf,
             MultiTypeEsField f
         ) {
-            return UnmappedEsField.fromMultiType(typeSpecificConvert(convert, fa.source(), KEYWORD, imf), f);
+            return PotentiallyUnmappedEsField.fromMultiType(typeSpecificConvert(convert, fa.source(), KEYWORD, imf), f);
         }
 
-        private static UnmappedEsField unmappedSimpleResolution(AbstractConvertFunction convert, FieldAttribute fa, DataType otherType) {
-            return UnmappedEsField.simpleResolution(
+        private static PotentiallyUnmappedEsField unmappedSimpleResolution(
+            AbstractConvertFunction convert,
+            FieldAttribute fa,
+            DataType otherType
+        ) {
+            return PotentiallyUnmappedEsField.simpleResolution(
                 typeSpecificConvert(convert, fa.source(), KEYWORD, fa.field()),
                 typeSpecificConvert(convert, fa.source(), otherType, fa.field()),
                 fa.name()
@@ -1551,14 +1555,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static Attribute checkUnresolved(FieldAttribute fa) {
             if (fa.field() instanceof InvalidMappedField imf) {
                 return unsupportedAttributeFromInvalidMappedField(fa, imf);
-            } else if (fa.field() instanceof UnmappedEsField unmapped && unmapped.getState() instanceof UnmappedEsField.Invalid invalid) {
-                return unsupportedAttributeFromInvalidMappedField(fa, invalid.invalidMappedField());
-            } else if (fa.field() instanceof UnmappedEsField unmapped && unmapped.getState() instanceof UnmappedEsField.SimpleConflict sf) {
-                var format = "Cannot use field [%s] due to ambiguities caused by INSIST. "
-                    + "unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to type [%s]";
-                String unresolvedMessage = Strings.format(format, fa.name(), sf.otherType());
-                return unsupportedAttributeFromInvalidMappedField(fa, new InvalidMappedField(fa.name(), unresolvedMessage));
-            }
+            } else if (fa.field() instanceof PotentiallyUnmappedEsField unmapped
+                && unmapped.getState() instanceof PotentiallyUnmappedEsField.Invalid invalid) {
+                    return unsupportedAttributeFromInvalidMappedField(fa, invalid.invalidMappedField());
+                } else if (fa.field() instanceof PotentiallyUnmappedEsField unmapped
+                    && unmapped.getState() instanceof PotentiallyUnmappedEsField.SimpleConflict sf) {
+                        var format = "Cannot use field [%s] due to ambiguities caused by INSIST. "
+                            + "unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to type [%s]";
+                        String unresolvedMessage = Strings.format(format, fa.name(), sf.otherType());
+                        return unsupportedAttributeFromInvalidMappedField(fa, new InvalidMappedField(fa.name(), unresolvedMessage));
+                    }
             return fa;
         }
 

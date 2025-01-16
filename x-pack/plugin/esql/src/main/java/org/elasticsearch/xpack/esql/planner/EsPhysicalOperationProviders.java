@@ -53,7 +53,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
-import org.elasticsearch.xpack.esql.core.type.UnmappedEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -131,17 +131,17 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     private BlockLoader getBlockLoaderFor(int shardId, Attribute attr, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
         DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
         var isUnmapped = shardContext.fieldType(getFieldName(attr)) == null;
-        if (attr instanceof FieldAttribute fa && fa.field() instanceof UnmappedEsField uf) {
+        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedEsField uf) {
             shardContext = new DefaultShardContextForUnmappedField(shardContext, uf);
         }
 
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
         BlockLoader blockLoader = shardContext.blockLoader(getFieldName(attr), isUnsupported, fieldExtractPreference);
-        if (attr instanceof FieldAttribute fa && fa.field() instanceof UnmappedEsField uf) {
-            if (isUnmapped && uf.getState() instanceof UnmappedEsField.MultiType mt) {
+        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedEsField uf) {
+            if (isUnmapped && uf.getState() instanceof PotentiallyUnmappedEsField.MultiType mt) {
                 return new TypeConvertingBlockLoader(blockLoader, (AbstractConvertFunction) mt.conversionFromKeyword());
             }
-            if (uf.getState() instanceof UnmappedEsField.SimpleResolution sr) {
+            if (uf.getState() instanceof PotentiallyUnmappedEsField.SimpleResolution sr) {
                 return new TypeConvertingBlockLoader(
                     blockLoader,
                     (AbstractConvertFunction) (isUnmapped ? sr.unmappedConversion() : sr.mappedConversion())
@@ -159,11 +159,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return blockLoader;
     }
 
-    /// A hack to pretend an unmapped field still exists.
+    /** A hack to pretend an unmapped field still exists. */
     private static class DefaultShardContextForUnmappedField extends DefaultShardContext {
-        private final UnmappedEsField unmappedEsField;
+        private final PotentiallyUnmappedEsField unmappedEsField;
 
-        DefaultShardContextForUnmappedField(DefaultShardContext ctx, UnmappedEsField unmappedEsField) {
+        DefaultShardContextForUnmappedField(DefaultShardContext ctx, PotentiallyUnmappedEsField unmappedEsField) {
             super(ctx.index, ctx.ctx, ctx.aliasFilter);
             this.unmappedEsField = unmappedEsField;
         }
@@ -180,7 +180,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     private static @Nullable MultiTypeEsField findUnionTypes(Attribute attr) {
         if (attr instanceof FieldAttribute fa) {
             EsField field = fa.field();
-            if (field instanceof UnmappedEsField unmapped && unmapped.getState() instanceof UnmappedEsField.MultiType mt) {
+            if (field instanceof PotentiallyUnmappedEsField unmapped
+                && unmapped.getState() instanceof PotentiallyUnmappedEsField.MultiType mt) {
                 return mt.multiTypeEsField();
             } else if (field instanceof MultiTypeEsField multiTypeEsField) {
                 return multiTypeEsField;

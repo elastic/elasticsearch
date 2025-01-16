@@ -9,8 +9,6 @@
 
 package org.elasticsearch.search.normalizer;
 
-import org.elasticsearch.search.retriever.RetrieverBuilder;
-import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -23,11 +21,9 @@ import java.io.IOException;
 public interface ScoreNormalizerParser<SN extends ScoreNormalizer> {
 
     /**
-     * Creates a new {@link RetrieverBuilder} from the retriever held by the
+     * Creates a new {@link ScoreNormalizerParser} from the normalizer held by the
      * {@link XContentParser}. The state on the parser contained in this context
-     * will be changed as a side effect of this method call. The
-     * {@link RetrieverParserContext} tracks usage of retriever features and
-     * queries when available.
+     * will be changed as a side effect of this method call.
      */
     SN fromXContent(XContentParser parser) throws IOException;
 }

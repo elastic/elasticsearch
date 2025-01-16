@@ -1383,14 +1383,14 @@ The weight that each score of this retriever's top docs will be multiplied with.
 +
 Specifies how we will normalize the retriever's scores, before applying the specified `weight`.
 We can either provide a string reference to use with the default values or further configure any normalizer
-using its specific properties. Available values are: `minmax`, `none`. Defaults to `none`.
+using its specific properties. Available values are: `minmax`, and `none`. Defaults to `none`.
 
 ** `none` : takes no argument
 ** `minmax` :
 A `MinMaxScoreNormalizer` that normalizes scores based on the following formula
 +
 ```
-score = (score - min) / (max - min) * (upper_bound - lower_bound) + lower_bound
+score = ((score - min) / (max - min)) * (upper_bound - lower_bound) + lower_bound
 ```
 Available properties are:
 *** `min`::

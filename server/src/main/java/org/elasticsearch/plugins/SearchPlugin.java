@@ -301,8 +301,7 @@ public interface SearchPlugin {
         /**
          * Specification of custom {@link RetrieverBuilder}.
          *
-         * @param name the name by which this retriever might be parsed or deserialized. Make sure that the retriever builder returns
-         *             this name for {@link NamedWriteable#getWriteableName()}.
+         * @param name the name by which this retriever might be parsed or deserialized.
          * @param parser the parser the reads the retriever builder from xcontent
          */
         public RetrieverSpec(String name, RetrieverParser<RB> parser) {
@@ -330,8 +329,7 @@ public interface SearchPlugin {
          * Specification of custom {@link ScoreNormalizer}.
          *
          * @param name holds the names by which this score normalizer might be parsed. The {@link ParseField#getPreferredName()}
-         *        is special as it is the name by under which the reader is registered. So it is the name that the normalizer
-         *        should use as its {@link NamedWriteable#getWriteableName()} too.
+         *        is special as it is the name by under which the reader is registered.
          * @param parser the parser the reads the retriever builder from xcontent
          */
         public ScoreNormalizerSpec(ParseField name, ScoreNormalizerParser<SN> parser) {

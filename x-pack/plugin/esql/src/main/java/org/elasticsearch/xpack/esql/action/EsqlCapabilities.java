@@ -728,7 +728,12 @@ public class EsqlCapabilities {
         /**
          * Change field caps response for semantic_text fields to be reported as text
          */
-        SEMANTIC_TEXT_FIELD_CAPS;
+        SEMANTIC_TEXT_FIELD_CAPS,
+
+        /**
+         * Support named argument for function in map format.
+         */
+        OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

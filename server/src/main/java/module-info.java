@@ -355,7 +355,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.fetch.subphase.highlight;
     exports org.elasticsearch.search.internal;
     exports org.elasticsearch.search.lookup;
-    exports org.elasticsearch.search.normalizer;
     exports org.elasticsearch.search.profile;
     exports org.elasticsearch.search.profile.aggregation;
     exports org.elasticsearch.search.profile.dfs;

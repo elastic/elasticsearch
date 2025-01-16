@@ -18,11 +18,13 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
@@ -49,6 +51,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public abstract class BaseTransportInferenceActionTestCase<Request extends BaseInferenceActionRequest> extends ESTestCase {
+    private MockLicenseState licenseState;
     private ModelRegistry modelRegistry;
     private StreamingTaskManager streamingTaskManager;
     private BaseTransportInferenceAction<Request> action;
@@ -64,16 +67,28 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         super.setUp();
         TransportService transportService = mock();
         ActionFilters actionFilters = mock();
+        licenseState = mock();
         modelRegistry = mock();
         serviceRegistry = mock();
         inferenceStats = new InferenceStats(mock(), mock());
         streamingTaskManager = mock();
-        action = createAction(transportService, actionFilters, modelRegistry, serviceRegistry, inferenceStats, streamingTaskManager);
+        action = createAction(
+            transportService,
+            actionFilters,
+            licenseState,
+            modelRegistry,
+            serviceRegistry,
+            inferenceStats,
+            streamingTaskManager
+        );
+
+        mockValidLicenseState();
     }
 
     protected abstract BaseTransportInferenceAction<Request> createAction(
         TransportService transportService,
         ActionFilters actionFilters,
+        MockLicenseState licenseState,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
@@ -360,5 +375,9 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         }).when(modelRegistry).getModelWithSecrets(any(), any());
 
         when(serviceRegistry.getService(any())).thenReturn(Optional.of(service));
+    }
+
+    protected void mockValidLicenseState(){
+        when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(true);
     }
 }

@@ -75,7 +75,6 @@ import static org.elasticsearch.indices.SystemIndexDescriptor.VERSION_META_KEY;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MIGRATION_FRAMEWORK;
 
 /**
  * Manages the lifecycle, mapping and data upgrades/migrations of the {@code RestrictedIndicesNames#SECURITY_MAIN_ALIAS}
@@ -583,7 +582,6 @@ public class SecurityIndexManager implements ClusterStateListener {
                 && this.indexAvailableForSearch
                 && this.isIndexUpToDate
                 && this.indexExists()
-                && this.securityFeatures.contains(SECURITY_MIGRATION_FRAMEWORK)
                 && isEligibleSecurityMigration(securityMigration);
         }
 

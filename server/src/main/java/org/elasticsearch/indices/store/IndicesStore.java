@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -179,8 +180,12 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
                         );
                         switch (shardDeletionCheckResult) {
                             case FOLDER_FOUND_CAN_DELETE:
+                                var clusterState = event.state();
+                                var clusterName = clusterState.getClusterName();
+                                var nodes = clusterState.nodes();
+                                var clusterStateVersion = clusterState.getVersion();
                                 indicesClusterStateService.onClusterStateShardsClosed(
-                                    () -> deleteShardIfExistElseWhere(event.state(), indexShardRoutingTable)
+                                    () -> deleteShardIfExistElseWhere(clusterName, nodes, clusterStateVersion, indexShardRoutingTable)
                                 );
                                 break;
                             case NO_FOLDER_FOUND:
@@ -224,14 +229,18 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
         return true;
     }
 
-    private void deleteShardIfExistElseWhere(ClusterState state, IndexShardRoutingTable indexShardRoutingTable) {
+    private void deleteShardIfExistElseWhere(
+        ClusterName clusterName,
+        DiscoveryNodes nodes,
+        long clusterStateVersion,
+        IndexShardRoutingTable indexShardRoutingTable
+    ) {
         List<Tuple<DiscoveryNode, ShardActiveRequest>> requests = new ArrayList<>(indexShardRoutingTable.size());
         String indexUUID = indexShardRoutingTable.shardId().getIndex().getUUID();
-        ClusterName clusterName = state.getClusterName();
         for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
             ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
             assert shardRouting.started() : "expected started shard but was " + shardRouting;
-            DiscoveryNode currentNode = state.nodes().get(shardRouting.currentNodeId());
+            DiscoveryNode currentNode = nodes.get(shardRouting.currentNodeId());
             requests.add(
                 new Tuple<>(currentNode, new ShardActiveRequest(clusterName, indexUUID, shardRouting.shardId(), deleteShardTimeout))
             );
@@ -239,7 +248,7 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
 
         ShardActiveResponseHandler responseHandler = new ShardActiveResponseHandler(
             indexShardRoutingTable.shardId(),
-            state.getVersion(),
+            clusterStateVersion,
             requests.size()
         );
         for (Tuple<DiscoveryNode, ShardActiveRequest> request : requests) {

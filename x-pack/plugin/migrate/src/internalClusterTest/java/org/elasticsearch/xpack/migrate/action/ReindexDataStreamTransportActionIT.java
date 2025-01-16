@@ -60,8 +60,7 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
         );
         assertThrows(
             ResourceNotFoundException.class,
-            () -> client().execute(new ActionType<AcknowledgedResponse>(ReindexDataStreamAction.NAME), reindexDataStreamRequest)
-                .actionGet()
+            () -> client().execute(new ActionType<AcknowledgedResponse>(ReindexDataStreamAction.NAME), reindexDataStreamRequest).actionGet()
         );
     }
 

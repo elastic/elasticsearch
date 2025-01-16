@@ -32,6 +32,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
     private final boolean overrideEnabled;
     protected final String matchField;
     protected final int maxMatches;
+    private final String indexAlias;
 
     protected AbstractEnrichProcessor(
         String tag,
@@ -54,6 +55,8 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
         this.overrideEnabled = overrideEnabled;
         this.matchField = matchField;
         this.maxMatches = maxMatches;
+        // note: since the policyName determines the indexAlias, we can calculate this once
+        this.indexAlias = EnrichPolicy.getBaseName(policyName);
     }
 
     public abstract QueryBuilder getQueryBuilder(Object fieldValue);
@@ -79,7 +82,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
                 searchBuilder.fetchSource(true);
                 searchBuilder.query(constantScore);
                 SearchRequest req = new SearchRequest();
-                req.indices(EnrichPolicy.getBaseName(getPolicyName()));
+                req.indices(indexAlias);
                 req.preference(Preference.LOCAL.type());
                 req.source(searchBuilder);
                 return req;

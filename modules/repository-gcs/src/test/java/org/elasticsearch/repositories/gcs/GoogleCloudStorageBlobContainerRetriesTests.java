@@ -475,7 +475,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         final Queue<ResponseInjectingHttpHandler.RequestHandler> requestHandlers = new ConcurrentLinkedQueue<>();
         httpServer.createContext("/", new ResponseInjectingHttpHandler(requestHandlers, new GoogleCloudStorageHttpHandler("bucket")));
 
-        final int maxRetries = 3;
+        final int maxRetries = randomIntBetween(1, 3);
         final BlobContainer container = createBlobContainer(maxRetries, null, null, null);
         final byte[] data = randomBytes(randomIntBetween(1, BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH));
         final String key = randomIdentifier();

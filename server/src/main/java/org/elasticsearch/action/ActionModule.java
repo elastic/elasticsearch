@@ -11,6 +11,7 @@ package org.elasticsearch.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportDeleteDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportGetAllocationStatsAction;
@@ -406,6 +407,7 @@ import org.elasticsearch.rest.action.synonyms.RestGetSynonymsAction;
 import org.elasticsearch.rest.action.synonyms.RestGetSynonymsSetsAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
+import org.elasticsearch.rest.seqno.RestAddRetentionLeaseAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1032,6 +1034,11 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPutSynonymRuleAction());
         registerHandler.accept(new RestGetSynonymRuleAction());
         registerHandler.accept(new RestDeleteSynonymRuleAction());
+
+        // Retention Lease
+        if (Build.current().isSnapshot()) {
+            registerHandler.accept(new RestAddRetentionLeaseAction());
+        }
     }
 
     @Override

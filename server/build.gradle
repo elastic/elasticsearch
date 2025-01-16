@@ -11,6 +11,7 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 publishing {
   publications {
@@ -140,6 +141,10 @@ if (buildParams.isSnapshotBuild() == false) {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
         systemProperty 'es.failure_store_feature_flag_enabled', 'true'
     }
+}
+
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution()
 }
 
 tasks.named("test").configure {

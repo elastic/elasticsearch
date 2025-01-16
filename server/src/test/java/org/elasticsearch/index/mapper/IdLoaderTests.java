@@ -81,7 +81,7 @@ public class IdLoaderTests extends ESTestCase {
             assertThat(indexReader.leaves(), hasSize(1));
             LeafReader leafReader = indexReader.leaves().get(0).reader();
             assertThat(leafReader.numDocs(), equalTo(2));
-            var leaf = idLoader.leaf(null, leafReader, new int[]{0, 1});
+            var leaf = idLoader.leaf(null, leafReader, new int[] { 0, 1 });
             assertThat(leaf.getId(0), not(equalTo(leaf.getId(1))));
         };
         prepareIndexReader(indexAndForceMerge(docs, routingHash), verify, false);

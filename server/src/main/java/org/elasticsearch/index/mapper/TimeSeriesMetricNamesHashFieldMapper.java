@@ -33,10 +33,7 @@ public class TimeSeriesMetricNamesHashFieldMapper extends MetadataFieldMapper {
     public static final TimeSeriesMetricNamesHashFieldMapper INSTANCE = new TimeSeriesMetricNamesHashFieldMapper();
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> c.getIndexSettings().getMode().timeSeriesMetricNamesHashFieldMapper());
-    static final NodeFeature TS_METRIC_NAMES_HASH = new NodeFeature(
-        "tsdb.ts_metric_names_hash",
-        true
-    );
+    static final NodeFeature TS_METRIC_NAMES_HASH = new NodeFeature("tsdb.ts_metric_names_hash", true);
 
     private TimeSeriesMetricNamesHashFieldMapper() {
         super(TimeSeriesMetricNamesHashFieldType.INSTANCE);

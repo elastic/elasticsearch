@@ -9,10 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import junit.framework.TestCase;
-
-import org.elasticsearch.test.ESTestCase;
-
 import java.io.IOException;
 
 public class TimeSeriesMetricNamesHashFieldMapperTests extends MetadataMapperTestCase {

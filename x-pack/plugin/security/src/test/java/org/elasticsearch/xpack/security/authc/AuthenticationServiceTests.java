@@ -2033,6 +2033,9 @@ public class AuthenticationServiceTests extends ESTestCase {
                 } else if (e instanceof NegativeArraySizeException) {
                     assertThat(e.getMessage(), containsString("array size must be positive but was: "));
                     latch.countDown();
+                } else if (e instanceof ElasticsearchException) {
+                    assertThat(e.getMessage(), containsString(getTestName()));
+                    latch.countDown();
                 } else {
                     logger.error("unexpected exception", e);
                     latch.countDown();

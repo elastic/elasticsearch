@@ -1,0 +1,5 @@
+pr: 120256
+summary: Improve memory aspects of enrich cache
+area: Ingest Node
+type: enhancement
+issues: []

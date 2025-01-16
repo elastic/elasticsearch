@@ -174,6 +174,9 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     /** Legacy mapping version from the descriptor */
     private final Version mappingsNodeVersion;
 
+    /** Mapping version from the descriptor */
+    private final MappingsVersion mappingsVersion;
+
     /** Whether there are dynamic fields in this descriptor's mappings */
     private final boolean hasDynamicMappings;
 

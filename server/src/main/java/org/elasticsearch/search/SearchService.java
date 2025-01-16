@@ -261,7 +261,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final Setting<ByteSizeValue> MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING = Setting.byteSizeSetting(
         "search.max_async_search_response_size",
-        new ByteSizeValue(10, ByteSizeUnit.MB),
+        ByteSizeValue.of(10, ByteSizeUnit.MB),
         Property.Dynamic,
         Property.NodeScope
     );

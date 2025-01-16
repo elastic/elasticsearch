@@ -69,6 +69,7 @@ class NetworkAccessCheckActions {
         }
     }
 
+    @SuppressForbidden(reason = "Testing entitlement check on forbidden action")
     static void urlOpenConnectionWithProxy() throws URISyntaxException, IOException {
         var url = new URI("http://localhost").toURL();
         var urlConnection = url.openConnection(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(0)));

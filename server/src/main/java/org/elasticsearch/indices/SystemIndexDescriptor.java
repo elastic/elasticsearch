@@ -147,9 +147,20 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     private final String origin;
 
     /**
-     * Script to modify the documents in index created
+     * An optional reindexing script to use when migrating an index created
      * before {@link TransportGetFeatureUpgradeStatusAction#NO_UPGRADE_REQUIRED_INDEX_VERSION}.
-     * Can be null.
+     * This script can be used to modify documents before they are added to the new index.
+     * For example, it can be used to remove deprecated fields from the index.
+     * <br>
+     * Note: the script usually should only exist in  the versions supporting migration to the next major release -
+     * specifically, the last (two) minors of the current major.
+     * It should be created once the last minor branch has diverged from the next major branch (main).
+     * This ensures the script is available only in the versions where it is needed
+     * and avoids removing and maintaining it in the next major branch.
+     * For example: In order to migrate an index created in v7 when upgrading to v9,
+     * the script should be in the v8 minors supporting upgrade to v9 - 8.18 and 8.19.
+     * <br>
+     * See: <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html#reindex-scripts">Reindex scripts</a>
      */
     private final String migrationScript;
 

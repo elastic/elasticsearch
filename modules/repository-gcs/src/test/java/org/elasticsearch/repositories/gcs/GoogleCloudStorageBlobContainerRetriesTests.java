@@ -18,6 +18,7 @@ import com.google.cloud.storage.StorageRetryStrategy;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.http.HttpStatus;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -158,7 +159,8 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             "repo",
             service,
             BigArrays.NON_RECYCLING_INSTANCE,
-            randomIntBetween(1, 8) * 1024
+            randomIntBetween(1, 8) * 1024,
+            BackoffPolicy.noBackoff()
         );
 
         return new GoogleCloudStorageBlobContainer(randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add("foo"), blobStore);

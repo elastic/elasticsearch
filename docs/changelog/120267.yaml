@@ -6,7 +6,11 @@ issues: []
 breaking:
   title: Set allow_partial_search_results=true by default
   area: EQL
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details:
+    Before this change, in case of shard failures, EQL queries always returned an error.
+    With this change,they will keep running and will return partial results.
+  impact:
+    EQL queries that would previously fail due to shard failures, will now succeed and return partial results.
+    The previous defaults can be restored by setting `xpack.eql.default_allow_partial_results` cluster setting to `false`
+    or setting with `allow_partial_search_results` to `false` in the query request.
   notable: false

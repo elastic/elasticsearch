@@ -80,7 +80,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         if (maxMatches < 1 || maxMatches > 128) {
             throw ConfigurationUtils.newConfigurationException(TYPE, tag, "max_matches", "should be between 1 and 128");
         }
-        var searchRunner = createSearchRunner(client, enrichCache);
+        var searchRunner = createSearchRunner(indexAlias, client, enrichCache);
         switch (policyType) {
             case EnrichPolicy.MATCH_TYPE:
             case EnrichPolicy.RANGE_TYPE:
@@ -125,12 +125,12 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         metadata = state.getMetadata();
     }
 
-    private SearchRunner createSearchRunner(Client client, EnrichCache enrichCache) {
+    private SearchRunner createSearchRunner(String indexAlias, Client client, EnrichCache enrichCache) {
         Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
         return (policyName, maxMatches, value, reqSupplier, handler) -> {
             // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
             enrichCache.computeIfAbsent(
-                getEnrichIndexKey(policyName),
+                getEnrichIndexKey(indexAlias),
                 maxMatches,
                 value,
                 (searchResponseActionListener) -> originClient.execute(
@@ -143,8 +143,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         };
     }
 
-    private String getEnrichIndexKey(String policyName) {
-        final String indexAlias = EnrichPolicy.getBaseName(policyName);
+    private String getEnrichIndexKey(String indexAlias) {
         IndexAbstraction ia = metadata.getIndicesLookup().get(indexAlias);
         if (ia == null) {
             throw new IndexNotFoundException("no generated enrich index [" + indexAlias + "]");

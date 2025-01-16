@@ -105,7 +105,6 @@ public class CrossClustersUsageTelemetryIT extends AbstractCrossClustersUsageTel
 
         // this is only for cluster-a so no skipped remotes
         telemetry = getTelemetryFromFailedQuery("from logs-*,cluster-a:no_such_index | stats sum (v)");
-        System.err.println("telemetry: " + telemetry);
         assertThat(telemetry.getTotalCount(), equalTo(2L));
         assertThat(telemetry.getSuccessCount(), equalTo(0L));
         assertThat(telemetry.getByRemoteCluster().size(), equalTo(0));

@@ -221,7 +221,8 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
                         new SearchableSnapshotAction(
                             randomAlphaOfLength(10),
                             randomBoolean(),
-                            (randomBoolean() ? null : randomIntBetween(1, 100))
+                            (randomBoolean() ? null : randomIntBetween(1, 100)),
+                            null
                         )
                     )
                 )

@@ -787,7 +787,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Provides an variant of {@link IndexShard#relocated(String, String, BiConsumer, ActionListener, Releasable)} with an option
      * to relocate the shard under externally acquired primary permits.
      *
-     * @param acquiredPrimaryPermits if null, waits until all the primary permits are acquired, otherwise completes relocation immediately
+     * @param acquiredPrimaryPermits if null, waits until all the primary permits are acquired, otherwise it calls the consumer immediately
      */
     public void relocated(
         final String targetNodeId,

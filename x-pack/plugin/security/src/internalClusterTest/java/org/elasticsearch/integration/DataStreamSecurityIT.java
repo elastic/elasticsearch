@@ -9,7 +9,7 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -236,7 +237,9 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
         }
 
         indicesAdmin().refresh(new RefreshRequest(dataStreamName)).actionGet();
-        var getResp = failuresClient.admin().indices().getIndex(new GetIndexRequest().indices(dataStreamName + "::*"));
+        var getResp = failuresClient.admin()
+            .indices()
+            .getIndex(new GetIndexRequestBuilder(failuresClient, TimeValue.THIRTY_SECONDS).addIndices(dataStreamName + "::*").request());
         var searchResponse = failuresClient.prepareSearch(dataStreamName + "::failures").get();
         assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
     }

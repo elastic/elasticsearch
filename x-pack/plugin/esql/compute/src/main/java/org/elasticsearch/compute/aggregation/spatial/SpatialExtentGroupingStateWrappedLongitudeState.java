@@ -66,13 +66,22 @@ final class SpatialExtentGroupingStateWrappedLongitudeState extends AbstractArra
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                assert hasValue(group);
-                topsBuilder.appendInt(tops.get(group));
-                bottomsBuilder.appendInt(bottoms.get(group));
-                negLeftsBuilder.appendInt(negLefts.get(group));
-                negRightsBuilder.appendInt(negRights.get(group));
-                posLeftsBuilder.appendInt(posLefts.get(group));
-                posRightsBuilder.appendInt(posRights.get(group));
+                if (hasValue(group)) {
+                    topsBuilder.appendInt(tops.get(group));
+                    bottomsBuilder.appendInt(bottoms.get(group));
+                    negLeftsBuilder.appendInt(negLefts.get(group));
+                    negRightsBuilder.appendInt(negRights.get(group));
+                    posLeftsBuilder.appendInt(posLefts.get(group));
+                    posRightsBuilder.appendInt(posRights.get(group));
+                } else {
+                    // TODO: Should we add Nulls here instead?
+                    topsBuilder.appendInt(Integer.MIN_VALUE);
+                    bottomsBuilder.appendInt(Integer.MAX_VALUE);
+                    negLeftsBuilder.appendInt(Integer.MAX_VALUE);
+                    negRightsBuilder.appendInt(Integer.MIN_VALUE);
+                    posLeftsBuilder.appendInt(Integer.MAX_VALUE);
+                    posRightsBuilder.appendInt(Integer.MIN_VALUE);
+                }
             }
             blocks[offset + 0] = topsBuilder.build();
             blocks[offset + 1] = bottomsBuilder.build();

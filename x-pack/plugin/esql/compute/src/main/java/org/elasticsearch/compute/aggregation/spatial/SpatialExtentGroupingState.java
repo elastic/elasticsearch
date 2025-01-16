@@ -54,11 +54,18 @@ final class SpatialExtentGroupingState extends AbstractArrayState {
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                assert hasValue(group);
-                minXsBuilder.appendInt(minXs.get(group));
-                maxXsBuilder.appendInt(maxXs.get(group));
-                maxYsBuilder.appendInt(maxYs.get(group));
-                minYsBuilder.appendInt(minYs.get(group));
+                if (hasValue(group)) {
+                    minXsBuilder.appendInt(minXs.get(group));
+                    maxXsBuilder.appendInt(maxXs.get(group));
+                    maxYsBuilder.appendInt(maxYs.get(group));
+                    minYsBuilder.appendInt(minYs.get(group));
+                } else {
+                    // TODO: Should we add Nulls here instead?
+                    minXsBuilder.appendInt(Integer.MAX_VALUE);
+                    maxXsBuilder.appendInt(Integer.MIN_VALUE);
+                    maxYsBuilder.appendInt(Integer.MIN_VALUE);
+                    minYsBuilder.appendInt(Integer.MAX_VALUE);
+                }
             }
             blocks[offset + 0] = minXsBuilder.build();
             blocks[offset + 1] = maxXsBuilder.build();

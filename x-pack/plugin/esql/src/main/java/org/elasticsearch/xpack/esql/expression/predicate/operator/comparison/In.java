@@ -113,7 +113,7 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.ordinal;
  *     String Template generators that we use for things like {@link Block} and {@link Vector}.
  * </p>
  */
-public class In extends EsqlScalarFunction implements TranslationAware {
+public class In extends EsqlScalarFunction implements TranslationAware.SingleValue {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "In", In::new);
 
     private final Expression value;
@@ -463,7 +463,7 @@ public class In extends EsqlScalarFunction implements TranslationAware {
 
     @Override
     public Query asQuery(TranslatorHandler handler) {
-        return handler.wrapFunctionQuery(this, value(), () -> translate(handler));
+        return translate(handler);
     }
 
     private Query translate(TranslatorHandler handler) {
@@ -478,7 +478,7 @@ public class In extends EsqlScalarFunction implements TranslationAware {
                     // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
                     // TODO:
                     // Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs), handler);
-                    Query query = new Equals(source(), value(), rhs).asQuery(handler);
+                    Query query = handler.asQuery(new Equals(source(), value(), rhs));
 
                     if (query instanceof TermQuery) {
                         terms.add(((TermQuery) query).value());
@@ -505,5 +505,10 @@ public class In extends EsqlScalarFunction implements TranslationAware {
 
     private static Query or(Source source, Query left, Query right) {
         return BinaryLogic.boolQuery(source, left, right, false);
+    }
+
+    @Override
+    public Expression singleValueField() {
+        return value;
     }
 }

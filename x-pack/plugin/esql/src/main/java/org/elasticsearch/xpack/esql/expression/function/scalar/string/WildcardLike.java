@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike
     implements
         EvaluatorMapper,
-        TranslationAware {
+        TranslationAware.SingleValue {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "WildcardLike",
@@ -133,14 +133,16 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
     public Query asQuery(TranslatorHandler handler) {
         var field = field();
         LucenePushdownPredicates.checkIsPushableAttribute(field);
-
-        return field instanceof FieldAttribute fa
-            ? handler.wrapFunctionQuery(this, field, () -> translateField(handler.nameOf(fa.exactAttribute())))
-            : translateField(handler.nameOf(field));
+        return translateField(handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field));
     }
 
     // TODO: see whether escaping is needed
     private Query translateField(String targetFieldName) {
         return new WildcardQuery(source(), targetFieldName, pattern().asLuceneWildcard(), caseInsensitive());
+    }
+
+    @Override
+    public Expression singleValueField() {
+        return field();
     }
 }

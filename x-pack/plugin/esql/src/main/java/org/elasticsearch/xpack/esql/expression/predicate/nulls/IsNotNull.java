@@ -81,6 +81,6 @@ public class IsNotNull extends UnaryScalarFunction implements Negatable<UnarySca
 
     @Override
     public Query asQuery(TranslatorHandler handler) {
-        return handler.wrapFunctionQuery(this, field(), () -> new ExistsQuery(source(), handler.nameOf(field())));
+        return new ExistsQuery(source(), handler.nameOf(field()));
     }
 }

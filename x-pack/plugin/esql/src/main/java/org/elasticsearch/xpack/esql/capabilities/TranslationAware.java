@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.capabilities;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
-import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
@@ -23,15 +22,24 @@ public interface TranslationAware {
      */
     boolean translatable(LucenePushdownPredicates pushdownPredicates);
 
-    Query asQuery(TranslatorHandler translatorHandler);
+    /**
+     * Translates the implementing expression into a Query.
+     * If during translation a child needs to be translated first, the handler needs to be used even if the child implements this
+     * interface as well. This is to ensure that the child is wrapped in a SingleValueQuery if necessary.
+     * <p>So use this:</p>
+     * <p>{@code Query childQuery = handler.asQuery(child);}</p>
+     * <p>and <b>not</b> this:</p>
+     * <p>{@code Query childQuery = child.asQuery(handler);}</p>
+     */
+    Query asQuery(TranslatorHandler handler);
 
-    static TranslationAware checkIsTranslationAware(Expression expression) {
-        Check.isTrue(
-            expression instanceof TranslationAware,
-            "Expected a TranslationAware but received [{}] of type [{}]",
-            expression,
-            expression.getClass()
-        );
-        return (TranslationAware) expression;
+    /**
+     * Subinterface for expressions that can only process single values (and null out on MVs).
+     */
+    interface SingleValue extends TranslationAware {
+        /**
+         * Returns the field that only supports single-value semantics.
+         */
+        Expression singleValueField();
     }
 }

@@ -163,8 +163,8 @@ public abstract class FullTextFunction extends Function implements TranslationAw
     }
 
     @Override
-    public Query asQuery(TranslatorHandler translatorHandler) {
-        return queryBuilder != null ? new TranslationAwareExpressionQuery(source(), queryBuilder) : translate(translatorHandler);
+    public Query asQuery(TranslatorHandler handler) {
+        return queryBuilder != null ? new TranslationAwareExpressionQuery(source(), queryBuilder) : translate(handler);
     }
 
     public QueryBuilder queryBuilder() {

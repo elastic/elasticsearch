@@ -61,7 +61,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
-public abstract class EsqlBinaryComparison extends BinaryComparison implements EvaluatorMapper, TranslationAware {
+public abstract class EsqlBinaryComparison extends BinaryComparison implements EvaluatorMapper, TranslationAware.SingleValue {
 
     private final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap;
 
@@ -357,11 +357,12 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         );
 
         Query translated = translateOutOfRangeComparisons();
-        if (translated != null) {
-            return handler.wrapFunctionQuery(this, left(), () -> translated);
-        }
-        return handler.wrapFunctionQuery(this, left(), () -> translate(handler));
+        return translated != null ? translated : translate(handler);
+    }
 
+    @Override
+    public Expression singleValueField() {
+        return left();
     }
 
     private Query translate(TranslatorHandler handler) {

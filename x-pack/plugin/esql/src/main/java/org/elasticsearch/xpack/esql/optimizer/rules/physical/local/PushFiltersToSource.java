@@ -31,13 +31,13 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitAnd;
+import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
 public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<FilterExec, LocalPhysicalOptimizerContext> {
 
@@ -99,7 +99,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         // Combine GT, GTE, LT and LTE in pushable to Range if possible
         List<Expression> newPushable = combineEligiblePushableToRange(pushable);
         if (newPushable.size() > 0) { // update the executable with pushable conditions
-            Query queryDSL = PlannerUtils.TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(newPushable));
+            Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(newPushable));
             QueryBuilder planQuery = queryDSL.asBuilder();
             var query = Queries.combine(Queries.Clause.FILTER, asList(queryExec.query(), planQuery));
             queryExec = new EsQueryExec(

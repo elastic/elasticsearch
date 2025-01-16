@@ -32,7 +32,10 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
-public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike implements EvaluatorMapper, TranslationAware {
+public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike
+    implements
+        EvaluatorMapper,
+        TranslationAware.SingleValue {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RLike", RLike::new);
 
     @FunctionInfo(returnType = "boolean", description = """
@@ -117,11 +120,12 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
     @Override
     public Query asQuery(TranslatorHandler handler) {
         var fa = LucenePushdownPredicates.checkIsFieldAttribute(field());
-        return handler.wrapFunctionQuery(
-            this,
-            fa,
-            // TODO: see whether escaping is needed
-            () -> new RegexQuery(source(), handler.nameOf(fa.exactAttribute()), pattern().asJavaRegex(), caseInsensitive())
-        );
+        // TODO: see whether escaping is needed
+        return new RegexQuery(source(), handler.nameOf(fa.exactAttribute()), pattern().asJavaRegex(), caseInsensitive());
+    }
+
+    @Override
+    public Expression singleValueField() {
+        return field();
     }
 }

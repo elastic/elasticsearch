@@ -14,50 +14,42 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
-import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 
-import java.util.function.Supplier;
-
 /**
- * Parameterized handler used during query translation.
+ * Handler used during query translation.
  *
- * Provides contextual utilities for an individual query to be performed.
+ * Expressions that need to translate children into queries during own translation should always use this handler, as it provides
+ * SingleValueQuery-wrapping when necessary.
  */
 public final class TranslatorHandler {
 
+    public static final TranslatorHandler TRANSLATOR_HANDLER = new TranslatorHandler();
+
+    private TranslatorHandler() {}
+
     public Query asQuery(Expression e) {
         if (e instanceof TranslationAware ta) {
-            return ta.asQuery(this);
+            Query query = ta.asQuery(this);
+            return ta instanceof TranslationAware.SingleValue sv ? wrapFunctionQuery(sv.singleValueField(), query) : query;
         }
 
         throw new QlIllegalArgumentException("Don't know how to translate {} {}", e.nodeName(), e);
     }
 
-    public Query wrapFunctionQuery(ScalarFunction sf, Expression field, Supplier<Query> querySupplier) {
+    private static Query wrapFunctionQuery(Expression field, Query query) {
         if (field instanceof FieldAttribute fa) {
-            if (fa.getExactInfo().hasExact()) {
-                var exact = fa.exactAttribute();
-                if (exact != fa) {
-                    fa = exact;
-                }
-            }
-            // don't wrap is null/is not null with SVQ
-            Query query = querySupplier.get();
-            if ((sf instanceof IsNull || sf instanceof IsNotNull) == false) {
-                query = new SingleValueQuery(query, fa.name());
-            }
-            return query;
+            fa = fa.getExactInfo().hasExact() ? fa.exactAttribute() : fa;
+            return new SingleValueQuery(query, fa.name());
         }
         if (field instanceof MetadataAttribute) {
-            return querySupplier.get(); // MetadataAttributes are always single valued
+            return query; // MetadataAttributes are always single valued
         }
         throw new EsqlIllegalArgumentException("Expected a FieldAttribute or MetadataAttribute but received [" + field + "]");
     }
 
+    // TODO: is this method necessary?
     public String nameOf(Expression e) {
         return Expressions.name(e);
     }

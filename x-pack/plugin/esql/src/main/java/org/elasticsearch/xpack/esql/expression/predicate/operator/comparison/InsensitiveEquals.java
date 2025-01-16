@@ -104,7 +104,7 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
     @Override
     public Query asQuery(TranslatorHandler handler) {
         checkInsensitiveComparison();
-        return handler.wrapFunctionQuery(this, left(), this::translate);
+        return translate();
     }
 
     private void checkInsensitiveComparison() {
@@ -123,5 +123,10 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
         BytesRef value = BytesRefs.toBytesRef(valueOf(FoldContext.small() /* TODO remove me */, right()));
         String name = LucenePushdownPredicates.pushableAttributeName(attribute);
         return new TermQuery(source(), name, value.utf8ToString(), true);
+    }
+
+    @Override
+    public Expression singleValueField() {
+        return left();
     }
 }

@@ -81,10 +81,8 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     }
 
     @Override
-    public Query asQuery(TranslatorHandler translatorHandler) {
-        TranslationAware left = TranslationAware.checkIsTranslationAware(left());
-        TranslationAware right = TranslationAware.checkIsTranslationAware(right());
-        return boolQuery(source(), left.asQuery(translatorHandler), right.asQuery(translatorHandler), this instanceof And);
+    public Query asQuery(TranslatorHandler handler) {
+        return boolQuery(source(), handler.asQuery(left()), handler.asQuery(right()), this instanceof And);
     }
 
     public static Query boolQuery(Source source, Query left, Query right, boolean isAnd) {

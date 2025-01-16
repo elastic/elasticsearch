@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 
-public abstract class InsensitiveBinaryComparison extends BinaryScalarFunction implements TranslationAware {
+public abstract class InsensitiveBinaryComparison extends BinaryScalarFunction implements TranslationAware.SingleValue {
 
     protected InsensitiveBinaryComparison(Source source, Expression left, Expression right) {
         super(source, left, right);

@@ -99,7 +99,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         builder.put(
             HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(),
-            new ByteSizeValue(MAX_CONTENT_LENGTH, ByteSizeUnit.BYTES)
+            ByteSizeValue.of(MAX_CONTENT_LENGTH, ByteSizeUnit.BYTES)
         );
         return builder.build();
     }

@@ -69,12 +69,12 @@ import static org.elasticsearch.xpack.ccr.Ccr.CCR_THREAD_POOL_NAME;
 
 public class TransportResumeFollowAction extends AcknowledgedTransportMasterNodeAction<ResumeFollowAction.Request> {
 
-    static final ByteSizeValue DEFAULT_MAX_READ_REQUEST_SIZE = new ByteSizeValue(32, ByteSizeUnit.MB);
+    static final ByteSizeValue DEFAULT_MAX_READ_REQUEST_SIZE = ByteSizeValue.of(32, ByteSizeUnit.MB);
     static final ByteSizeValue DEFAULT_MAX_WRITE_REQUEST_SIZE = ByteSizeValue.ofBytes(Long.MAX_VALUE);
     private static final TimeValue DEFAULT_MAX_RETRY_DELAY = new TimeValue(500);
     private static final int DEFAULT_MAX_OUTSTANDING_WRITE_REQUESTS = 9;
     private static final int DEFAULT_MAX_WRITE_BUFFER_COUNT = Integer.MAX_VALUE;
-    private static final ByteSizeValue DEFAULT_MAX_WRITE_BUFFER_SIZE = new ByteSizeValue(512, ByteSizeUnit.MB);
+    private static final ByteSizeValue DEFAULT_MAX_WRITE_BUFFER_SIZE = ByteSizeValue.of(512, ByteSizeUnit.MB);
     private static final int DEFAULT_MAX_READ_REQUEST_OPERATION_COUNT = 5120;
     private static final int DEFAULT_MAX_WRITE_REQUEST_OPERATION_COUNT = 5120;
     private static final int DEFAULT_MAX_OUTSTANDING_READ_REQUESTS = 12;

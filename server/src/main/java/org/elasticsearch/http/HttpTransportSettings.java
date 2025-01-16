@@ -87,19 +87,19 @@ public final class HttpTransportSettings {
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CONTENT_LENGTH = Setting.byteSizeSetting(
         "http.max_content_length",
-        new ByteSizeValue(100, ByteSizeUnit.MB),
+        ByteSizeValue.of(100, ByteSizeUnit.MB),
         ByteSizeValue.ZERO,
         ByteSizeValue.ofBytes(Integer.MAX_VALUE),
         Property.NodeScope
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CHUNK_SIZE = Setting.byteSizeSetting(
         "http.max_chunk_size",
-        new ByteSizeValue(8, ByteSizeUnit.KB),
+        ByteSizeValue.of(8, ByteSizeUnit.KB),
         Property.NodeScope
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_HEADER_SIZE = Setting.byteSizeSetting(
         "http.max_header_size",
-        new ByteSizeValue(16, ByteSizeUnit.KB),
+        ByteSizeValue.of(16, ByteSizeUnit.KB),
         Property.NodeScope
     );
     public static final Setting<Integer> SETTING_HTTP_MAX_WARNING_HEADER_COUNT = intSetting(
@@ -115,7 +115,7 @@ public final class HttpTransportSettings {
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_INITIAL_LINE_LENGTH = Setting.byteSizeSetting(
         "http.max_initial_line_length",
-        new ByteSizeValue(4, ByteSizeUnit.KB),
+        ByteSizeValue.of(4, ByteSizeUnit.KB),
         Property.NodeScope
     );
 

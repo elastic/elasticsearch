@@ -254,13 +254,21 @@ All numeric fields support <<synthetic-source,synthetic
 together with <<copy-to,`copy_to`>>, or
 with <<doc-values,`doc_values`>> disabled.
 
-Synthetic source always sorts numeric fields. For example:
+Synthetic source may sort numeric field values. For example:
 [source,console,id=synthetic-source-numeric-example]
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "long": { "type": "long" }
     }
@@ -287,8 +295,16 @@ Scaled floats will always apply their scaling factor so:
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "f": { "type": "scaled_float", "scaling_factor": 0.01 }
     }

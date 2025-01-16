@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
@@ -39,7 +38,6 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
@@ -101,7 +99,6 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueSupport.LENIENT;
 import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueSupport.NONE;
-import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_UNSIGNED_LONG;
 
 // TODO: add retry/back-off
 public class Querier {
@@ -202,7 +199,7 @@ public class Querier {
     public static SearchRequest prepareRequest(SearchSourceBuilder source, SqlConfiguration cfg, boolean includeFrozen, String... indices) {
         source.timeout(cfg.requestTimeout());
 
-        SearchRequest searchRequest = new SearchRequest(Version.fromId(INTRODUCING_UNSIGNED_LONG.id));
+        SearchRequest searchRequest = new SearchRequest();
         if (source.pointInTimeBuilder() == null) {
             searchRequest.indices(indices);
             searchRequest.indicesOptions(
@@ -225,7 +222,7 @@ public class Querier {
         }
 
         var totalHits = response.getHits().getTotalHits();
-        var hits = totalHits != null ? "hits " + totalHits.relation + " " + totalHits.value + ", " : "";
+        var hits = totalHits != null ? "hits " + totalHits.relation() + " " + totalHits.value() + ", " : "";
         logger.trace(
             "Got search response [{}{} aggregations: [{}], {} failed shards, {} skipped shards, "
                 + "{} successful shards, {} total shards, took {}, timed out [{}]]",
@@ -361,11 +358,6 @@ public class Querier {
     static class ImplicitGroupActionListener extends BaseAggActionListener {
 
         private static final List<? extends Bucket> EMPTY_BUCKET = singletonList(new Bucket() {
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                throw new SqlIllegalArgumentException("No group-by/aggs defined");
-            }
 
             @Override
             public Object getKey() {
@@ -550,7 +542,7 @@ public class Querier {
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
             TotalHits totalHits = response.getHits().getTotalHits();
-            ConstantExtractor totalCount = new TotalHitsExtractor(totalHits == null ? -1L : totalHits.value);
+            ConstantExtractor totalCount = new TotalHitsExtractor(totalHits == null ? -1L : totalHits.value());
             for (QueryContainer.FieldInfo ref : refs) {
                 exts.add(createExtractor(ref.extraction(), totalCount));
             }

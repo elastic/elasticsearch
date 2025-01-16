@@ -831,9 +831,9 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceWithOnlyIgnoredValues() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field").field("type", "flattened").field("ignore_above", 1).endObject();
-        }));
+        })).documentMapper();
 
         var syntheticSource = syntheticSource(mapper, b -> {
             b.startObject("field");

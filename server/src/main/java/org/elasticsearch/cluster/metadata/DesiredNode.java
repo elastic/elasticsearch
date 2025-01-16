@@ -23,7 +23,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -37,7 +36,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import static java.lang.String.format;
@@ -46,10 +44,6 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 public final class DesiredNode implements Writeable, ToXContentObject, Comparable<DesiredNode> {
-
-    public static final NodeFeature RANGE_FLOAT_PROCESSORS_SUPPORTED = new NodeFeature("desired_node.range_float_processors");
-    public static final NodeFeature DOUBLE_PROCESSORS_SUPPORTED = new NodeFeature("desired_node.double_processors");
-    public static final NodeFeature DESIRED_NODE_VERSION_DEPRECATED = new NodeFeature("desired_node.version_deprecated");
 
     public static final TransportVersion RANGE_FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION = TransportVersions.V_8_3_0;
 
@@ -346,10 +340,6 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
 
     public Set<DiscoveryNodeRole> getRoles() {
         return roles;
-    }
-
-    public boolean clusterHasRequiredFeatures(Predicate<NodeFeature> clusterHasFeature) {
-        return (processorsRange == null && processors.hasDecimals() == false) || clusterHasFeature.test(RANGE_FLOAT_PROCESSORS_SUPPORTED);
     }
 
     @Override

@@ -1,6 +1,0 @@
-pr: 106520
-summary: Updated the transport CA name in Security Auto-Configuration.
-area: Security
-type: bug
-issues:
- - 106455

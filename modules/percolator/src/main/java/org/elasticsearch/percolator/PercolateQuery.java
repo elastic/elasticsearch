@@ -110,74 +110,93 @@ final class PercolateQuery extends Query implements Accountable {
             }
 
             @Override
-            public Scorer scorer(LeafReaderContext leafReaderContext) throws IOException {
-                final Scorer approximation = candidateMatchesWeight.scorer(leafReaderContext);
-                if (approximation == null) {
+            public ScorerSupplier scorerSupplier(LeafReaderContext leafReaderContext) throws IOException {
+                final ScorerSupplier approximationSupplier = candidateMatchesWeight.scorerSupplier(leafReaderContext);
+                if (approximationSupplier == null) {
                     return null;
                 }
 
-                final CheckedFunction<Integer, Query, IOException> percolatorQueries = queryStore.getQueries(leafReaderContext);
+                ScorerSupplier verifiedDocsScorer;
                 if (scoreMode.needsScores()) {
-                    return new BaseScorer(this, approximation) {
-
-                        float score;
-
-                        @Override
-                        boolean matchDocId(int docId) throws IOException {
-                            Query query = percolatorQueries.apply(docId);
-                            if (query != null) {
-                                if (nonNestedDocsFilter != null) {
-                                    query = new BooleanQuery.Builder().add(query, Occur.MUST)
-                                        .add(nonNestedDocsFilter, Occur.FILTER)
-                                        .build();
-                                }
-                                TopDocs topDocs = percolatorIndexSearcher.search(query, 1);
-                                if (topDocs.scoreDocs.length > 0) {
-                                    score = topDocs.scoreDocs[0].score;
-                                    return true;
-                                } else {
-                                    return false;
-                                }
-                            } else {
-                                return false;
-                            }
-                        }
-
-                        @Override
-                        public float score() {
-                            return score;
-                        }
-                    };
+                    verifiedDocsScorer = null;
                 } else {
-                    ScorerSupplier verifiedDocsScorer = verifiedMatchesWeight.scorerSupplier(leafReaderContext);
-                    Bits verifiedDocsBits = Lucene.asSequentialAccessBits(leafReaderContext.reader().maxDoc(), verifiedDocsScorer);
-                    return new BaseScorer(this, approximation) {
-
-                        @Override
-                        public float score() throws IOException {
-                            return 0f;
-                        }
-
-                        boolean matchDocId(int docId) throws IOException {
-                            // We use the verifiedDocsBits to skip the expensive MemoryIndex verification.
-                            // If docId also appears in the verifiedDocsBits then that means during indexing
-                            // we were able to extract all query terms and for this candidate match
-                            // and we determined based on the nature of the query that it is safe to skip
-                            // the MemoryIndex verification.
-                            if (verifiedDocsBits.get(docId)) {
-                                return true;
-                            }
-                            Query query = percolatorQueries.apply(docId);
-                            if (query == null) {
-                                return false;
-                            }
-                            if (nonNestedDocsFilter != null) {
-                                query = new BooleanQuery.Builder().add(query, Occur.MUST).add(nonNestedDocsFilter, Occur.FILTER).build();
-                            }
-                            return Lucene.exists(percolatorIndexSearcher, query);
-                        }
-                    };
+                    verifiedDocsScorer = verifiedMatchesWeight.scorerSupplier(leafReaderContext);
                 }
+
+                return new ScorerSupplier() {
+                    @Override
+                    public Scorer get(long leadCost) throws IOException {
+                        final Scorer approximation = approximationSupplier.get(leadCost);
+                        final CheckedFunction<Integer, Query, IOException> percolatorQueries = queryStore.getQueries(leafReaderContext);
+                        if (scoreMode.needsScores()) {
+                            return new BaseScorer(approximation) {
+
+                                float score;
+
+                                @Override
+                                boolean matchDocId(int docId) throws IOException {
+                                    Query query = percolatorQueries.apply(docId);
+                                    if (query != null) {
+                                        if (nonNestedDocsFilter != null) {
+                                            query = new BooleanQuery.Builder().add(query, Occur.MUST)
+                                                .add(nonNestedDocsFilter, Occur.FILTER)
+                                                .build();
+                                        }
+                                        TopDocs topDocs = percolatorIndexSearcher.search(query, 1);
+                                        if (topDocs.scoreDocs.length > 0) {
+                                            score = topDocs.scoreDocs[0].score;
+                                            return true;
+                                        } else {
+                                            return false;
+                                        }
+                                    } else {
+                                        return false;
+                                    }
+                                }
+
+                                @Override
+                                public float score() {
+                                    return score;
+                                }
+                            };
+                        } else {
+                            Bits verifiedDocsBits = Lucene.asSequentialAccessBits(leafReaderContext.reader().maxDoc(), verifiedDocsScorer);
+                            return new BaseScorer(approximation) {
+
+                                @Override
+                                public float score() throws IOException {
+                                    return 0f;
+                                }
+
+                                boolean matchDocId(int docId) throws IOException {
+                                    // We use the verifiedDocsBits to skip the expensive MemoryIndex verification.
+                                    // If docId also appears in the verifiedDocsBits then that means during indexing
+                                    // we were able to extract all query terms and for this candidate match
+                                    // and we determined based on the nature of the query that it is safe to skip
+                                    // the MemoryIndex verification.
+                                    if (verifiedDocsBits.get(docId)) {
+                                        return true;
+                                    }
+                                    Query query = percolatorQueries.apply(docId);
+                                    if (query == null) {
+                                        return false;
+                                    }
+                                    if (nonNestedDocsFilter != null) {
+                                        query = new BooleanQuery.Builder().add(query, Occur.MUST)
+                                            .add(nonNestedDocsFilter, Occur.FILTER)
+                                            .build();
+                                    }
+                                    return Lucene.exists(percolatorIndexSearcher, query);
+                                }
+                            };
+                        }
+                    }
+
+                    @Override
+                    public long cost() {
+                        return approximationSupplier.cost();
+                    }
+                };
             }
 
             @Override
@@ -265,8 +284,7 @@ final class PercolateQuery extends Query implements Accountable {
 
         final Scorer approximation;
 
-        BaseScorer(Weight weight, Scorer approximation) {
-            super(weight);
+        BaseScorer(Scorer approximation) {
             this.approximation = approximation;
         }
 

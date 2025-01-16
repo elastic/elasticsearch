@@ -9,6 +9,7 @@ boolean | long
 counter_integer | long
 counter_long | long
 date | long
+date_nanos | long
 double | long
 integer | long
 keyword | long

@@ -13,8 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestDocument.Metadata;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -126,9 +124,6 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
             if (value != null) {
                 builder.field(key, value.toString());
             }
-        }
-        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
         }
         builder.field(SOURCE_FIELD, ingestDocument.getSource());
         builder.field(INGEST_FIELD, ingestDocument.getIngestMetadata());

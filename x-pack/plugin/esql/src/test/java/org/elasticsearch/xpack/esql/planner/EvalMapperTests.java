@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -115,6 +117,7 @@ public class EvalMapperTests extends ESTestCase {
             new Pow(Source.EMPTY, DOUBLE1, DOUBLE2),
             DOUBLE1,
             literal,
+            new ByteLength(Source.EMPTY, literal),
             new Length(Source.EMPTY, literal),
             new DateFormat(Source.EMPTY, datePattern, DATE, TEST_CONFIG),
             new DateFormat(Source.EMPTY, datePattern, literal, TEST_CONFIG),
@@ -143,7 +146,7 @@ public class EvalMapperTests extends ESTestCase {
         lb.append(LONG);
         Layout layout = lb.build();
 
-        var supplier = EvalMapper.toEvaluator(expression, layout);
+        var supplier = EvalMapper.toEvaluator(FoldContext.small(), expression, layout);
         EvalOperator.ExpressionEvaluator evaluator1 = supplier.get(driverContext());
         EvalOperator.ExpressionEvaluator evaluator2 = supplier.get(driverContext());
         assertNotNull(evaluator1);

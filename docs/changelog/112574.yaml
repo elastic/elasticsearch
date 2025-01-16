@@ -1,5 +1,0 @@
-pr: 112574
-summary: Add privileges required for CDR misconfiguration features to work on AWS SecurityHub integration
-area: Authorization
-type: enhancement
-issues: []

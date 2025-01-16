@@ -439,14 +439,6 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         return sizeMatched;
     }
 
-    private static boolean hasMatchingSyncId(
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore,
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata replicaStore
-    ) {
-        String primarySyncId = primaryStore.syncId();
-        return primarySyncId != null && primarySyncId.equals(replicaStore.syncId());
-    }
-
     private static MatchingNode computeMatchingNode(
         DiscoveryNode primaryNode,
         TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore,
@@ -455,8 +447,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     ) {
         final long retainingSeqNoForPrimary = primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(primaryNode);
         final long retainingSeqNoForReplica = primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(replicaNode);
-        final boolean isNoopRecovery = (retainingSeqNoForReplica >= retainingSeqNoForPrimary && retainingSeqNoForPrimary >= 0)
-            || hasMatchingSyncId(primaryStore, replicaStore);
+        final boolean isNoopRecovery = (retainingSeqNoForReplica >= retainingSeqNoForPrimary && retainingSeqNoForPrimary >= 0);
         final long matchingBytes = computeMatchingBytes(primaryStore, replicaStore);
         return new MatchingNode(matchingBytes, retainingSeqNoForReplica, isNoopRecovery);
     }
@@ -469,9 +460,6 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         final NodeStoreFilesMetadata targetNodeStore = shardStores.getData().get(targetNode);
         if (targetNodeStore == null || targetNodeStore.storeFilesMetadata().isEmpty()) {
             return false;
-        }
-        if (hasMatchingSyncId(primaryStore, targetNodeStore.storeFilesMetadata())) {
-            return true;
         }
         return primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(targetNode) >= 0;
     }

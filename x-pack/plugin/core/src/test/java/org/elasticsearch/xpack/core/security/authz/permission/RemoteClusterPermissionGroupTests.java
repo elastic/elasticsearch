@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -90,7 +91,7 @@ public class RemoteClusterPermissionGroupTests extends AbstractXContentSerializi
         );
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, invalidClusterAlias);
-        assertEquals("remote_cluster clusters aliases must contain valid non-empty, non-null values", e.getMessage());
+        assertThat(e.getMessage(), containsString("remote_cluster clusters aliases must contain valid non-empty, non-null values"));
 
         final ThrowingRunnable invalidPermission = randomFrom(
             () -> new RemoteClusterPermissionGroup(new String[] { null }, new String[] { "bar" }),
@@ -100,7 +101,17 @@ public class RemoteClusterPermissionGroupTests extends AbstractXContentSerializi
         );
 
         IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, invalidPermission);
-        assertEquals("remote_cluster privileges must contain valid non-empty, non-null values", e2.getMessage());
+        assertThat(e2.getMessage(), containsString("remote_cluster privileges must contain valid non-empty, non-null values"));
+    }
+
+    public void testToMap() {
+        String[] privileges = generateRandomStringArray(5, 5, false, false);
+        String[] clusters = generateRandomStringArray(5, 5, false, false);
+        RemoteClusterPermissionGroup remoteClusterPermissionGroup = new RemoteClusterPermissionGroup(privileges, clusters);
+        assertEquals(
+            Map.of("privileges", Arrays.asList(privileges), "clusters", Arrays.asList(clusters)),
+            remoteClusterPermissionGroup.toMap()
+        );
     }
 
     @Override

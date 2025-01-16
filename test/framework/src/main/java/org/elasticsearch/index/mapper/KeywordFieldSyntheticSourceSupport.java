@@ -38,6 +38,11 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     }
 
     @Override
+    public boolean ignoreAbove() {
+        return ignoreAbove != null;
+    }
+
+    @Override
     public boolean preservesExactSource() {
         // We opt in into fallback synthetic source implementation
         // if there is nothing else to use, and it preserves exact source data.

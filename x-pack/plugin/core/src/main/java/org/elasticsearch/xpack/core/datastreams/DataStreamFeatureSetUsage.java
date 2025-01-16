@@ -15,13 +15,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
+public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
     private final DataStreamStats streamStats;
 
     public DataStreamFeatureSetUsage(StreamInput input) throws IOException {
@@ -52,7 +52,8 @@ public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
         builder.field("indices_count", streamStats.indicesBehindDataStream);
         if (DataStream.isFailureStoreFeatureFlagEnabled()) {
             builder.startObject("failure_store");
-            builder.field("enabled_count", streamStats.failureStoreEnabledDataStreamCount);
+            builder.field("explicitly_enabled_count", streamStats.failureStoreExplicitlyEnabledDataStreamCount);
+            builder.field("effectively_enabled_count", streamStats.failureStoreEffectivelyEnabledDataStreamCount);
             builder.field("failure_indices_count", streamStats.failureStoreIndicesCount);
             builder.endObject();
         }
@@ -83,7 +84,8 @@ public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
     public record DataStreamStats(
         long totalDataStreamCount,
         long indicesBehindDataStream,
-        long failureStoreEnabledDataStreamCount,
+        long failureStoreExplicitlyEnabledDataStreamCount,
+        long failureStoreEffectivelyEnabledDataStreamCount,
         long failureStoreIndicesCount
     ) implements Writeable {
 
@@ -91,8 +93,9 @@ public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
             this(
                 in.readVLong(),
                 in.readVLong(),
-                in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_TELEMETRY) ? in.readVLong() : 0,
-                in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_TELEMETRY) ? in.readVLong() : 0
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readVLong() : 0,
+                in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING) ? in.readVLong() : 0,
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readVLong() : 0
             );
         }
 
@@ -100,8 +103,11 @@ public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(this.totalDataStreamCount);
             out.writeVLong(this.indicesBehindDataStream);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_TELEMETRY)) {
-                out.writeVLong(this.failureStoreEnabledDataStreamCount);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+                out.writeVLong(this.failureStoreExplicitlyEnabledDataStreamCount);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING)) {
+                    out.writeVLong(failureStoreEffectivelyEnabledDataStreamCount);
+                }
                 out.writeVLong(this.failureStoreIndicesCount);
             }
         }

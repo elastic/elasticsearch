@@ -48,13 +48,13 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
         indexRandom(true, docs);
 
         assertResponse(prepareSearch("foo").setScroll(TimeValue.timeValueSeconds(5L)).setQuery(matchAllQuery()).setSize(1), response -> {
-            assertEquals(numDocs, response.getHits().getTotalHits().value);
+            assertEquals(numDocs, response.getHits().getTotalHits().value());
             assertEquals(1, response.getHits().getHits().length);
             if (randomBoolean()) {
                 assertResponse(
                     client().prepareSearchScroll(response.getScrollId()).setScroll(TimeValue.timeValueSeconds(5L)),
                     response2 -> {
-                        assertEquals(numDocs, response2.getHits().getTotalHits().value);
+                        assertEquals(numDocs, response2.getHits().getTotalHits().value());
                         assertEquals(1, response2.getHits().getHits().length);
                     }
                 );

@@ -285,6 +285,7 @@ public class Strings {
     static final Set<Character> INVALID_CHARS = Set.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',');
 
     public static final String INVALID_FILENAME_CHARS = INVALID_CHARS.stream()
+        .sorted()
         .map(c -> "'" + c + "'")
         .collect(Collectors.joining(",", "[", "]"));
 

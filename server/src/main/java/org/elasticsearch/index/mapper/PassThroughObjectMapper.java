@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -34,15 +33,10 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIn
  * In case different pass-through objects contain subfields with the same name (excluding the pass-through prefix), their aliases conflict.
  * To resolve this, the pass-through spec specifies which object takes precedence through required parameter "priority"; non-negative
  * integer values are accepted, with the highest priority value winning in case of conflicting aliases.
- *
- * Note that this is an experimental, undocumented mapper type, currently intended for prototyping purposes only.
- * It has not been vetted for use in production systems.
  */
 public class PassThroughObjectMapper extends ObjectMapper {
     public static final String CONTENT_TYPE = "passthrough";
     public static final String PRIORITY_PARAM_NAME = "priority";
-
-    static final NodeFeature PASS_THROUGH_PRIORITY = new NodeFeature("mapper.pass_through_priority");
 
     public static class Builder extends ObjectMapper.Builder {
 

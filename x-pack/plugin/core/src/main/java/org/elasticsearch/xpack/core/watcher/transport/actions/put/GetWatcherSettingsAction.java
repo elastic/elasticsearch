@@ -37,7 +37,7 @@ public class GetWatcherSettingsAction extends ActionType<GetWatcherSettingsActio
         }
 
         public static Request readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.WATCHER_REQUEST_TIMEOUTS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 return new Request(in);
             } else {
                 return new Request(TimeValue.THIRTY_SECONDS);
@@ -50,7 +50,7 @@ public class GetWatcherSettingsAction extends ActionType<GetWatcherSettingsActio
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.WATCHER_REQUEST_TIMEOUTS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 super.writeTo(out);
             }
         }

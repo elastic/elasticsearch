@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
+import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.EXCLUSION;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
@@ -61,11 +62,14 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         Holder<Boolean> hasSeenStar = new Holder<>(false);
         ctx.forEach(c -> {
             String indexPattern = visitIndexString(c.indexString());
-            hasSeenStar.set(indexPattern.contains(WILDCARD) || hasSeenStar.get());
-            validateIndexPattern(indexPattern, c, hasSeenStar.get());
-            patterns.add(
-                c.clusterString() != null ? c.clusterString().getText() + REMOTE_CLUSTER_INDEX_SEPARATOR + indexPattern : indexPattern
-            );
+            String clusterString = c.clusterString() != null ? c.clusterString().getText() : null;
+            // skip validating index on remote cluster, because the behavior of remote cluster is not consistent with local cluster
+            // For example, invalid#index is an invalid index name, however FROM *:invalid#index does not return an error
+            if (clusterString == null) {
+                hasSeenStar.set(indexPattern.contains(WILDCARD) || hasSeenStar.get());
+                validateIndexPattern(indexPattern, c, hasSeenStar.get());
+            }
+            patterns.add(clusterString != null ? clusterString + REMOTE_CLUSTER_INDEX_SEPARATOR + indexPattern : indexPattern);
         });
         return Strings.collectionToDelimitedString(patterns, ",");
     }
@@ -75,6 +79,9 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         String[] indices = indexPattern.split(",");
         boolean hasExclusion = false;
         for (String index : indices) {
+            if (isRemoteIndexName(index)) { // skip the validation if there is remote cluster
+                continue;
+            }
             hasSeenStar = index.contains(WILDCARD) || hasSeenStar;
             index = index.replace(WILDCARD, "").strip();
             if (index.isBlank()) {

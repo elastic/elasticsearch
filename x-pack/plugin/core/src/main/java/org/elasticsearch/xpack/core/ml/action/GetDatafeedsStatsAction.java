@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -62,6 +63,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
     // serialized to older nodes where the transport action was a MasterNodeReadAction.
     // TODO: Make this a simple request in a future version where there is no possibility
     // of this request being serialized to another node.
+    @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING)
     public static class Request extends MasterNodeReadRequest<Request> {
 
         public static final String ALLOW_NO_MATCH = "allow_no_match";

@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockWritables;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.test.AbstractWireTestCase;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -81,6 +82,6 @@ public class LocalSupplierTests extends AbstractWireTestCase<LocalSupplier> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(Block.getNamedWriteables());
+        return new NamedWriteableRegistry(BlockWritables.getNamedWriteables());
     }
 }

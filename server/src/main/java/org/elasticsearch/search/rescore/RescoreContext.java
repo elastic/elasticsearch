@@ -24,6 +24,7 @@ public class RescoreContext {
     private final int windowSize;
     private final Rescorer rescorer;
     private Set<Integer> rescoredDocs; // doc Ids for which rescoring was applied
+    private Runnable isCancelled;
 
     /**
      * Build the context.
@@ -32,6 +33,16 @@ public class RescoreContext {
     public RescoreContext(int windowSize, Rescorer rescorer) {
         this.windowSize = windowSize;
         this.rescorer = rescorer;
+    }
+
+    public void setCancellationChecker(Runnable isCancelled) {
+        this.isCancelled = isCancelled;
+    }
+
+    public void checkCancellation() {
+        if (isCancelled != null) {
+            isCancelled.run();
+        }
     }
 
     /**

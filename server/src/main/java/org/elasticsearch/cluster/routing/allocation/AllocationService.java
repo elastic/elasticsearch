@@ -158,9 +158,7 @@ public class AllocationService {
     }
 
     private static ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
-        final RoutingTable oldRoutingTable = oldState.routingTable();
-        final RoutingNodes newRoutingNodes = allocation.routingNodes();
-        final RoutingTable newRoutingTable = RoutingTable.of(newRoutingNodes);
+        final RoutingTable newRoutingTable = RoutingTable.of(allocation.routingNodes());
         final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable);
         assert newRoutingTable.validate(newMetadata); // validates the routing table is coherent with the cluster state metadata
 
@@ -271,8 +269,7 @@ public class AllocationService {
     }
 
     /**
-     * unassigned an shards that are associated with nodes that are no longer part of the cluster, potentially promoting replicas
-     * if needed.
+     * Unassign any shards that are associated with nodes that are no longer part of the cluster, potentially promoting replicas if needed.
      */
     public ClusterState disassociateDeadNodes(ClusterState clusterState, boolean reroute, String reason) {
         RoutingAllocation allocation = createRoutingAllocation(clusterState, currentNanoTime());
@@ -284,7 +281,7 @@ public class AllocationService {
             clusterState = buildResultAndLogHealthChange(clusterState, allocation, reason);
         }
         if (reroute) {
-            return reroute(clusterState, reason, rerouteCompletionIsNotRequired());// this is not triggered by a user request
+            return reroute(clusterState, reason, rerouteCompletionIsNotRequired() /* this is not triggered by a user request */);
         } else {
             return clusterState;
         }
@@ -572,7 +569,7 @@ public class AllocationService {
         // set retryFailed=true to trigger failures reset during reroute
         var taskQueue = clusterService.createTaskQueue("reset-allocation-failures", Priority.NORMAL, (batchCtx) -> {
             batchCtx.taskContexts().forEach((taskCtx) -> taskCtx.success(() -> {}));
-            return reroute(batchCtx.initialState(), new AllocationCommands(), false, true, false, ActionListener.noop()).clusterState();
+            return rerouteWithResetFailedCounter(batchCtx.initialState());
         });
 
         clusterService.addListener((changeEvent) -> {
@@ -580,6 +577,13 @@ public class AllocationService {
                 taskQueue.submitTask("reset-allocation-failures", (e) -> { assert MasterService.isPublishFailureException(e); }, null);
             }
         });
+    }
+
+    private ClusterState rerouteWithResetFailedCounter(ClusterState clusterState) {
+        RoutingAllocation allocation = createRoutingAllocation(clusterState, currentNanoTime());
+        allocation.routingNodes().resetFailedCounter(allocation.changes());
+        reroute(allocation, routingAllocation -> shardsAllocator.allocate(routingAllocation, ActionListener.noop()));
+        return buildResultAndLogHealthChange(clusterState, allocation, "reroute with reset failed counter");
     }
 
     private static void disassociateDeadNodes(RoutingAllocation allocation) {

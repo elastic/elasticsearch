@@ -17,6 +17,9 @@ template:
         type: constant_keyword
       data_stream.namespace:
         type: constant_keyword
+      event.dataset:
+        type: alias
+        path: data_stream.dataset
       attributes:
         type: passthrough
         dynamic: true

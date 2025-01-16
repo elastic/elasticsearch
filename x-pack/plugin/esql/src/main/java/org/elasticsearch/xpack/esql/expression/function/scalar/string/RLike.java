@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -33,7 +34,23 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
         Use `RLIKE` to filter data based on string patterns using using
         <<regexp-syntax,regular expressions>>. `RLIKE` usually acts on a field placed on
         the left-hand side of the operator, but it can also act on a constant (literal)
-        expression. The right-hand side of the operator represents the pattern.""", examples = @Example(file = "docs", tag = "rlike"))
+        expression. The right-hand side of the operator represents the pattern.""", detailedDescription = """
+        Matching special characters (eg. `.`, `*`, `(`...) will require escaping.
+        The escape character is backslash `\\`. Since also backslash is a special character in string literals,
+        it will require further escaping.
+
+        [source.merge.styled,esql]
+        ----
+        include::{esql-specs}/string.csv-spec[tag=rlikeEscapingSingleQuotes]
+        ----
+
+        To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
+
+        [source.merge.styled,esql]
+        ----
+        include::{esql-specs}/string.csv-spec[tag=rlikeEscapingTripleQuotes]
+        ----
+        """, examples = @Example(file = "docs", tag = "rlike"))
     public RLike(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal value.") Expression value,
@@ -63,7 +80,7 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
     }
 
     @Override
-    protected NodeInfo<org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike> info() {
+    protected NodeInfo<RLike> info() {
         return NodeInfo.create(this, RLike::new, field(), pattern(), caseInsensitive());
     }
 
@@ -75,6 +92,11 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
     @Override
     protected TypeResolution resolveType() {
         return isString(field(), sourceText(), DEFAULT);
+    }
+
+    @Override
+    public Boolean fold(FoldContext ctx) {
+        return (Boolean) EvaluatorMapper.super.fold(source(), ctx);
     }
 
     @Override

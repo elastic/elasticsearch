@@ -9,9 +9,9 @@ You can use {esql} in {kib} to query and aggregate your data, create
 visualizations, and set up alerts.
 
 This guide shows you how to use {esql} in Kibana. To follow along with the
-queries, load the "Sample web logs" sample data set by clicking *Try sample
-data* from the {kib} Home, selecting *Other sample data sets*, and clicking *Add
-data* on the *Sample web logs* card.
+queries, load the "Sample web logs" sample data set by selecting **Sample Data** 
+from the **Integrations** page in {kib}, selecting *Other sample data sets*, 
+and clicking *Add data* on the *Sample web logs* card.
 
 [discrete]
 [[esql-kibana-enable]]
@@ -30,9 +30,7 @@ However, users will be able to access existing {esql} artifacts like saved searc
 
 // tag::esql-mode[]
 To get started with {esql} in Discover, open the main menu and select
-*Discover*. Next, from the Data views menu, select *Language: ES|QL*.
-
-image::images/esql/esql-data-view-menu.png[align="center",width=33%]
+*Discover*. Next, select *Try ES|QL* from the application menu bar.
 // end::esql-mode[]
 
 [discrete]
@@ -54,8 +52,9 @@ A source command can be followed by one or more <<esql-commands,processing
 commands>>. In this query, the processing command is <<esql-limit>>. `LIMIT`
 limits the number of rows that are retrieved.
 
-TIP: Click the help icon (image:images/esql/esql-icon-help.svg[Static,20]) to open the
-in-product reference documentation for all commands and functions.
+TIP: Click the **ES|QL help** button to open the
+in-product reference documentation for all commands and functions or to get
+recommended queries that will help you get started.
 
 // tag::autocomplete[]
 To make it easier to write queries, auto-complete offers suggestions with
@@ -76,7 +75,7 @@ FROM kibana_sample_data_logs | LIMIT 10
 ====
 
 [discrete]
-==== Expand the query bar
+==== Make your query readable
 
 For readability, you can put each processing command on a new line. The
 following query is identical to the previous one:
@@ -87,15 +86,12 @@ FROM kibana_sample_data_logs
 | LIMIT 10
 ----
 
+You can do that using the **Add line breaks on pipes** button from the query editor's footer.
+
+image::https://images.contentstack.io/v3/assets/bltefdd0b53724fa2ce/bltd5554518309e10f6/672d153cfeb8f9d479ebcc6e/esql-line-breakdown.gif[Automatic line breaks for ES|QL queries]
+
 // tag::compact[]
-To make it easier to write multi-line queries, click the double-headed arrow
-button (image:images/esql/esql-icon-expand-query-bar.svg[]) to expand the query
-bar:
-
-image::images/esql/esql-expanded-query-bar.png[align="center"]
-
-To return to a compact query bar, click the minimize editor button
-(image:images/esql/esql-icon-minimize-query-bar.svg[]).
+You can adjust the editor's height by dragging its bottom border to your liking.
 // end::compact[]
 
 [discrete]
@@ -110,13 +106,26 @@ detailed warning, expand the query bar, and click *warnings*.
 ==== Query history
 
 You can reuse your recent {esql} queries in the query bar.
-In the query bar click *Show recent queries*:
-
-image::images/esql/esql-discover-show-recent-query.png[align="center",size="50%"]
+In the query bar, click *Show recent queries*.
 
 You can then scroll through your recent queries:
 
 image::images/esql/esql-discover-query-history.png[align="center",size="50%"]
+
+[discrete]
+[[esql-kibana-starred-queries]]
+==== Starred queries
+
+From the query history, you can mark some queries as favorite to find and access them faster later.
+
+In the query bar, click *Show recent queries*.
+
+From the **Recent** tab, you can star any queries you want.
+
+In the **Starred** tab, find all the queries you have previously starred.
+
+image::images/esql/esql-discover-query-starred.png[align="center",size="50%"]
+
 
 [discrete]
 [[esql-kibana-results-table]]
@@ -171,14 +180,44 @@ FROM kibana_sample_data_logs
 [[esql-kibana-time-filter]]
 === Time filtering
 
-To display data within a specified time range, use the
-{kibana-ref}/set-time-filter.html[time filter]. The time filter is only enabled
-when the indices you're querying have a field called `@timestamp`.
+To display data within a specified time range, you can use the standard time filter, 
+custom time parameters, or a WHERE command.
 
-If your indices do not have a timestamp field called `@timestamp`, you can limit
-the time range using the <<esql-where>> command and the <<esql-now>> function.
+[discrete]
+==== Standard time filter
+The standard {kibana-ref}/set-time-filter.html[time filter] is enabled
+when the indices you're querying have a field named `@timestamp`.
+
+[discrete]
+==== Custom time parameters
+If your indices do not have a field named `@timestamp`, you can use
+the `?_tstart` and `?_tend` parameters to specify a time range. These parameters 
+work with any timestamp field and automatically sync with the {kibana-ref}/set-time-filter.html[time filter].
+
+[source,esql]
+----
+FROM my_index
+| WHERE custom_timestamp >= ?_tstart AND custom_timestamp < ?_tend
+----
+
+You can also use the `?_tstart` and `?_tend` parameters with the <<esql-bucket>> function 
+to create auto-incrementing time buckets in {esql} <<esql-kibana-visualizations,visualizations>>. 
+For example:
+
+[source,esql]
+----
+FROM kibana_sample_data_logs
+| STATS average_bytes = AVG(bytes) BY BUCKET(@timestamp, 50, ?_tstart, ?_tend)
+----
+
+This example uses `50` buckets, which is the maximum number of buckets.
+
+[discrete]
+==== WHERE command
+You can also limit the time range using the <<esql-where>> command and the <<esql-now>> function.
 For example, if the timestamp field is called `timestamp`, to query the last 15
 minutes of data:
+
 [source,esql]
 ----
 FROM kibana_sample_data_logs
@@ -190,8 +229,9 @@ FROM kibana_sample_data_logs
 === Analyze and visualize data
 
 Between the query bar and the results table, Discover shows a date histogram
-visualization. If the indices you're querying do not contain a `@timestamp`
-field, the histogram is not shown.
+visualization. By default, if the indices you're querying do not contain a `@timestamp`
+field, the histogram is not shown. But you can use a custom time field with the `?_tstart` 
+and `?_tend` parameters to enable it. 
 
 The visualization adapts to the query. A query's nature determines the type of
 visualization. For example, this query aggregates the total number of bytes per
@@ -220,7 +260,7 @@ save button (image:images/esql/esql-icon-save-visualization.svg[]). Once saved
 to a dashboard, you'll be taken to the Dashboards page. You can continue to 
 make changes to the visualization. Click the
 options button in the top-right (image:images/esql/esql-icon-options.svg[]) and
-select *Edit ESQL visualization* to open the in-line editor:
+select *Edit ES|QL visualization* to open the in-line editor:
 
 image::images/esql/esql-kibana-edit-on-dashboard.png[align="center",width=66%]
 

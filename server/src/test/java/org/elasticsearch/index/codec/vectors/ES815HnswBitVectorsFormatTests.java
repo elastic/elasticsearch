@@ -11,7 +11,7 @@ package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene912.Lucene912Codec;
+import org.apache.lucene.codecs.lucene100.Lucene100Codec;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.junit.Before;
 
@@ -19,7 +19,7 @@ public class ES815HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestC
 
     @Override
     protected Codec getCodec() {
-        return new Lucene912Codec() {
+        return new Lucene100Codec() {
             @Override
             public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
                 return new ES815HnswBitVectorsFormat();

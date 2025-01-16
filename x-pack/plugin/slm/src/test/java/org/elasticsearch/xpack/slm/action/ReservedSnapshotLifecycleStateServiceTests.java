@@ -24,13 +24,13 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.reservedstate.service.ReservedStateUpdateTask;
 import org.elasticsearch.reservedstate.service.ReservedStateUpdateTaskExecutor;
+import org.elasticsearch.reservedstate.service.ReservedStateVersionCheck;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -80,7 +80,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
     }
 
     public void testDependencies() {
-        var action = new ReservedSnapshotAction(mock(FeatureService.class));
+        var action = new ReservedSnapshotAction();
         assertThat(action.optionalDependencies(), contains(ReservedRepositoryAction.NAME));
     }
 
@@ -90,7 +90,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         final ClusterName clusterName = new ClusterName("elasticsearch");
 
         ClusterState state = ClusterState.builder(clusterName).build();
-        ReservedSnapshotAction action = new ReservedSnapshotAction(mock(FeatureService.class));
+        ReservedSnapshotAction action = new ReservedSnapshotAction();
         TransformState prevState = new TransformState(state, Set.of());
 
         String badPolicyJSON = """
@@ -118,56 +118,6 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         );
     }
 
-    public void testIntervalScheduleSupportValidation() {
-        Client client = mock(Client.class);
-        when(client.settings()).thenReturn(Settings.EMPTY);
-        final ClusterName clusterName = new ClusterName("elasticsearch");
-        List<RepositoryMetadata> repositoriesMetadata = List.of(new RepositoryMetadata("repo", "fs", Settings.EMPTY));
-        Metadata.Builder mdBuilder = Metadata.builder();
-        mdBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(repositoriesMetadata));
-        ClusterState state = ClusterState.builder(clusterName).metadata(mdBuilder).build();
-        TransformState prevState = new TransformState(state, Set.of());
-        String goodPolicyJSON = """
-            {
-               "daily-snapshots": {
-                 "schedule": "30d",
-                 "name": "<production-snap-{now/d}>",
-                 "repository": "repo",
-                 "config": {
-                   "indices": ["foo-*", "important"],
-                   "ignore_unavailable": true,
-                   "include_global_state": false
-                 },
-                 "retention": {
-                   "expire_after": "30d",
-                   "min_count": 1,
-                   "max_count": 50
-                 }
-               }
-            }
-            """;
-
-        {
-            FeatureService featureService = mock(FeatureService.class);
-            when(featureService.clusterHasFeature(any(), any())).thenReturn(false);
-            ReservedSnapshotAction action = new ReservedSnapshotAction(featureService);
-            assertThat(
-                expectThrows(IllegalArgumentException.class, () -> processJSON(action, prevState, goodPolicyJSON)).getMessage(),
-                is("Error on validating SLM requests")
-            );
-        }
-        {
-            FeatureService featureService = mock(FeatureService.class);
-            when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
-            ReservedSnapshotAction action = new ReservedSnapshotAction(featureService);
-            try {
-                processJSON(action, prevState, goodPolicyJSON);
-            } catch (Exception e) {
-                fail("interval schedule with interval feature should pass validation");
-            }
-        }
-    }
-
     public void testActionAddRemove() throws Exception {
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
@@ -179,7 +129,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         mdBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(repositoriesMetadata));
         ClusterState state = ClusterState.builder(clusterName).metadata(mdBuilder).build();
 
-        ReservedSnapshotAction action = new ReservedSnapshotAction(mock(FeatureService.class));
+        ReservedSnapshotAction action = new ReservedSnapshotAction();
 
         String emptyJSON = "";
 
@@ -399,7 +349,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         AtomicReference<Exception> x = new AtomicReference<>();
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, x::set);
+            controller.process("operator", parser, randomFrom(ReservedStateVersionCheck.values()), x::set);
 
             assertThat(x.get(), instanceOf(IllegalStateException.class));
             assertThat(x.get().getMessage(), containsString("Error processing state change request for operator"));
@@ -413,13 +363,13 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
             null,
             List.of(
                 new ReservedClusterSettingsAction(clusterSettings),
-                new ReservedSnapshotAction(mock(FeatureService.class)),
+                new ReservedSnapshotAction(),
                 new ReservedRepositoryAction(repositoriesService)
             )
         );
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, Assert::assertNull);
+            controller.process("operator", parser, randomFrom(ReservedStateVersionCheck.values()), Assert::assertNull);
         }
     }
 
@@ -447,8 +397,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
             mock(ClusterService.class),
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
-            mock(FeatureService.class)
+            mock(IndexNameExpressionResolver.class)
         );
         assertThat(putAction.reservedStateHandlerName().get(), equalTo(ReservedSnapshotAction.NAME));
 

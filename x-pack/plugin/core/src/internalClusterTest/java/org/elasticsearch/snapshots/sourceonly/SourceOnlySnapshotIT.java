@@ -197,7 +197,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) throws IOException {
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(sourceIdx).get();
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, sourceIdx).get();
         MappingMetadata mapping = getMappingsResponse.getMappings().get(sourceIdx);
         String nested = useNested ? """
             ,"incorrect":{"type":"object"},"nested":{"type":"nested","properties":{"value":{"type":"long"}}}""" : "";
@@ -274,7 +274,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         };
         assertResponse(prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC).setSize(numDocsExpected), searchResponse -> {
             assertConsumer.accept(searchResponse, sourceHadDeletions);
-            assertEquals(numDocsExpected, searchResponse.getHits().getTotalHits().value);
+            assertEquals(numDocsExpected, searchResponse.getHits().getTotalHits().value());
         });
         SearchResponse searchResponse = prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
             .setScroll(TimeValue.timeValueMinutes(1))

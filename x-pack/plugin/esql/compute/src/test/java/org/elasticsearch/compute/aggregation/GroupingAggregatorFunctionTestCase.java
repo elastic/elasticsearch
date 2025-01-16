@@ -54,7 +54,6 @@ import static java.util.stream.IntStream.range;
 import static org.elasticsearch.compute.data.BlockTestUtils.append;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.in;
 
 /**
  * Shared tests for testing grouped aggregations.
@@ -89,21 +88,26 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         return simpleWithMode(mode, Function.identity());
     }
 
+    protected List<Integer> channels(AggregatorMode mode) {
+        return mode.isInputPartial() ? range(1, 1 + aggregatorIntermediateBlockCount()).boxed().toList() : List.of(1);
+    }
+
     private Operator.OperatorFactory simpleWithMode(
         AggregatorMode mode,
         Function<AggregatorFunctionSupplier, AggregatorFunctionSupplier> wrap
     ) {
-        List<Integer> channels = mode.isInputPartial() ? range(1, 1 + aggregatorIntermediateBlockCount()).boxed().toList() : List.of(1);
         int emitChunkSize = between(100, 200);
 
-        AggregatorFunctionSupplier supplier = wrap.apply(aggregatorFunction(channels));
+        AggregatorFunctionSupplier supplier = wrap.apply(aggregatorFunction(channels(mode)));
         if (randomBoolean()) {
             supplier = chunkGroups(emitChunkSize, supplier);
         }
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
+            mode,
             List.of(supplier.groupingAggregatorFactory(mode)),
-            randomPageSize()
+            randomPageSize(),
+            null
         );
     }
 

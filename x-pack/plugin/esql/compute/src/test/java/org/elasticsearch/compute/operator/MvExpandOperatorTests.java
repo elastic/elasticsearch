@@ -210,8 +210,8 @@ public class MvExpandOperatorTests extends OperatorTestCase {
         assertThat(result, hasSize(1));
         assertThat(valuesAtPositions(result.get(0).getBlock(0), 0, 2), equalTo(List.of(List.of(1), List.of(2))));
         MvExpandOperator.Status status = op.status();
-        assertThat(status.pagesIn(), equalTo(1));
-        assertThat(status.pagesOut(), equalTo(1));
+        assertThat(status.pagesReceived(), equalTo(1));
+        assertThat(status.pagesEmitted(), equalTo(1));
         assertThat(status.noops(), equalTo(1));
     }
 
@@ -223,8 +223,8 @@ public class MvExpandOperatorTests extends OperatorTestCase {
         assertThat(result, hasSize(1));
         assertThat(valuesAtPositions(result.get(0).getBlock(0), 0, 2), equalTo(List.of(List.of(1), List.of(2))));
         MvExpandOperator.Status status = op.status();
-        assertThat(status.pagesIn(), equalTo(1));
-        assertThat(status.pagesOut(), equalTo(1));
+        assertThat(status.pagesReceived(), equalTo(1));
+        assertThat(status.pagesEmitted(), equalTo(1));
         assertThat(status.noops(), equalTo(0));
         result.forEach(Page::releaseBlocks);
     }

@@ -10,7 +10,6 @@
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditPrecommitPlugin
 import org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditTask
 import org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin
@@ -27,8 +26,8 @@ configure(allprojects) {
         JvmVendorSpec.matching(VersionProperties.bundledJdkVendor)
     }
   project.tasks.withType(Test).configureEach { Test test ->
-        if (BuildParams.getIsRuntimeJavaHomeSet()) {
-            test.executable = "${BuildParams.runtimeJavaHome}/bin/java" +
+        if (buildParams.getIsRuntimeJavaHomeSet()) {
+            test.executable = "${buildParams.runtimeJavaHome.get()}/bin/java" +
                     (OS.current() == OS.WINDOWS ? '.exe' : '')
         } else {
             test.javaLauncher = javaToolchains.launcherFor {
@@ -41,7 +40,7 @@ configure(allprojects) {
     }
     project.plugins.withId("elasticsearch.testclusters") { testClustersPlugin ->
         project.plugins.withId("elasticsearch.internal-testclusters") { internalPlugin ->
-            if (BuildParams.getIsRuntimeJavaHomeSet() == false) {
+            if (buildParams.getIsRuntimeJavaHomeSet() == false) {
                 // If no runtime java home is set, use the bundled JDK for test clusters
                 testClustersPlugin.setRuntimeJava(launcher.map { it.metadata.installationPath.asFile })
             }

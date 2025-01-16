@@ -41,7 +41,7 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
         if (randomBoolean()) {
             rankWindowSize = randomIntBetween(1, 10000);
         }
-        int rankConstant = RRFRankBuilder.DEFAULT_RANK_CONSTANT;
+        int rankConstant = RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT;
         if (randomBoolean()) {
             rankConstant = randomIntBetween(1, 1000000);
         }

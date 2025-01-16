@@ -45,6 +45,7 @@ public class MetadataDataStreamsService {
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
     private final MasterServiceTaskQueue<UpdateLifecycleTask> updateLifecycleTaskQueue;
     private final MasterServiceTaskQueue<SetRolloverOnWriteTask> setRolloverOnWriteTaskQueue;
+    private final MasterServiceTaskQueue<UpdateOptionsTask> updateOptionsTaskQueue;
 
     public MetadataDataStreamsService(
         ClusterService clusterService,
@@ -93,6 +94,20 @@ public class MetadataDataStreamsService {
             Priority.NORMAL,
             rolloverOnWriteExecutor
         );
+        ClusterStateTaskExecutor<UpdateOptionsTask> updateOptionsExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
+
+            @Override
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(
+                UpdateOptionsTask modifyOptionsTask,
+                ClusterState clusterState
+            ) {
+                return new Tuple<>(
+                    updateDataStreamOptions(clusterState, modifyOptionsTask.getDataStreamNames(), modifyOptionsTask.getOptions()),
+                    modifyOptionsTask
+                );
+            }
+        };
+        this.updateOptionsTaskQueue = clusterService.createTaskQueue("modify-data-stream-options", Priority.NORMAL, updateOptionsExecutor);
     }
 
     public void modifyDataStream(final ModifyDataStreamsAction.Request request, final ActionListener<AcknowledgedResponse> listener) {
@@ -143,6 +158,39 @@ public class MetadataDataStreamsService {
         updateLifecycleTaskQueue.submitTask(
             "delete-lifecycle",
             new UpdateLifecycleTask(dataStreamNames, null, ackTimeout, listener),
+            masterTimeout
+        );
+    }
+
+    /**
+     * Submits the task to set the provided data stream options to the requested data streams.
+     */
+    public void setDataStreamOptions(
+        final List<String> dataStreamNames,
+        DataStreamOptions options,
+        TimeValue ackTimeout,
+        TimeValue masterTimeout,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
+        updateOptionsTaskQueue.submitTask(
+            "set-data-stream-options",
+            new UpdateOptionsTask(dataStreamNames, options, ackTimeout, listener),
+            masterTimeout
+        );
+    }
+
+    /**
+     * Submits the task to remove the data stream options from the requested data streams.
+     */
+    public void removeDataStreamOptions(
+        List<String> dataStreamNames,
+        TimeValue ackTimeout,
+        TimeValue masterTimeout,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        updateOptionsTaskQueue.submitTask(
+            "delete-data-stream-options",
+            new UpdateOptionsTask(dataStreamNames, null, ackTimeout, listener),
             masterTimeout
         );
     }
@@ -224,6 +272,24 @@ public class MetadataDataStreamsService {
         if (lifecycle != null) {
             // We don't issue any warnings if all data streams are internal data streams
             lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(), onlyInternalDataStreams);
+        }
+        return ClusterState.builder(currentState).metadata(builder.build()).build();
+    }
+
+    /**
+     * Creates an updated cluster state in which the requested data streams have the data stream options provided.
+     * Visible for testing.
+     */
+    ClusterState updateDataStreamOptions(
+        ClusterState currentState,
+        List<String> dataStreamNames,
+        @Nullable DataStreamOptions dataStreamOptions
+    ) {
+        Metadata metadata = currentState.metadata();
+        Metadata.Builder builder = Metadata.builder(metadata);
+        for (var dataStreamName : dataStreamNames) {
+            var dataStream = validateDataStream(metadata, dataStreamName);
+            builder.put(dataStream.copy().setDataStreamOptions(dataStreamOptions).build());
         }
         return ClusterState.builder(currentState).metadata(builder.build()).build();
     }
@@ -369,6 +435,34 @@ public class MetadataDataStreamsService {
 
         public DataStreamLifecycle getDataLifecycle() {
             return lifecycle;
+        }
+    }
+
+    /**
+     * A cluster state update task that consists of the cluster state request and the listeners that need to be notified upon completion.
+     */
+    static class UpdateOptionsTask extends AckedBatchedClusterStateUpdateTask {
+
+        private final List<String> dataStreamNames;
+        private final DataStreamOptions options;
+
+        UpdateOptionsTask(
+            List<String> dataStreamNames,
+            @Nullable DataStreamOptions options,
+            TimeValue ackTimeout,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            super(ackTimeout, listener);
+            this.dataStreamNames = dataStreamNames;
+            this.options = options;
+        }
+
+        public List<String> getDataStreamNames() {
+            return dataStreamNames;
+        }
+
+        public DataStreamOptions getOptions() {
+            return options;
         }
     }
 

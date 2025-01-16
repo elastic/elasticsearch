@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferNonNullAggConstraint;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalPropagateEmptyRelation;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceMissing
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceTopNWithLimitAndSort;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
+import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,20 +52,31 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
         rules.add(local);
         // TODO: if the local rules haven't touched the tree, the rest of the rules can be skipped
         rules.addAll(asList(operators(), cleanup()));
-        replaceRules(rules);
-        return rules;
+        return replaceRules(rules);
     }
 
+    @SuppressWarnings("unchecked")
     private List<Batch<LogicalPlan>> replaceRules(List<Batch<LogicalPlan>> listOfRules) {
-        for (Batch<LogicalPlan> batch : listOfRules) {
+        List<Batch<LogicalPlan>> newBatches = new ArrayList<>(listOfRules.size());
+        for (var batch : listOfRules) {
             var rules = batch.rules();
-            for (int i = 0; i < rules.length; i++) {
-                if (rules[i] instanceof PropagateEmptyRelation) {
-                    rules[i] = new LocalPropagateEmptyRelation();
+            List<Rule<?, LogicalPlan>> newRules = new ArrayList<>(rules.length);
+            boolean updated = false;
+            for (var r : rules) {
+                if (r instanceof PropagateEmptyRelation) {
+                    newRules.add(new LocalPropagateEmptyRelation());
+                    updated = true;
+                } else if (r instanceof ReplaceStatsFilteredAggWithEval) {
+                    // skip it: once a fragment contains an Agg, this can no longer be pruned, which the rule can do
+                    updated = true;
+                } else {
+                    newRules.add(r);
                 }
             }
+            batch = updated ? batch.with(newRules.toArray(Rule[]::new)) : batch;
+            newBatches.add(batch);
         }
-        return listOfRules;
+        return newBatches;
     }
 
     public LogicalPlan localOptimize(LogicalPlan plan) {

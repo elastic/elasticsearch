@@ -1,6 +1,0 @@
-pr: 113697
-summary: Handle parsing ingest processors where definition is not a object
-area: Machine Learning
-type: bug
-issues:
- - 113615

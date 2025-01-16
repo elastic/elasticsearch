@@ -190,11 +190,11 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                     () -> "[" + request.getDeploymentId() + "] creating new assignment for model [" + request.getModelId() + "] failed",
                     e
                 );
-                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException resourceAlreadyExistsException) {
                     e = new ElasticsearchStatusException(
                         "Cannot start deployment [{}] because it has already been started",
                         RestStatus.CONFLICT,
-                        e,
+                        resourceAlreadyExistsException,
                         request.getDeploymentId()
                     );
                 }
@@ -234,9 +234,9 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             if (getModelResponse.getResources().results().size() > 1) {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(
-                        "cannot deploy more than one models at the same time; [{}] matches [{}] models]",
+                        "cannot deploy more than one model at the same time; [{}] matches models [{}]",
                         request.getModelId(),
-                        getModelResponse.getResources().results().size()
+                        getModelResponse.getResources().results().stream().map(TrainedModelConfig::getModelId).toList()
                     )
                 );
                 return;
@@ -671,7 +671,11 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 deploymentId
             ).orElse(null);
             if (trainedModelAssignment == null) {
-                // Something weird happened, it should NEVER be null...
+                // The assignment may be null if it was stopped by another action while waiting
+                this.exception = new ElasticsearchStatusException(
+                    "Error waiting for the model deployment to start. The trained model assignment was removed while waiting",
+                    RestStatus.BAD_REQUEST
+                );
                 logger.trace(() -> format("[%s] assignment was null while waiting for state [%s]", deploymentId, waitForState));
                 return true;
             }

@@ -3,7 +3,7 @@
 
 To create a new {service-name} connector:
 
-. Navigate to the *Search -> Connectors* page in the Kibana UI.
+. In the Kibana UI, navigate to the *Search -> Content -> Connectors* page from the main menu, or use the {kibana-ref}/kibana-concepts-analysts.html#_finding_your_apps_and_objects[global search field].
 . Follow the instructions to create a new native  *{service-name}* connector.
 
 For additional operations, see <<es-connectors-usage>>.
@@ -22,7 +22,7 @@ PUT _connector/my-{service-name-stub}-connector
   "index_name": "my-elasticsearch-index",
   "name": "Content synced from {service-name}",
   "service_type": "{service-name-stub}",
-  "is_native": "true"
+  "is_native": true
 }
 ----
 // TEST[skip:can't test in isolation]

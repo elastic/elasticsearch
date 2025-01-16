@@ -15,9 +15,10 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -25,6 +26,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -57,10 +59,22 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
 
     private final Map<String, LifecyclePolicyMetadata> policyMetadatas;
     private final OperationMode operationMode;
+    // a slightly different view of the policyMetadatas -- it's hot in a couple of places so we pre-calculate it
+    private final Map<String, LifecyclePolicy> policies;
+
+    private static Map<String, LifecyclePolicy> policiesMap(final Map<String, LifecyclePolicyMetadata> policyMetadatas) {
+        final Map<String, LifecyclePolicy> policies = new HashMap<>(policyMetadatas.size());
+        for (LifecyclePolicyMetadata policyMetadata : policyMetadatas.values()) {
+            LifecyclePolicy policy = policyMetadata.getPolicy();
+            policies.put(policy.getName(), policy);
+        }
+        return Collections.unmodifiableMap(policies);
+    }
 
     public IndexLifecycleMetadata(Map<String, LifecyclePolicyMetadata> policies, OperationMode operationMode) {
         this.policyMetadatas = Collections.unmodifiableMap(policies);
         this.operationMode = operationMode;
+        this.policies = policiesMap(policyMetadatas);
     }
 
     public IndexLifecycleMetadata(StreamInput in) throws IOException {
@@ -71,6 +85,7 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
         }
         this.policyMetadatas = policies;
         this.operationMode = in.readEnum(OperationMode.class);
+        this.policies = policiesMap(policyMetadatas);
     }
 
     @Override
@@ -92,10 +107,7 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
     }
 
     public Map<String, LifecyclePolicy> getPolicies() {
-        return policyMetadatas.values()
-            .stream()
-            .map(LifecyclePolicyMetadata::getPolicy)
-            .collect(Collectors.toMap(LifecyclePolicy::getName, Function.identity()));
+        return policies;
     }
 
     @Override
@@ -104,10 +116,11 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params)
-            .xContentObjectFields(POLICIES_FIELD.getPreferredName(), policyMetadatas)
-            .field(OPERATION_MODE_FIELD.getPreferredName(), operationMode);
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.xContentObjectFields(POLICIES_FIELD.getPreferredName(), policyMetadatas),
+            Iterators.single((builder, params) -> builder.field(OPERATION_MODE_FIELD.getPreferredName(), operationMode))
+        );
     }
 
     @Override

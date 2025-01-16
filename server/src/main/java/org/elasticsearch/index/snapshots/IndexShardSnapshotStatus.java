@@ -98,6 +98,7 @@ public class IndexShardSnapshotStatus {
     private long processedSize;
     private String failure;
     private final SubscribableListener<AbortStatus> abortListeners = new SubscribableListener<>();
+    private volatile String statusDescription;
 
     private IndexShardSnapshotStatus(
         final Stage stage,
@@ -110,7 +111,8 @@ public class IndexShardSnapshotStatus {
         final long totalSize,
         final long processedSize,
         final String failure,
-        final ShardGeneration generation
+        final ShardGeneration generation,
+        final String statusDescription
     ) {
         this.stage = new AtomicReference<>(Objects.requireNonNull(stage));
         this.generation = new AtomicReference<>(generation);
@@ -124,6 +126,7 @@ public class IndexShardSnapshotStatus {
         this.processedSize = processedSize;
         this.incrementalSize = incrementalSize;
         this.failure = failure;
+        updateStatusDescription(statusDescription);
     }
 
     public synchronized Copy moveToStarted(
@@ -245,7 +248,11 @@ public class IndexShardSnapshotStatus {
     }
 
     public void ensureNotAborted() {
-        switch (stage.get()) {
+        ensureNotAborted(stage.get());
+    }
+
+    public static void ensureNotAborted(Stage shardSnapshotStage) {
+        switch (shardSnapshotStage) {
             case ABORTED -> throw new AbortedSnapshotException();
             case PAUSING -> throw new PausedSnapshotException();
         }
@@ -269,6 +276,15 @@ public class IndexShardSnapshotStatus {
     }
 
     /**
+     * Updates the string explanation for what the snapshot is actively doing right now.
+     */
+    public void updateStatusDescription(String statusString) {
+        assert statusString != null;
+        assert statusString.isEmpty() == false;
+        this.statusDescription = statusString;
+    }
+
+    /**
      * Returns a copy of the current {@link IndexShardSnapshotStatus}. This method is
      * intended to be used when a coherent state of {@link IndexShardSnapshotStatus} is needed.
      *
@@ -285,12 +301,13 @@ public class IndexShardSnapshotStatus {
             incrementalSize,
             totalSize,
             processedSize,
-            failure
+            failure,
+            statusDescription
         );
     }
 
     public static IndexShardSnapshotStatus newInitializing(ShardGeneration generation) {
-        return new IndexShardSnapshotStatus(Stage.INIT, 0L, 0L, 0, 0, 0, 0, 0, 0, null, generation);
+        return new IndexShardSnapshotStatus(Stage.INIT, 0L, 0L, 0, 0, 0, 0, 0, 0, null, generation, "initializing");
     }
 
     public static IndexShardSnapshotStatus.Copy newFailed(final String failure) {
@@ -298,7 +315,7 @@ public class IndexShardSnapshotStatus {
         if (failure == null) {
             throw new IllegalArgumentException("A failure description is required for a failed IndexShardSnapshotStatus");
         }
-        return new IndexShardSnapshotStatus(Stage.FAILURE, 0L, 0L, 0, 0, 0, 0, 0, 0, failure, null).asCopy();
+        return new IndexShardSnapshotStatus(Stage.FAILURE, 0L, 0L, 0, 0, 0, 0, 0, 0, failure, null, "initialized as failed").asCopy();
     }
 
     public static IndexShardSnapshotStatus.Copy newDone(
@@ -322,7 +339,8 @@ public class IndexShardSnapshotStatus {
             size,
             incrementalSize,
             null,
-            generation
+            generation,
+            "initialized as done"
         ).asCopy();
     }
 
@@ -341,6 +359,7 @@ public class IndexShardSnapshotStatus {
         private final long processedSize;
         private final long incrementalSize;
         private final String failure;
+        private final String statusDescription;
 
         public Copy(
             final Stage stage,
@@ -352,7 +371,8 @@ public class IndexShardSnapshotStatus {
             final long incrementalSize,
             final long totalSize,
             final long processedSize,
-            final String failure
+            final String failure,
+            final String statusDescription
         ) {
             this.stage = stage;
             this.startTime = startTime;
@@ -364,6 +384,7 @@ public class IndexShardSnapshotStatus {
             this.processedSize = processedSize;
             this.incrementalSize = incrementalSize;
             this.failure = failure;
+            this.statusDescription = statusDescription;
         }
 
         public Stage getStage() {
@@ -406,6 +427,10 @@ public class IndexShardSnapshotStatus {
             return failure;
         }
 
+        public String getStatusDescription() {
+            return statusDescription;
+        }
+
         @Override
         public String toString() {
             return "index shard snapshot status ("
@@ -429,6 +454,8 @@ public class IndexShardSnapshotStatus {
                 + processedSize
                 + ", failure='"
                 + failure
+                + "', statusDescription='"
+                + statusDescription
                 + '\''
                 + ')';
         }
@@ -457,6 +484,8 @@ public class IndexShardSnapshotStatus {
             + processedSize
             + ", failure='"
             + failure
+            + "', statusDescription='"
+            + statusDescription
             + '\''
             + ')';
     }

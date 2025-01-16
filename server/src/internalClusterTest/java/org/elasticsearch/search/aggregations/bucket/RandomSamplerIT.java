@@ -10,6 +10,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.InternalRandomSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregationBuilder;
@@ -20,11 +21,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -112,27 +115,28 @@ public class RandomSamplerIT extends ESIntegTestCase {
             }
         );
 
-        for (int i = 0; i < NUM_SAMPLE_RUNS; i++) {
-            assertResponse(
-                prepareSearch("idx").setPreference("shard:0")
-                    .addAggregation(
-                        new RandomSamplerAggregationBuilder("sampler").setProbability(PROBABILITY)
-                            .setSeed(0)
-                            .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
-                            .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
-                            .setShardSeed(42)
-                    ),
-                response -> {
-                    InternalRandomSampler sampler = response.getAggregations().get("sampler");
-                    double monotonicValue = ((Avg) sampler.getAggregations().get("mean_monotonic")).getValue();
-                    double numericValue = ((Avg) sampler.getAggregations().get("mean_numeric")).getValue();
-                    long docCount = sampler.getDocCount();
-                    assertEquals(monotonicValue, sampleMonotonicValue[0], tolerance);
-                    assertEquals(numericValue, sampleNumericValue[0], tolerance);
-                    assertEquals(docCount, sampledDocCount[0]);
-                }
-            );
-        }
+        assertResponses(response -> {
+            InternalRandomSampler sampler = response.getAggregations().get("sampler");
+            double monotonicValue = ((Avg) sampler.getAggregations().get("mean_monotonic")).getValue();
+            double numericValue = ((Avg) sampler.getAggregations().get("mean_numeric")).getValue();
+            long docCount = sampler.getDocCount();
+            assertEquals(monotonicValue, sampleMonotonicValue[0], tolerance);
+            assertEquals(numericValue, sampleNumericValue[0], tolerance);
+            assertEquals(docCount, sampledDocCount[0]);
+        },
+            IntStream.rangeClosed(0, NUM_SAMPLE_RUNS - 1)
+                .mapToObj(
+                    num -> prepareSearch("idx").setPreference("shard:0")
+                        .addAggregation(
+                            new RandomSamplerAggregationBuilder("sampler").setProbability(PROBABILITY)
+                                .setSeed(0)
+                                .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
+                                .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
+                                .setShardSeed(42)
+                        )
+                )
+                .toArray(SearchRequestBuilder[]::new)
+        );
     }
 
     public void testRandomSampler() {

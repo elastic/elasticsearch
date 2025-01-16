@@ -19,6 +19,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -95,20 +96,19 @@ public class RestClusterRerouteAction extends BaseRestHandler {
             request.params().put("explain", Boolean.TRUE.toString());
         }
 
-        switch (request.getRestApiVersion()) {
-            case V_9 -> {
-                // always avoid returning the cluster state by forcing `?metric=none`; emit a warning if `?metric` is even present
-                if (request.hasParam("metric")) {
-                    deprecationLogger.critical(DeprecationCategory.API, "cluster-reroute-metric-param", METRIC_DEPRECATION_MESSAGE);
-                }
-                request.params().put("metric", "none");
+        if (request.getRestApiVersion().matches(RestApiVersion.onOrAfter(RestApiVersion.V_9))) {
+            // always avoid returning the cluster state by forcing `?metric=none`; emit a warning if `?metric` is even present
+            if (request.hasParam("metric")) {
+                deprecationLogger.critical(DeprecationCategory.API, "cluster-reroute-metric-param", METRIC_DEPRECATION_MESSAGE);
             }
-            case V_8, V_7 -> {
-                // by default, return everything but metadata
-                final String metric = request.param("metric");
-                if (metric == null) {
-                    request.params().put("metric", V8_DEFAULT_METRICS);
-                }
+            request.params().put("metric", "none");
+        } else {
+            assert request.getRestApiVersion().matches(RestApiVersion.equalTo(RestApiVersion.V_8));
+            @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // forbid this parameter in the v10 API
+            // by default, return everything but metadata
+            final String metric = request.param("metric");
+            if (metric == null) {
+                request.params().put("metric", V8_DEFAULT_METRICS);
             }
         }
 
@@ -117,6 +117,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
             clusterRerouteRequest,
             new RestRefCountedChunkedToXContentListener<>(channel)
         );
+
     }
 
     @Override

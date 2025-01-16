@@ -102,11 +102,6 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         return this;
     }
 
-    /** Get the analyzer to use, if previously set, otherwise {@code null} */
-    public String analyzer() {
-        return this.analyzer;
-    }
-
     /** Sets a slop factor for phrase queries */
     public MatchPhrasePrefixQueryBuilder slop(int slop) {
         if (slop < 0) {

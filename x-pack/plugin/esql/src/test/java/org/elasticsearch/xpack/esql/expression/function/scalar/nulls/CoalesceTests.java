@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -93,6 +94,19 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 ),
                 "CoalesceEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
                 DataType.DATETIME,
+                equalTo(firstDate == null ? secondDate : firstDate)
+            );
+        }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.DATE_NANOS, DataType.DATE_NANOS), () -> {
+            Long firstDate = randomBoolean() ? null : randomNonNegativeLong();
+            Long secondDate = randomNonNegativeLong();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(firstDate, DataType.DATE_NANOS, "first"),
+                    new TestCaseSupplier.TypedData(secondDate, DataType.DATE_NANOS, "second")
+                ),
+                "CoalesceEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.DATE_NANOS,
                 equalTo(firstDate == null ? secondDate : firstDate)
             );
         }));
@@ -174,19 +188,27 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
         Layout.Builder builder = new Layout.Builder();
         buildLayout(builder, exp);
         Layout layout = builder.build();
-        EvaluatorMapper.ToEvaluator toEvaluator = child -> {
-            if (child == evil) {
-                return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
-                    @Override
-                    public Block eval(Page page) {
-                        throw new AssertionError("shouldn't be called");
-                    }
+        EvaluatorMapper.ToEvaluator toEvaluator = new EvaluatorMapper.ToEvaluator() {
+            @Override
+            public EvalOperator.ExpressionEvaluator.Factory apply(Expression expression) {
+                if (expression == evil) {
+                    return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+                        @Override
+                        public Block eval(Page page) {
+                            throw new AssertionError("shouldn't be called");
+                        }
 
-                    @Override
-                    public void close() {}
-                };
+                        @Override
+                        public void close() {}
+                    };
+                }
+                return EvalMapper.toEvaluator(FoldContext.small(), expression, layout);
             }
-            return EvalMapper.toEvaluator(child, layout);
+
+            @Override
+            public FoldContext foldCtx() {
+                return FoldContext.small();
+            }
         };
         try (
             EvalOperator.ExpressionEvaluator eval = exp.toEvaluator(toEvaluator).get(driverContext());

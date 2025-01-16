@@ -23,7 +23,6 @@ import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -237,7 +236,7 @@ final class OutboundHandler {
         final long messageSize = reference.length();
         TransportLogger.logOutboundMessage(channel, reference);
         // stash thread context so that channel event loop is not polluted by thread context
-        try (ThreadContext.StoredContext existing = threadPool.getThreadContext().stashContext()) {
+        try (var ignored = threadPool.getThreadContext().newEmptyContext()) {
             channel.sendMessage(reference, new ActionListener<>() {
                 @Override
                 public void onResponse(Void v) {

@@ -63,7 +63,6 @@ avg(salary):double | always_false:boolean
 
 
 in
-required_capability: mv_warn
 
 from employees | keep emp_no, is_rehired, still_hired | where is_rehired in (still_hired, true) | where is_rehired != still_hired;
 ignoreOrder:true

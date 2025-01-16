@@ -1,5 +1,0 @@
-pr: 110921
-summary: "ESQL: Support IP fields in MAX and MIN aggregations"
-area: ES|QL
-type: feature
-issues: []

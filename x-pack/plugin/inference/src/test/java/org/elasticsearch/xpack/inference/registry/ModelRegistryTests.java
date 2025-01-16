@@ -22,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.search.SearchHit;
@@ -35,16 +36,16 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -292,58 +293,30 @@ public class ModelRegistryTests extends ESTestCase {
         );
     }
 
-    @SuppressWarnings("unchecked")
-    public void testDeepCopyDefaultConfig() {
-        {
-            var toCopy = new UnparsedModel("tocopy", randomFrom(TaskType.values()), "service-a", Map.of(), Map.of());
-            var copied = ModelRegistry.deepCopyDefaultConfig(toCopy);
-            assertThat(copied, not(sameInstance(toCopy)));
-            assertThat(copied.taskType(), is(toCopy.taskType()));
-            assertThat(copied.service(), is(toCopy.service()));
-            assertThat(copied.secrets(), not(sameInstance(toCopy.secrets())));
-            assertThat(copied.secrets(), is(toCopy.secrets()));
-            // Test copied is a modifiable map
-            copied.secrets().put("foo", "bar");
+    public void testIdMatchedDefault() {
+        var defaultConfigIds = new ArrayList<InferenceService.DefaultConfigId>();
+        defaultConfigIds.add(new InferenceService.DefaultConfigId("foo", TaskType.SPARSE_EMBEDDING, mock(InferenceService.class)));
+        defaultConfigIds.add(new InferenceService.DefaultConfigId("bar", TaskType.SPARSE_EMBEDDING, mock(InferenceService.class)));
 
-            assertThat(copied.settings(), not(sameInstance(toCopy.settings())));
-            assertThat(copied.settings(), is(toCopy.settings()));
-            // Test copied is a modifiable map
-            copied.settings().put("foo", "bar");
-        }
+        var matched = ModelRegistry.idMatchedDefault("bar", defaultConfigIds);
+        assertEquals(defaultConfigIds.get(1), matched.get());
+        matched = ModelRegistry.idMatchedDefault("baz", defaultConfigIds);
+        assertFalse(matched.isPresent());
+    }
 
-        {
-            Map<String, Object> secretsMap = Map.of("secret", "value");
-            Map<String, Object> chunking = Map.of("strategy", "word");
-            Map<String, Object> task = Map.of("user", "name");
-            Map<String, Object> service = Map.of("num_threads", 1, "adaptive_allocations", Map.of("enabled", true));
-            Map<String, Object> settings = Map.of("chunking_settings", chunking, "service_settings", service, "task_settings", task);
+    public void testTaskTypeMatchedDefaults() {
+        var defaultConfigIds = new ArrayList<InferenceService.DefaultConfigId>();
+        defaultConfigIds.add(new InferenceService.DefaultConfigId("s1", TaskType.SPARSE_EMBEDDING, mock(InferenceService.class)));
+        defaultConfigIds.add(new InferenceService.DefaultConfigId("s2", TaskType.SPARSE_EMBEDDING, mock(InferenceService.class)));
+        defaultConfigIds.add(new InferenceService.DefaultConfigId("d1", TaskType.TEXT_EMBEDDING, mock(InferenceService.class)));
+        defaultConfigIds.add(new InferenceService.DefaultConfigId("c1", TaskType.COMPLETION, mock(InferenceService.class)));
 
-            var toCopy = new UnparsedModel("tocopy", randomFrom(TaskType.values()), "service-a", settings, secretsMap);
-            var copied = ModelRegistry.deepCopyDefaultConfig(toCopy);
-            assertThat(copied, not(sameInstance(toCopy)));
-
-            assertThat(copied.secrets(), not(sameInstance(toCopy.secrets())));
-            assertThat(copied.secrets(), is(toCopy.secrets()));
-            // Test copied is a modifiable map
-            copied.secrets().remove("secret");
-
-            assertThat(copied.settings(), not(sameInstance(toCopy.settings())));
-            assertThat(copied.settings(), is(toCopy.settings()));
-            // Test copied is a modifiable map
-            var chunkOut = (Map<String, Object>) copied.settings().get("chunking_settings");
-            assertThat(chunkOut, is(chunking));
-            chunkOut.remove("strategy");
-
-            var taskOut = (Map<String, Object>) copied.settings().get("task_settings");
-            assertThat(taskOut, is(task));
-            taskOut.remove("user");
-
-            var serviceOut = (Map<String, Object>) copied.settings().get("service_settings");
-            assertThat(serviceOut, is(service));
-            var adaptiveOut = (Map<String, Object>) serviceOut.remove("adaptive_allocations");
-            assertThat(adaptiveOut, is(Map.of("enabled", true)));
-            adaptiveOut.remove("enabled");
-        }
+        var matched = ModelRegistry.taskTypeMatchedDefaults(TaskType.SPARSE_EMBEDDING, defaultConfigIds);
+        assertThat(matched, contains(defaultConfigIds.get(0), defaultConfigIds.get(1)));
+        matched = ModelRegistry.taskTypeMatchedDefaults(TaskType.TEXT_EMBEDDING, defaultConfigIds);
+        assertThat(matched, contains(defaultConfigIds.get(2)));
+        matched = ModelRegistry.taskTypeMatchedDefaults(TaskType.RERANK, defaultConfigIds);
+        assertThat(matched, empty());
     }
 
     public void testDuplicateDefaultIds() {
@@ -351,11 +324,15 @@ public class ModelRegistryTests extends ESTestCase {
         var registry = new ModelRegistry(client);
 
         var id = "my-inference";
+        var mockServiceA = mock(InferenceService.class);
+        when(mockServiceA.name()).thenReturn("service-a");
+        var mockServiceB = mock(InferenceService.class);
+        when(mockServiceB.name()).thenReturn("service-b");
 
-        registry.addDefaultConfiguration(new UnparsedModel(id, randomFrom(TaskType.values()), "service-a", Map.of(), Map.of()));
+        registry.addDefaultIds(new InferenceService.DefaultConfigId(id, randomFrom(TaskType.values()), mockServiceA));
         var ise = expectThrows(
             IllegalStateException.class,
-            () -> registry.addDefaultConfiguration(new UnparsedModel(id, randomFrom(TaskType.values()), "service-b", Map.of(), Map.of()))
+            () -> registry.addDefaultIds(new InferenceService.DefaultConfigId(id, randomFrom(TaskType.values()), mockServiceB))
         );
         assertThat(
             ise.getMessage(),

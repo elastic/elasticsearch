@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -37,7 +36,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -313,31 +311,12 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             fail(e);
         }
 
-        int[] expectedChunks = new int[] { 3 };
-        if (Objects.equals(params.param("metric"), "none") == false) {
-            expectedChunks[0] += 2 + ClusterStateTests.expectedChunkCount(params, response.getState());
-        }
-        if (params.paramAsBoolean("explain", false)) {
-            expectedChunks[0]++;
-        }
+        final var expectedChunks = Objects.equals(params.param("metric"), "none")
+            ? 2
+            : 4 + ClusterStateTests.expectedChunkCount(params, response.getState());
 
-        AbstractChunkedSerializingTestCase.assertChunkCount(response, params, o -> expectedChunks[0]);
+        AbstractChunkedSerializingTestCase.assertChunkCount(response, params, o -> expectedChunks);
         assertCriticalWarnings(criticalDeprecationWarnings);
-
-        // check the v7 API too
-        AbstractChunkedSerializingTestCase.assertChunkCount(new ChunkedToXContent() {
-            @Override
-            public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-                return response.toXContentChunkedV7(outerParams);
-            }
-
-            @Override
-            public boolean isFragment() {
-                return response.isFragment();
-            }
-        }, params, o -> expectedChunks[0]++);
-        // the v7 API should not emit any deprecation warnings
-        assertCriticalWarnings();
     }
 
     private static ClusterRerouteResponse createClusterRerouteResponse(ClusterState clusterState) {
@@ -367,7 +346,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                     .build()
                             )
-                            .eventIngestedRange(IndexLongFieldRange.UNKNOWN, TransportVersion.current())
+                            .eventIngestedRange(IndexLongFieldRange.UNKNOWN)
                             .build(),
                         false
                     )

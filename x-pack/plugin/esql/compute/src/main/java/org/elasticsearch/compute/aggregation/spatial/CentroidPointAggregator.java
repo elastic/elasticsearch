@@ -32,6 +32,13 @@ import java.nio.ByteOrder;
  * This requires that the planner has planned that points are loaded from the index as doc-values.
  */
 abstract class CentroidPointAggregator {
+    public static CentroidState initSingle() {
+        return new CentroidState();
+    }
+
+    public static GroupingCentroidState initGrouping(BigArrays bigArrays) {
+        return new GroupingCentroidState(bigArrays);
+    }
 
     public static void combine(CentroidState current, double xVal, double xDel, double yVal, double yDel, long count) {
         current.add(xVal, xDel, yVal, yDel, count);
@@ -58,7 +65,7 @@ abstract class CentroidPointAggregator {
     }
 
     public static Block evaluateFinal(CentroidState state, DriverContext driverContext) {
-        return driverContext.blockFactory().newConstantBytesRefBlockWith(state.encodeCentroidResult(), 1);
+        return state.toBlock(driverContext.blockFactory());
     }
 
     public static void combineStates(GroupingCentroidState current, int groupId, GroupingCentroidState state, int statePosition) {
@@ -181,10 +188,14 @@ abstract class CentroidPointAggregator {
             this.count += count;
         }
 
-        protected BytesRef encodeCentroidResult() {
-            double x = xSum.value() / count;
-            double y = ySum.value() / count;
-            return encode(x, y);
+        protected Block toBlock(BlockFactory blockFactory) {
+            if (count > 0) {
+                double x = xSum.value() / count;
+                double y = ySum.value() / count;
+                return blockFactory.newConstantBytesRefBlockWith(encode(x, y), 1);
+            } else {
+                return blockFactory.newConstantNullBlock(1);
+            }
         }
     }
 

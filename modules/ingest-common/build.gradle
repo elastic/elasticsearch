@@ -13,15 +13,15 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Module for ingest processors that do not require additional security permissions or have large dependencies and resources'
-  classname 'org.elasticsearch.ingest.common.IngestCommonPlugin'
+  description = 'Module for ingest processors that do not require additional security permissions or have large dependencies and resources'
+  classname ='org.elasticsearch.ingest.common.IngestCommonPlugin'
   extendedPlugins = ['lang-painless']
 }
 
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
-  api project(':libs:elasticsearch-grok')
-  api project(':libs:elasticsearch-dissect')
+  api project(':libs:grok')
+  api project(':libs:dissect')
   implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   implementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
 }

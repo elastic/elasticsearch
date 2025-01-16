@@ -14,7 +14,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
-public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements ProfilingQuery {
+public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryProfilerProvider {
     private final Integer kParam;
     private long vectorOpsCount;
 
@@ -27,12 +27,16 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements Profilin
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
         // if k param is set, we get only top k results from each shard
         TopDocs topK = kParam == null ? super.mergeLeafResults(perLeafResults) : TopDocs.merge(kParam, perLeafResults);
-        vectorOpsCount = topK.totalHits.value;
+        vectorOpsCount = topK.totalHits.value();
         return topK;
     }
 
     @Override
     public void profile(QueryProfiler queryProfiler) {
-        queryProfiler.setVectorOpsCount(vectorOpsCount);
+        queryProfiler.addVectorOpsCount(vectorOpsCount);
+    }
+
+    public Integer kParam() {
+        return kParam;
     }
 }

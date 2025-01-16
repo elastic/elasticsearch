@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -42,11 +43,11 @@ public final class Alias extends NamedExpression {
         this(source, name, child, null);
     }
 
-    public Alias(Source source, String name, Expression child, NameId id) {
+    public Alias(Source source, String name, Expression child, @Nullable NameId id) {
         this(source, name, child, id, false);
     }
 
-    public Alias(Source source, String name, Expression child, NameId id, boolean synthetic) {
+    public Alias(Source source, String name, Expression child, @Nullable NameId id, boolean synthetic) {
         super(source, name, singletonList(child), id, synthetic);
         this.child = child;
     }
@@ -55,7 +56,7 @@ public final class Alias extends NamedExpression {
     /**
      * Old constructor from when this had a qualifier string. Still needed to not break serialization.
      */
-    private Alias(Source source, String name, String qualifier, Expression child, NameId id, boolean synthetic) {
+    private Alias(Source source, String name, String qualifier, Expression child, @Nullable NameId id, boolean synthetic) {
         this(source, name, child, id, synthetic);
     }
 

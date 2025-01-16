@@ -211,18 +211,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
         }
 
         /**
-         * Returns {@code true} if the shard copy has a matching sync id with the primary shard.
-         * Returns {@code false} if the shard copy does not have a matching sync id with the primary
-         * shard, or this explanation pertains to the allocation of a primary shard, in which case
-         * matching sync ids are irrelevant.
-         */
-        public boolean hasMatchingSyncId() {
-            return matchingBytes == Long.MAX_VALUE;
-        }
-
-        /**
          * Gets the number of matching bytes the shard copy has with the primary shard.
-         * Returns {@code Long.MAX_VALUE} if {@link #hasMatchingSyncId()} returns {@code true}.
          * Returns -1 if not applicable (this value only applies to assigning replica shards).
          */
         public long getMatchingBytes() {
@@ -263,11 +252,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
                     builder.field("allocation_id", allocationId);
                 }
                 if (matchingBytes >= 0) {
-                    if (hasMatchingSyncId()) {
-                        builder.field("matching_sync_id", true);
-                    } else {
-                        builder.humanReadableField("matching_size_in_bytes", "matching_size", ByteSizeValue.ofBytes(matchingBytes));
-                    }
+                    builder.humanReadableField("matching_size_in_bytes", "matching_size", ByteSizeValue.ofBytes(matchingBytes));
                 }
                 if (storeException != null) {
                     builder.startObject("store_exception");

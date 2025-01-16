@@ -69,7 +69,11 @@ public class DenseVectorTests extends ESTestCase {
         assertEquals(knn.cosineSimilarity(arrayQV), knn.cosineSimilarity(listQV), 0.001f);
         assertEquals(knn.cosineSimilarity((Object) listQV), knn.cosineSimilarity((Object) arrayQV), 0.001f);
 
-        for (IndexVersion indexVersion : List.of(IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())) {
+        for (IndexVersion indexVersion : List.of(
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersion.current()
+        )) {
             BytesRef value = BinaryDenseVectorScriptDocValuesTests.mockEncodeDenseVector(docVector, ElementType.FLOAT, indexVersion);
             BinaryDenseVector bdv = new BinaryDenseVector(docVector, value, dims, indexVersion);
 

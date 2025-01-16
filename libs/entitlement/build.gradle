@@ -1,0 +1,38 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.embedded-providers'
+apply plugin: 'elasticsearch.mrjar'
+
+embeddedProviders {
+  impl 'entitlement', project(':libs:entitlement:asm-provider')
+}
+
+dependencies {
+  compileOnly project(':libs:core') // For @SuppressForbidden
+  compileOnly project(':libs:logging')
+  compileOnly project(":libs:x-content") // for parsing policy files
+  compileOnly project(':libs:entitlement:bridge')
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'entitlement'
+  }
+
+  // guarding for intellij
+  if (sourceSets.findByName("main23")) {
+    main23CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java23')
+  }
+}
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  replaceSignatureFiles 'jdk-signatures'
+}

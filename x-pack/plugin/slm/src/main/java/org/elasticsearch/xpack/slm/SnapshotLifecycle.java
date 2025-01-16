@@ -130,7 +130,6 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
         SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(
             settings,
             clusterService,
-            services.featureService(),
             threadPool,
             client,
             services.xContentRegistry()
@@ -238,7 +237,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
     }
 
     List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {
-        return List.of(new ReservedSnapshotAction(featureService.get()));
+        return List.of(new ReservedSnapshotAction());
     }
 
     @Override

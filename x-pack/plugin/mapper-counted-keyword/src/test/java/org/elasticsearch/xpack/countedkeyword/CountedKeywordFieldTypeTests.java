@@ -77,11 +77,7 @@ public class CountedKeywordFieldTypeTests extends ESTestCase {
 
         @Override
         public long nextOrd() {
-            currentOrd++;
-            if (currentOrd >= docValues.size()) {
-                return NO_MORE_ORDS;
-            }
-            return currentOrd;
+            return ++currentOrd;
         }
 
         @Override

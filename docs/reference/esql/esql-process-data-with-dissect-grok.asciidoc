@@ -40,7 +40,7 @@ delimiter-based pattern, and extracts the specified keys as columns.
 For example, the following pattern:
 [source,txt]
 ----
-%{clientip} [%{@timestamp}] %{status} 
+%{clientip} [%{@timestamp}] %{status}
 ----
 
 matches a log line of this format:
@@ -76,8 +76,8 @@ ignore certain fields, append fields, skip over padding, etc.
 ===== Terminology
 
 dissect pattern::
-the set of fields and delimiters describing the textual 
-format. Also known as a dissection. 
+the set of fields and delimiters describing the textual
+format. Also known as a dissection.
 The dissection is described using a set of `%{}` sections:
 `%{a} - %{b} - %{c}`
 
@@ -91,14 +91,14 @@ Any set of characters other than `%{`, `'not }'`, or `}` is a delimiter.
 key::
 +
 --
-the text between the `%{` and `}`, exclusive of the `?`, `+`, `&` prefixes 
-and the ordinal suffix. 
+the text between the `%{` and `}`, exclusive of the `?`, `+`, `&` prefixes
+and the ordinal suffix.
 
 Examples:
 
-* `%{?aaa}` - the key is `aaa` 
-* `%{+bbb/3}` - the key is `bbb` 
-* `%{&ccc}` - the key is `ccc` 
+* `%{?aaa}` - the key is `aaa`
+* `%{+bbb/3}` - the key is `bbb`
+* `%{&ccc}` - the key is `ccc`
 --
 
 [[esql-dissect-examples]]
@@ -218,7 +218,7 @@ Putting it together as an {esql} query:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs.csv-spec[tag=grokWithEscape]
+include::{esql-specs}/docs.csv-spec[tag=grokWithEscapeTripleQuotes]
 ----
 
 `GROK` adds the following columns to the input table:
@@ -239,14 +239,23 @@ with a `\`. For example, in the earlier pattern:
 %{IP:ip} \[%{TIMESTAMP_ISO8601:@timestamp}\] %{GREEDYDATA:status}
 ----
 
-In {esql} queries, the backslash character itself is a special character that
+In {esql} queries, when using single quotes for strings, the backslash character itself is a special character that
 needs to be escaped with another `\`. For this example, the corresponding {esql}
 query becomes:
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/docs.csv-spec[tag=grokWithEscape]
 ----
+
+For this reason, in general it is more convenient to use triple quotes `"""` for GROK patterns,
+that do not require escaping for backslash.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=grokWithEscapeTripleQuotes]
+----
 ====
+
 
 [[esql-grok-patterns]]
 ===== Grok patterns

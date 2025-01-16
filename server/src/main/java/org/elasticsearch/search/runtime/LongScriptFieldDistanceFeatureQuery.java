@@ -16,6 +16,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.script.AbstractLongFieldScript;
@@ -56,8 +57,10 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
             }
 
             @Override
-            public Scorer scorer(LeafReaderContext context) {
-                return new DistanceScorer(this, scriptContextFunction().apply(context), context.reader().maxDoc(), boost);
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                return new DefaultScorerSupplier(
+                    new DistanceScorer(scriptContextFunction().apply(context), context.reader().maxDoc(), boost)
+                );
             }
 
             @Override
@@ -84,8 +87,7 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
         private final DocIdSetIterator disi;
         private final float weight;
 
-        protected DistanceScorer(Weight weight, AbstractLongFieldScript script, int maxDoc, float boost) {
-            super(weight);
+        protected DistanceScorer(AbstractLongFieldScript script, int maxDoc, float boost) {
             this.script = script;
             twoPhase = new TwoPhaseIterator(DocIdSetIterator.all(maxDoc)) {
                 @Override

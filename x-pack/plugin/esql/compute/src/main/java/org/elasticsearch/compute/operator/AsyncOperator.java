@@ -29,20 +29,24 @@ import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * {@link AsyncOperator} performs an external computation specified in {@link #performAsync(Page, ActionListener)}.
- * This operator acts as a client and operates on a per-page basis to reduce communication overhead.
+ * {@link AsyncOperator} performs an external computation specified in
+ * {@link #performAsync(Page, ActionListener)}. This operator acts as a client
+ * to reduce communication overhead and fetches a {@code Fetched} at a time.
+ * It's the responsibility of subclasses to transform that {@code Fetched} into
+ * output.
  * @see #performAsync(Page, ActionListener)
  */
-public abstract class AsyncOperator implements Operator {
+public abstract class AsyncOperator<Fetched> implements Operator {
 
     private volatile SubscribableListener<Void> blockedFuture;
 
-    private final Map<Long, Page> buffers = ConcurrentCollections.newConcurrentMap();
+    private final Map<Long, Fetched> buffers = ConcurrentCollections.newConcurrentMap();
     private final FailureCollector failureCollector = new FailureCollector();
     private final DriverContext driverContext;
 
     private final int maxOutstandingRequests;
     private final LongAdder totalTimeInNanos = new LongAdder();
+
     private boolean finished = false;
     private volatile boolean closed = false;
 
@@ -83,7 +87,7 @@ public abstract class AsyncOperator implements Operator {
         driverContext.addAsyncAction();
         boolean success = false;
         try {
-            final ActionListener<Page> listener = ActionListener.wrap(output -> {
+            final ActionListener<Fetched> listener = ActionListener.wrap(output -> {
                 buffers.put(seqNo, output);
                 onSeqNoCompleted(seqNo);
             }, e -> {
@@ -104,10 +108,12 @@ public abstract class AsyncOperator implements Operator {
         }
     }
 
-    private void releasePageOnAnyThread(Page page) {
+    protected static void releasePageOnAnyThread(Page page) {
         page.allowPassingToDifferentDriver();
         page.releaseBlocks();
     }
+
+    protected abstract void releaseFetchedOnAnyThread(Fetched result);
 
     /**
      * Performs an external computation and notify the listener when the result is ready.
@@ -115,7 +121,7 @@ public abstract class AsyncOperator implements Operator {
      * @param inputPage the input page
      * @param listener  the listener
      */
-    protected abstract void performAsync(Page inputPage, ActionListener<Page> listener);
+    protected abstract void performAsync(Page inputPage, ActionListener<Fetched> listener);
 
     protected abstract void doClose();
 
@@ -125,7 +131,7 @@ public abstract class AsyncOperator implements Operator {
             notifyIfBlocked();
         }
         if (closed || failureCollector.hasFailure()) {
-            discardPages();
+            discardResults();
         }
     }
 
@@ -145,18 +151,18 @@ public abstract class AsyncOperator implements Operator {
     private void checkFailure() {
         Exception e = failureCollector.getFailure();
         if (e != null) {
-            discardPages();
+            discardResults();
             throw ExceptionsHelper.convertToRuntime(e);
         }
     }
 
-    private void discardPages() {
+    private void discardResults() {
         long nextCheckpoint;
         while ((nextCheckpoint = checkpoint.getPersistedCheckpoint() + 1) <= checkpoint.getProcessedCheckpoint()) {
-            Page page = buffers.remove(nextCheckpoint);
+            Fetched result = buffers.remove(nextCheckpoint);
             checkpoint.markSeqNoAsPersisted(nextCheckpoint);
-            if (page != null) {
-                releasePageOnAnyThread(page);
+            if (result != null) {
+                releaseFetchedOnAnyThread(result);
             }
         }
     }
@@ -165,7 +171,7 @@ public abstract class AsyncOperator implements Operator {
     public final void close() {
         finish();
         closed = true;
-        discardPages();
+        discardResults();
         doClose();
     }
 
@@ -184,15 +190,18 @@ public abstract class AsyncOperator implements Operator {
         }
     }
 
-    @Override
-    public Page getOutput() {
+    /**
+     * Get a {@link Fetched} from the buffer.
+     * @return a result if one is ready or {@code null} if none are available.
+     */
+    public final Fetched fetchFromBuffer() {
         checkFailure();
         long persistedCheckpoint = checkpoint.getPersistedCheckpoint();
         if (persistedCheckpoint < checkpoint.getProcessedCheckpoint()) {
             persistedCheckpoint++;
-            Page page = buffers.remove(persistedCheckpoint);
+            Fetched result = buffers.remove(persistedCheckpoint);
             checkpoint.markSeqNoAsPersisted(persistedCheckpoint);
-            return page;
+            return result;
         } else {
             return null;
         }

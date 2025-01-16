@@ -194,6 +194,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#functionName}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFunctionName(EsqlBaseParser.FunctionNameContext ctx);
+  /**
    * Visit a parse tree produced by the {@code toDataType}
    * labeled alternative in {@link EsqlBaseParser#dataType}.
    * @param ctx the parse tree
@@ -249,18 +255,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitMetadata(EsqlBaseParser.MetadataContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#metadataOption}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMetadataOption(EsqlBaseParser.MetadataOptionContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#deprecated_metadata}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitDeprecated_metadata(EsqlBaseParser.Deprecated_metadataContext ctx);
-  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#metricsCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -278,6 +272,18 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#aggFields}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitAggFields(EsqlBaseParser.AggFieldsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#aggField}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitAggField(EsqlBaseParser.AggFieldContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedName}.
    * @param ctx the parse tree
@@ -549,4 +555,28 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#joinCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitJoinCommand(EsqlBaseParser.JoinCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#joinTarget}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitJoinTarget(EsqlBaseParser.JoinTargetContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#joinCondition}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitJoinCondition(EsqlBaseParser.JoinConditionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#joinPredicate}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
 }

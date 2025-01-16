@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -43,7 +44,23 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
         The following wildcard characters are supported:
 
         * `*` matches zero or more characters.
-        * `?` matches one character.""", examples = @Example(file = "docs", tag = "like"))
+        * `?` matches one character.""", detailedDescription = """
+        Matching the exact characters `*` and `.` will require escaping.
+        The escape character is backslash `\\`. Since also backslash is a special character in string literals,
+        it will require further escaping.
+
+        [source.merge.styled,esql]
+        ----
+        include::{esql-specs}/string.csv-spec[tag=likeEscapingSingleQuotes]
+        ----
+
+        To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
+
+        [source.merge.styled,esql]
+        ----
+        include::{esql-specs}/string.csv-spec[tag=likeEscapingTripleQuotes]
+        ----
+        """, examples = @Example(file = "docs", tag = "like"))
     public WildcardLike(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal expression.") Expression left,
@@ -81,6 +98,11 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
     @Override
     protected TypeResolution resolveType() {
         return isString(field(), sourceText(), DEFAULT);
+    }
+
+    @Override
+    public Boolean fold(FoldContext ctx) {
+        return (Boolean) EvaluatorMapper.super.fold(source(), ctx);
     }
 
     @Override

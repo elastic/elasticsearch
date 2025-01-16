@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -94,7 +95,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 fieldType = new TextFieldMapper.Builder(
                     fieldName,
                     createDefaultIndexAnalyzers(),
-                    indexService.getIndexSettings().getMode().isSyntheticSourceEnabled()
+                    SourceFieldMapper.isSynthetic(indexService.getIndexSettings())
                 ).fielddata(true).build(context).fieldType();
             }
         } else if (type.equals("float")) {
@@ -162,10 +163,9 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 docValues
             ).build(context).fieldType();
         } else if (type.equals("binary")) {
-            fieldType = new BinaryFieldMapper.Builder(fieldName, indexService.getIndexSettings().getMode().isSyntheticSourceEnabled())
-                .docValues(docValues)
-                .build(context)
-                .fieldType();
+            fieldType = new BinaryFieldMapper.Builder(fieldName, SourceFieldMapper.isSynthetic(indexService.getIndexSettings())).docValues(
+                docValues
+            ).build(context).fieldType();
         } else {
             throw new UnsupportedOperationException(type);
         }

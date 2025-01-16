@@ -88,7 +88,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         super(in);
         organicQuery = in.readNamedWriteable(QueryBuilder.class);
         matchCriteria = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RULE_QUERY_RENAME)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             rulesetIds = in.readStringCollectionAsList();
         } else {
             rulesetIds = List.of(in.readString());
@@ -144,7 +144,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         out.writeNamedWriteable(organicQuery);
         out.writeGenericMap(matchCriteria);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RULE_QUERY_RENAME)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeStringCollection(rulesetIds);
         } else {
             out.writeString(rulesetIds.get(0));

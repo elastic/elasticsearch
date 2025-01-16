@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -157,11 +156,8 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
 
     // visible for testing
     void startTask(ClusterChangedEvent event) {
-        // Wait until every node in the cluster supports health checks
-        if (event.localNodeMaster()
-            && event.state().clusterRecovered()
-            && HealthNode.findTask(event.state()) == null
-            && featureService.clusterHasFeature(event.state(), HealthFeatures.SUPPORTS_HEALTH)) {
+        // Wait until master is stable before starting health task
+        if (event.localNodeMaster() && event.state().clusterRecovered() && HealthNode.findTask(event.state()) == null) {
             persistentTasksService.sendStartRequest(
                 TASK_NAME,
                 TASK_NAME,
@@ -186,8 +182,8 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
 
     // visible for testing
     void shuttingDown(ClusterChangedEvent event) {
-        DiscoveryNode node = clusterService.localNode();
-        if (isNodeShuttingDown(event, node.getId())) {
+        if (isNodeShuttingDown(event)) {
+            var node = event.state().getNodes().getLocalNode();
             abortTaskIfApplicable("node [{" + node.getName() + "}{" + node.getId() + "}] shutting down");
         }
     }
@@ -202,9 +198,18 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         }
     }
 
-    private static boolean isNodeShuttingDown(ClusterChangedEvent event, String nodeId) {
-        return event.previousState().metadata().nodeShutdowns().contains(nodeId) == false
-            && event.state().metadata().nodeShutdowns().contains(nodeId);
+    private static boolean isNodeShuttingDown(ClusterChangedEvent event) {
+        if (event.metadataChanged() == false) {
+            return false;
+        }
+        var shutdownsOld = event.previousState().metadata().nodeShutdowns();
+        var shutdownsNew = event.state().metadata().nodeShutdowns();
+        if (shutdownsNew == shutdownsOld) {
+            return false;
+        }
+        String nodeId = event.state().nodes().getLocalNodeId();
+        return shutdownsOld.contains(nodeId) == false && shutdownsNew.contains(nodeId);
+
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {

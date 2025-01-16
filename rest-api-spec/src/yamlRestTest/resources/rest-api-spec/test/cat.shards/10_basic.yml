@@ -19,7 +19,6 @@
              ip                               .+   \n
              id                               .+   \n
              node                             .+   \n
-             sync_id                          .+   \n
              unassigned.reason                .+   \n
              unassigned.at                    .+   \n
              unassigned.for                   .+   \n
@@ -46,6 +45,7 @@
              indexing.index_time              .+   \n
              indexing.index_total             .+   \n
              indexing.index_failed            .+   \n
+             indexing.index_failed_due_to_version_conflict .+   \n
              merges.current                   .+   \n
              merges.current_docs              .+   \n
              merges.current_size              .+   \n

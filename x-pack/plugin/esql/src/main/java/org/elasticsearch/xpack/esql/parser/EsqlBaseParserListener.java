@@ -314,6 +314,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#functionName}.
+   * @param ctx the parse tree
+   */
+  void enterFunctionName(EsqlBaseParser.FunctionNameContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#functionName}.
+   * @param ctx the parse tree
+   */
+  void exitFunctionName(EsqlBaseParser.FunctionNameContext ctx);
+  /**
    * Enter a parse tree produced by the {@code toDataType}
    * labeled alternative in {@link EsqlBaseParser#dataType}.
    * @param ctx the parse tree
@@ -406,26 +416,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitMetadata(EsqlBaseParser.MetadataContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#metadataOption}.
-   * @param ctx the parse tree
-   */
-  void enterMetadataOption(EsqlBaseParser.MetadataOptionContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#metadataOption}.
-   * @param ctx the parse tree
-   */
-  void exitMetadataOption(EsqlBaseParser.MetadataOptionContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#deprecated_metadata}.
-   * @param ctx the parse tree
-   */
-  void enterDeprecated_metadata(EsqlBaseParser.Deprecated_metadataContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#deprecated_metadata}.
-   * @param ctx the parse tree
-   */
-  void exitDeprecated_metadata(EsqlBaseParser.Deprecated_metadataContext ctx);
-  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#metricsCommand}.
    * @param ctx the parse tree
    */
@@ -455,6 +445,26 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitStatsCommand(EsqlBaseParser.StatsCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#aggFields}.
+   * @param ctx the parse tree
+   */
+  void enterAggFields(EsqlBaseParser.AggFieldsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#aggFields}.
+   * @param ctx the parse tree
+   */
+  void exitAggFields(EsqlBaseParser.AggFieldsContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#aggField}.
+   * @param ctx the parse tree
+   */
+  void enterAggField(EsqlBaseParser.AggFieldContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#aggField}.
+   * @param ctx the parse tree
+   */
+  void exitAggField(EsqlBaseParser.AggFieldContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#qualifiedName}.
    * @param ctx the parse tree
@@ -911,4 +921,44 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#joinCommand}.
+   * @param ctx the parse tree
+   */
+  void enterJoinCommand(EsqlBaseParser.JoinCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#joinCommand}.
+   * @param ctx the parse tree
+   */
+  void exitJoinCommand(EsqlBaseParser.JoinCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#joinTarget}.
+   * @param ctx the parse tree
+   */
+  void enterJoinTarget(EsqlBaseParser.JoinTargetContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#joinTarget}.
+   * @param ctx the parse tree
+   */
+  void exitJoinTarget(EsqlBaseParser.JoinTargetContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#joinCondition}.
+   * @param ctx the parse tree
+   */
+  void enterJoinCondition(EsqlBaseParser.JoinConditionContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#joinCondition}.
+   * @param ctx the parse tree
+   */
+  void exitJoinCondition(EsqlBaseParser.JoinConditionContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#joinPredicate}.
+   * @param ctx the parse tree
+   */
+  void enterJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#joinPredicate}.
+   * @param ctx the parse tree
+   */
+  void exitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
 }

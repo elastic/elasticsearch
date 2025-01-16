@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
@@ -30,6 +30,7 @@ import org.elasticsearch.reservedstate.service.ReservedStateChunk;
 import org.elasticsearch.reservedstate.service.ReservedStateUpdateTask;
 import org.elasticsearch.reservedstate.service.ReservedStateUpdateTaskExecutor;
 import org.elasticsearch.reservedstate.service.ReservedStateVersion;
+import org.elasticsearch.reservedstate.service.ReservedStateVersionCheck;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -362,7 +363,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         AtomicReference<Exception> x = new AtomicReference<>();
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, x::set);
+            controller.process("operator", parser, randomFrom(ReservedStateVersionCheck.values()), x::set);
 
             assertThat(x.get(), instanceOf(IllegalStateException.class));
             assertThat(x.get().getMessage(), containsString("Error processing state change request for operator"));
@@ -383,7 +384,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         );
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, Assert::assertNull);
+            controller.process("operator", parser, randomFrom(ReservedStateVersionCheck.values()), Assert::assertNull);
         }
     }
 
@@ -417,10 +418,10 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
                     )
                 )
             ),
-            new ReservedStateVersion(123L, Version.CURRENT)
+            new ReservedStateVersion(123L, BuildVersion.current())
         );
 
-        controller.process("operator", pack, x::set);
+        controller.process("operator", pack, randomFrom(ReservedStateVersionCheck.values()), x::set);
 
         assertThat(x.get(), instanceOf(IllegalStateException.class));
         assertThat(x.get().getMessage(), containsString("Error processing state change request for operator"));
@@ -439,6 +440,6 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
             )
         );
 
-        controller.process("operator", pack, Assert::assertNull);
+        controller.process("operator", pack, randomFrom(ReservedStateVersionCheck.values()), Assert::assertNull);
     }
 }

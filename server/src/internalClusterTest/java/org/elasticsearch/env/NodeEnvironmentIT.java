@@ -123,7 +123,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
 
     public void testFailsToStartIfDowngraded() {
         final IllegalStateException illegalStateException = expectThrowsOnRestart(
-            dataPaths -> PersistedClusterStateService.overrideVersion(NodeMetadataTests.tooNewVersion(), dataPaths)
+            dataPaths -> PersistedClusterStateService.overrideVersion(NodeMetadataTests.tooNewBuildVersion(), dataPaths)
         );
         assertThat(
             illegalStateException.getMessage(),
@@ -133,7 +133,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
 
     public void testFailsToStartIfUpgradedTooFar() {
         final IllegalStateException illegalStateException = expectThrowsOnRestart(
-            dataPaths -> PersistedClusterStateService.overrideVersion(NodeMetadataTests.tooOldVersion(), dataPaths)
+            dataPaths -> PersistedClusterStateService.overrideVersion(NodeMetadataTests.tooOldBuildVersion(), dataPaths)
         );
         assertThat(
             illegalStateException.getMessage(),

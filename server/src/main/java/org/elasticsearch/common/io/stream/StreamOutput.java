@@ -768,13 +768,8 @@ public abstract class StreamOutput extends OutputStream {
             final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
             o.writeString(zonedDateTime.getZone().getId());
             Instant instant = zonedDateTime.toInstant();
-            if (o.getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT_BROKEN)) {
-                // epoch seconds can be negative, but it was incorrectly first written as vlong
-                if (o.getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT)) {
-                    o.writeZLong(instant.getEpochSecond());
-                } else {
-                    o.writeVLong(instant.getEpochSecond());
-                }
+            if (o.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                o.writeZLong(instant.getEpochSecond());
                 o.writeInt(instant.getNano());
             } else {
                 o.writeLong(instant.toEpochMilli());
@@ -1233,5 +1228,12 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeMissingString() throws IOException {
         writeBoolean(false);
+    }
+
+    /**
+     * Write a {@link BigInteger} to the stream
+     */
+    public void writeBigInteger(BigInteger bigInteger) throws IOException {
+        writeString(bigInteger.toString());
     }
 }

@@ -123,7 +123,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
     /**
      * Whether the aggregation will execute. If the main query matches no documents and parent aggregation isn't a global or terms
-     * aggregation with min_doc_count = 0, the the aggregator will not really execute. In those cases it doesn't make sense to load
+     * aggregation with min_doc_count = 0, the aggregator will not really execute. In those cases it doesn't make sense to load
      * global ordinals.
      * <p>
      * Some searches that will never match can still fall through and we endup running query that will produce no results.

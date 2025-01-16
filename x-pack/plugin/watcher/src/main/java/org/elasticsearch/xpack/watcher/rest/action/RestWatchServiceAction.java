@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -24,7 +23,7 @@ public class RestWatchServiceAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.builder(POST, "/_watcher/_start").replaces(POST, "/_xpack/watcher/_start", RestApiVersion.V_7).build());
+        return List.of(new Route(POST, "/_watcher/_start"));
     }
 
     @Override
@@ -42,7 +41,7 @@ public class RestWatchServiceAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return List.of(Route.builder(POST, "/_watcher/_stop").replaces(POST, "/_xpack/watcher/_stop", RestApiVersion.V_7).build());
+            return List.of(new Route(POST, "/_watcher/_stop"));
         }
 
         @Override

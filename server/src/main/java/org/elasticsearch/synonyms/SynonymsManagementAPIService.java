@@ -106,7 +106,6 @@ public class SynonymsManagementAPIService {
         .setIndexFormat(SYNONYMS_INDEX_FORMAT)
         .setMappings(mappings())
         .setSettings(settings())
-        .setVersionMetaKey("version")
         .setOrigin(SYNONYMS_ORIGIN)
         .build();
 
@@ -230,7 +229,7 @@ public class SynonymsManagementAPIService {
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
             .setSource(new SearchSourceBuilder().size(0).trackTotalHits(true))
             .execute(listener.delegateFailureAndWrap((searchListener, countResponse) -> {
-                long totalSynonymRules = countResponse.getHits().getTotalHits().value;
+                long totalSynonymRules = countResponse.getHits().getTotalHits().value();
                 if (totalSynonymRules > maxSynonymsSets) {
                     logger.warn(
                         "The number of synonym rules in the synonym set [{}] exceeds the maximum allowed."
@@ -265,7 +264,7 @@ public class SynonymsManagementAPIService {
             .setPreference(Preference.LOCAL.type())
             .setTrackTotalHits(true)
             .execute(new DelegatingIndexNotFoundActionListener<>(synonymSetId, listener, (searchListener, searchResponse) -> {
-                final long totalSynonymRules = searchResponse.getHits().getTotalHits().value;
+                final long totalSynonymRules = searchResponse.getHits().getTotalHits().value();
                 // If there are no rules, check that the synonym set actually exists to return the proper error
                 if (totalSynonymRules == 0) {
                     checkSynonymSetExists(synonymSetId, searchListener.delegateFailure((existsListener, response) -> {
@@ -383,7 +382,7 @@ public class SynonymsManagementAPIService {
                 .setPreference(Preference.LOCAL.type())
                 .setTrackTotalHits(true)
                 .execute(l1.delegateFailureAndWrap((searchListener, searchResponse) -> {
-                    long synonymsSetSize = searchResponse.getHits().getTotalHits().value;
+                    long synonymsSetSize = searchResponse.getHits().getTotalHits().value();
                     if (synonymsSetSize >= maxSynonymsSets) {
                         listener.onFailure(
                             new IllegalArgumentException("The number of synonym rules in a synonyms set cannot exceed " + maxSynonymsSets)

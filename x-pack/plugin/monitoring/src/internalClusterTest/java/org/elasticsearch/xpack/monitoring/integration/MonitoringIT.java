@@ -149,7 +149,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
                 assertResponse(client().prepareSearch(".monitoring-" + system.getSystem() + "-" + TEMPLATE_VERSION + "-*"), response -> {
                     // exactly 3 results are expected
-                    assertThat("No monitoring documents yet", response.getHits().getTotalHits().value, equalTo(3L));
+                    assertThat("No monitoring documents yet", response.getHits().getTotalHits().value(), equalTo(3L));
 
                     final List<Map<String, Object>> sources = Arrays.stream(response.getHits().getHits())
                         .map(SearchHit::getSourceAsMap)
@@ -165,7 +165,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
             assertCheckedResponse(client().prepareSearch(monitoringIndex), response -> {
                 final SearchHits hits = response.getHits();
 
-                assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
                 assertThat(
                     "Monitoring documents must have the same timestamp",
                     Arrays.stream(hits.getHits()).map(hit -> extractValue("timestamp", hit.getSourceAsMap())).distinct().count(),

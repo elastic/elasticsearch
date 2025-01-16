@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndicesService;
@@ -58,7 +57,6 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
     Void> {
 
     public static final ActionType<NodesResponse> TYPE = new ActionType<>("cluster:monitor/nodes/data_tier_usage");
-    public static final NodeFeature LOCALLY_PRECALCULATED_STATS_FEATURE = new NodeFeature("usage.data_tiers.precalculate_stats");
 
     private static final CommonStatsFlags STATS_FLAGS = new CommonStatsFlags().clear()
         .set(CommonStatsFlags.Flag.Docs, true)

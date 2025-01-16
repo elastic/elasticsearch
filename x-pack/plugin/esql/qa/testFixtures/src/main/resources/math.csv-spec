@@ -214,8 +214,6 @@ height:double | s:double
 ;
 
 powSalarySquared
-required_capability: pow_double
-
 from employees | eval s = pow(to_long(salary) - 75000, 2) + 10000 | keep salary, s | sort salary desc | limit 4;
 
 salary:integer | s:double
@@ -631,8 +629,6 @@ base:double | exponent:integer | result:double
 ;
 
 powIntInt
-required_capability: pow_double
-
 ROW base = 2, exponent = 2
 | EVAL s = POW(base, exponent)
 ;
@@ -642,8 +638,6 @@ base:integer | exponent:integer | s:double
 ;
 
 powIntIntPlusInt
-required_capability: pow_double
-
 row s = 1 + pow(2, 2);
 
 s:double
@@ -658,8 +652,6 @@ s:double
 ;
 
 powIntUL
-required_capability: pow_double
-
 row x = pow(1, 9223372036854775808);
 
 x:double
@@ -667,8 +659,6 @@ x:double
 ;
 
 powLongUL
-required_capability: pow_double
-
 row x = to_long(1) | eval x = pow(x, 9223372036854775808);
 
 x:double
@@ -676,8 +666,6 @@ x:double
 ;
 
 powUnsignedLongUL
-required_capability: pow_double
-
 row x = to_ul(1) | eval x = pow(x, 9223372036854775808);
 
 x:double
@@ -701,8 +689,6 @@ null
 ;
 
 powULInt
-required_capability: pow_double
-
 row x = pow(to_unsigned_long(9223372036854775807), 1);
 
 x:double
@@ -710,8 +696,6 @@ x:double
 ;
 
 powULIntOverrun
-required_capability: pow_double
-
 ROW x = POW(9223372036854775808, 2)
 ;
 
@@ -732,8 +716,6 @@ x:double
 ;
 
 powULLong
-required_capability: pow_double
-
 row x = to_long(10) | eval x = pow(to_unsigned_long(10), x);
 
 x:double
@@ -741,8 +723,6 @@ x:double
 ;
 
 powULLongOverrun
-required_capability: pow_double
-
 row x = to_long(100) | eval x = pow(to_unsigned_long(10), x);
 
 x:double

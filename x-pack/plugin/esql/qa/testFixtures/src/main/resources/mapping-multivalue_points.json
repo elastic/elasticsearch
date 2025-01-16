@@ -12,10 +12,16 @@
     "centroid": {
       "type": "geo_point"
     },
+    "lk": {
+      "type": "keyword"
+    },
     "location": {
       "type": "geo_point"
     },
     "subset": {
+      "type": "geo_point"
+    },
+    "disjoint": {
       "type": "geo_point"
     }
   }

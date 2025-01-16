@@ -167,10 +167,10 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         tps[0].forEach(stats -> {
             Map<String, Long> threadPoolStats = List.of(
                 Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED, stats.completed()),
-                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE, (long) stats.active()),
-                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_CURRENT, (long) stats.threads()),
+                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE, 0L),
+                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_CURRENT, 0L),
                 Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_LARGEST, (long) stats.largest()),
-                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE, (long) stats.queue())
+                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE, 0L)
             ).stream().collect(toUnmodifiableSortedMap(e -> stats.name() + e.getKey(), Entry::getValue));
 
             Function<String, List<Long>> measurementExtractor = name -> {

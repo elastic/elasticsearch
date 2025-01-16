@@ -6,7 +6,7 @@ WORKFLOW="${DRA_WORKFLOW:-snapshot}"
 BRANCH="${BUILDKITE_BRANCH:-}"
 
 # Don't publish main branch to staging
-if [[ "$BRANCH" == "main" && "$WORKFLOW" == "staging" ]]; then
+if [[ ("$BRANCH" == "main" || "$BRANCH" == *.x) && "$WORKFLOW" == "staging" ]]; then
   exit 0
 fi
 
@@ -22,6 +22,7 @@ if [[ "$BRANCH" == "main" ]]; then
 fi
 
 ES_VERSION=$(grep elasticsearch build-tools-internal/version.properties | sed "s/elasticsearch *= *//g")
+echo "ES_VERSION=$ES_VERSION"
 
 VERSION_SUFFIX=""
 if [[ "$WORKFLOW" == "snapshot" ]]; then
@@ -29,7 +30,10 @@ if [[ "$WORKFLOW" == "snapshot" ]]; then
 fi
 
 BEATS_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh beats "$RM_BRANCH" "$ES_VERSION" "$WORKFLOW")"
+echo "BEATS_BUILD_ID=$BEATS_BUILD_ID"
+
 ML_CPP_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh ml-cpp "$RM_BRANCH" "$ES_VERSION" "$WORKFLOW")"
+echo "ML_CPP_BUILD_ID=$ML_CPP_BUILD_ID"
 
 LICENSE_KEY_ARG=""
 BUILD_SNAPSHOT_ARG=""

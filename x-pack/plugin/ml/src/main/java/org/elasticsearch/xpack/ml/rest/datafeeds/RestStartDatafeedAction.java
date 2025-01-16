@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -26,8 +25,8 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig.ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
-import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestStartDatafeedAction extends BaseRestHandler {
@@ -36,11 +35,7 @@ public class RestStartDatafeedAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_start")
-                .replaces(POST, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_start", RestApiVersion.V_7)
-                .build()
-        );
+        return List.of(new Route(POST, BASE_PATH + "datafeeds/{" + ID + "}/_start"));
     }
 
     @Override

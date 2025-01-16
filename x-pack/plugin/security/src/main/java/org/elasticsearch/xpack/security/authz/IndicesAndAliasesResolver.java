@@ -455,12 +455,9 @@ class IndicesAndAliasesResolver {
                 for (var aliasMd : foundAliases.values()) {
                     String aliasName = aliasMd.alias();
                     IndexAbstraction aliasAbstraction = metadata.getIndicesLookup().get(aliasName);
-                    List<Index> indices = aliasAbstraction.getIndices();
-                    if (indices.size() == 1 || Boolean.TRUE.equals(aliasMd.writeIndex())) {
-                        return aliasName;
-                    } else {
-                        assert aliasAbstraction.getType() == IndexAbstraction.Type.ALIAS;
-                        Index writeIndex = aliasAbstraction.getWriteIndex();
+                    assert aliasAbstraction.getType() == IndexAbstraction.Type.ALIAS;
+                    Index writeIndex = aliasAbstraction.getWriteIndex();
+                    if (writeIndex != null) {
                         if (concreteIndexName.equals(writeIndex.getName()) && isAuthorized.test(aliasName)) {
                             return aliasName;
                         }

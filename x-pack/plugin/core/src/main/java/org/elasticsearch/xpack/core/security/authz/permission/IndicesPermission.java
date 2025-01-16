@@ -147,7 +147,7 @@ public final class IndicesPermission {
     private IndicesPermission(RestrictedIndices restrictedIndices, Group[] groups) {
         this.restrictedIndices = restrictedIndices;
         this.groups = groups;
-        this.hasFieldOrDocumentLevelSecurity = Arrays.stream(groups).noneMatch(Group::noFieldLevelSecurity)
+        this.hasFieldOrDocumentLevelSecurity = Arrays.stream(groups).noneMatch(Group::allowsTotalDataIndexAccess)
             && Arrays.stream(groups).anyMatch(g -> g.hasQuery() || g.getFieldPermissions().hasFieldLevelSecurity());
     }
 
@@ -432,13 +432,6 @@ public final class IndicesPermission {
         Map<String, IndexAbstraction> lookup,
         FieldPermissionsCache fieldPermissionsCache
     ) {
-        // Short circuit if the indicesPermission allows all access to every index
-        for (Group group : groups) {
-            if (group.noRestrictions()) {
-                return IndicesAccessControl.allowAll();
-            }
-        }
-
         final Map<String, IndexResource> resources = Maps.newMapWithExpectedSize(requestedIndicesOrAliases.size());
         int totalResourceCount = 0;
 

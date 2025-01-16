@@ -131,7 +131,8 @@ public class Group {
                     && group.hasMappingUpdateBwcPermissions
                     && resource != null
                     && resource.getParentDataStream() == null
-                    && resource.getType() != IndexAbstraction.Type.DATA_STREAM) { // ATHE does this grant too often?
+                    && resource.getType() != IndexAbstraction.Type.DATA_STREAM
+                    && group.indexNameMatcher.test(name)) {
                     boolean alreadyLogged = deprecationLogEmitted.getAndSet(true);
                     if (alreadyLogged == false) {
                         for (String privilegeName : group.privilege.name()) {
@@ -239,16 +240,12 @@ public class Group {
         return indexNameAutomaton.get();
     }
 
-    boolean noFieldLevelSecurity() {
+    boolean allowsTotalDataIndexAccess() {
         return allowRestrictedIndices
             && indexNameMatcher.isTotal()
-            && privilege.name().contains(IndexPrivilege.ALL)
-            && query == null
-            && false == fieldPermissions.hasFieldLevelSecurity();
-    }
-
-    boolean noRestrictions() {
-        return noFieldLevelSecurity() && hasReadFailuresPrivilege;
+            && privilege.name().contains("all") // ATHE: probably make this into a constant
+            && hasReadFailuresPrivilege
+            && query == null;
     }
 
     @Override

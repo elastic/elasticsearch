@@ -585,11 +585,6 @@ public class IndicesPermissionTests extends ESTestCase {
             "the index privilege [write] allowed the update mapping action ["
                 + TransportPutMappingAction.TYPE.name()
                 + "] on "
-                + "index [test1], this privilege will not permit mapping updates in the next major release - "
-                + "users who require access to update mappings must be granted explicit privileges",
-            "the index privilege [write] allowed the update mapping action ["
-                + TransportPutMappingAction.TYPE.name()
-                + "] on "
                 + "index [test_write1], this privilege will not permit mapping updates in the next major release - "
                 + "users who require access to update mappings must be granted explicit privileges"
         );
@@ -679,9 +674,10 @@ public class IndicesPermissionTests extends ESTestCase {
         ).build();
         assertThat(indicesPermission2.hasFieldOrDocumentLevelSecurity(), is(false));
 
-        // IsTotal means NO DLS/FLS even when there is another group that has DLS/FLS
+        // allowsTotalDataIndexAccess means NO DLS/FLS even when there is another group that has DLS/FLS
+        // failure store indices are not considered as
         final IndicesPermission indicesPermission3 = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
-            IndexPrivilege.ALL,
+            IndexPrivilege.get(Set.of("all", "read_failures")),
             FieldPermissions.DEFAULT,
             null,
             true,

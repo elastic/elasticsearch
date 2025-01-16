@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -341,7 +342,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             new RoleDescriptor(
                 "data_stream_test3",
                 null,
-                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("logs*").privileges("all").build() },
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("logs*").privileges("all", "read_failures").build() },
                 null
             )
         );
@@ -1929,40 +1930,45 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.aliases(), arrayContainingInAnyOrder("<datetime-{now/M}>"));
     }
 
-    // public void testDynamicPutMappingRequestFromAlias() {
-    // PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index("foofoo", UUIDs.base64UUID()));
-    // User user = new User("alias-writer", "alias_read_write");
-    // AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportPutMappingAction.TYPE.name());
-    //
-    // String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices::check, metadata);
-    // assertEquals("barbaz", putMappingIndexOrAlias);
-    //
-    // // multiple indices map to an alias so we can only return the concrete index
-    // final String index = randomFrom("foo", "foobar");
-    // request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
-    // putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices::check, metadata);
-    // assertEquals(index, putMappingIndexOrAlias);
-    // }
-    //
-    // public void testWhenAliasToMultipleIndicesAndUserIsAuthorizedUsingAliasReturnsAliasNameForDynamicPutMappingRequestOnWriteIndex() {
-    // String index = "logs-00003"; // write index
-    // PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
-    // assert metadata.getIndicesLookup().get("logs-alias").getIndices().size() == 3;
-    // String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, "logs-alias"::equals, metadata);
-    // String message = "user is authorized to access `logs-alias` and the put mapping request is for a write index"
-    // + "so this should have returned the alias name";
-    // assertEquals(message, "logs-alias", putMappingIndexOrAlias);
-    // }
+    public void testDynamicPutMappingRequestFromAlias() {
+        PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index("foofoo", UUIDs.base64UUID()));
+        User user = new User("alias-writer", "alias_read_write");
+        AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportPutMappingAction.TYPE.name());
 
-    // public void testWhenAliasToMultipleIndicesAndUserIsAuthorizedUsingAliasReturnsIndexNameForDynamicPutMappingRequestOnReadIndex() {
-    // String index = "logs-00002"; // read index
-    // PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
-    // assert metadata.getIndicesLookup().get("logs-alias").getIndices().size() == 3;
-    // String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, "logs-alias"::equals, metadata);
-    // String message = "user is authorized to access `logs-alias` and the put mapping request is for a read index"
-    // + "so this should have returned the concrete index as fallback";
-    // assertEquals(message, index, putMappingIndexOrAlias);
-    // }
+        String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices::check, metadata);
+        assertEquals("barbaz", putMappingIndexOrAlias);
+
+        // multiple indices map to an alias so we can only return the concrete index
+        final String index = randomFrom("foo", "foobar");
+        request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
+        putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices::check, metadata);
+        assertEquals(index, putMappingIndexOrAlias);
+        assertWarnings(
+            "the index privilege [write] allowed the update mapping action [indices:admin/mapping/put] on "
+                + "index [barbaz], this privilege will not permit mapping updates in the next major release - users who require access to "
+                + "update mappings must be granted explicit privileges"
+        );
+    }
+
+    public void testWhenAliasToMultipleIndicesAndUserIsAuthorizedUsingAliasReturnsAliasNameForDynamicPutMappingRequestOnWriteIndex() {
+        String index = "logs-00003"; // write index
+        PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
+        assert metadata.getIndicesLookup().get("logs-alias").getIndices().size() == 3;
+        String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, "logs-alias"::equals, metadata);
+        String message = "user is authorized to access `logs-alias` and the put mapping request is for a write index"
+            + "so this should have returned the alias name";
+        assertEquals(message, "logs-alias", putMappingIndexOrAlias);
+    }
+
+    public void testWhenAliasToMultipleIndicesAndUserIsAuthorizedUsingAliasReturnsIndexNameForDynamicPutMappingRequestOnReadIndex() {
+        String index = "logs-00002"; // read index
+        PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
+        assert metadata.getIndicesLookup().get("logs-alias").getIndices().size() == 3;
+        String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, "logs-alias"::equals, metadata);
+        String message = "user is authorized to access `logs-alias` and the put mapping request is for a read index"
+            + "so this should have returned the concrete index as fallback";
+        assertEquals(message, index, putMappingIndexOrAlias);
+    }
 
     public void testHiddenIndicesResolution() {
         SearchRequest searchRequest = new SearchRequest();

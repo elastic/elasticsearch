@@ -78,7 +78,7 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
         }
         if (min == null) {
             min = xMin;
-        }else {
+        } else {
             if (min > xMin) {
                 correction = min - xMin;
             }

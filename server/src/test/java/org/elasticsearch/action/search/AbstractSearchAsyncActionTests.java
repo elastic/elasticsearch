@@ -112,7 +112,11 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             }
 
             @Override
-            public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection) {
+            public void sendReleaseSearchContext(
+                ShardSearchContextId contextId,
+                Transport.Connection connection,
+                OriginalIndices originalIndices
+            ) {
                 releasedContexts.add(contextId);
             }
 

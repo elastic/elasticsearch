@@ -97,7 +97,11 @@ abstract class SearchPhase {
                 context.getLogger().trace("trying to release search context [{}]", phaseResult.getContextId());
                 SearchShardTarget shardTarget = phaseResult.getSearchShardTarget();
                 Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
-                context.sendReleaseSearchContext(phaseResult.getContextId(), connection);
+                context.sendReleaseSearchContext(
+                    phaseResult.getContextId(),
+                    connection,
+                    context.getOriginalIndices(phaseResult.getShardIndex())
+                );
             } catch (Exception e) {
                 context.getLogger().trace("failed to release context", e);
             }

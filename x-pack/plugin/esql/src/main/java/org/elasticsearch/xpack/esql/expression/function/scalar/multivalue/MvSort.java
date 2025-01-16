@@ -52,7 +52,6 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
@@ -84,7 +83,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
         ) Expression field,
         @Param(
             name = "order",
-            type = { "keyword", "text" },
+            type = { "keyword" },
             description = "Sort order. The valid options are ASC and DESC, the default is ASC.",
             optional = true
         ) Expression order
@@ -128,10 +127,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isType(field, dt -> switch (dt) {
-            case UNSIGNED_LONG, GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
-            default -> true;
-        }, sourceText(), FIRST, "not unsigned long or geo");
+        TypeResolution resolution = isType(field, DataType::isRepresentable, sourceText(), FIRST, "representable");
 
         if (resolution.unresolved()) {
             return resolution;
@@ -141,7 +137,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
             return resolution;
         }
 
-        return isNotNull(order, sourceText(), SECOND).and(isString(order, sourceText(), SECOND));
+        return isString(order, sourceText(), SECOND);
     }
 
     @Override
@@ -235,7 +231,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
     }
 
     @Override
-    public void postOptimizationVerification(Failures failures) {
+    public void postLogicalOptimizationVerification(Failures failures) {
         if (order == null) {
             return;
         }

@@ -98,8 +98,115 @@ create logsdb data stream with host.name as integer and timestamp as date:
   - do:
       indices.create_data_stream:
         name: "logsdb"
-
   - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "logsdb"
+        expand_wildcards: hidden
+  - length: { data_streams: 1 }
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+
+  - do:
+      indices.get_settings:
+        index: $backing_index
+  - match: { .$backing_index.settings.index.mode: logsdb }
+  - is_false: .$backing_index.settings.index.logsdb.add_host_name_field
+  - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: "true" }
+
+---
+create logsdb data stream with no host.name and timestamp as date:
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+            mappings:
+              properties:
+                "@timestamp":
+                  type: "date"
+
+  - do:
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: "logsdb"
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "logsdb"
+        expand_wildcards: hidden
+  - length: { data_streams: 1 }
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+
+  - do:
+      indices.get_settings:
+        index: $backing_index
+  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.logsdb.add_host_name_field: "true" }
+  - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: "true" }
+
+---
+create logsdb data stream with host as keyword and timestamp as date:
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+            mappings:
+              properties:
+                host:
+                  type: "keyword"
+                "@timestamp":
+                  type: "date"
+
+  - do:
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: "logsdb"
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "logsdb"
+        expand_wildcards: hidden
+  - length: { data_streams: 1 }
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+
+  - do:
+      indices.get_settings:
+        index: $backing_index
+  - match: { .$backing_index.settings.index.mode: logsdb }
+  - is_false: .$backing_index.settings.index.logsdb.add_host_name_field
+  - is_false: .$backing_index.settings.index.logsdb.sort_on_host_name
 
 ---
 create logsdb data stream with host as keyword:

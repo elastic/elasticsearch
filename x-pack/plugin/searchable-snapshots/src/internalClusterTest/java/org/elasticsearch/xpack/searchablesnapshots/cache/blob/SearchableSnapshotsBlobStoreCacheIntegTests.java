@@ -153,7 +153,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         expectThrows(
             IndexNotFoundException.class,
             ".snapshot-blob-cache system index should not be created yet",
-            () -> systemClient().admin().indices().prepareGetIndex().addIndices(SNAPSHOT_BLOB_CACHE_INDEX).get()
+            () -> systemClient().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(SNAPSHOT_BLOB_CACHE_INDEX).get()
         );
 
         final Storage storage1 = randomFrom(Storage.values());

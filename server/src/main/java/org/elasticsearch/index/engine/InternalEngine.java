@@ -819,7 +819,7 @@ public class InternalEngine extends Engine {
     ) throws IOException {
         assert get.isReadFromTranslog();
         translogGetCount.incrementAndGet();
-        final TranslogDirectoryReader inMemoryReader = new TranslogDirectoryReader(
+        final DirectoryReader inMemoryReader = TranslogDirectoryReader.create(
             shardId,
             index,
             mappingLookup,
@@ -3218,7 +3218,7 @@ public class InternalEngine extends Engine {
             final Translog.Snapshot snapshot;
             if (engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
                 snapshot = new LuceneSyntheticSourceChangesSnapshot(
-                    engineConfig.getMapperService().mappingLookup(),
+                    engineConfig.getMapperService(),
                     searcher,
                     SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
                     maxChunkSize,
@@ -3230,6 +3230,7 @@ public class InternalEngine extends Engine {
                 );
             } else {
                 snapshot = new LuceneChangesSnapshot(
+                    engineConfig.getMapperService(),
                     searcher,
                     SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
                     fromSeqNo,

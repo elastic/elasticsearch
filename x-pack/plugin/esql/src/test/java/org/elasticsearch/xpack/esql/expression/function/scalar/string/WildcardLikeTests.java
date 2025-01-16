@@ -55,7 +55,7 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
 
     private static void addCases(List<TestCaseSupplier> suppliers) {
         for (DataType type : new DataType[] { DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT }) {
-            suppliers.add(new TestCaseSupplier(" with " + type.esType(), List.of(type, type), () -> {
+            suppliers.add(new TestCaseSupplier(" with " + type.esType(), List.of(type, DataType.KEYWORD), () -> {
                 BytesRef str = new BytesRef(randomAlphaOfLength(5));
                 String patternString = randomAlphaOfLength(2);
                 BytesRef pattern = new BytesRef(patternString + "*");
@@ -63,7 +63,7 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
                 return new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(str, type, "str"),
-                        new TestCaseSupplier.TypedData(pattern, type, "pattern").forceLiteral()
+                        new TestCaseSupplier.TypedData(pattern, DataType.KEYWORD, "pattern").forceLiteral()
                     ),
                     startsWith("AutomataMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
                     DataType.BOOLEAN,
@@ -75,6 +75,10 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
+        return buildWildcardLike(source, args);
+    }
+
+    static Expression buildWildcardLike(Source source, List<Expression> args) {
         Expression expression = args.get(0);
         Literal pattern = (Literal) args.get(1);
         if (args.size() > 2) {

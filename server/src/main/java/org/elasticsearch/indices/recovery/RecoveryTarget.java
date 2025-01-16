@@ -51,6 +51,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadataVerifier.isReadOnlyVerified;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -642,7 +643,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                         assert localCheckpoint == globalCheckpoint : localCheckpoint + " != " + globalCheckpoint;
                     }
                 }
-                Translog.deleteAll(translogLocation);
+                if (isReadOnlyVerified(indexShard.indexSettings().getIndexMetadata())) {
+                    Translog.deleteAll(translogLocation);
+                }
                 return;
             }
             final String translogUUID = Translog.createEmptyTranslog(

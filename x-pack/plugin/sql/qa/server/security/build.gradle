@@ -64,12 +64,7 @@ subprojects {
       TestClustersPlugin.REGISTRY_SERVICE_NAME
     )
 
-    def clusterInfo = project.getProviders().of(TestClusterValueSource.class) {
-      it.parameters.path.set(clusterPath)
-      it.parameters.clusterName.set("javaRestTest")
-      it.parameters.service = serviceProvider
-    }
-
+    def clusterInfo = getClusterInfo('javaRestTest')
     testClassesDirs += project.files(testArtifactsDir)
     classpath += configurations.testArtifacts
     nonInputProperties.systemProperty 'tests.audit.logfile', clusterInfo.map { it.auditLogs.get(0) }

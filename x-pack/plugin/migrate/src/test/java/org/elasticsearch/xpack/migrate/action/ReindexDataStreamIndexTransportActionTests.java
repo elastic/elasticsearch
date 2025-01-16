@@ -110,4 +110,73 @@ public class ReindexDataStreamIndexTransportActionTests extends ESTestCase {
 
         assertEquals(targetRateLimit, requestValue.getRequestsPerSecond(), 0.0);
     }
+
+    public void testReindexIncludesInfiniteRateLimit() {
+        Settings settings = Settings.builder()
+            .put(ReindexDataStreamIndexTransportAction.REINDEX_MAX_REQUESTS_PER_SECOND_SETTING.getKey(), "-1")
+            .build();
+
+        String sourceIndex = randomAlphanumericOfLength(10);
+        String destIndex = randomAlphanumericOfLength(10);
+        ActionListener<BulkByScrollResponse> listener = ActionListener.noop();
+        TaskId taskId = TaskId.EMPTY_TASK_ID;
+
+        when(clusterService.getSettings()).thenReturn(settings);
+        doNothing().when(client).execute(eq(ReindexAction.INSTANCE), request.capture(), eq(listener));
+
+        action.reindex(sourceIndex, destIndex, listener, taskId);
+
+        ReindexRequest requestValue = request.getValue();
+
+        assertEquals(Float.POSITIVE_INFINITY, requestValue.getRequestsPerSecond(), 0.0);
+    }
+
+    public void testReindexZeroRateLimitThrowsError() {
+        Settings settings = Settings.builder()
+            .put(ReindexDataStreamIndexTransportAction.REINDEX_MAX_REQUESTS_PER_SECOND_SETTING.getKey(), "0")
+            .build();
+
+        String sourceIndex = randomAlphanumericOfLength(10);
+        String destIndex = randomAlphanumericOfLength(10);
+        ActionListener<BulkByScrollResponse> listener = ActionListener.noop();
+        TaskId taskId = TaskId.EMPTY_TASK_ID;
+
+        when(clusterService.getSettings()).thenReturn(settings);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> action.reindex(sourceIndex, destIndex, listener, taskId)
+        );
+        assertEquals(
+            "Failed to parse value [0.0] for setting [migrate.data_stream_reindex_max_request_per_second]"
+                + " must be greater than 0 or -1 for infinite",
+            e.getMessage()
+        );
+    }
+
+    public void testReindexNegativeRateLimitThrowsError() {
+        float targetRateLimit = randomFloatBetween(-100, -1, true);
+        Settings settings = Settings.builder()
+            .put(ReindexDataStreamIndexTransportAction.REINDEX_MAX_REQUESTS_PER_SECOND_SETTING.getKey(), targetRateLimit)
+            .build();
+
+        String sourceIndex = randomAlphanumericOfLength(10);
+        String destIndex = randomAlphanumericOfLength(10);
+        ActionListener<BulkByScrollResponse> listener = ActionListener.noop();
+        TaskId taskId = TaskId.EMPTY_TASK_ID;
+
+        when(clusterService.getSettings()).thenReturn(settings);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> action.reindex(sourceIndex, destIndex, listener, taskId)
+        );
+        assertEquals(
+            "Failed to parse value ["
+                + targetRateLimit
+                + "] for setting [migrate.data_stream_reindex_max_request_per_second]"
+                + " must be greater than 0 or -1 for infinite",
+            e.getMessage()
+        );
+    }
 }

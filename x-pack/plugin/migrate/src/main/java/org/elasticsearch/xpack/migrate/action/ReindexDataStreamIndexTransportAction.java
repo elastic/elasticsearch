@@ -47,10 +47,30 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
     ReindexDataStreamIndexAction.Request,
     ReindexDataStreamIndexAction.Response> {
 
-    public static final Setting<Float> REINDEX_MAX_REQUESTS_PER_SECOND_SETTING = Setting.floatSetting(
-        "migrate.data_stream_reindex_max_request_per_second",
-        10F,
-        1F,
+    public static final String REINDEX_MAX_REQUESTS_PER_SECOND_KEY = "migrate.data_stream_reindex_max_request_per_second";
+
+    public static final Setting<Float> REINDEX_MAX_REQUESTS_PER_SECOND_SETTING = new Setting<>(
+        REINDEX_MAX_REQUESTS_PER_SECOND_KEY,
+        Float.toString(10f),
+        s -> {
+            if (s.equals("-1")) {
+                return Float.POSITIVE_INFINITY;
+            } else {
+                return Float.parseFloat(s);
+            }
+        },
+        value -> {
+            if (value <= 0f) {
+                throw new IllegalArgumentException(
+                    "Failed to parse value ["
+                        + value
+                        + "] for setting ["
+                        + REINDEX_MAX_REQUESTS_PER_SECOND_KEY
+                        + "] "
+                        + "must be greater than 0 or -1 for infinite"
+                );
+            }
+        },
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

@@ -195,7 +195,7 @@ to ensure that we capture the importance of each document within the result set.
 
 So, let's now specify the `linear` retriever whose final score is computed as follows:
 
-[source]
+[source, text]
 ----
 score = weight(standard) * score(standard) + weight(knn) * score(knn)
 score = 2 * score(standard) + 1.5 * score(knn)

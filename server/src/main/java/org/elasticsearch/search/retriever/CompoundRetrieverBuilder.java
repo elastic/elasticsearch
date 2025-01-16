@@ -41,7 +41,6 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 
 /**
  * This abstract retriever defines a compound retriever. The idea is that it is not a leaf-retriever, i.e. it does not
@@ -220,7 +219,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         boolean allowPartialSearchResults
     ) {
         validationException = super.validate(source, validationException, isScroll, allowPartialSearchResults);
-        final int size = source.size() < 0 ? DEFAULT_SIZE : source.size();
+        final int size = source.size();
         if (size > rankWindowSize) {
             validationException = addValidationError(
                 String.format(

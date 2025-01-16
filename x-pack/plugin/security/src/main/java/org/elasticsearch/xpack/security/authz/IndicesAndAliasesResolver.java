@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -44,6 +46,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
@@ -284,7 +287,9 @@ class IndicesAndAliasesResolver {
                 : "indices are: " + Arrays.toString(indicesRequest.indices()); // Arrays.toString() can handle null values - all good
             String indexName = ((PutMappingRequest) indicesRequest).getConcreteIndex().getName();
             if (authorizedIndices.check(indexName)) {
-                resolvedIndicesBuilder.addLocal(indexName);
+                resolvedIndicesBuilder.addLocal(
+                    getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices::check, metadata)
+                );
             }
         } else if (indicesRequest instanceof final IndicesRequest.Replaceable replaceable) {
             final IndicesOptions indicesOptions = indicesRequest.indicesOptions();
@@ -419,6 +424,56 @@ class IndicesAndAliasesResolver {
             }
         }
         return resolvedIndicesBuilder.build();
+    }
+
+    /**
+     * Special handling of the value to authorize for a put mapping request. Dynamic put mapping
+     * requests use a concrete index, but we allow permissions to be defined on aliases so if the
+     * request's concrete index is not in the list of authorized indices, then we need to look to
+     * see if this can be authorized against an alias
+     */
+    static String getPutMappingIndexOrAlias(PutMappingRequest request, Predicate<String> isAuthorized, Metadata metadata) {
+        final String concreteIndexName = request.getConcreteIndex().getName();
+
+        // validate that the concrete index exists, otherwise there is no remapping that we could do
+        final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(concreteIndexName);
+        if (indexAbstraction == null) {
+            return concreteIndexName;
+        } else if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX) {
+            throw new IllegalStateException(
+                "concrete index ["
+                    + concreteIndexName
+                    + "] is a ["
+                    + indexAbstraction.getType().getDisplayName()
+                    + "], but a concrete index is expected"
+            );
+        } else if (isAuthorized.test(concreteIndexName)) {
+            // user is authorized to put mappings for this index
+            return concreteIndexName;
+        } else {
+            // the user is not authorized to put mappings for this index, but could have been
+            // authorized for a write using an alias that triggered a dynamic mapping update
+            Map<String, AliasMetadata> foundAliases = metadata.index(indexAbstraction.getName()).getAliases();
+            if (foundAliases != null && foundAliases.isEmpty() == false) {
+                for (var aliasMd : foundAliases.values()) {
+                    String aliasName = aliasMd.alias();
+                    IndexAbstraction aliasAbstraction = metadata.getIndicesLookup().get(aliasName);
+                    List<Index> indices = aliasAbstraction.getIndices();
+                    if (indices.size() == 1 || Boolean.TRUE.equals(aliasMd.writeIndex())) {
+                        return aliasName;
+                    } else {
+                        assert aliasAbstraction.getType() == IndexAbstraction.Type.ALIAS;
+                        Index writeIndex = aliasAbstraction.getWriteIndex();
+                        if (concreteIndexName.equals(writeIndex.getName()) && isAuthorized.test(aliasName)) {
+                            return aliasName;
+                        }
+                    }
+                }
+            } else {
+                return concreteIndexName;
+            }
+        }
+        return concreteIndexName;
     }
 
     private static List<String> loadAuthorizedAliases(Supplier<Set<String>> authorizedIndices, Metadata metadata) {

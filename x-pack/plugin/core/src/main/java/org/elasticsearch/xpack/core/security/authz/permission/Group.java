@@ -131,7 +131,7 @@ public class Group {
                     && group.hasMappingUpdateBwcPermissions
                     && resource != null
                     && resource.getParentDataStream() == null
-                    && resource.getType() != IndexAbstraction.Type.DATA_STREAM) {
+                    && resource.getType() != IndexAbstraction.Type.DATA_STREAM) { // ATHE does this grant too often?
                     boolean alreadyLogged = deprecationLogEmitted.getAndSet(true);
                     if (alreadyLogged == false) {
                         for (String privilegeName : group.privilege.name()) {

@@ -120,13 +120,6 @@ public class MetadataIndexStateService {
         "index.verified_read_only",
         false,
         Setting.Property.IndexScope,
-        Setting.Property.PrivateIndex
-    );
-
-    public static final Setting<Boolean> VERIFIED_READ_ONLY_SETTING = Setting.boolSetting(
-        "index.verified_read_only",
-        false,
-        Setting.Property.IndexScope,
         Setting.Property.NotCopyableOnResize,
         // Allow the setting to be updated in snapshot builds
         Build.current().isSnapshot() ? Setting.Property.OperatorDynamic : Setting.Property.PrivateIndex

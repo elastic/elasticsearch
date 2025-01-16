@@ -1,0 +1,85 @@
+[role="xpack"]
+[[reindex-data-stream-api]]
+=== Reindex data stream API
+++++
+<titleabbrev>Reindex data stream</titleabbrev>
+++++
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-migration[Migration APIs].
+--
+
+include::{es-ref-dir}/migration/apis/shared-migration-apis-tip.asciidoc[]
+
+The reindex data stream API is used to upgrade the backing indices of a data stream to the most
+recent major version. It works by reindexing each backing index then replacing the original
+backing index with its replacement and deleting the original backing index. The settings and mappings
+from the original backing indices are copied to the resulting backing indices.
+
+This api runs asynchronously because the process of reindexing all indices in a large data stream
+is expected to take and extended period of time. The endpoint will return immediately and a persistent
+task will be created to run in the background. The current status of the task can be checked with
+the INSERT_STATUS_API. This status will be available for 24 hours after the task completes, whether
+it finished successfully or fails. A running data stream reindex task can be cancelled using the
+CANCEL_API.
+
+[[reindex-data-stream-api-request]]
+==== {api-request-title}
+
+`POST /_migration/reindex`
+
+
+[[reindex-data-stream-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
+* If the {es} {security-features} are enabled, you must have the following
+security privileges:
+
+** The `read` <<privileges-list-indices,index privilege>> for the source data
+stream.
+** The `write` index privilege for the source data stream.
+
+** The `delete_index` privilege.
+
+
+[[reindex-data-stream-body]]
+==== {api-request-body-title}
+
+`source`::
+`index`:::
+(Required, string) The name of the data stream you are upgrading.
+
+`mode`::
+(Required, enum) Set to `upgrade` to upgrade the data stream in-place, using the same source and destination
+data stream. Each backing index will be reindexed, then swapped into the data stream, then the old index will be deleted.
+Currently, the only allowed value for this parameter is `upgrade`.
+
+
+[[reindex-data-stream-api-settings]]
+==== Settings
+
+You can use the following settings to control the behavior of the reindex data stream API:
+
+[[migrate_max_concurrent_indices_reindexed_per_data_stream-setting]]
+// tag::migrate_max_concurrent_indices_reindexed_per_data_stream-setting-tag[]
+`migrate.max_concurrent_indices_reindexed_per_data_stream`
+(<<dynamic-cluster-setting,Dynamic>>)
+The number of backing indices within a given data stream which will be reindexed concurrently. Defaults to `1`.
+// end::migrate_max_concurrent_indices_reindexed_per_data_stream-tag[]
+
+[[reindex-data-stream-api-example]]
+==== {api-examples-title}
+
+To see the list of offenders in your cluster, submit a GET request to the
+`_migration/reindex` endpoint:
+
+[source,console]
+--------------------------------------------------
+GET /_migration/reindex
+--------------------------------------------------
+// TEST[skip:cannot assert tests have certain deprecations]

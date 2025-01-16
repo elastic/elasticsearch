@@ -14,9 +14,7 @@ same data type. For instance:
 [NOTE]
 ====================================================
 
-Arrays of objects do not work as you would expect: you cannot query each
-object independently of the other objects in the array. If you need to be
-able to do this then you should use the <<nested,`nested`>> data type instead
+Arrays of objects in Elasticsearch do not behave as you would expect: queries may match fields across different objects in the array, leading to unexpected results. To ensure queries match fields within the same object, use the <<nested,`nested`>> data type instead
 of the <<object,`object`>> data type.
 
 This is explained in more detail in <<nested>>.

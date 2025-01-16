@@ -370,7 +370,7 @@ public class DriverTests extends ESTestCase {
         return new Page(block.block());
     }
 
-    static class SwitchContextOperator extends AsyncOperator {
+    static class SwitchContextOperator extends AsyncOperator<Page> {
         private final ThreadPool threadPool;
 
         SwitchContextOperator(DriverContext driverContext, ThreadPool threadPool) {
@@ -391,6 +391,16 @@ public class DriverTests extends ESTestCase {
                     innerListener.onResponse(page);
                 }
             }), TimeValue.timeValueNanos(between(1, 1_000_000)), threadPool.executor("esql"));
+        }
+
+        @Override
+        public Page getOutput() {
+            return fetchFromBuffer();
+        }
+
+        @Override
+        protected void releaseFetchedOnAnyThread(Page page) {
+            releasePageOnAnyThread(page);
         }
 
         @Override

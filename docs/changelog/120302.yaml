@@ -1,0 +1,6 @@
+pr: 120302
+summary: "ESQL: Support for arbitrary month and year intervals in `BUCKET`"
+area: ES|QL
+type: enhancement
+issues:
+  - 120094

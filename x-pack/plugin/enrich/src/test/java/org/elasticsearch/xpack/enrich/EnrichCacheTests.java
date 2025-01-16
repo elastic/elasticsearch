@@ -8,18 +8,13 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
 import java.io.IOException;
@@ -109,25 +104,6 @@ public class EnrichCacheTests extends ESTestCase {
     }
 
     public void testComputeIfAbsent() throws InterruptedException {
-        // Emulate cluster metadata:
-        // (two enrich indices with corresponding alias entries)
-        var metadata = Metadata.builder()
-            .put(
-                IndexMetadata.builder(EnrichPolicy.getBaseName("policy1") + "-1")
-                    .settings(settings(IndexVersion.current()))
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
-                    .putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName("policy1")).build())
-            )
-            .put(
-                IndexMetadata.builder(EnrichPolicy.getBaseName("policy2") + "-1")
-                    .settings(settings(IndexVersion.current()))
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
-                    .putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName("policy2")).build())
-            )
-            .build();
-
         // Emulated search requests that an enrich processor could generate:
         // (two unique searches for two enrich policies)
         final List<Map<String, ?>> searchResponseMap = List.of(

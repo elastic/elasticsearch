@@ -653,7 +653,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         String key,
         BytesReference expected,
         BytesReference updated
-    ) throws Exception {
+    ) throws IOException {
         BlobContainerUtils.ensureValidRegisterContent(updated);
 
         final var blobId = BlobId.of(bucketName, blobName);
@@ -698,7 +698,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         final var bytesRef = updated.toBytesRef();
 
         final Iterator<TimeValue> retries = casBackoffPolicy.iterator();
-        Exception finalException = null;
+        BaseServiceException finalException = null;
         while (true) {
             try {
                 SocketAccess.doPrivilegedVoidIOException(
@@ -712,27 +712,28 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 );
                 return OptionalBytesReference.of(expected);
             } catch (Exception e) {
-                finalException = ExceptionsHelper.useOrSuppress(finalException, e);
                 final var serviceException = unwrapServiceException(e);
-                if (serviceException != null) {
-                    final var statusCode = serviceException.getCode();
-                    if (statusCode == RestStatus.PRECONDITION_FAILED.getStatus()) {
-                        return OptionalBytesReference.MISSING;
-                    }
-                    if (statusCode == RestStatus.TOO_MANY_REQUESTS.getStatus()) {
-                        if (retries.hasNext()) {
-                            try {
-                                // noinspection BusyWait
-                                Thread.sleep(retries.next().millis());
-                                continue;
-                            } catch (InterruptedException iex) {
-                                Thread.currentThread().interrupt();
-                                finalException = ExceptionsHelper.useOrSuppress(finalException, iex);
-                            }
+                if (serviceException == null) {
+                    throw e;
+                }
+                final var statusCode = serviceException.getCode();
+                if (statusCode == RestStatus.PRECONDITION_FAILED.getStatus()) {
+                    return OptionalBytesReference.MISSING;
+                }
+                if (statusCode == RestStatus.TOO_MANY_REQUESTS.getStatus()) {
+                    finalException = ExceptionsHelper.useOrSuppress(finalException, serviceException);
+                    if (retries.hasNext()) {
+                        try {
+                            // noinspection BusyWait
+                            Thread.sleep(retries.next().millis());
+                        } catch (InterruptedException iex) {
+                            Thread.currentThread().interrupt();
+                            finalException.addSuppressed(iex);
                         }
+                    } else {
+                        throw finalException;
                     }
                 }
-                throw finalException;
             }
         }
     }

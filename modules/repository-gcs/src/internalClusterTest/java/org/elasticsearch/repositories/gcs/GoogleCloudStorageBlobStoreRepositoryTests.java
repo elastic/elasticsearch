@@ -41,6 +41,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.ResponseInjectingHttpHandler;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -329,7 +330,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                             storageService,
                             bigArrays,
                             randomIntBetween(1, 8) * 1024,
-                            BackoffPolicy.noBackoff()
+                            BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(10), 10, TimeValue.timeValueSeconds(1))
                         ) {
                             @Override
                             long getLargeBlobThresholdInBytes() {

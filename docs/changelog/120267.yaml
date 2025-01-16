@@ -1,7 +1,7 @@
 pr: 120267
 summary: Set allow_partial_search_results=true by default
 area: EQL
-type: "breaking, enhancement"
+type: breaking
 issues: []
 breaking:
   title: Set allow_partial_search_results=true by default

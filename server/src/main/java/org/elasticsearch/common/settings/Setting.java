@@ -24,6 +24,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -151,8 +152,14 @@ public class Setting<T> implements ToXContentObject {
          * Indicates that this index-level setting was deprecated in {@link Version#V_7_17_0} and is
          * forbidden in indices created from {@link Version#V_8_0_0} onwards.
          */
-        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // introduce IndexSettingDeprecatedInV8AndRemovedInV9 to replace this constant
+        @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)  // remove constant if indices created in V7 couldn't be read by v10 anymore
         IndexSettingDeprecatedInV7AndRemovedInV8,
+
+        /**
+         * Indicates that this index-level setting was deprecated in {@link Version#V_8_18_0} and is
+         * forbidden in indices created from {@link Version#V_9_0_0} onwards.
+         */
+        IndexSettingDeprecatedInV8AndRemovedInV9,
 
         /**
          * Indicates that this setting is accessible by non-operator users (public) in serverless

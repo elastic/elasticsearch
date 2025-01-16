@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
@@ -46,6 +47,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.fieldvisitor.FieldNamesProvidingStoredFieldsVisitor;
@@ -76,9 +80,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * into an in-memory Lucene segment that is created on-demand.
  */
 final class TranslogDirectoryReader extends DirectoryReader {
-    private final TranslogLeafReader leafReader;
+    private final LeafReader leafReader;
 
-    TranslogDirectoryReader(
+    static DirectoryReader create(
         ShardId shardId,
         Translog.Index operation,
         MappingLookup mappingLookup,
@@ -86,11 +90,39 @@ final class TranslogDirectoryReader extends DirectoryReader {
         EngineConfig engineConfig,
         Runnable onSegmentCreated
     ) throws IOException {
-        this(new TranslogLeafReader(shardId, operation, mappingLookup, documentParser, engineConfig, onSegmentCreated));
+        final Directory directory = new ByteBuffersDirectory();
+        boolean success = false;
+        try {
+            final LeafReader leafReader;
+            // When using synthetic source, the translog operation must always be reindexed into an in-memory Lucene to ensure consistent
+            // output for realtime-get operations. However, this can degrade the performance of realtime-get and update operations.
+            // If slight inconsistencies in realtime-get operations are acceptable, the translog operation can be reindexed lazily.
+            if (mappingLookup.isSourceSynthetic()) {
+                onSegmentCreated.run();
+                leafReader = createInMemoryReader(shardId, engineConfig, directory, documentParser, mappingLookup, false, operation);
+            } else {
+                leafReader = new TranslogLeafReader(
+                    shardId,
+                    operation,
+                    mappingLookup,
+                    documentParser,
+                    engineConfig,
+                    directory,
+                    onSegmentCreated
+                );
+            }
+            var directoryReader = ElasticsearchDirectoryReader.wrap(new TranslogDirectoryReader(directory, leafReader), shardId);
+            success = true;
+            return directoryReader;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(directory);
+            }
+        }
     }
 
-    private TranslogDirectoryReader(TranslogLeafReader leafReader) throws IOException {
-        super(leafReader.directory, new LeafReader[] { leafReader }, null);
+    private TranslogDirectoryReader(Directory directory, LeafReader leafReader) throws IOException {
+        super(directory, new LeafReader[] { leafReader }, null);
         this.leafReader = leafReader;
     }
 
@@ -139,12 +171,13 @@ final class TranslogDirectoryReader extends DirectoryReader {
         return leafReader.getReaderCacheHelper();
     }
 
-    static DirectoryReader createInMemoryReader(
+    private static LeafReader createInMemoryReader(
         ShardId shardId,
         EngineConfig engineConfig,
         Directory directory,
         DocumentParser documentParser,
         MappingLookup mappingLookup,
+        boolean rootDocOnly,
         Translog.Index operation
     ) {
         final ParsedDocument parsedDocs = documentParser.parseDocument(
@@ -159,13 +192,55 @@ final class TranslogDirectoryReader extends DirectoryReader {
             IndexWriterConfig.OpenMode.CREATE
         ).setCodec(engineConfig.getCodec());
         try (IndexWriter writer = new IndexWriter(directory, writeConfig)) {
-            writer.addDocuments(parsedDocs.docs());
-            final DirectoryReader reader = open(writer);
-            if (reader.leaves().size() != 1) {
-                reader.close();
-                throw new IllegalStateException("Expected a single segment; " + "but  got[" + reader.leaves().size() + "] segments");
+            final int numDocs;
+            if (rootDocOnly) {
+                numDocs = 1;
+                writer.addDocument(parsedDocs.rootDoc());
+            } else {
+                numDocs = parsedDocs.docs().size();
+                writer.addDocuments(parsedDocs.docs());
             }
-            return reader;
+            final DirectoryReader reader = open(writer);
+            if (reader.leaves().size() != 1 || reader.leaves().get(0).reader().numDocs() != numDocs) {
+                reader.close();
+                throw new IllegalStateException(
+                    "Expected a single segment with "
+                        + numDocs
+                        + " documents, "
+                        + "but ["
+                        + reader.leaves().size()
+                        + " segments with "
+                        + reader.leaves().get(0).reader().numDocs()
+                        + " documents"
+                );
+            }
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            return new SequentialStoredFieldsLeafReader(leafReader) {
+                @Override
+                protected void doClose() throws IOException {
+                    IOUtils.close(super::doClose, directory);
+                }
+
+                @Override
+                public CacheHelper getCoreCacheHelper() {
+                    return leafReader.getCoreCacheHelper();
+                }
+
+                @Override
+                public CacheHelper getReaderCacheHelper() {
+                    return leafReader.getReaderCacheHelper();
+                }
+
+                @Override
+                public StoredFieldsReader getSequentialStoredFieldsReader() {
+                    return Lucene.segmentReader(leafReader).getFieldsReader().getMergeInstance();
+                }
+
+                @Override
+                protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
+                    return reader;
+                }
+            };
         } catch (IOException e) {
             throw new EngineException(shardId, "failed to create an in-memory segment for get [" + operation.id() + "]", e);
         }
@@ -252,6 +327,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             MappingLookup mappingLookup,
             DocumentParser documentParser,
             EngineConfig engineConfig,
+            Directory directory,
             Runnable onSegmentCreated
         ) {
             this.shardId = shardId;
@@ -260,7 +336,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             this.documentParser = documentParser;
             this.engineConfig = engineConfig;
             this.onSegmentCreated = onSegmentCreated;
-            this.directory = new ByteBuffersDirectory();
+            this.directory = directory;
             this.uid = Uid.encodeId(operation.id());
         }
 
@@ -272,7 +348,15 @@ final class TranslogDirectoryReader extends DirectoryReader {
                     ensureOpen();
                     reader = delegate.get();
                     if (reader == null) {
-                        var indexReader = createInMemoryReader(shardId, engineConfig, directory, documentParser, mappingLookup, operation);
+                        var indexReader = createInMemoryReader(
+                            shardId,
+                            engineConfig,
+                            directory,
+                            documentParser,
+                            mappingLookup,
+                            true,
+                            operation
+                        );
                         reader = indexReader.leaves().get(0).reader();
                         final LeafReader existing = delegate.getAndSet(reader);
                         assert existing == null;
@@ -457,7 +541,12 @@ final class TranslogDirectoryReader extends DirectoryReader {
 
         @Override
         protected synchronized void doClose() throws IOException {
-            IOUtils.close(delegate.get(), directory);
+            final LeafReader leaf = delegate.get();
+            if (leaf != null) {
+                leaf.close();
+            } else {
+                directory.close();
+            }
         }
     }
 

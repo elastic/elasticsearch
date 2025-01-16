@@ -121,12 +121,12 @@ final class TransportHandshaker {
      * [3] Parent task ID should be empty; see org.elasticsearch.tasks.TaskId.writeTo for its structure.
      */
 
-    static final TransportVersion EARLIEST_HANDSHAKE_VERSION = TransportVersion.fromId(6080099);
-    static final TransportVersion REQUEST_HANDSHAKE_VERSION = TransportVersions.MINIMUM_COMPATIBLE;
+    static final TransportVersion V7_HANDSHAKE_VERSION = TransportVersion.fromId(6_08_00_99);
+    static final TransportVersion V8_HANDSHAKE_VERSION = TransportVersion.fromId(7_17_00_99);
     static final TransportVersion V9_HANDSHAKE_VERSION = TransportVersion.fromId(8_800_00_0);
     static final Set<TransportVersion> ALLOWED_HANDSHAKE_VERSIONS = Set.of(
-        EARLIEST_HANDSHAKE_VERSION,
-        REQUEST_HANDSHAKE_VERSION,
+        V7_HANDSHAKE_VERSION,
+        V8_HANDSHAKE_VERSION,
         V9_HANDSHAKE_VERSION
     );
 
@@ -166,7 +166,7 @@ final class TransportHandshaker {
         );
         boolean success = false;
         try {
-            handshakeRequestSender.sendRequest(node, channel, requestId, REQUEST_HANDSHAKE_VERSION);
+            handshakeRequestSender.sendRequest(node, channel, requestId, V8_HANDSHAKE_VERSION);
 
             threadPool.schedule(
                 () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")),

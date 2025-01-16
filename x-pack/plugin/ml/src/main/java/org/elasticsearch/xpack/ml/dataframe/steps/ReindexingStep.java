@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
@@ -225,7 +226,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
             ML_ORIGIN,
             parentTaskClient,
             GetIndexAction.INSTANCE,
-            new GetIndexRequest().indices(config.getDest().getIndex()),
+            new GetIndexRequest(MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT).indices(config.getDest().getIndex()),
             destIndexListener
         );
     }

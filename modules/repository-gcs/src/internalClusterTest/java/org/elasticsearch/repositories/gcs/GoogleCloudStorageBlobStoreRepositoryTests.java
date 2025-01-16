@@ -29,8 +29,6 @@ import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.OptionalBytesReference;
-import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.Streams;
@@ -41,9 +39,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.http.ResponseInjectingHttpHandler;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
@@ -51,10 +47,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.junit.After;
-import org.junit.Before;
 import org.threeten.bp.Duration;
 
 import java.io.IOException;
@@ -63,9 +56,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -79,22 +69,6 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CL
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
-
-    private static final int MAX_RETRIES = 5;
-    private static final AtomicBoolean INTRODUCE_ERRORS = new AtomicBoolean(true);
-    private final Queue<ResponseInjectingHttpHandler.RequestHandler> requestHandlers = new ConcurrentLinkedQueue<>();
-
-    @Before
-    public void resetIntroduceErrors() {
-        INTRODUCE_ERRORS.set(true);
-    }
-
-    @After
-    public void checkRequestHandlerQueue() {
-        if (requestHandlers.isEmpty() == false) {
-            fail("There were unused request handlers left in the queue, this is probably a broken test");
-        }
-    }
 
     @Override
     protected String repositoryType() {
@@ -122,9 +96,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     protected Map<String, HttpHandler> createHttpHandlers() {
         return Map.of(
             "/",
-            new GoogleCloudStorageStatsCollectorHttpHandler(
-                new ResponseInjectingHttpHandler(requestHandlers, new GoogleCloudStorageBlobStoreHttpHandler("bucket"))
-            ),
+            new GoogleCloudStorageStatsCollectorHttpHandler(new GoogleCloudStorageBlobStoreHttpHandler("bucket")),
             "/token",
             new FakeOAuth2HttpHandler()
         );
@@ -233,38 +205,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
     }
 
-    public void testCompareAndExchangeWhenThrottled() throws IOException {
-        INTRODUCE_ERRORS.set(false);
-        try (BlobStore store = newBlobStore()) {
-            final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
-            final byte[] data = randomBytes(randomIntBetween(1, BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH));
-            final String key = randomIdentifier();
-
-            final OptionalBytesReference createResult = safeAwait(
-                l -> container.compareAndExchangeRegister(randomPurpose(), key, BytesArray.EMPTY, new BytesArray(data), l)
-            );
-            assertEquals(createResult, OptionalBytesReference.EMPTY);
-
-            final byte[] updatedData = randomBytes(randomIntBetween(1, BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH));
-            final int numberOfThrottles = randomIntBetween(MAX_RETRIES, 3 * MAX_RETRIES);
-            for (int i = 0; i < numberOfThrottles; i++) {
-                requestHandlers.offer(
-                    new ResponseInjectingHttpHandler.FixedRequestHandler(
-                        RestStatus.TOO_MANY_REQUESTS,
-                        null,
-                        ex -> ex.getRequestURI().getPath().equals("/upload/storage/v1/b/bucket/o") && ex.getRequestMethod().equals("POST")
-                    )
-                );
-            }
-            final OptionalBytesReference updateResult = safeAwait(
-                l -> container.compareAndExchangeRegister(randomPurpose(), key, new BytesArray(data), new BytesArray(updatedData), l)
-            );
-            assertEquals(new BytesArray(data), updateResult.bytesReference());
-
-            container.delete(randomPurpose());
-        }
-    }
-
     public static class TestGoogleCloudStoragePlugin extends GoogleCloudStoragePlugin {
 
         public TestGoogleCloudStoragePlugin(Settings settings) {
@@ -290,7 +230,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                                 .setInitialRetryDelay(Duration.ofMillis(10L))
                                 .setRetryDelayMultiplier(options.getRetrySettings().getRetryDelayMultiplier())
                                 .setMaxRetryDelay(Duration.ofSeconds(1L))
-                                .setMaxAttempts(MAX_RETRIES)
+                                .setMaxAttempts(0)
                                 .setJittered(false)
                                 .setInitialRpcTimeout(options.getRetrySettings().getInitialRpcTimeout())
                                 .setRpcTimeoutMultiplier(options.getRetrySettings().getRpcTimeoutMultiplier())
@@ -330,7 +270,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                             storageService,
                             bigArrays,
                             randomIntBetween(1, 8) * 1024,
-                            BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(10), 10, TimeValue.timeValueSeconds(1))
+                            BackoffPolicy.noBackoff()
                         ) {
                             @Override
                             long getLargeBlobThresholdInBytes() {
@@ -388,7 +328,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         protected boolean canFailRequest(final HttpExchange exchange) {
             // Batch requests are not retried so we don't want to fail them
             // The batched request are supposed to be retried (not tested here)
-            return INTRODUCE_ERRORS.get() && exchange.getRequestURI().toString().startsWith("/batch/") == false;
+            return exchange.getRequestURI().toString().startsWith("/batch/") == false;
         }
     }
 

@@ -155,7 +155,12 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("socket_bind", forPlugins(NetworkAccessCheckActions::socketBind)),
         entry("socket_connect", forPlugins(NetworkAccessCheckActions::socketConnect)),
         entry("server_socket_bind", forPlugins(NetworkAccessCheckActions::serverSocketBind)),
-        entry("server_socket_accept", forPlugins(NetworkAccessCheckActions::serverSocketAccept))
+        entry("server_socket_accept", forPlugins(NetworkAccessCheckActions::serverSocketAccept)),
+
+        entry("url_open_connection_proxy", forPlugins(NetworkAccessCheckActions::urlOpenConnectionWithProxy)),
+        entry("http_client_builder_build", forPlugins(NetworkAccessCheckActions::httpClientBuilderBuild)),
+        entry("http_client_send", forPlugins(NetworkAccessCheckActions::httpClientSend)),
+        entry("http_client_send_async", forPlugins(NetworkAccessCheckActions::httpClientSendAsync))
     );
 
     private static void createURLStreamHandlerProvider() {

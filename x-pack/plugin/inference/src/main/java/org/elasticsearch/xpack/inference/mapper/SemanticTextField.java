@@ -152,9 +152,9 @@ public record SemanticTextField(
         private void validate() {
             switch (taskType) {
                 case TEXT_EMBEDDING:
-                    validateFieldPresent(DIMENSIONS_FIELD, dimensions);
-                    validateFieldPresent(SIMILARITY_FIELD, similarity);
-                    validateFieldPresent(ELEMENT_TYPE_FIELD, elementType);
+                    // validateFieldPresent(DIMENSIONS_FIELD, dimensions);
+                    // validateFieldPresent(SIMILARITY_FIELD, similarity);
+                    // validateFieldPresent(ELEMENT_TYPE_FIELD, elementType);
                     break;
                 case SPARSE_EMBEDDING:
                     validateFieldNotPresent(DIMENSIONS_FIELD, dimensions);

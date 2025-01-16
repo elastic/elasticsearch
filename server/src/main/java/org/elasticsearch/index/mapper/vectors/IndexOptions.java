@@ -9,40 +9,22 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
-import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Objects;
 
 public abstract class IndexOptions implements ToXContent {
-    final DenseVectorFieldMapper.VectorIndexType type;
+    protected final IndexType type;
 
-    IndexOptions(DenseVectorFieldMapper.VectorIndexType type) {
+    IndexOptions(IndexType type) {
         this.type = type;
     }
 
-    public DenseVectorFieldMapper.VectorIndexType getType() {
+    public IndexType getType() {
         return type;
     }
 
-    abstract KnnVectorsFormat getVectorsFormat(DenseVectorFieldMapper.ElementType elementType);
-
-    final void validateElementType(DenseVectorFieldMapper.ElementType elementType) {
-        if (type.supportsElementType(elementType) == false) {
-            throw new IllegalArgumentException(
-                "[element_type] cannot be [" + elementType.toString() + "] when using index type [" + type + "]"
-            );
-        }
-    }
-
     abstract boolean updatableTo(IndexOptions update);
-
-    public void validateDimension(int dim) {
-        if (type.supportsDimension(dim)) {
-            return;
-        }
-        throw new IllegalArgumentException(type.name + " only supports even dimensions; provided=" + dim);
-    }
 
     abstract boolean doEquals(IndexOptions other);
 

@@ -539,7 +539,7 @@ setup:
   - match: { _source.semantic_field: "these are not the droids you're looking for. He's free to go around" }
 
 ---
-"Index options on sparse_vector fields are ignored on index creation but indexing documents fails":
+"Index options automatically infer a task type of text_embedding, so requests using sparse_embedding models will fail":
   - requires:
       cluster_features: "semantic_text.index_options"
       reason: Index options introduced in 8.18.0

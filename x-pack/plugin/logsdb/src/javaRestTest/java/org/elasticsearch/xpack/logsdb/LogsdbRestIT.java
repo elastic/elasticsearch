@@ -289,43 +289,43 @@ public class LogsdbRestIT extends ESRestTestCase {
 
         request = new Request("POST", "/_index_template/1");
         request.setJsonEntity("""
-        {
-            "index_patterns": ["my-log-*"],
-            "data_stream": {
-            },
-            "template": {
-                "settings":{
-                    "index": {
-                        "mode": "logsdb",
-                        "recovery.use_synthetic_source" : "true"
-                    }
+            {
+                "index_patterns": ["my-log-*"],
+                "data_stream": {
                 },
-                "mappings": {
-                    "properties": {
-                        "@timestamp" : {
-                            "type": "date"
-                        },
-                        "host.name": {
-                            "type": "keyword"
-                        },
-                        "message": {
-                            "type": "keyword"
+                "template": {
+                    "settings":{
+                        "index": {
+                            "mode": "logsdb",
+                            "recovery.use_synthetic_source" : "true"
+                        }
+                    },
+                    "mappings": {
+                        "properties": {
+                            "@timestamp" : {
+                                "type": "date"
+                            },
+                            "host.name": {
+                                "type": "keyword"
+                            },
+                            "message": {
+                                "type": "keyword"
+                            }
                         }
                     }
                 }
             }
-        }
-        """);
+            """);
         assertOK(client().performRequest(request));
 
         request = new Request("POST", "/my-log-foo/_doc");
         request.setJsonEntity("""
-        {
-            "@timestamp": "2020-01-01T00:00:00.000Z",
-            "host.name": "foo",
-            "message": "bar"
-        }
-        """);
+            {
+                "@timestamp": "2020-01-01T00:00:00.000Z",
+                "host.name": "foo",
+                "message": "bar"
+            }
+            """);
         assertOK(client().performRequest(request));
 
         String index = DataStream.getDefaultBackingIndexName("my-log-foo", 1);

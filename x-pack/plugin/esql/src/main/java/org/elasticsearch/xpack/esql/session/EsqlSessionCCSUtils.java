@@ -199,8 +199,8 @@ class EsqlSessionCCSUtils {
 
         /**
          * Rules enforced at planning time around non-matching indices
-         * 1. fail query if no matching indices on any cluster (VerificationException) - that is handled elsewhere (TODO: document where)
-         * 2. fail query if a cluster has no matching indices *and* a concrete index was specified
+         * 1. fail query if no matching indices on any cluster (VerificationException) - that is handled elsewhere
+         * 2. fail query if a cluster has no matching indices *and* a concrete index was specified - handled here
          */
         String fatalErrorMessage = null;
         /*

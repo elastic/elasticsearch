@@ -203,7 +203,7 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
         final GetIndexResponse getIndexResponse = cluster.client()
             .admin()
             .indices()
-            .getIndex(new GetIndexRequest().indices(targetIndex))
+            .getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(targetIndex))
             .actionGet();
         assertEquals(1, getIndexResponse.indices().length);
         assertResponse(

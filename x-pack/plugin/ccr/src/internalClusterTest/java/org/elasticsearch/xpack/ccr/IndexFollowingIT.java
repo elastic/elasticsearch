@@ -331,7 +331,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertFalse(response.isIndexFollowingStarted());
 
         // Check that the index exists, would throw index not found exception if the index is missing
-        followerClient().admin().indices().prepareGetIndex().addIndices("index2").get();
+        followerClient().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices("index2").get();
         ensureFollowerGreen(true, "index2");
 
         final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();

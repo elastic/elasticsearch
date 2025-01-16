@@ -54,7 +54,7 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         );
 
         try {
-            indicesAdmin().getIndex(new GetIndexRequest().indices(destIndex)).actionGet();
+            indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(destIndex)).actionGet();
         } catch (IndexNotFoundException e) {
             fail();
         }

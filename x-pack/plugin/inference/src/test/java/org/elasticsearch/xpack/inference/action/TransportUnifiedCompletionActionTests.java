@@ -71,7 +71,7 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
             assertThat(e, isA(ElasticsearchStatusException.class));
             assertThat(
                 e.getMessage(),
-                is("Incompatible task_type for unified API, the requested type [" + requestTaskType + "] must be one of [completion]")
+                is("Incompatible task_type for unified API, the requested type [" + requestTaskType + "] must be one of [chat_completion]")
             );
             assertThat(((ElasticsearchStatusException) e).status(), is(RestStatus.BAD_REQUEST));
         }));
@@ -96,7 +96,7 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
             assertThat(e, isA(ElasticsearchStatusException.class));
             assertThat(
                 e.getMessage(),
-                is("Incompatible task_type for unified API, the requested type [" + requestTaskType + "] must be one of [completion]")
+                is("Incompatible task_type for unified API, the requested type [" + requestTaskType + "] must be one of [chat_completion]")
             );
             assertThat(((ElasticsearchStatusException) e).status(), is(RestStatus.BAD_REQUEST));
         }));

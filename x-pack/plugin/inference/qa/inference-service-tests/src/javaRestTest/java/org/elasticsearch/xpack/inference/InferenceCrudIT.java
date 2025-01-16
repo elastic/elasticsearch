@@ -519,14 +519,19 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
 
     public void testUnifiedCompletionInference() throws Exception {
         String modelId = "streaming";
-        putModel(modelId, mockCompletionServiceModelConfig(TaskType.COMPLETION));
+        putModel(modelId, mockCompletionServiceModelConfig(TaskType.CHAT_COMPLETION));
         var singleModel = getModel(modelId);
         assertEquals(modelId, singleModel.get("inference_id"));
-        assertEquals(TaskType.COMPLETION.toString(), singleModel.get("task_type"));
+        assertEquals(TaskType.CHAT_COMPLETION.toString(), singleModel.get("task_type"));
 
         var input = IntStream.range(1, 2 + randomInt(8)).mapToObj(i -> randomAlphanumericOfLength(5)).toList();
         try {
-            var events = unifiedCompletionInferOnMockService(modelId, TaskType.COMPLETION, input, VALIDATE_ELASTIC_PRODUCT_HEADER_CONSUMER);
+            var events = unifiedCompletionInferOnMockService(
+                modelId,
+                TaskType.CHAT_COMPLETION,
+                input,
+                VALIDATE_ELASTIC_PRODUCT_HEADER_CONSUMER
+            );
             var expectedResponses = expectedResultsIterator(input);
             assertThat(events.size(), equalTo((input.size() + 1) * 2));
             events.forEach(event -> {

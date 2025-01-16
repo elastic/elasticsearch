@@ -1402,9 +1402,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (RETRIEVER.match(currentFieldName, parser.getDeprecationHandler())) {
-                    if (clusterSupportsFeature.test(RetrieverBuilder.RETRIEVERS_SUPPORTED) == false) {
-                        throw new ParsingException(parser.getTokenLocation(), "Unknown key for a START_OBJECT in [retriever].");
-                    }
                     retrieverBuilder = RetrieverBuilder.parseTopLevelRetrieverBuilder(
                         parser,
                         new RetrieverParserContext(searchUsage, clusterSupportsFeature)

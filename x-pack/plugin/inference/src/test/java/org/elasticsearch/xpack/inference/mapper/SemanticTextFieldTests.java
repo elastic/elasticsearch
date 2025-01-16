@@ -20,6 +20,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingByte;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
@@ -183,12 +184,26 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assertThat(ex.getMessage(), containsString("required [element_type] field is missing"));
     }
 
+    public static ChunkedInferenceEmbeddingByte randomChunkedInferenceEmbeddingByte(Model model, List<String> inputs) {
+        List<ChunkedInferenceEmbeddingByte.ByteEmbeddingChunk> chunks = new ArrayList<>();
+        for (String input : inputs) {
+            byte[] values = new byte[model.getServiceSettings().dimensions()];
+            for (int j = 0; j < values.length; j++) {
+                values[j] = randomByte();
+            }
+            chunks.add(
+                new ChunkedInferenceEmbeddingByte.ByteEmbeddingChunk(values, input, new ChunkedInference.TextOffset(0, input.length()))
+            );
+        }
+        return new ChunkedInferenceEmbeddingByte(chunks);
+    }
+
     public static ChunkedInferenceEmbeddingFloat randomChunkedInferenceEmbeddingFloat(Model model, List<String> inputs) {
         List<ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk> chunks = new ArrayList<>();
         for (String input : inputs) {
             float[] values = new float[model.getServiceSettings().dimensions()];
             for (int j = 0; j < values.length; j++) {
-                values[j] = (float) randomDouble();
+                values[j] = randomFloat();
             }
             chunks.add(
                 new ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk(values, input, new ChunkedInference.TextOffset(0, input.length()))
@@ -198,11 +213,15 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     }
 
     public static ChunkedInferenceEmbeddingSparse randomChunkedInferenceEmbeddingSparse(List<String> inputs) {
+        return randomChunkedInferenceEmbeddingSparse(inputs, true);
+    }
+
+    public static ChunkedInferenceEmbeddingSparse randomChunkedInferenceEmbeddingSparse(List<String> inputs, boolean withFloats) {
         List<ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk> chunks = new ArrayList<>();
         for (String input : inputs) {
             var tokens = new ArrayList<WeightedToken>();
             for (var token : input.split("\\s+")) {
-                tokens.add(new WeightedToken(token, randomFloat()));
+                tokens.add(new WeightedToken(token, withFloats ? randomFloat() : randomIntBetween(1, 255)));
             }
             chunks.add(
                 new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(tokens, input, new ChunkedInference.TextOffset(0, input.length()))
@@ -219,7 +238,10 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         XContentType contentType
     ) throws IOException {
         ChunkedInference results = switch (model.getTaskType()) {
-            case TEXT_EMBEDDING -> randomChunkedInferenceEmbeddingFloat(model, inputs);
+            case TEXT_EMBEDDING -> switch (model.getServiceSettings().elementType()) {
+                case FLOAT -> randomChunkedInferenceEmbeddingFloat(model, inputs);
+                case BIT, BYTE -> randomChunkedInferenceEmbeddingByte(model, inputs);
+            };
             case SPARSE_EMBEDDING -> randomChunkedInferenceEmbeddingSparse(inputs);
             default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());
         };
@@ -363,8 +385,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
      * the matched text corresponds to one complete input value (i.e. one input value -> one chunk) to calculate the offset values.
      *
      * @param useLegacyFormat Whether the old format should be used
-     * @param chunk The chunk to get/calculate offset values for
-     * @param matchedText The matched text to calculate offset values for
+     * @param chunk           The chunk to get/calculate offset values for
+     * @param matchedText     The matched text to calculate offset values for
      * @return A {@link ChunkedInference.TextOffset} instance with valid offset values
      */
     private static ChunkedInference.TextOffset createOffset(boolean useLegacyFormat, SemanticTextField.Chunk chunk, String matchedText) {

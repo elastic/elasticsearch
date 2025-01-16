@@ -241,7 +241,10 @@ public class CsvTests extends ESTestCase {
              * The csv tests support all but a few features. The unsupported features
              * are tested in integration tests.
              */
-            assumeFalse("metadata fields aren't supported", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METADATA_FIELDS)));
+            assumeFalse(
+                "metadata fields aren't supported",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_FIELDS.capabilityName())
+            );
             assumeFalse(
                 "enrich can't load fields in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.ENRICH_LOAD.capabilityName())
@@ -265,7 +268,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "lookup join disabled for csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP_V10.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP_V11.capabilityName())
             );
             assumeFalse(
                 "can't use TERM function in csv tests",

@@ -16,6 +16,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -35,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -79,9 +82,9 @@ public class OldMappingsIT extends ESRestTestCase {
         String snapshotName = "snap";
         List<String> indices;
         if (oldVersion.before(Version.fromString("6.0.0"))) {
-            indices = Arrays.asList("filebeat", "winlogbeat", "custom", "nested");
+            indices = Arrays.asList("filebeat", "winlogbeat", "custom", "nested", "standard_token_filter");
         } else {
-            indices = Arrays.asList("filebeat", "custom", "nested");
+            indices = Arrays.asList("filebeat", "custom", "nested", "standard_token_filter");
         }
 
         int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
@@ -91,6 +94,20 @@ public class OldMappingsIT extends ESRestTestCase {
             if (oldVersion.before(Version.fromString("6.0.0"))) {
                 assertOK(oldEs.performRequest(createIndex("winlogbeat", "winlogbeat.json")));
             }
+            assertOK(
+                oldEs.performRequest(
+                    createIndex(
+                        "standard_token_filter",
+                        "standard_token_filter.json",
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                            .put("index.analysis.analyzer.custom_analyzer.type", "custom")
+                            .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
+                            .put("index.analysis.analyzer.custom_analyzer.filter", "standard")
+                            .build()
+                    )
+                )
+            );
             assertOK(oldEs.performRequest(createIndex("custom", "custom.json")));
             assertOK(oldEs.performRequest(createIndex("nested", "nested.json")));
 
@@ -142,6 +159,12 @@ public class OldMappingsIT extends ESRestTestCase {
             doc3.setJsonEntity(Strings.toString(bodyDoc3));
             assertOK(oldEs.performRequest(doc3));
 
+            Request doc4 = new Request("POST", "/" + "standard_token_filter" + "/" + "doc");
+            doc4.addParameter("refresh", "true");
+            XContentBuilder bodyDoc4 = XContentFactory.jsonBuilder().startObject().field("content", "Doc 1").endObject();
+            doc4.setJsonEntity(Strings.toString(bodyDoc4));
+            assertOK(oldEs.performRequest(doc4));
+
             // register repo on old ES and take snapshot
             Request createRepoRequest = new Request("PUT", "/_snapshot/" + repoName);
             createRepoRequest.setJsonEntity(Strings.format("""
@@ -170,15 +193,21 @@ public class OldMappingsIT extends ESRestTestCase {
     }
 
     private Request createIndex(String indexName, String file) throws IOException {
+        return createIndex(indexName, file, Settings.EMPTY);
+    }
+
+    private Request createIndex(String indexName, String file, Settings settings) throws IOException {
         Request createIndex = new Request("PUT", "/" + indexName);
         int numberOfShards = randomIntBetween(1, 3);
 
-        XContentBuilder builder = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("settings")
-            .field("index.number_of_shards", numberOfShards)
-            .endObject()
-            .startObject("mappings");
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+
+        builder.startObject("settings");
+        builder.field(SETTING_NUMBER_OF_SHARDS, numberOfShards);
+        settings.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        builder.startObject("mappings");
         builder.rawValue(OldMappingsIT.class.getResourceAsStream(file), XContentType.JSON);
         builder.endObject().endObject();
 
@@ -196,6 +225,21 @@ public class OldMappingsIT extends ESRestTestCase {
             mapping = entityAsMap(client().performRequest(mappingRequest));
             assertNotNull(XContentMapValues.extractValue(mapping, "winlogbeat", "mappings", "properties", "message"));
         }
+    }
+
+    public void testStandardTokenFilter() throws IOException {
+        Request search = new Request("POST", "/" + "standard_token_filter" + "/_search");
+        XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
+            .startObject()
+            .startObject("query")
+            .startObject("match_all")
+            .endObject()
+            .endObject()
+            .endObject();
+        search.setJsonEntity(Strings.toString(query));
+        Map<String, Object> response = entityAsMap(client().performRequest(search));
+        List<?> hits = (List<?>) (XContentMapValues.extractValue("hits.hits", response));
+        assertThat(hits, hasSize(1));
     }
 
     public void testSearchKeyword() throws IOException {

@@ -819,10 +819,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             targetAllocationId
                         );
                         // make sure we release all permits before we resolve the final listener
-                        final ActionListener<Void> wrappedInnerListener = ActionListener.runBefore(
-                            listener,
-                            Releasables.releaseOnce(releasable)::close
-                        );
+                        final ActionListener<Void> wrappedInnerListener = ActionListener.runBefore(listener, () -> {
+                            if (acquiredPrimaryPermits == null) {
+                                Releasables.assertOnce(releasable).close();
+                            }
+                        });
                         final ActionListener<Void> wrappedListener = new ActionListener<>() {
                             @Override
                             public void onResponse(Void unused) {
@@ -857,7 +858,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     } catch (Exception e) {
                         listener.onFailure(e);
                     } finally {
-                        if (success == false) {
+                        if (success == false && acquiredPrimaryPermits == null) {
                             releasable.close();
                         }
                     }

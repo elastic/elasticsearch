@@ -29,11 +29,9 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.List;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} to run a Lucene {@link Query} during
@@ -49,23 +47,6 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
     private final ShardConfig[] shards;
 
     private ShardState[] perShardState = EMPTY_SHARD_STATES;
-
-    public LuceneQueryExpressionEvaluator(
-        BlockFactory blockFactory,
-        List<? extends ShardContext> shardContexts,
-        QueryBuilder queryBuilder
-    ) {
-        assert shardContexts.isEmpty() == false;
-        assert queryBuilder != null;
-
-        this.blockFactory = blockFactory;
-        this.shards = new ShardConfig[shardContexts.size()];
-
-        int i = 0;
-        for (ShardContext shardContext : shardContexts) {
-            this.shards[i++] = new ShardConfig(shardContext.toQuery(queryBuilder), shardContext.searcher());
-        }
-    }
 
     public LuceneQueryExpressionEvaluator(BlockFactory blockFactory, ShardConfig[] shards) {
         this.blockFactory = blockFactory;
@@ -362,17 +343,15 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
     }
 
     public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final List<? extends ShardContext> shardContexts;
-        private final QueryBuilder queryBuilder;
+        private final ShardConfig[] shardConfigs;
 
-        public Factory(List<? extends ShardContext> shardContexts, QueryBuilder queryBuilder) {
-            this.shardContexts = shardContexts;
-            this.queryBuilder = queryBuilder;
+        public Factory(ShardConfig[] shardConfigs) {
+            this.shardConfigs = shardConfigs;
         }
 
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            return new LuceneQueryExpressionEvaluator(context.blockFactory(), shardContexts, queryBuilder);
+            return new LuceneQueryExpressionEvaluator(context.blockFactory(), shardConfigs);
         }
     }
 }

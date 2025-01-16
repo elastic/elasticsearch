@@ -16,7 +16,6 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
-import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEqualsMapper;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.planner.Layout;
 
 import java.util.List;
@@ -61,10 +61,10 @@ public final class EvalMapper {
         FoldContext foldCtx,
         Expression exp,
         Layout layout,
-        List<? extends ShardContext> shardContexts
+        List<ShardContext> shardContexts
     ) {
         if (exp instanceof Match m) {
-            return m.toEvaluator(shardContexts, m.queryBuilder());
+            return m.toEvaluator(shardContexts);
         } else if (exp instanceof EvaluatorMapper m) {
             return m.toEvaluator(new EvaluatorMapper.ToEvaluator() {
                 @Override
@@ -88,12 +88,7 @@ public final class EvalMapper {
 
     static class BooleanLogic extends ExpressionMapper<BinaryLogic> {
         @Override
-        public ExpressionEvaluator.Factory map(
-            FoldContext foldCtx,
-            BinaryLogic bc,
-            Layout layout,
-            List<? extends ShardContext> shardContexts
-        ) {
+        public ExpressionEvaluator.Factory map(FoldContext foldCtx, BinaryLogic bc, Layout layout, List<ShardContext> shardContexts) {
             var leftEval = toEvaluator(foldCtx, bc.left(), layout, shardContexts);
             var rightEval = toEvaluator(foldCtx, bc.right(), layout, shardContexts);
             /**
@@ -171,7 +166,7 @@ public final class EvalMapper {
 
     static class Nots extends ExpressionMapper<Not> {
         @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, Not not, Layout layout, List<? extends ShardContext> shardContexts) {
+        public ExpressionEvaluator.Factory map(FoldContext foldCtx, Not not, Layout layout, List<ShardContext> shardContexts) {
             var expEval = toEvaluator(foldCtx, not.field(), layout);
             return dvrCtx -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotEvaluator(
                 not.source(),
@@ -183,12 +178,7 @@ public final class EvalMapper {
 
     static class Attributes extends ExpressionMapper<Attribute> {
         @Override
-        public ExpressionEvaluator.Factory map(
-            FoldContext foldCtx,
-            Attribute attr,
-            Layout layout,
-            List<? extends ShardContext> shardContexts
-        ) {
+        public ExpressionEvaluator.Factory map(FoldContext foldCtx, Attribute attr, Layout layout, List<ShardContext> shardContexts) {
             record Attribute(int channel) implements ExpressionEvaluator {
                 @Override
                 public Block eval(Page page) {
@@ -223,12 +213,7 @@ public final class EvalMapper {
     static class Literals extends ExpressionMapper<Literal> {
 
         @Override
-        public ExpressionEvaluator.Factory map(
-            FoldContext foldCtx,
-            Literal lit,
-            Layout layout,
-            List<? extends ShardContext> shardContexts
-        ) {
+        public ExpressionEvaluator.Factory map(FoldContext foldCtx, Literal lit, Layout layout, List<ShardContext> shardContexts) {
             record LiteralsEvaluator(DriverContext context, Literal lit) implements ExpressionEvaluator {
                 @Override
                 public Block eval(Page page) {
@@ -285,12 +270,7 @@ public final class EvalMapper {
     static class IsNulls extends ExpressionMapper<IsNull> {
 
         @Override
-        public ExpressionEvaluator.Factory map(
-            FoldContext foldCtx,
-            IsNull isNull,
-            Layout layout,
-            List<? extends ShardContext> shardContexts
-        ) {
+        public ExpressionEvaluator.Factory map(FoldContext foldCtx, IsNull isNull, Layout layout, List<ShardContext> shardContexts) {
             var field = toEvaluator(foldCtx, isNull.field(), layout);
             return new IsNullEvaluatorFactory(field);
         }
@@ -338,12 +318,7 @@ public final class EvalMapper {
     static class IsNotNulls extends ExpressionMapper<IsNotNull> {
 
         @Override
-        public ExpressionEvaluator.Factory map(
-            FoldContext foldCtx,
-            IsNotNull isNotNull,
-            Layout layout,
-            List<? extends ShardContext> shardContexts
-        ) {
+        public ExpressionEvaluator.Factory map(FoldContext foldCtx, IsNotNull isNotNull, Layout layout, List<ShardContext> shardContexts) {
             return new IsNotNullEvaluatorFactory(toEvaluator(foldCtx, isNotNull.field(), layout));
         }
 

@@ -17,7 +17,6 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneOperator;
-import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.Driver;
@@ -91,6 +90,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -130,7 +130,7 @@ public class LocalExecutionPlanner {
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final PhysicalOperationProviders physicalOperationProviders;
-    private final List<? extends ShardContext> shardContexts;
+    private final List<ShardContext> shardContexts;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -145,7 +145,7 @@ public class LocalExecutionPlanner {
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
         PhysicalOperationProviders physicalOperationProviders,
-        List<? extends ShardContext> shardContexts
+        List<ShardContext> shardContexts
     ) {
 
         this.sessionId = sessionId;

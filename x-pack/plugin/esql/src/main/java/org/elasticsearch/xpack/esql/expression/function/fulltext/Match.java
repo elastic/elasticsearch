@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
-import org.elasticsearch.compute.lucene.ShardContext;
+import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.ShardConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -33,8 +33,8 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.planner.EsqlExpressionTranslators;
-import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -296,10 +296,12 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
         return isOperator;
     }
 
-    public LuceneQueryExpressionEvaluator.Factory toEvaluator(
-        List<? extends ShardContext> shardContexts,
-        QueryBuilder queryBuilder
-    ) {
-        return new LuceneQueryExpressionEvaluator.Factory(shardContexts, queryBuilder);
+    public LuceneQueryExpressionEvaluator.Factory toEvaluator(List<ShardContext> shardContexts) {
+        ShardConfig[] shardConfigs = new ShardConfig[shardContexts.size()];
+        int i = 0;
+        for (ShardContext shardContext : shardContexts) {
+            shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
+        }
+        return new LuceneQueryExpressionEvaluator.Factory(shardConfigs);
     }
 }

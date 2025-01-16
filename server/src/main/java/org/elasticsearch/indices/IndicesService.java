@@ -812,10 +812,9 @@ public class IndicesService extends AbstractLifecycleComponent
                 return new InternalEngineFactory();
             } else if (isReadOnlySupportedVersion(indexMetadata, MINIMUM_COMPATIBLE, MINIMUM_READONLY_COMPATIBLE)) {
                 return config -> {
-                    var globalCheckpoint = config.getGlobalCheckpointSupplier().getAsLong();
                     return new ReadOnlyEngine(
                         config,
-                        new SeqNoStats(globalCheckpoint, globalCheckpoint, globalCheckpoint),
+                        null,
                         config.getTranslogConfig().hasTranslog() ? null : new TranslogStats(0, 0, 0, 0, 0),
                         true,
                         Function.identity(),

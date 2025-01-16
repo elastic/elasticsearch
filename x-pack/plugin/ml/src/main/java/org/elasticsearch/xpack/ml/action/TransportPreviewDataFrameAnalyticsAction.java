@@ -120,11 +120,11 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
                 config,
                 extractedFieldsDetector.detect().v1()
             ).newExtractor(false);
-            extractor.preview(delegate.delegateFailureAndWrap((l, rows) -> {
+            extractor.preview(delegate.delegateFailureAndWrap((l, searchHits) -> {
                 List<String> fieldNames = extractor.getFieldNames();
                 l.onResponse(
                     new Response(
-                        Arrays.stream(rows)
+                        Arrays.stream(searchHits)
                             .map(searchHit -> mergeRow(extractor.createRow(searchHit), fieldNames))
                             .collect(Collectors.toList())
                     )

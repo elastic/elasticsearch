@@ -1,8 +1,8 @@
 {
   "packaged_model_id": "elser_model_2",
   "minimum_version": "11.0.0",
-  "size": 1859662,
-  "sha256": "b4486bccd45bbfaa9f8d0293d9acb9fe325a3d1e5b575080f8e5ad763440c764",
+  "size": 1859242,
+  "sha256": "602dbccfb2746e5700bf65d8019b06fb2ec1e3c5bfb980eb2005fc17c1bfe0c0",
   "description": "Elastic Learned Sparse EncodeR v2",
   "model_type": "pytorch",
   "tags": [

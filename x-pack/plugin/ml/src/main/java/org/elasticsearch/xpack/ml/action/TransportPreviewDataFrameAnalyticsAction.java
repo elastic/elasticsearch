@@ -123,7 +123,11 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
             extractor.preview(delegate.delegateFailureAndWrap((l, rows) -> {
                 List<String> fieldNames = extractor.getFieldNames();
                 l.onResponse(
-                    new Response(Arrays.stream(rows).map((r) -> mergeRow(extractor.createRow(r), fieldNames)).collect(Collectors.toList()))
+                    new Response(
+                        Arrays.stream(rows)
+                            .map(searchHit -> mergeRow(extractor.createRow(searchHit), fieldNames))
+                            .collect(Collectors.toList())
+                    )
                 );
             }));
         }));

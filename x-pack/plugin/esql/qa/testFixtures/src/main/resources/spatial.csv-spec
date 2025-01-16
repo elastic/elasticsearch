@@ -691,7 +691,6 @@ L              | BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352
 stExtentManyGeoShapesGrouped
 required_capability: st_extent_agg
 required_capability: st_extent_agg_docvalues
-required_capability: enrich_load
 
 FROM airport_city_boundaries
 | EVAL prefix = SUBSTRING(abbrev, 1, 1)
@@ -710,7 +709,6 @@ C              | BBOX (-107.51820000819862, 172.6055999379605, 55.73269999120384
 stExtentManyGeoPointsGrouped
 required_capability: st_extent_agg
 required_capability: st_extent_agg_docvalues
-required_capability: enrich_load
 
 FROM airport_city_boundaries
 | EVAL prefix = SUBSTRING(abbrev, 1, 1)
@@ -729,7 +727,6 @@ C              | BBOX (-107.39390007220209, 172.38329996354878, 55.6760999746620
 stExtentManyGeoShapesAndPointsGrouped
 required_capability: st_extent_agg
 required_capability: st_extent_agg_docvalues
-required_capability: enrich_load
 
 FROM airport_city_boundaries
 | EVAL prefix = SUBSTRING(abbrev, 1, 1)
@@ -2006,6 +2003,18 @@ extent:cartesian_shape
 BBOX (4783520.5, 1.6168486E7, 8704352.0, -584415.9375)
 ;
 
+stExtentMultipleCartesianPointsCount
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airports_web
+| STATS extent = ST_EXTENT_AGG(location), count = COUNT()
+;
+
+extent:cartesian_shape                                   | count:long
+BBOX (-1.949601E7, 1.9947946E7, 1.4502138E7, -7128878.5) | 849
+;
+
 stExtentMultipleCartesianPointGrouping
 required_capability: st_extent_agg
 FROM airports_web | STATS extent = ST_EXTENT_AGG(location) BY scalerank | SORT scalerank DESC | LIMIT 3
@@ -2065,6 +2074,42 @@ count:long | key:keyword | extent:cartesian_shape
 8          | Bot         | BBOX (0.0, 3.0, 1.0, 0.0)
 8          | Top         | BBOX (0.0, 3.0, 3.0, 2.0)
 4          | Fou         | BBOX (0.0, 3.0, 3.0, 0.0)
+;
+
+stExtentManyCartesianShapesGrouped
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM countries_bbox_web
+| EVAL prefix = SUBSTRING(id, 1, 1)
+| STATS extent = ST_EXTENT_AGG(shape) BY prefix
+| KEEP prefix, extent
+| SORT prefix
+| LIMIT 3
+;
+
+prefix:keyword | extent:cartesian_shape
+A              | BBOX (-2.0037508E7, 2.0037508E7, 6278042.5, -4.748140544E9)
+B              | BBOX (-9931524.0, 1.2841846E7, 7591831.0, -3994093.25)
+C              | BBOX (-1.8462154E7, 1.5002357E7, 1.7926778E7, -7538976.5)
+;
+
+stExtentManyCartesianShapesGroupedCount
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM countries_bbox_web
+| EVAL prefix = SUBSTRING(id, 1, 1)
+| STATS extent = ST_EXTENT_AGG(shape), count = COUNT() BY prefix
+| KEEP prefix, count, extent
+| SORT prefix
+| LIMIT 3
+;
+
+prefix:keyword | count:long | extent:cartesian_shape
+A              | 17         | BBOX (-2.0037508E7, 2.0037508E7, 6278042.5, -4.748140544E9)
+B              | 18         | BBOX (-9931524.0, 1.2841846E7, 7591831.0, -3994093.25)
+C              | 19         | BBOX (-1.8462154E7, 1.5002357E7, 1.7926778E7, -7538976.5)
 ;
 
 ###############################################

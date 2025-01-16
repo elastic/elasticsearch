@@ -1390,7 +1390,7 @@ using its specific properties. Available values are: `minmax`, and `none`. Defau
 A `MinMaxScoreNormalizer` that normalizes scores based on the following formula
 +
 ```
-score = ((score - min) / (max - min)) * (upper_bound - lower_bound) + lower_bound
+score = (score - min) / (max - min)
 ```
 Available properties are:
 *** `min`::
@@ -1403,14 +1403,6 @@ The minimum value of the original scores. Defaults to result set's true min valu
 +
 The maximum value of the original scores. Defaults to result set's true max value.
 
-*** `lower_bound`::
-(Optional, float)
-+
-The minimum value that the retriever's normalized scores can take. Defaults to 0.
-*** `upper_bound`::
-(Optional, float)
-+
-The maximum value that the retriever's normalized scores can take. Defaults to 1.
 
 See also <<retrievers-examples-linear-retriever, this hybrid search example>> using a linear retriever on how to
 independently configure and apply normalizers to retrievers.

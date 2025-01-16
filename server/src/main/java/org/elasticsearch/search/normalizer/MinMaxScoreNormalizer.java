@@ -25,53 +25,32 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
 
     public static final ParseField MIN_FIELD = new ParseField("min");
     public static final ParseField MAX_FIELD = new ParseField("max");
-    public static final ParseField LOWER_BOUND_FIELD = new ParseField("lower_bound");
-    public static final ParseField UPPER_BOUND_FIELD = new ParseField("upper_bound");
-
-    private static final float DEFAULT_LOWER_BOUND = 0f;
-    private static final float DEFAULT_UPPER_BOUND = 1f;
 
     public static final ConstructingObjectParser<MinMaxScoreNormalizer, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
         Float min = (Float) args[0];
         Float max = (Float) args[1];
-        float lowerBound = args[2] == null ? DEFAULT_LOWER_BOUND : (float) args[2];
-        float upperBound = args[3] == null ? DEFAULT_UPPER_BOUND : (float) args[3];
-        return new MinMaxScoreNormalizer(min, max, lowerBound, upperBound);
+        return new MinMaxScoreNormalizer(min, max);
     });
 
     static {
         PARSER.declareFloat(optionalConstructorArg(), MIN_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), MAX_FIELD);
-        PARSER.declareFloat(optionalConstructorArg(), LOWER_BOUND_FIELD);
-        PARSER.declareFloat(optionalConstructorArg(), UPPER_BOUND_FIELD);
     }
 
     private Float min;
     private Float max;
-    private final float lowerBound;
-    private final float upperBound;
 
     public MinMaxScoreNormalizer() {
         this.min = null;
         this.max = null;
-        this.lowerBound = DEFAULT_LOWER_BOUND;
-        this.upperBound = DEFAULT_UPPER_BOUND;
     }
 
-    public MinMaxScoreNormalizer(Float min, Float max, float lowerBound, float upperBound) {
+    public MinMaxScoreNormalizer(Float min, Float max) {
         if (min != null && max != null && min >= max) {
             throw new IllegalArgumentException("[min] must be less than [max]");
         }
-        if (lowerBound >= upperBound) {
-            throw new IllegalArgumentException("[lowerBound] must be less than [upperBound]");
-        }
-        if (lowerBound < 0) {
-            throw new IllegalArgumentException("[lowerBound] must be greater than or equal to 0");
-        }
         this.min = min;
         this.max = max;
-        this.lowerBound = lowerBound;
-        this.upperBound = upperBound;
     }
 
     @Override
@@ -110,9 +89,9 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
         for (int i = 0; i < docs.length; i++) {
             float score;
             if (min.equals(max)) {
-                score = (upperBound + lowerBound) / 2;
+                score = (max + min) / 2;
             } else {
-                score = ((docs[i].score - min) / (max - min) * (upperBound - lowerBound)) + lowerBound;
+                score = (docs[i].score - min) / (max - min);
             }
             scoreDocs[i] = new ScoreDoc(docs[i].doc, score, docs[i].shardIndex);
         }
@@ -131,7 +110,5 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
         if (max != null) {
             builder.field(MAX_FIELD.getPreferredName(), max);
         }
-        builder.field(LOWER_BOUND_FIELD.getPreferredName(), lowerBound);
-        builder.field(UPPER_BOUND_FIELD.getPreferredName(), upperBound);
     }
 }

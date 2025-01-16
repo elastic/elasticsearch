@@ -14,6 +14,12 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeRateLimiter;
 import org.apache.lucene.index.MergeScheduler;
 import org.apache.lucene.index.MergeTrigger;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.RateLimitedIndexOutput;
+import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
@@ -134,6 +140,28 @@ public class ExecutorMergeScheduler extends MergeScheduler implements Elasticsea
      */
     protected void doMerge(MergeSource mergeSource, MergePolicy.OneMerge merge) throws IOException {
         mergeSource.merge(merge);
+    }
+
+    @Override
+    public Directory wrapForMerge(MergePolicy.OneMerge merge, Directory in) {
+        // Return a wrapped Directory which has rate-limited output.
+        // Note: the rate limiter is only per thread. So, if there are multiple merge threads running
+        // and throttling is required, each thread will be throttled independently.
+        // The implication of this, is that the total IO rate could be higher than the target rate.
+        RateLimiter rateLimiter = onGoingMergeRateLimiter.get();
+        return new FilterDirectory(in) {
+            @Override
+            public IndexOutput createOutput(String name, IOContext context) throws IOException {
+                ensureOpen();
+
+                // This Directory is only supposed to be used during merging,
+                // so all writes should have MERGE context, else there is a bug
+                // somewhere that is failing to pass down the right IOContext:
+                assert context.context() == IOContext.Context.MERGE : "got context=" + context.context();
+
+                return new RateLimitedIndexOutput(rateLimiter, in.createOutput(name, context));
+            }
+        };
     }
 
     protected class MergeTask extends AbstractRunnable implements Comparable<MergeTask> {

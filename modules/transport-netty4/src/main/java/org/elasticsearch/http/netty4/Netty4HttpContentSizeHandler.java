@@ -26,6 +26,7 @@ import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.http.LastHttpContent;
 
 import org.elasticsearch.core.SuppressForbidden;
 
@@ -66,11 +67,11 @@ public class Netty4HttpContentSizeHandler extends ChannelInboundHandlerAdapter {
         HttpResponseStatus.CONTINUE,
         Unpooled.EMPTY_BUFFER
     );
-    static final FullHttpResponse EXPECTATION_FAILED = new DefaultFullHttpResponse(
+    static final FullHttpResponse EXPECTATION_FAILED_CLOSE = new DefaultFullHttpResponse(
         HttpVersion.HTTP_1_1,
         HttpResponseStatus.EXPECTATION_FAILED,
         Unpooled.EMPTY_BUFFER,
-        new DefaultHttpHeaders().add(CONTENT_LENGTH, 0),
+        new DefaultHttpHeaders().add(CONTENT_LENGTH, 0).add(CONNECTION, HttpHeaderValues.CLOSE),
         EmptyHttpHeaders.INSTANCE
     );
     static final FullHttpResponse TOO_LARGE_CLOSE = new DefaultFullHttpResponse(
@@ -89,8 +90,8 @@ public class Netty4HttpContentSizeHandler extends ChannelInboundHandlerAdapter {
     );
 
     private final int maxContentLength;
-    private int currentContentLength; // chunked encoding does not provide content length, need to track actual length
     private final HttpRequestDecoder decoder; // need to reset decoder after sending 413
+    private int currentContentLength; // chunked encoding does not provide content length, need to track actual length
     private boolean contentExpected;
 
     public Netty4HttpContentSizeHandler(HttpRequestDecoder decoder, int maxContentLength) {
@@ -122,8 +123,7 @@ public class Netty4HttpContentSizeHandler extends ChannelInboundHandlerAdapter {
             if (HttpHeaderValues.CONTINUE.toString().equalsIgnoreCase(expectValue)) {
                 isContinueExpected = true;
             } else {
-                decoder.reset();
-                ctx.writeAndFlush(EXPECTATION_FAILED.retainedDuplicate()).addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
+                ctx.writeAndFlush(EXPECTATION_FAILED_CLOSE.retainedDuplicate()).addListener(ChannelFutureListener.CLOSE);
                 return;
             }
         }
@@ -162,7 +162,9 @@ public class Netty4HttpContentSizeHandler extends ChannelInboundHandlerAdapter {
             }
         } else {
             msg.release();
-            ctx.close(); // there is no reliable recovery from unexpected content, closing channel
+            if (msg != LastHttpContent.EMPTY_LAST_CONTENT) {
+                ctx.close(); // there is no reliable recovery from unexpected content, closing channel
+            }
         }
     }
 

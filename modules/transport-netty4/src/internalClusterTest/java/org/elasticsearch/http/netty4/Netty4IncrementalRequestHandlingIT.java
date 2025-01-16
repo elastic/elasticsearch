@@ -92,14 +92,14 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 @ESIntegTestCase.ClusterScope(numDataNodes = 1)
 public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
-    private static final int maxContentLength = 50 * 1024 * 1024;
+    private static final int MAX_CONTENT_LENGTH = ByteSizeUnit.MB.toIntBytes(50);
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         builder.put(
             HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(),
-            new ByteSizeValue(maxContentLength, ByteSizeUnit.BYTES)
+            new ByteSizeValue(MAX_CONTENT_LENGTH, ByteSizeUnit.BYTES)
         );
         return builder.build();
     }
@@ -139,7 +139,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                 var opaqueId = opaqueId(reqNo);
 
                 // this dataset will be compared with one on server side
-                var dataSize = randomIntBetween(1024, maxContentLength);
+                var dataSize = randomIntBetween(1024, MAX_CONTENT_LENGTH);
                 var sendData = Unpooled.wrappedBuffer(randomByteArrayOfLength(dataSize));
                 sendData.retain();
                 ctx.clientChannel.writeAndFlush(fullHttpRequest(opaqueId, sendData));
@@ -247,7 +247,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
     public void testClientBackpressure() throws Exception {
         try (var ctx = setupClientCtx()) {
             var opaqueId = opaqueId(0);
-            var payloadSize = maxContentLength;
+            var payloadSize = MAX_CONTENT_LENGTH;
             var totalParts = 10;
             var partSize = payloadSize / totalParts;
             ctx.clientChannel.writeAndFlush(httpRequest(opaqueId, payloadSize));
@@ -289,7 +289,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         try (var ctx = setupClientCtx()) {
             for (int reqNo = 0; reqNo < randomIntBetween(2, 10); reqNo++) {
                 var id = opaqueId(reqNo);
-                var acceptableContentLength = randomIntBetween(0, maxContentLength);
+                var acceptableContentLength = randomIntBetween(0, MAX_CONTENT_LENGTH);
 
                 // send request header and await 100-continue
                 var req = httpRequest(id, acceptableContentLength);
@@ -321,7 +321,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         try (var ctx = setupClientCtx()) {
             for (int reqNo = 0; reqNo < randomIntBetween(2, 10); reqNo++) {
                 var id = opaqueId(reqNo);
-                var oversized = maxContentLength + 1;
+                var oversized = MAX_CONTENT_LENGTH + 1;
 
                 // send request header and await 413 too large
                 var req = httpRequest(id, oversized);
@@ -341,7 +341,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
     public void testOversizedChunkedEncoding() throws Exception {
         try (var ctx = setupClientCtx()) {
             var id = opaqueId(0);
-            var contentSize = maxContentLength + 1;
+            var contentSize = MAX_CONTENT_LENGTH + 1;
             var content = randomByteArrayOfLength(contentSize);
             var is = new ByteBufInputStream(Unpooled.wrappedBuffer(content));
             var chunkedIs = new ChunkedStream(is);
@@ -354,7 +354,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             ctx.clientChannel.writeAndFlush(httpChunkedIs);
             var handler = ctx.awaitRestChannelAccepted(id);
             var consumed = handler.readAllBytes();
-            assertTrue(consumed <= maxContentLength);
+            assertTrue(consumed <= MAX_CONTENT_LENGTH);
 
             var resp = (FullHttpResponse) safePoll(ctx.clientRespQueue);
             assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
@@ -369,7 +369,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         try (var ctx = setupClientCtx()) {
             for (var reqNo = 0; reqNo < randomIntBetween(2, 10); reqNo++) {
                 var id = opaqueId(reqNo);
-                var contentSize = randomIntBetween(0, maxContentLength);
+                var contentSize = randomIntBetween(0, MAX_CONTENT_LENGTH);
                 var req = httpRequest(id, contentSize);
                 var content = randomContent(contentSize, true);
 
@@ -405,7 +405,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             for (var reqNo = 0; reqNo < randomIntBetween(2, 10); reqNo++) {
                 var id = opaqueId(reqNo);
-                var contentSize = randomIntBetween(0, maxContentLength);
+                var contentSize = randomIntBetween(0, MAX_CONTENT_LENGTH);
                 totalBytesSent += contentSize;
                 ctx.clientChannel.writeAndFlush(httpRequest(id, contentSize));
                 ctx.clientChannel.writeAndFlush(randomContent(contentSize, true));

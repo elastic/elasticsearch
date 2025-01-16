@@ -4362,9 +4362,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Switch the current engine to a read-only engine.
+     * Reset the current engine to a new one without doing translog recovery.
      */
-    public void resetToReadOnlyEngine() throws IOException {
+    public void resetEngine() throws IOException {
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
         assert getActiveOperationsCount() == OPERATIONS_BLOCKED
             : "resetting engine without blocking operations; active operations are [" + getActiveOperationsCount() + ']';

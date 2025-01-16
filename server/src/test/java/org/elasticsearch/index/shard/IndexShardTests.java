@@ -4590,7 +4590,7 @@ public class IndexShardTests extends IndexShardTestCase {
         var onAcquired = new PlainActionFuture<Releasable>();
         indexShard.acquireAllPrimaryOperationsPermits(onAcquired, TimeValue.timeValueMinutes(1L));
         try (var permit = safeGet(onAcquired)) {
-            indexShard.resetToReadOnlyEngine();
+            indexShard.resetEngine();
         }
         safeAwait(newEngineCreated);
         safeAwait(newEngineNotification);

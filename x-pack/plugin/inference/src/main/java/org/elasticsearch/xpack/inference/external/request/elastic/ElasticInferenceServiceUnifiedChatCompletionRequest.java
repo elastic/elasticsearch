@@ -12,6 +12,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.license.License;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -29,15 +30,18 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequest implements Requ
     private final ElasticInferenceServiceCompletionModel model;
     private final UnifiedChatInput unifiedChatInput;
     private final TraceContextHandler traceContextHandler;
+    private final License.OperationMode licenseMode;
 
     public ElasticInferenceServiceUnifiedChatCompletionRequest(
         UnifiedChatInput unifiedChatInput,
         ElasticInferenceServiceCompletionModel model,
-        TraceContext traceContext
+        TraceContext traceContext,
+        License.OperationMode licenseMode
     ) {
         this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
         this.model = Objects.requireNonNull(model);
         this.traceContextHandler = new TraceContextHandler(traceContext);
+        this.licenseMode = licenseMode;
     }
 
     @Override
@@ -52,6 +56,9 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequest implements Requ
 
         traceContextHandler.propagateTraceContext(httpPost);
         httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
+        httpPost.setHeader(
+            new BasicHeader(ElasticInferenceServiceRequest.IS_TRIAL_LICENSE_HEADER, Boolean.valueOf(isTrialLicense()).toString())
+        );
 
         return new HttpRequest(httpPost, getInferenceEntityId());
     }
@@ -82,4 +89,9 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequest implements Requ
     public boolean isStreaming() {
         return true;
     }
+
+    private boolean isTrialLicense() {
+        return License.OperationMode.TRIAL.equals(licenseMode);
+    }
+
 }

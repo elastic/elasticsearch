@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.request.elastic;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.license.License;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -32,23 +33,37 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
         var url = "http://eis-gateway.com";
         var input = "input";
 
-        var request = createRequest(url, input);
+        var request = createRequest(url, input, License.OperationMode.BASIC);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getLastHeader(ElasticInferenceServiceRequest.IS_TRIAL_LICENSE_HEADER).getValue(), is(Boolean.FALSE.toString()));
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap.size(), equalTo(1));
         assertThat(requestMap.get("input"), is(List.of(input)));
+    }
+
+    public void testLicenseTrialStatePropagatedThroughHTTPHeaders() {
+        var url = "http://eis-gateway.com";
+        var input = "input";
+
+        var request = createRequest(url, input, License.OperationMode.TRIAL);
+        var httpRequest = request.createHttpRequest();
+
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        assertThat(httpPost.getLastHeader(ElasticInferenceServiceRequest.IS_TRIAL_LICENSE_HEADER).getValue(), is(Boolean.TRUE.toString()));
     }
 
     public void testTraceContextPropagatedThroughHTTPHeaders() {
         var url = "http://eis-gateway.com";
         var input = "input";
 
-        var request = createRequest(url, input);
+        var request = createRequest(url, input, License.OperationMode.BASIC);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -65,7 +80,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
         var url = "http://eis-gateway.com";
         var input = "abcd";
 
-        var request = createRequest(url, input);
+        var request = createRequest(url, input, License.OperationMode.BASIC);
         var truncatedRequest = request.truncate();
 
         var httpRequest = truncatedRequest.createHttpRequest();
@@ -81,21 +96,22 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
         var url = "http://eis-gateway.com";
         var input = "abcd";
 
-        var request = createRequest(url, input);
+        var request = createRequest(url, input, License.OperationMode.BASIC);
         assertFalse(request.getTruncationInfo()[0]);
 
         var truncatedRequest = request.truncate();
         assertTrue(truncatedRequest.getTruncationInfo()[0]);
     }
 
-    public ElasticInferenceServiceSparseEmbeddingsRequest createRequest(String url, String input) {
+    public ElasticInferenceServiceSparseEmbeddingsRequest createRequest(String url, String input, License.OperationMode licenseMode) {
         var embeddingsModel = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url);
 
         return new ElasticInferenceServiceSparseEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
             embeddingsModel,
-            new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10))
+            new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
+            licenseMode
         );
     }
 }

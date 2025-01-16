@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.elastic.ElasticInferenceServiceResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
@@ -72,7 +73,8 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
             truncator,
             truncatedInput,
             model,
-            traceContext
+            traceContext,
+            XPackPlugin.getSharedLicenseState().getOperationMode()
         );
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

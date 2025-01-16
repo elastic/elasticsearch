@@ -819,7 +819,7 @@ public class InternalEngine extends Engine {
     ) throws IOException {
         assert get.isReadFromTranslog();
         translogGetCount.incrementAndGet();
-        final TranslogDirectoryReader inMemoryReader = new TranslogDirectoryReader(
+        final DirectoryReader inMemoryReader = TranslogDirectoryReader.create(
             shardId,
             index,
             mappingLookup,

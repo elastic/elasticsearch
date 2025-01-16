@@ -237,14 +237,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/115664
 - class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
   issue: https://github.com/elastic/elasticsearch/issues/116126
-- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/111319
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testSnapshotRestore {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/111777
-- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
-  method: testLookbackWithIndicesOptions
-  issue: https://github.com/elastic/elasticsearch/issues/116127
 - class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
   method: testSnapshotRestore {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111799

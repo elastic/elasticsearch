@@ -27,6 +27,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -38,7 +39,10 @@ final class OutboundHandler {
     private static final Logger logger = LogManager.getLogger(OutboundHandler.class);
 
     private final String nodeName;
+
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // only used in assertions, can be dropped in future
     private final TransportVersion version;
+
     private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
     private final Recycler<BytesRef> recycler;
@@ -98,11 +102,11 @@ final class OutboundHandler {
         final Compression.Scheme compressionScheme,
         final boolean isHandshake
     ) throws IOException, TransportException {
-        TransportVersion version = TransportVersion.min(this.version, transportVersion);
-        OutboundMessage.Request message = new OutboundMessage.Request(
+        assert this.version.onOrAfter(transportVersion) : this.version + " vs " + transportVersion;
+        final OutboundMessage.Request message = new OutboundMessage.Request(
             threadPool.getThreadContext(),
             request,
-            version,
+            transportVersion,
             action,
             requestId,
             isHandshake,
@@ -137,11 +141,11 @@ final class OutboundHandler {
         final boolean isHandshake,
         final ResponseStatsConsumer responseStatsConsumer
     ) {
-        TransportVersion version = TransportVersion.min(this.version, transportVersion);
+        assert this.version.onOrAfter(transportVersion) : this.version + " vs " + transportVersion;
         OutboundMessage.Response message = new OutboundMessage.Response(
             threadPool.getThreadContext(),
             response,
-            version,
+            transportVersion,
             requestId,
             isHandshake,
             compressionScheme
@@ -158,7 +162,11 @@ final class OutboundHandler {
         } catch (Exception ex) {
             if (isHandshake) {
                 logger.error(
-                    () -> format("Failed to send handshake response version [%s] received on [%s], closing channel", version, channel),
+                    () -> format(
+                        "Failed to send handshake response version [%s] received on [%s], closing channel",
+                        transportVersion,
+                        channel
+                    ),
                     ex
                 );
                 channel.close();
@@ -179,9 +187,15 @@ final class OutboundHandler {
         final ResponseStatsConsumer responseStatsConsumer,
         final Exception error
     ) {
-        TransportVersion version = TransportVersion.min(this.version, transportVersion);
-        RemoteTransportException tx = new RemoteTransportException(nodeName, channel.getLocalAddress(), action, error);
-        OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), tx, version, requestId, false, null);
+        assert this.version.onOrAfter(transportVersion) : this.version + " vs " + transportVersion;
+        OutboundMessage.Response message = new OutboundMessage.Response(
+            threadPool.getThreadContext(),
+            new RemoteTransportException(nodeName, channel.getLocalAddress(), action, error),
+            transportVersion,
+            requestId,
+            false,
+            null
+        );
         try {
             sendMessage(channel, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action, error));
         } catch (Exception sendException) {

@@ -797,6 +797,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         @Nullable final Releasable acquiredPrimaryPermits
     ) throws IllegalIndexShardStateException, IllegalStateException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
+        assert acquiredPrimaryPermits == null || indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED
+            : "external primary permits are provided but not held by the shard";
         try (Releasable forceRefreshes = refreshListeners.forceRefreshes()) {
             ActionListener<Releasable> onAcquired = new ActionListener<>() {
                 @Override

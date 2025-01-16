@@ -12,29 +12,30 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link SpatialExtentGeoShapeAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link SpatialExtentGeoShapeSourceValuesAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialExtentGeoShapeAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class SpatialExtentGeoShapeSourceValuesAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   private final List<Integer> channels;
 
-  public SpatialExtentGeoShapeAggregatorFunctionSupplier(List<Integer> channels) {
+  public SpatialExtentGeoShapeSourceValuesAggregatorFunctionSupplier(List<Integer> channels) {
     this.channels = channels;
   }
 
   @Override
-  public SpatialExtentGeoShapeAggregatorFunction aggregator(DriverContext driverContext) {
-    return SpatialExtentGeoShapeAggregatorFunction.create(driverContext, channels);
+  public SpatialExtentGeoShapeSourceValuesAggregatorFunction aggregator(
+      DriverContext driverContext) {
+    return SpatialExtentGeoShapeSourceValuesAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public SpatialExtentGeoShapeGroupingAggregatorFunction groupingAggregator(
+  public SpatialExtentGeoShapeSourceValuesGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext) {
-    return SpatialExtentGeoShapeGroupingAggregatorFunction.create(channels, driverContext);
+    return SpatialExtentGeoShapeSourceValuesGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override
   public String describe() {
-    return "spatial_extent_geo of shapes";
+    return "spatial_extent_geo_shape_source of valuess";
   }
 }

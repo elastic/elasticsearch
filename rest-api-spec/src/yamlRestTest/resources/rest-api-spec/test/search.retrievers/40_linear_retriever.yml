@@ -491,7 +491,7 @@ setup:
   - close_to: { hits.hits.0._score: { value: 0.0, error: 0.001 } }
 
 ---
-"should throw when rank_window_size less than default size":
+"should throw when rank_window_size less than size":
   - do:
       catch: "/\\[linear\\] requires \\[rank_window_size: 2\\] be greater than or equal to \\[size: 10\\]/"
       search:
@@ -528,7 +528,7 @@ setup:
                 }
               ]
               rank_window_size: 2
-
+          size: 10
 ---
 "should respect rank_window_size for normalization and returned hits":
   - do:

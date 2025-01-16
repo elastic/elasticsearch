@@ -1,5 +1,5 @@
 pr: 120222
 summary: Adding linear retriever to support weighted sums of sub-retrievers
-area: "Ranking, Search"
+area: "Search"
 type: enhancement
 issues: []

@@ -84,6 +84,10 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
     }
 
     private static ScoreNormalizer randomScoreNormalizer() {
-        return new MinMaxScoreNormalizer(1f, 10f, 1f, 1f);
+        Float min = frequently() ? randomFloat() : null;
+        Float max = frequently() && min != null ? min + randomFloat() : null;
+        float lowerBound = random().nextBoolean() ? randomFloat() : 0;
+        float upperBound = lowerBound + randomFloat();
+        return new MinMaxScoreNormalizer(min, max, lowerBound, upperBound);
     }
 }

@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector.filtering;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -31,7 +28,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * This class holds a list of validation errors, each represented by a {@link FilteringValidation} object,
  * and the validation state, indicated by a {@link FilteringValidationState}.
  */
-public class FilteringValidationInfo implements Writeable, ToXContentObject {
+public class FilteringValidationInfo implements ToXContentObject {
 
     private final List<FilteringValidation> validationErrors;
     private final FilteringValidationState validationState;
@@ -43,11 +40,6 @@ public class FilteringValidationInfo implements Writeable, ToXContentObject {
     public FilteringValidationInfo(List<FilteringValidation> validationErrors, FilteringValidationState validationState) {
         this.validationErrors = validationErrors;
         this.validationState = validationState;
-    }
-
-    public FilteringValidationInfo(StreamInput in) throws IOException {
-        this.validationErrors = in.readCollectionAsList(FilteringValidation::new);
-        this.validationState = in.readEnum(FilteringValidationState.class);
     }
 
     private static final ParseField ERRORS_FIELD = new ParseField("errors");
@@ -89,12 +81,6 @@ public class FilteringValidationInfo implements Writeable, ToXContentObject {
 
     public static FilteringValidationInfo fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(validationErrors);
-        out.writeEnum(validationState);
     }
 
     @Override

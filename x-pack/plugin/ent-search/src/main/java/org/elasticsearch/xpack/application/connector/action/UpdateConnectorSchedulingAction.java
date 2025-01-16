@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.application.connector.action;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -45,12 +45,6 @@ public class UpdateConnectorSchedulingAction {
         public Request(String connectorId, ConnectorScheduling scheduling) {
             this.connectorId = connectorId;
             this.scheduling = scheduling;
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.connectorId = in.readString();
-            this.scheduling = in.readOptionalWriteable(ConnectorScheduling::new);
         }
 
         public String getConnectorId() {
@@ -124,9 +118,7 @@ public class UpdateConnectorSchedulingAction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(connectorId);
-            out.writeOptionalWriteable(scheduling);
+            TransportAction.localOnly();
         }
 
         @Override

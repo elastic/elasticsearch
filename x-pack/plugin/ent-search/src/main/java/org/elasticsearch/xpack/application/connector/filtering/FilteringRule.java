@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector.filtering;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -32,7 +29,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * Additionally, it encapsulates the filtering policy, the condition under which the rule applies,
  * and the value associated with the rule.
  */
-public class FilteringRule implements Writeable, ToXContentObject {
+public class FilteringRule implements ToXContentObject {
 
     private final Instant createdAt;
     private final String field;
@@ -73,17 +70,6 @@ public class FilteringRule implements Writeable, ToXContentObject {
         this.rule = rule;
         this.updatedAt = updatedAt;
         this.value = value;
-    }
-
-    public FilteringRule(StreamInput in) throws IOException {
-        this.createdAt = in.readOptionalInstant();
-        this.field = in.readString();
-        this.id = in.readString();
-        this.order = in.readInt();
-        this.policy = in.readEnum(FilteringPolicy.class);
-        this.rule = in.readEnum(FilteringRuleCondition.class);
-        this.updatedAt = in.readOptionalInstant();
-        this.value = in.readString();
     }
 
     private static final ParseField CREATED_AT_FIELD = new ParseField("created_at");
@@ -157,18 +143,6 @@ public class FilteringRule implements Writeable, ToXContentObject {
 
     public static FilteringRule fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalInstant(createdAt);
-        out.writeString(field);
-        out.writeString(id);
-        out.writeInt(order);
-        out.writeEnum(policy);
-        out.writeEnum(rule);
-        out.writeOptionalInstant(updatedAt);
-        out.writeString(value);
     }
 
     @Override

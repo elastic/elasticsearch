@@ -32,7 +32,7 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
+public class ConnectorCustomSchedule implements ToXContentObject {
 
     private final ConfigurationOverrides configurationOverrides;
     private final boolean enabled;
@@ -62,14 +62,6 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
         this.interval = Objects.requireNonNull(interval, INTERVAL_FIELD.getPreferredName());
         this.lastSynced = lastSynced;
         this.name = Objects.requireNonNull(name, NAME_FIELD.getPreferredName());
-    }
-
-    public ConnectorCustomSchedule(StreamInput in) throws IOException {
-        this.configurationOverrides = new ConfigurationOverrides(in);
-        this.enabled = in.readBoolean();
-        this.interval = new Cron(in.readString());
-        this.lastSynced = in.readOptionalInstant();
-        this.name = in.readString();
     }
 
     private static final ParseField CONFIG_OVERRIDES_FIELD = new ParseField("configuration_overrides");
@@ -134,15 +126,6 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
         }
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeWriteable(configurationOverrides);
-        out.writeBoolean(enabled);
-        out.writeString(interval.expression());
-        out.writeOptionalInstant(lastSynced);
-        out.writeString(name);
     }
 
     @Override

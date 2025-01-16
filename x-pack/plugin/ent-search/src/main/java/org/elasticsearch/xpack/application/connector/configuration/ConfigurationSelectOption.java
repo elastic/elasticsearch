@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector.configuration;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -25,18 +22,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class ConfigurationSelectOption implements Writeable, ToXContentObject {
+public class ConfigurationSelectOption implements ToXContentObject {
     private final String label;
     private final Object value;
 
     private ConfigurationSelectOption(String label, Object value) {
         this.label = label;
         this.value = value;
-    }
-
-    public ConfigurationSelectOption(StreamInput in) throws IOException {
-        this.label = in.readString();
-        this.value = in.readGenericValue();
     }
 
     private static final ParseField LABEL_FIELD = new ParseField("label");
@@ -80,12 +72,6 @@ public class ConfigurationSelectOption implements Writeable, ToXContentObject {
 
     public static ConfigurationSelectOption fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(label);
-        out.writeGenericValue(value);
     }
 
     @Override

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.application.connector;
 
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -24,7 +24,7 @@ import java.util.Objects;
  * It includes a raw byte reference to the result which can be deserialized into a {@link Connector} or {@link ConnectorSyncJob} object,
  * and a result map for returning the data without strict deserialization.
  */
-public class ConnectorsAPISearchResult implements Writeable, ToXContentObject {
+public class ConnectorsAPISearchResult implements ToXContentObject, Writeable {
 
     private final BytesReference resultBytes;
     private final Map<String, Object> resultMap;
@@ -34,12 +34,6 @@ public class ConnectorsAPISearchResult implements Writeable, ToXContentObject {
         this.resultBytes = resultBytes;
         this.resultMap = resultMap;
         this.docId = id;
-    }
-
-    public ConnectorsAPISearchResult(StreamInput in) throws IOException {
-        this.resultBytes = in.readBytesReference();
-        this.resultMap = in.readGenericMap();
-        this.docId = in.readString();
     }
 
     public BytesReference getSourceRef() {
@@ -66,13 +60,6 @@ public class ConnectorsAPISearchResult implements Writeable, ToXContentObject {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeBytesReference(resultBytes);
-        out.writeGenericMap(resultMap);
-        out.writeString(docId);
-    }
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -85,5 +72,10 @@ public class ConnectorsAPISearchResult implements Writeable, ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(resultBytes, resultMap, docId);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        TransportAction.localOnly();
     }
 }

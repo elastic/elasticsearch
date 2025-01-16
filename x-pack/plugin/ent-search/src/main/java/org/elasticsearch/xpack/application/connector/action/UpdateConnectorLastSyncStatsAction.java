@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -49,13 +49,6 @@ public class UpdateConnectorLastSyncStatsAction {
             this.connectorId = connectorId;
             this.syncInfo = syncInfo;
             this.syncCursor = syncCursor;
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.connectorId = in.readString();
-            this.syncInfo = in.readOptionalWriteable(ConnectorSyncInfo::new);
-            this.syncCursor = in.readGenericValue();
         }
 
         public String getConnectorId() {
@@ -172,10 +165,7 @@ public class UpdateConnectorLastSyncStatsAction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(connectorId);
-            out.writeOptionalWriteable(syncInfo);
-            out.writeGenericValue(syncCursor);
+            TransportAction.localOnly();
         }
 
         @Override

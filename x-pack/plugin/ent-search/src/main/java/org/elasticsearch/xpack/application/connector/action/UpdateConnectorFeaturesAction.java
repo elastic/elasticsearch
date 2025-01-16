@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -41,12 +41,6 @@ public class UpdateConnectorFeaturesAction {
         public Request(String connectorId, ConnectorFeatures features) {
             this.connectorId = connectorId;
             this.features = features;
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.connectorId = in.readString();
-            this.features = in.readOptionalWriteable(ConnectorFeatures::new);
         }
 
         public String getConnectorId() {
@@ -94,9 +88,7 @@ public class UpdateConnectorFeaturesAction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(connectorId);
-            out.writeOptionalWriteable(features);
+            TransportAction.localOnly();
         }
 
         @Override

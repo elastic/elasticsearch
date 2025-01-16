@@ -30,7 +30,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * The {@link ConnectorFeatures} class represents feature flags for a connector.
  */
-public class ConnectorFeatures implements Writeable, ToXContentObject {
+public class ConnectorFeatures implements ToXContentObject {
 
     @Nullable
     private final FeatureEnabled documentLevelSecurityEnabled;
@@ -59,13 +59,6 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
         this.incrementalSyncEnabled = incrementalSyncEnabled;
         this.nativeConnectorAPIKeysEnabled = nativeConnectorAPIKeysEnabled;
         this.syncRulesFeatures = syncRulesFeatures;
-    }
-
-    public ConnectorFeatures(StreamInput in) throws IOException {
-        this.documentLevelSecurityEnabled = in.readOptionalWriteable(FeatureEnabled::new);
-        this.incrementalSyncEnabled = in.readOptionalWriteable(FeatureEnabled::new);
-        this.nativeConnectorAPIKeysEnabled = in.readOptionalWriteable(FeatureEnabled::new);
-        this.syncRulesFeatures = in.readOptionalWriteable(SyncRulesFeatures::new);
     }
 
     private static final ParseField DOCUMENT_LEVEL_SECURITY_ENABLED_FIELD = new ParseField("document_level_security");
@@ -137,14 +130,6 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
         }
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(documentLevelSecurityEnabled);
-        out.writeOptionalWriteable(incrementalSyncEnabled);
-        out.writeOptionalWriteable(nativeConnectorAPIKeysEnabled);
-        out.writeOptionalWriteable(syncRulesFeatures);
     }
 
     @Override

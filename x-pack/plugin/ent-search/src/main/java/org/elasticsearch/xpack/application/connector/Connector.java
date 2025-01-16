@@ -26,7 +26,6 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -64,8 +63,6 @@ import static org.elasticsearch.xpack.application.connector.ConnectorTemplateReg
  * </ul>
  */
 public class Connector implements ToXContentObject {
-
-    public static final String NAME = Connector.class.getName().toUpperCase(Locale.ROOT);
 
     @Nullable
     private final String connectorId;

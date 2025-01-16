@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector.configuration;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -28,7 +25,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * Represents a configuration validation entity, encapsulating a validation constraint and its corresponding type.
  * This class is used to define and handle specific validation rules or requirements within a configuration context.
  */
-public class ConfigurationValidation implements Writeable, ToXContentObject {
+public class ConfigurationValidation implements ToXContentObject {
 
     private final Object constraint;
     private final ConfigurationValidationType type;
@@ -43,11 +40,6 @@ public class ConfigurationValidation implements Writeable, ToXContentObject {
     private ConfigurationValidation(Object constraint, ConfigurationValidationType type) {
         this.constraint = constraint;
         this.type = type;
-    }
-
-    public ConfigurationValidation(StreamInput in) throws IOException {
-        this.constraint = in.readGenericValue();
-        this.type = in.readEnum(ConfigurationValidationType.class);
     }
 
     private static final ParseField CONSTRAINT_FIELD = new ParseField("constraint");
@@ -107,12 +99,6 @@ public class ConfigurationValidation implements Writeable, ToXContentObject {
 
     public static ConfigurationValidation fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeGenericValue(constraint);
-        out.writeEnum(type);
     }
 
     @Override

@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector.filtering;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -27,7 +24,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * It includes an advanced snippet for complex filtering logic, a list of individual filtering rules, and validation
  * information for these rules.
  */
-public class FilteringRules implements Writeable, ToXContentObject {
+public class FilteringRules implements ToXContentObject {
 
     private final FilteringAdvancedSnippet advancedSnippet;
     private final List<FilteringRule> rules;
@@ -49,12 +46,6 @@ public class FilteringRules implements Writeable, ToXContentObject {
         this.advancedSnippet = advancedSnippet;
         this.rules = rules;
         this.filteringValidationInfo = filteringValidationInfo;
-    }
-
-    public FilteringRules(StreamInput in) throws IOException {
-        this.advancedSnippet = new FilteringAdvancedSnippet(in);
-        this.rules = in.readCollectionAsList(FilteringRule::new);
-        this.filteringValidationInfo = new FilteringValidationInfo(in);
     }
 
     public FilteringAdvancedSnippet getAdvancedSnippet() {
@@ -105,14 +96,6 @@ public class FilteringRules implements Writeable, ToXContentObject {
 
     public static FilteringRules fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        advancedSnippet.writeTo(out);
-        out.writeCollection(rules);
-        filteringValidationInfo.writeTo(out);
-
     }
 
     @Override

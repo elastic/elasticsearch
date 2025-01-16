@@ -9,9 +9,6 @@ package org.elasticsearch.xpack.application.connector;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -26,7 +23,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class ConnectorIngestPipeline implements Writeable, ToXContentObject {
+public class ConnectorIngestPipeline implements ToXContentObject {
 
     private final Boolean extractBinaryContent;
     private final String name;
@@ -46,13 +43,6 @@ public class ConnectorIngestPipeline implements Writeable, ToXContentObject {
         this.name = Objects.requireNonNull(name, NAME_FIELD.getPreferredName());
         this.reduceWhitespace = Objects.requireNonNull(reduceWhitespace, REDUCE_WHITESPACE_FIELD.getPreferredName());
         this.runMlInference = Objects.requireNonNull(runMlInference, RUN_ML_INFERENCE_FIELD.getPreferredName());
-    }
-
-    public ConnectorIngestPipeline(StreamInput in) throws IOException {
-        this.extractBinaryContent = in.readBoolean();
-        this.name = in.readString();
-        this.reduceWhitespace = in.readBoolean();
-        this.runMlInference = in.readBoolean();
     }
 
     private static final ParseField EXTRACT_BINARY_CONTENT_FIELD = new ParseField("extract_binary_content");
@@ -100,14 +90,6 @@ public class ConnectorIngestPipeline implements Writeable, ToXContentObject {
         }
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(extractBinaryContent);
-        out.writeString(name);
-        out.writeBoolean(reduceWhitespace);
-        out.writeBoolean(runMlInference);
     }
 
     @Override

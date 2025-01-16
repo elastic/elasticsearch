@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -121,14 +120,9 @@ public class GetConnectorAction {
             this.connector = connector;
         }
 
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            this.connector = new ConnectorSearchResult(in);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            connector.writeTo(out);
+            TransportAction.localOnly();
         }
 
         @Override

@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -49,13 +49,6 @@ public class UpdateConnectorConfigurationAction {
             this.connectorId = connectorId;
             this.configuration = configuration;
             this.configurationValues = configurationValues;
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.connectorId = in.readString();
-            this.configuration = in.readMap(ConnectorConfiguration::new);
-            this.configurationValues = in.readGenericMap();
         }
 
         public String getConnectorId() {
@@ -136,10 +129,7 @@ public class UpdateConnectorConfigurationAction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(connectorId);
-            out.writeMap(configuration, StreamOutput::writeWriteable);
-            out.writeGenericMap(configurationValues);
+            TransportAction.localOnly();
         }
 
         @Override

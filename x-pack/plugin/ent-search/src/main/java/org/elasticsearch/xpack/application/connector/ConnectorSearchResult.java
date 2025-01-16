@@ -8,16 +8,10 @@
 package org.elasticsearch.xpack.application.connector;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
 
-import java.io.IOException;
 import java.util.Map;
 
 public class ConnectorSearchResult extends ConnectorsAPISearchResult {
-
-    public ConnectorSearchResult(StreamInput in) throws IOException {
-        super(in);
-    }
 
     private ConnectorSearchResult(BytesReference resultBytes, Map<String, Object> resultMap, String id) {
         super(resultBytes, resultMap, id);

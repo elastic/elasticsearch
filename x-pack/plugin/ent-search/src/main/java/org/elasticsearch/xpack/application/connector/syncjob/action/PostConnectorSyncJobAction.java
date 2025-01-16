@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.application.connector.syncjob.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,13 +47,6 @@ public class PostConnectorSyncJobAction {
             this.id = id;
             this.jobType = jobType;
             this.triggerMethod = triggerMethod;
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.id = in.readString();
-            this.jobType = in.readOptionalEnum(ConnectorSyncJobType.class);
-            this.triggerMethod = in.readOptionalEnum(ConnectorSyncJobTriggerMethod.class);
         }
 
         private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
@@ -121,10 +115,7 @@ public class PostConnectorSyncJobAction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(id);
-            out.writeOptionalEnum(jobType);
-            out.writeOptionalEnum(triggerMethod);
+            TransportAction.localOnly();
         }
 
         @Override

@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -183,18 +182,13 @@ public class ListConnectorAction {
 
         final QueryPage<ConnectorSearchResult> queryPage;
 
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            this.queryPage = new QueryPage<>(in, ConnectorSearchResult::new);
-        }
-
         public Response(List<ConnectorSearchResult> items, Long totalResults) {
             this.queryPage = new QueryPage<>(items, totalResults, RESULT_FIELD);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            queryPage.writeTo(out);
+            TransportAction.localOnly();
         }
 
         @Override

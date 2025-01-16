@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -57,14 +57,6 @@ public class UpdateConnectorFilteringAction {
             this.filtering = filtering;
             this.advancedSnippet = advancedSnippet;
             this.rules = rules;
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.connectorId = in.readString();
-            this.filtering = in.readOptionalCollectionAsList(ConnectorFiltering::new);
-            this.advancedSnippet = new FilteringAdvancedSnippet(in);
-            this.rules = in.readCollectionAsList(FilteringRule::new);
         }
 
         public String getConnectorId() {
@@ -151,11 +143,7 @@ public class UpdateConnectorFilteringAction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(connectorId);
-            out.writeOptionalCollection(filtering);
-            advancedSnippet.writeTo(out);
-            out.writeCollection(rules);
+            TransportAction.localOnly();
         }
 
         @Override

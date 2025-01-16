@@ -108,9 +108,15 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
         ExpectedType nullsExpectedType,
         ExpectedEvaluatorToString evaluatorToString,
-        List<TestCaseSupplier> suppliers
+        List<TestCaseSupplier> suppliers,
+        PositionalErrorMessageSupplier positionalErrorMessageSupplier
     ) {
-        return parameterSuppliersFromTypedData(anyNullIsNull(randomizeBytesRefsOffset(suppliers), nullsExpectedType, evaluatorToString));
+        return parameterSuppliersFromTypedData(
+            errorsForCasesWithoutExamples(
+                anyNullIsNull(randomizeBytesRefsOffset(suppliers), nullsExpectedType, evaluatorToString),
+                positionalErrorMessageSupplier
+            )
+        );
     }
 
     public final void testEvaluate() {

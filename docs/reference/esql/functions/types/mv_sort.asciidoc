@@ -6,23 +6,13 @@
 |===
 field | order | result
 boolean | keyword | boolean
-boolean | text | boolean
 date | keyword | date
-date | text | date
 date_nanos | keyword | date_nanos
-date_nanos | text | date_nanos
 double | keyword | double
-double | text | double
 integer | keyword | integer
-integer | text | integer
 ip | keyword | ip
-ip | text | ip
 keyword | keyword | keyword
-keyword | text | keyword
 long | keyword | long
-long | text | long
 text | keyword | keyword
-text | text | keyword
 version | keyword | version
-version | text | version
 |===

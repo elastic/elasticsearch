@@ -174,7 +174,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
         @Override
         public DataFrameDataExtractor.Row next() {
             DataFrameDataExtractor.Row row = null;
-            while (hasNoMatch(row) && hasNext()) {
+            while (hasNoMatch(row) && hasNext() && dataExtractor.isCancelled() == false) {
                 advanceToNextBatchIfNecessary();
                 row = dataExtractor.createRow(currentDataFrameRows[currentDataFrameRowsIndex++]);
             }

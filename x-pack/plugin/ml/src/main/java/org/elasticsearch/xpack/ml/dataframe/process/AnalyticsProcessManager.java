@@ -260,6 +260,9 @@ public class AnalyticsProcessManager {
             Optional<SearchHit[]> rows = dataExtractor.next();
             if (rows.isPresent()) {
                 for (SearchHit searchHit : rows.get()) {
+                    if (dataExtractor.isCancelled()) {
+                        break;
+                    }
                     DataFrameDataExtractor.Row row = dataExtractor.createRow(searchHit);
                     if (row.shouldSkip()) {
                         dataCountsTracker.incrementSkippedDocsCount();

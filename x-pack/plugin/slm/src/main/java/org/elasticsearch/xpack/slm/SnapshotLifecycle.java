@@ -238,7 +238,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
     }
 
     List<ReservedClusterStateHandler<ClusterState, ?>> reservedClusterStateHandlers() {
-        return List.of(new ReservedSnapshotAction(featureService.get()));
+        return List.of(new ReservedSnapshotAction());
     }
 
     @Override

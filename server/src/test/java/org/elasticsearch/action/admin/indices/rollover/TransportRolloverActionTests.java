@@ -44,7 +44,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -122,7 +121,6 @@ public class TransportRolloverActionTests extends ESTestCase {
     final DataStreamAutoShardingService dataStreamAutoShardingService = new DataStreamAutoShardingService(
         Settings.EMPTY,
         mockClusterService,
-        new FeatureService(List.of()),
         System::currentTimeMillis
     );
 

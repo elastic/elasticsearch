@@ -1638,7 +1638,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public static boolean indexExists(String index, Client client) {
         GetIndexResponse getIndexResponse = client.admin()
             .indices()
-            .prepareGetIndex()
+            .prepareGetIndex(TEST_REQUEST_TIMEOUT)
             .setIndices(index)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
             .get();
@@ -2589,14 +2589,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     public static Index resolveIndex(String index) {
-        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex().setIndices(index).get();
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         String uuid = getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_INDEX_UUID);
         return new Index(index, uuid);
     }
 
     public static String resolveCustomDataPath(String index) {
-        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex().setIndices(index).get();
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         return getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_DATA_PATH);
     }

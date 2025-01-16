@@ -1,9 +1,5 @@
 ---
 setup:
-  - requires:
-      cluster_features: "mapper.query_index_mode"
-      reason: "require index_mode"
-
   - do:
       indices.create:
         index: test_metrics

@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
@@ -39,4 +41,9 @@ public interface ShardContext {
      * {@code _cat/shards}.
      */
     String shardIdentifier();
+
+    /**
+     * Converts a {@link QueryBuilder} to a {@link Query} in the shard
+     */
+    Query toQuery(QueryBuilder queryBuilder);
 }

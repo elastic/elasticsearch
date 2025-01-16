@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneOperator;
+import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.Driver;
@@ -129,6 +130,7 @@ public class LocalExecutionPlanner {
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final PhysicalOperationProviders physicalOperationProviders;
+    private final List<? extends ShardContext> shardContexts;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -142,8 +144,10 @@ public class LocalExecutionPlanner {
         ExchangeSinkHandler exchangeSinkHandler,
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
-        PhysicalOperationProviders physicalOperationProviders
+        PhysicalOperationProviders physicalOperationProviders,
+        List<? extends ShardContext> shardContexts
     ) {
+
         this.sessionId = sessionId;
         this.clusterAlias = clusterAlias;
         this.parentTask = parentTask;
@@ -156,6 +160,7 @@ public class LocalExecutionPlanner {
         this.lookupFromIndexService = lookupFromIndexService;
         this.physicalOperationProviders = physicalOperationProviders;
         this.configuration = configuration;
+        this.shardContexts = shardContexts;
     }
 
     /**
@@ -655,7 +660,7 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(filter.child(), context);
         // TODO: should this be extracted into a separate eval block?
         return source.with(
-            new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout)),
+            new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout, shardContexts)),
             source.layout
         );
     }

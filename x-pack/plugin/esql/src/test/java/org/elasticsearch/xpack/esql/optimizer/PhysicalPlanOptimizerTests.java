@@ -7564,7 +7564,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             new ExchangeSinkHandler(null, 10, () -> 10),
             null,
             null,
-            new EsPhysicalOperationProviders(FoldContext.small(), List.of(), null)
+            new EsPhysicalOperationProviders(FoldContext.small(), List.of(), null),
+            List.of()
         );
 
         return planner.plan(FoldContext.small(), plan);

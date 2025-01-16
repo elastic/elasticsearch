@@ -211,6 +211,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
                     TrivialQueryCachingPolicy.NEVER,
                     true
                 );
+
             } catch (IOException e) {
                 throw new AssertionError(e);
             }

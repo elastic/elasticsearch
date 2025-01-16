@@ -269,6 +269,21 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE commands"));
     }
 
+    public void testMatchNonPushedDown() {
+        var query = """
+            FROM test
+            | WHERE match(content, "fox") OR length(content) < 20
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(6)));
+        }
+    }
+
     private void createAndPopulateIndex() {
         var indexName = "test";
         var client = client().admin().indices();

@@ -252,7 +252,8 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         } else if (exp instanceof SpatialRelatesFunction spatial) {
             return canPushSpatialFunctionToSource(spatial, lucenePushdownPredicates);
         } else if (exp instanceof FullTextFunction) {
-            return true;
+            // TODO check for disjunctions
+            return false;
         }
         return false;
     }

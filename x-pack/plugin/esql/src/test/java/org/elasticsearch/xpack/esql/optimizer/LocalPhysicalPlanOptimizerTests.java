@@ -1632,6 +1632,21 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(queryBuilder.value(), is(123456));
     }
 
+    public void testMatchFunctionWithNonPushableDisjunction() {
+        String query = """
+            from test
+            | where match(last_name, "Smith") and length(first_name) > 10
+            """;
+        var plan = plannerOptimizer.plan(query);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var esQuery = as(field.child(), EsQueryExec.class);
+        assertThat(as(esQuery.limit(), Literal.class).value(), is(1000));
+    }
+
     private QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {
         return FilterTests.singleValueQuery(query, inner, fieldName, source);
     }

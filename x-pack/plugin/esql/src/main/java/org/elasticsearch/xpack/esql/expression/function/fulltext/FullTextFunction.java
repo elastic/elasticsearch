@@ -219,7 +219,7 @@ public abstract class FullTextFunction extends Function implements TranslationAw
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );
-            checkFullTextSearchDisjunctions(condition, ftf -> "[" + ftf.functionName() + "] " + ftf.functionType(), failures);
+            // checkFullTextSearchDisjunctions(condition, ftf -> "[" + ftf.functionName() + "] " + ftf.functionType(), failures);
             checkFullTextFunctionsParents(condition, failures);
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {

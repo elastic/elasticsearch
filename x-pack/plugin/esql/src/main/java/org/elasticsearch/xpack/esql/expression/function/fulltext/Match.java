@@ -203,7 +203,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
     }
 
     @Override
-    public void postLogicalOptimizationVerification(Failures failures) {
+    public void postOptimizationVerification(Failures failures) {
         Expression fieldExpression = field();
         // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
         if (fieldExpression instanceof AbstractConvertFunction convertFunction) {

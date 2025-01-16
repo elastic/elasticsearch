@@ -29,6 +29,9 @@ PUT retrievers_example
            },
            "topic": {
                "type": "keyword"
+           },
+           "timestamp": {
+               "type": "date"
            }
        }
    }
@@ -39,7 +42,8 @@ POST /retrievers_example/_doc/1
  "vector": [0.23, 0.67, 0.89],
  "text": "Large language models are revolutionizing information retrieval by boosting search precision, deepening contextual understanding, and reshaping user experiences in data-rich environments.",
  "year": 2024,
- "topic": ["llm", "ai", "information_retrieval"]
+ "topic": ["llm", "ai", "information_retrieval"],
+ "timestamp": "2021-01-01T12:10:30"
 }
 
 POST /retrievers_example/_doc/2
@@ -47,7 +51,8 @@ POST /retrievers_example/_doc/2
  "vector": [0.12, 0.56, 0.78],
  "text": "Artificial intelligence is transforming medicine, from advancing diagnostics and tailoring treatment plans to empowering predictive patient care for improved health outcomes.",
  "year": 2023,
- "topic": ["ai", "medicine"]
+ "topic": ["ai", "medicine"],
+ "timestamp": "2022-01-01T12:10:30"
 }
 
 POST /retrievers_example/_doc/3
@@ -55,7 +60,8 @@ POST /retrievers_example/_doc/3
  "vector": [0.45, 0.32, 0.91],
   "text": "AI is redefining security by enabling advanced threat detection, proactive risk analysis, and dynamic defenses against increasingly sophisticated cyber threats.",
  "year": 2024,
- "topic": ["ai", "security"]
+ "topic": ["ai", "security"],
+ "timestamp": "2023-01-01T12:10:30"
 }
 
 POST /retrievers_example/_doc/4
@@ -63,7 +69,8 @@ POST /retrievers_example/_doc/4
  "vector": [0.34, 0.21, 0.98],
  "text": "Elastic introduces Elastic AI Assistant, the open, generative AI sidekick powered by ESRE to democratize cybersecurity and enable users of every skill level.",
  "year": 2023,
- "topic": ["ai", "elastic", "assistant"]
+ "topic": ["ai", "elastic", "assistant"],
+ "timestamp": "2024-01-01T12:10:30"
 }
 
 POST /retrievers_example/_doc/5
@@ -71,7 +78,8 @@ POST /retrievers_example/_doc/5
  "vector": [0.11, 0.65, 0.47],
  "text": "Learn how to spin up a deployment of our hosted Elasticsearch Service and use Elastic Observability to gain deeper insight into the behavior of your applications and systems.",
  "year": 2024,
- "topic": ["documentation", "observability", "elastic"]
+ "topic": ["documentation", "observability", "elastic"],
+ "timestamp": "2025-01-01T12:10:30"
 }
 
 POST /retrievers_example/_refresh
@@ -257,7 +265,7 @@ GET /retrievers_example/_search
 ----
 // TEST
 
-This returns the following response based on the final linearly weighted score for each result.
+This returns the following response based on the normalized weighted score for each result.
 
 .Example response
 [%collapsible]
@@ -306,6 +314,142 @@ This returns the following response based on the final linearly weighted score f
 // TESTRESPONSE[s/"score": -3/"score": $body.hits.hits.2._score/]
 ==============
 
+By normalizing score and leveraging function scores, we can also implement more complex ranking strategies, such as
+sorting the results based on their timestamps, assign the timestamp as score, and then normalizing this score to [0, 1]
+range where 1 is `today` and `0` is the oldest reference document in the index.
+Then, we can easily combine the above with a `knn` retriever for example as follows:
+
+[source,console]
+----
+GET /retrievers_example/_search
+{
+    "retriever": {
+        "linear": {
+            "retrievers": [
+                {
+                    "component": {
+                        "retriever": {
+                            "standard": {
+                                "query": {
+                                    "function_score": {
+                                        "query": {
+                                            "term": {
+                                                "topic": "ai"
+                                            }
+                                        },
+                                        "functions": [
+                                            {
+                                                "script_score": {
+                                                    "script": {
+                                                        "source": "doc['timestamp'].value.millis"
+                                                    }
+                                                }
+                                            }
+                                        ],
+                                        "boost_mode": "replace"
+                                    }
+                                },
+                                "sort": {
+                                    "timestamp": {
+                                        "order": "asc"
+                                    }
+                                }
+                            }
+                        },
+                        "weight": 2,
+                        "normalizer": {
+                            "minmax": {
+                                "min": "1483228800000"
+                            }
+                        }
+                    }
+                },
+                {
+                    "component": {
+                        "retriever": {
+                            "knn": {
+                                "field": "vector",
+                                "query_vector": [
+                                    0.23,
+                                    0.67,
+                                    0.89
+                                ],
+                                "k": 3,
+                                "num_candidates": 5
+                            }
+                        },
+                        "weight": 1.5
+                    }
+                }
+            ],
+            "rank_window_size": 10
+        }
+    },
+    "_source": false
+}
+----
+// TEST
+
+Which would return the following results:
+
+.Example response
+[%collapsible]
+==============
+[source,console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 5,
+            "relation": "eq"
+        },
+        "max_score": -1,
+        "hits": [
+            {
+                "_index": "retrievers_example",
+                "_id": "2",
+                "_score": -1
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": -2
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "4",
+                "_score": -3
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "3",
+                "_score": -4
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "5",
+                "_score": -5
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+// TESTRESPONSE[s/"max_score": -1/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"score": -1/"score": $body.hits.hits.0._score/]
+// TESTRESPONSE[s/"score": -2/"score": $body.hits.hits.1._score/]
+// TESTRESPONSE[s/"score": -3/"score": $body.hits.hits.2._score/]
+// TESTRESPONSE[s/"score": -4/"score": $body.hits.hits.5._score/]
+// TESTRESPONSE[s/"score": -5/"score": $body.hits.hits.4._score/]
+==============
 
 [discrete]
 [[retrievers-examples-collapsing-retriever-results]]

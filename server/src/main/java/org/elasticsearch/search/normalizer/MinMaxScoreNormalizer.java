@@ -81,6 +81,9 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
 
     @Override
     public ScoreDoc[] normalizeScores(ScoreDoc[] docs) {
+        if (docs.length == 0) {
+            return docs;
+        }
         // create a new array to avoid changing ScoreDocs in place
         ScoreDoc[] scoreDocs = new ScoreDoc[docs.length];
         if (min == null || max == null) {

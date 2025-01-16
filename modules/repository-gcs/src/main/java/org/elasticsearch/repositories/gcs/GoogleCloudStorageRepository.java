@@ -64,12 +64,12 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
      */
     static final Setting<TimeValue> RETRY_THROTTLED_CAS_DELAY_INCREMENT = Setting.timeSetting(
         "throttled_cas_retry.delay_increment",
-        TimeValue.timeValueMillis(50),
+        TimeValue.timeValueMillis(100),
         TimeValue.ZERO
     );
     static final Setting<Integer> RETRY_THROTTLED_CAS_MAX_NUMBER_OF_RETRIES = Setting.intSetting(
         "throttled_cas_retry.maximum_number_of_retries",
-        10,
+        2,
         0
     );
     static final Setting<TimeValue> RETRY_THROTTLED_CAS_MAXIMUM_DELAY = Setting.timeSetting(

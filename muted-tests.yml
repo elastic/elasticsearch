@@ -495,3 +495,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {date.IN operator with null in list, doesn't find match SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/120157
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {date.IN operator with null in list, doesn't find match, EVAL to check value SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/120151

@@ -160,7 +160,7 @@ public class OldMappingsIT extends ESRestTestCase {
             doc3.setJsonEntity(Strings.toString(bodyDoc3));
             assertOK(oldEs.performRequest(doc3));
 
-            Request  doc4 = new Request("POST", "/" + "standard_token_filter" + "/" + "doc");
+            Request doc4 = new Request("POST", "/" + "standard_token_filter" + "/" + "doc");
             doc4.addParameter("refresh", "true");
             XContentBuilder bodyDoc4 = XContentFactory.jsonBuilder().startObject().field("content", "Doc 1").endObject();
             doc4.setJsonEntity(Strings.toString(bodyDoc4));

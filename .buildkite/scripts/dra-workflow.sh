@@ -29,7 +29,7 @@ if [[ "$WORKFLOW" == "snapshot" ]]; then
   VERSION_SUFFIX="-SNAPSHOT"
 fi
 
-if [[ -n "$VERSION_QUALIFER" ]]; then
+if [[ -n "${VERSION_QUALIFER:-}" ]]; then
   ES_VERSION = "${ES_VERSION}-${VERSION_QUALIFER}"
   echo "Version qualifier specified. ES_VERSION=${ES_VERSION}."
 fi
@@ -53,7 +53,7 @@ if [[ "$WORKFLOW" == "staging" ]]; then
   BUILD_SNAPSHOT_ARG="-Dbuild.snapshot=false"
 fi
 
-if [[ -n "$VERSION_QUALIFER" ]]; then
+if [[ -n "${VERSION_QUALIFER:-}" ]]; then
   VERSION_QUALIFIER_ARG="-Dbuild.version_qualifier=$VERSION_QUALIFER"
 fi
 
@@ -72,7 +72,7 @@ echo --- Building release artifacts
   :distribution:generateDependenciesReport
 
 PATH="$PATH:${JAVA_HOME}/bin" # Required by the following script
-if [[ -z "$VERSION_QUALIFER" ]]; then
+if [[ -z "${VERSION_QUALIFER:-}" ]]; then
 x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier="$VERSION_SUFFIX"
 else
 x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier="$VERSION_QUALIFER"

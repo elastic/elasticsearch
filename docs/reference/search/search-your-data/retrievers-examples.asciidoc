@@ -13,13 +13,20 @@ To begin with, lets create the `retrievers_example` index, and add some document
 ----
 PUT retrievers_example
 {
+    "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0
+    },
    "mappings": {
        "properties": {
            "vector": {
                "type": "dense_vector",
                "dims": 3,
                "similarity": "l2_norm",
-               "index": true
+               "index": true,
+               "index_options": {
+                   "type": "flat"
+                }
            },
            "text": {
                "type": "text"
@@ -408,35 +415,30 @@ Which would return the following results:
     },
     "hits": {
         "total": {
-            "value": 5,
+            "value": 4,
             "relation": "eq"
         },
         "max_score": -1,
         "hits": [
             {
                 "_index": "retrievers_example",
-                "_id": "2",
+                "_id": "3",
                 "_score": -1
             },
             {
                 "_index": "retrievers_example",
-                "_id": "1",
+                "_id": "2",
                 "_score": -2
             },
             {
                 "_index": "retrievers_example",
-                "_id": "4",
+                "_id": "1",
                 "_score": -3
             },
             {
                 "_index": "retrievers_example",
-                "_id": "3",
+                "_id": "4",
                 "_score": -4
-            },
-            {
-                "_index": "retrievers_example",
-                "_id": "5",
-                "_score": -5
             }
         ]
     }
@@ -448,7 +450,6 @@ Which would return the following results:
 // TESTRESPONSE[s/"score": -2/"score": $body.hits.hits.1._score/]
 // TESTRESPONSE[s/"score": -3/"score": $body.hits.hits.2._score/]
 // TESTRESPONSE[s/"score": -4/"score": $body.hits.hits.3._score/]
-// TESTRESPONSE[s/"score": -5/"score": $body.hits.hits.4._score/]
 ==============
 
 [discrete]

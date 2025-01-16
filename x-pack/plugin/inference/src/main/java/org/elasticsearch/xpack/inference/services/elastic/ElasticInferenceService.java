@@ -251,7 +251,7 @@ public class ElasticInferenceService extends SenderService {
                 eisServiceComponents,
                 context
             );
-            case COMPLETION -> new ElasticInferenceServiceCompletionModel(
+            case CHAT_COMPLETION -> new ElasticInferenceServiceCompletionModel(
                 inferenceEntityId,
                 taskType,
                 NAME,

@@ -1059,10 +1059,12 @@ public class MetadataIndexStateService {
 
                 if (block.getBlock().contains(ClusterBlockLevel.WRITE) && markVerified) {
                     final IndexMetadata indexMetadata = metadata.getSafe(index);
-                    final IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(indexMetadata)
-                        .settings(Settings.builder().put(indexMetadata.getSettings()).put(VERIFIED_READ_ONLY_SETTING.getKey(), true))
-                        .settingsVersion(indexMetadata.getSettingsVersion() + 1);
-                    metadata.put(updatedMetadata);
+                    if (VERIFIED_READ_ONLY_SETTING.get(indexMetadata.getSettings()) == false) {
+                        final IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(indexMetadata)
+                            .settings(Settings.builder().put(indexMetadata.getSettings()).put(VERIFIED_READ_ONLY_SETTING.getKey(), true))
+                            .settingsVersion(indexMetadata.getSettingsVersion() + 1);
+                        metadata.put(updatedMetadata);
+                    }
                 }
             } catch (final IndexNotFoundException e) {
                 logger.debug("index {} has been deleted since blocking it started, ignoring", index);

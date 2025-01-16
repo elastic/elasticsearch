@@ -62,7 +62,6 @@ public class TransportVersions {
     public static final TransportVersion V_7_8_1 = def(7_08_01_99);
     public static final TransportVersion V_7_9_0 = def(7_09_00_99);
     public static final TransportVersion V_7_10_0 = def(7_10_00_99);
-    public static final TransportVersion V_7_10_1 = def(7_10_01_99);
     public static final TransportVersion V_7_11_0 = def(7_11_00_99);
     public static final TransportVersion V_7_12_0 = def(7_12_00_99);
     public static final TransportVersion V_7_13_0 = def(7_13_00_99);
@@ -157,6 +156,7 @@ public class TransportVersions {
     public static final TransportVersion ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION = def(8_822_00_0);
     public static final TransportVersion KQL_QUERY_TECH_PREVIEW = def(8_823_00_0);
     public static final TransportVersion ESQL_PROFILE_ROWS_PROCESSED = def(8_824_00_0);
+    public static final TransportVersion BYTE_SIZE_VALUE_ALWAYS_USES_BYTES = def(8_825_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

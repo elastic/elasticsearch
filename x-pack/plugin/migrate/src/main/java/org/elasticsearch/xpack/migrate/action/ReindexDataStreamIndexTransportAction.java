@@ -215,7 +215,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         reindexRequest.getSearchRequest().source().fetchSource(true);
         reindexRequest.setDestIndex(destIndexName);
         reindexRequest.setParentTask(parentTaskId);
-        reindexRequest.setRequestsPerSecond(REINDEX_MAX_REQUESTS_PER_SECOND_SETTING.get(clusterService.getSettings()));
+        reindexRequest.setRequestsPerSecond(clusterService.getClusterSettings().get(REINDEX_MAX_REQUESTS_PER_SECOND_SETTING));
         reindexRequest.setSlices(0); // equivalent to slices=auto in rest api
         client.execute(ReindexAction.INSTANCE, reindexRequest, listener);
     }

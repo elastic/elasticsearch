@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -26,6 +27,8 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+
+import java.util.Collections;
 
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
@@ -101,7 +104,13 @@ public class ReindexDataStreamIndexTransportActionTests extends ESTestCase {
         ActionListener<BulkByScrollResponse> listener = ActionListener.noop();
         TaskId taskId = TaskId.EMPTY_TASK_ID;
 
-        when(clusterService.getSettings()).thenReturn(settings);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(
+                settings,
+                Collections.singleton(ReindexDataStreamIndexTransportAction.REINDEX_MAX_REQUESTS_PER_SECOND_SETTING)
+            )
+        );
+
         doNothing().when(client).execute(eq(ReindexAction.INSTANCE), request.capture(), eq(listener));
 
         action.reindex(sourceIndex, destIndex, listener, taskId);
@@ -121,7 +130,12 @@ public class ReindexDataStreamIndexTransportActionTests extends ESTestCase {
         ActionListener<BulkByScrollResponse> listener = ActionListener.noop();
         TaskId taskId = TaskId.EMPTY_TASK_ID;
 
-        when(clusterService.getSettings()).thenReturn(settings);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(
+                settings,
+                Collections.singleton(ReindexDataStreamIndexTransportAction.REINDEX_MAX_REQUESTS_PER_SECOND_SETTING)
+            )
+        );
         doNothing().when(client).execute(eq(ReindexAction.INSTANCE), request.capture(), eq(listener));
 
         action.reindex(sourceIndex, destIndex, listener, taskId);
@@ -141,7 +155,12 @@ public class ReindexDataStreamIndexTransportActionTests extends ESTestCase {
         ActionListener<BulkByScrollResponse> listener = ActionListener.noop();
         TaskId taskId = TaskId.EMPTY_TASK_ID;
 
-        when(clusterService.getSettings()).thenReturn(settings);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(
+                settings,
+                Collections.singleton(ReindexDataStreamIndexTransportAction.REINDEX_MAX_REQUESTS_PER_SECOND_SETTING)
+            )
+        );
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -165,7 +184,12 @@ public class ReindexDataStreamIndexTransportActionTests extends ESTestCase {
         ActionListener<BulkByScrollResponse> listener = ActionListener.noop();
         TaskId taskId = TaskId.EMPTY_TASK_ID;
 
-        when(clusterService.getSettings()).thenReturn(settings);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(
+                settings,
+                Collections.singleton(ReindexDataStreamIndexTransportAction.REINDEX_MAX_REQUESTS_PER_SECOND_SETTING)
+            )
+        );
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

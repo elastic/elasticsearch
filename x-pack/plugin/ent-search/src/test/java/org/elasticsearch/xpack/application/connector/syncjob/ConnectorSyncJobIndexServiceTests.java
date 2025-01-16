@@ -806,18 +806,18 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         Instant requestLastSeen = request.getLastSeen();
         Map<String, Object> metadata = request.getMetadata();
 
-        Long deletedDocumentCountAfterUpdate = (Long) syncJobSourceAfterUpdate.get(
+        Long deletedDocumentCountAfterUpdate = ((Number) syncJobSourceAfterUpdate.get(
             ConnectorSyncJob.DELETED_DOCUMENT_COUNT_FIELD.getPreferredName()
-        );
-        Long indexedDocumentCountAfterUpdate = (Long) syncJobSourceAfterUpdate.get(
+        )).longValue();
+        Long indexedDocumentCountAfterUpdate = ((Number) syncJobSourceAfterUpdate.get(
             ConnectorSyncJob.INDEXED_DOCUMENT_COUNT_FIELD.getPreferredName()
-        );
-        Long indexedDocumentVolumeAfterUpdate = (Long) syncJobSourceAfterUpdate.get(
+        )).longValue();
+        Long indexedDocumentVolumeAfterUpdate = ((Number) syncJobSourceAfterUpdate.get(
             ConnectorSyncJob.INDEXED_DOCUMENT_VOLUME_FIELD.getPreferredName()
-        );
-        Long totalDocumentCountAfterUpdate = (Long) syncJobSourceAfterUpdate.get(
+        )).longValue();
+        Long totalDocumentCountAfterUpdate = ((Number) syncJobSourceAfterUpdate.get(
             ConnectorSyncJob.TOTAL_DOCUMENT_COUNT_FIELD.getPreferredName()
-        );
+        )).longValue();
         Instant lastSeenAfterUpdate = Instant.parse(
             (String) syncJobSourceAfterUpdate.get(ConnectorSyncJob.LAST_SEEN_FIELD.getPreferredName())
         );

@@ -11,7 +11,7 @@ setup:
         refresh: true
         body:
           - create: {}
-          - '{"@timestamp":"1721314113467.654","data_stream":{"dataset":"generic.otel","namespace":"default"}, "attributes": { "foo": "bar"}, "body":{"text":"Error: Unable to connect to the database."},"severity_text":"ERROR","severity_number":3,"trace_id":"abc123xyz456def789ghi012jkl345"}'
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "attributes": { "foo": "bar"}, "body":{"text":"Error: Unable to connect to the database."},"severity_text":"ERROR","severity_number":3,"trace_id":"abc123xyz456def789ghi012jkl345"}'
   - is_false: errors
   - do:
       search:
@@ -28,7 +28,7 @@ setup:
         refresh: true
         body:
           - create: {}
-          - "@timestamp": "1721314113467.654"
+          - "@timestamp": 2024-07-18T14:48:33.467654000Z
             data_stream:
               type: logs
               dataset: generic.otel
@@ -99,7 +99,7 @@ Event body:
         refresh: true
         body:
           - create: {}
-          - "@timestamp": "1721314113467.654"
+          - "@timestamp": 2024-07-18T14:48:33.467654000Z
             resource:
               attributes:
                 service.name: my-service
@@ -129,7 +129,7 @@ Structured log body:
         refresh: true
         body:
           - create: {}
-          - "@timestamp": "1721314113467.654"
+          - "@timestamp": 2024-07-18T14:48:33.467654000Z
             resource:
               attributes:
                 service.name: my-service
@@ -173,7 +173,7 @@ host.name pass-through:
         refresh: true
         body:
           - create: {}
-          - "@timestamp": "1721314113467.654"
+          - "@timestamp": 2024-07-18T14:48:33.467654000Z
             resource:
               attributes:
                 host.name: localhost
@@ -197,7 +197,7 @@ host.name pass-through:
         refresh: true
         body:
           - create: { }
-          - "@timestamp": "1721314113467.654"
+          - "@timestamp": 2024-07-18T14:48:33.467654000Z
             data_stream:
               dataset: generic.otel
               namespace: default
@@ -228,29 +228,3 @@ host.name pass-through:
   - match: { hits.hits.0.fields.kubernetes\.node\.uid : ["myNodeUid"] }
   - match: { hits.hits.0.fields.kubernetes\.node\.hostname : ["myNodeHostname"] }
   - match: { hits.hits.0.fields.orchestrator\.cluster\.name : ["myClusterName"] }
-
----
-numeric timestamp:
-  - do:
-      bulk:
-        index: logs-generic.otel-default
-        refresh: true
-        body:
-          - create: {}
-          - "@timestamp": "1721314113467.654123"
-            resource:
-              attributes:
-                host.name: localhost
-  - is_false: errors
-  - do:
-      search:
-        index: logs-generic.otel-default
-        body:
-          query:
-            term:
-              host.name: localhost
-          fields:
-            - "field": "@timestamp"
-              "format": "strict_date_optional_time_nanos"
-  - length: { hits.hits: 1 }
-  - match: { hits.hits.0.fields.@timestamp: [ "2024-07-18T14:48:33.467654123Z" ] }

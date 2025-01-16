@@ -181,7 +181,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     public void addPartialResult(TopDocsStats topDocsStats, MergeResult mergeResult) {
         if (mergeResult.processedShards.isEmpty() == false) {
-            synchronized (this) {
+            synchronized (batchedResults) {
                 batchedResults.add(new Tuple<>(topDocsStats, mergeResult));
             }
         }
@@ -210,20 +210,20 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         buffer.sort(RESULT_COMPARATOR);
         final TopDocsStats topDocsStats = this.topDocsStats;
         var mergeResult = this.mergeResult;
-        if (mergeResult != null) {
-            this.mergeResult = null;
-            batchedResults.add(Tuple.tuple(new TopDocsStats(Integer.MAX_VALUE), mergeResult));
+        final List<Tuple<TopDocsStats, MergeResult>> batchedResults;
+        synchronized (this.batchedResults) {
+            batchedResults = this.batchedResults;
         }
-        final int resultSize = buffer.size() + (mergeResult == null ? 0 : 1);
+        final int resultSize = buffer.size() + (mergeResult == null ? 0 : 1) + batchedResults.size();
         final List<TopDocs> topDocsList = hasTopDocs ? new ArrayList<>(resultSize) : null;
         final List<DelayableWriteable<InternalAggregations>> aggsList = hasAggs ? new ArrayList<>(resultSize) : null;
-        for (Tuple<TopDocsStats, MergeResult> batchedResult : batchedResults) {
-            if (topDocsList != null) {
-                topDocsList.add(batchedResult.v2().reducedTopDocs);
-            }
-            if (aggsList != null) {
-                aggsList.add(DelayableWriteable.referencing(batchedResult.v2().reducedAggs));
-            }
+        if (mergeResult != null) {
+            this.mergeResult = null;
+            consumePartialMergeResult(mergeResult, topDocsList, aggsList);
+        }
+        for (int i = 0; i < batchedResults.size(); i++) {
+            Tuple<TopDocsStats, MergeResult> batchedResult = batchedResults.set(i, null);
+            consumePartialMergeResult(batchedResult.v2(), topDocsList, aggsList);
             topDocsStats.add(batchedResult.v1());
         }
         for (QuerySearchResult result : buffer) {
@@ -280,6 +280,19 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
         return reducePhase;
 
+    }
+
+    private static void consumePartialMergeResult(
+        MergeResult partialResult,
+        List<TopDocs> topDocsList,
+        List<DelayableWriteable<InternalAggregations>> aggsList
+    ) {
+        if (topDocsList != null) {
+            topDocsList.add(partialResult.reducedTopDocs);
+        }
+        if (aggsList != null) {
+            aggsList.add(DelayableWriteable.referencing(partialResult.reducedAggs));
+        }
     }
 
     private static final Comparator<QuerySearchResult> RESULT_COMPARATOR = Comparator.comparingInt(QuerySearchResult::getShardIndex);

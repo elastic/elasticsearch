@@ -162,9 +162,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             for (var entry : innerRetrievers) {
                 builder.startObject();
                 builder.startObject(LinearRetrieverComponent.NAME);
-                builder.startObject(LinearRetrieverComponent.RETRIEVER_FIELD.getPreferredName());
-                entry.retriever().toXContent(builder, params);
-                builder.endObject();
+                builder.field(LinearRetrieverComponent.RETRIEVER_FIELD.getPreferredName(), entry.retriever());
                 builder.field(LinearRetrieverComponent.WEIGHT_FIELD.getPreferredName(), weights[index]);
                 builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizers[index]);
                 builder.endObject();

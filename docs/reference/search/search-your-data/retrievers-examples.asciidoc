@@ -447,7 +447,7 @@ Which would return the following results:
 // TESTRESPONSE[s/"score": -1/"score": $body.hits.hits.0._score/]
 // TESTRESPONSE[s/"score": -2/"score": $body.hits.hits.1._score/]
 // TESTRESPONSE[s/"score": -3/"score": $body.hits.hits.2._score/]
-// TESTRESPONSE[s/"score": -4/"score": $body.hits.hits.5._score/]
+// TESTRESPONSE[s/"score": -4/"score": $body.hits.hits.3._score/]
 // TESTRESPONSE[s/"score": -5/"score": $body.hits.hits.4._score/]
 ==============
 

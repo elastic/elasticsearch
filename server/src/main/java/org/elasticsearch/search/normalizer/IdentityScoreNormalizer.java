@@ -44,8 +44,7 @@ public class IdentityScoreNormalizer extends ScoreNormalizer {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public void doToXContent(XContentBuilder builder, Params params) throws IOException {
         // no-op
-        return builder;
     }
 }

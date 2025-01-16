@@ -124,11 +124,14 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(MIN_FIELD.getPreferredName(), min);
-        builder.field(MAX_FIELD.getPreferredName(), max);
+    public void doToXContent(XContentBuilder builder, Params params) throws IOException {
+        if (min != null) {
+            builder.field(MIN_FIELD.getPreferredName(), min);
+        }
+        if (max != null) {
+            builder.field(MAX_FIELD.getPreferredName(), max);
+        }
         builder.field(LOWER_BOUND_FIELD.getPreferredName(), lowerBound);
         builder.field(UPPER_BOUND_FIELD.getPreferredName(), upperBound);
-        return builder;
     }
 }

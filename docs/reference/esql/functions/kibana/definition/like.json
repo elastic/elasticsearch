@@ -32,7 +32,7 @@
         },
         {
           "name" : "pattern",
-          "type" : "text",
+          "type" : "keyword",
           "optional" : false,
           "description" : "Pattern."
         }

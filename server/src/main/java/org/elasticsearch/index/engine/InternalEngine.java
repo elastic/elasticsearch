@@ -2824,10 +2824,11 @@ public class InternalEngine extends Engine {
     }
 
     protected ElasticsearchMergeScheduler createMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
-//        return new EngineMergeScheduler(shardId, indexSettings);
+        // return new EngineMergeScheduler(shardId, indexSettings);
         return new ExecutorMergeScheduler(shardId, indexSettings, engineConfig.getThreadPool().executor(ThreadPool.Names.MERGE)) {
             private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
             private final AtomicBoolean isThrottling = new AtomicBoolean();
+
             @Override
             public synchronized void beforeMerge(OnGoingMerge merge) {
                 int maxNumMerges = getMaxMergeCount();
@@ -2849,7 +2850,7 @@ public class InternalEngine extends Engine {
                     }
                 }
                 if (indexWriter.hasPendingMerges() == false
-                        && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
+                    && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
                     // NEVER do this on a merge thread since we acquire some locks blocking here and if we concurrently rollback the writer
                     // we deadlock on engine#close for instance.
                     engineConfig.getThreadPool().executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {

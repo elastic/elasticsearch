@@ -44,6 +44,7 @@ public class ExecutorMergeScheduler extends MergeScheduler implements Elasticsea
         this.mergeTracking = new MergeTracking(logger, () -> Double.POSITIVE_INFINITY);
         this.executorService = executorService;
     }
+
     @Override
     public Set<OnGoingMerge> onGoingMerges() {
         return mergeTracking.onGoingMerges();
@@ -167,17 +168,19 @@ public class ExecutorMergeScheduler extends MergeScheduler implements Elasticsea
                 doMerge(mergeSource, onGoingMerge.getMerge());
                 if (verbose()) {
                     message(
-                            String.format(
-                                    Locale.ROOT,
-                                    "merge task %s merge segment [%s] done estSize=%.1f MB (written=%.1f MB) runTime=%.1fs (stopped=%.1fs, paused=%.1fs) rate=%s",
-                                    getName(),
-                                    getSegmentName(onGoingMerge.getMerge()),
-                                    bytesToMB(onGoingMerge.getMerge().estimatedMergeBytes),
-                                    bytesToMB(rateLimiter.getTotalBytesWritten()),
-                                    nsToSec(System.nanoTime() - startTimeNS),
-                                    nsToSec(rateLimiter.getTotalStoppedNS()),
-                                    nsToSec(rateLimiter.getTotalPausedNS()),
-                                    rateToString(rateLimiter.getMBPerSec())));
+                        String.format(
+                            Locale.ROOT,
+                            "merge task %s merge segment [%s] done estSize=%.1f MB (written=%.1f MB) runTime=%.1fs (stopped=%.1fs, paused=%.1fs) rate=%s",
+                            getName(),
+                            getSegmentName(onGoingMerge.getMerge()),
+                            bytesToMB(onGoingMerge.getMerge().estimatedMergeBytes),
+                            bytesToMB(rateLimiter.getTotalBytesWritten()),
+                            nsToSec(System.nanoTime() - startTimeNS),
+                            nsToSec(rateLimiter.getTotalStoppedNS()),
+                            nsToSec(rateLimiter.getTotalPausedNS()),
+                            rateToString(rateLimiter.getMBPerSec())
+                        )
+                    );
                 }
                 if (verbose()) {
                     message(String.format(Locale.ROOT, "merge task %s end", getName()));

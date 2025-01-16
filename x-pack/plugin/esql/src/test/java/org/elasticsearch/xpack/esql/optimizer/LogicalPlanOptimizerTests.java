@@ -179,6 +179,7 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -6218,6 +6219,41 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var leftRel = as(project.child(), EsRelation.class);
         var rightRel = as(join.right(), EsRelation.class);
+    }
+
+    /**
+     * When dropping lookup fields, the lookup relation shouldn't include them.
+     * At least until we can implement InsertFieldExtract there.
+     * Expects
+     * EsqlProject[[languages{f}#10]]
+     * \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
+     *   |_Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
+     * uages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12, languages{f}#10 AS language_code]]
+     *   | \_Limit[1000[INTEGER]]
+     *   |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18]
+     */
+    public void testLookupJoinDropAllLookupFields() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+
+        String query = """
+              FROM test
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | KEEP languages
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        assertThat(project.projections().size(), equalTo(1));
+        assertThat(project.projections().get(0).name(), equalTo("languages"));
+
+        var join = as(project.child(), Join.class);
+        var joinRightRelation = as(join.right(), EsRelation.class);
+
+        assertThat(joinRightRelation.output().size(), equalTo(1));
+        assertThat(joinRightRelation.output().get(0).name(), equalTo("language_code"));
     }
 
     //

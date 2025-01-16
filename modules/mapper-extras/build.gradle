@@ -14,8 +14,8 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Adds advanced field mappers'
-  classname 'org.elasticsearch.index.mapper.extras.MapperExtrasPlugin'
+  description = 'Adds advanced field mappers'
+  classname ='org.elasticsearch.index.mapper.extras.MapperExtrasPlugin'
 }
 
 restResources {

@@ -88,7 +88,8 @@ public class DeprecationChecks {
                 NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
                 NodeDeprecationChecks::checkEqlEnabledSetting,
                 NodeDeprecationChecks::checkNodeAttrData,
-                NodeDeprecationChecks::checkWatcherBulkConcurrentRequestsSetting
+                NodeDeprecationChecks::checkWatcherBulkConcurrentRequestsSetting,
+                NodeDeprecationChecks::checkTracingApmSettings
             );
 
     static List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(

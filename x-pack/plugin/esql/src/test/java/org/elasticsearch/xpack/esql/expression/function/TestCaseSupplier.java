@@ -110,13 +110,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     @Override
     public TestCase get() {
         TestCase supplied = supplier.get();
-        if (types != null) {
-            for (int i = 0; i < types.size(); i++) {
-                if (supplied.getData().get(i).type() != types.get(i)) {
-                    throw new IllegalStateException(
-                        name + ": supplier/data type mismatch " + supplied.getData().get(i).type() + "/" + types.get(i)
-                    );
-                }
+        for (int i = 0; i < types.size(); i++) {
+            if (supplied.getData().get(i).type() != types.get(i)) {
+                throw new IllegalStateException(
+                    name + ": supplier/data type mismatch " + supplied.getData().get(i).type() + "/" + types.get(i)
+                );
             }
         }
         return supplied;
@@ -1014,6 +1012,17 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      * <p>
      *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#dateCases}.
      * </p>
+     * Helper function for if you want to specify your min and max range as dates instead of longs.
+     */
+    public static List<TypedDataSupplier> dateCases(Instant min, Instant max) {
+        return dateCases(min.toEpochMilli(), max.toEpochMilli());
+    }
+
+    /**
+     * Generate cases for {@link DataType#DATETIME}.
+     * <p>
+     *     For multi-row parameters, see {@link MultiRowTestCaseSupplier#dateCases}.
+     * </p>
      */
     public static List<TypedDataSupplier> dateCases(long min, long max) {
         List<TypedDataSupplier> cases = new ArrayList<>();
@@ -1045,6 +1054,19 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         return cases;
+    }
+
+    /**
+     *
+     * @return randomized valid date formats
+     */
+    public static List<TypedDataSupplier> dateFormatCases() {
+        return List.of(
+            new TypedDataSupplier("<format as KEYWORD>", () -> new BytesRef(ESTestCase.randomDateFormatterPattern()), DataType.KEYWORD),
+            new TypedDataSupplier("<format as TEXT>", () -> new BytesRef(ESTestCase.randomDateFormatterPattern()), DataType.TEXT),
+            new TypedDataSupplier("<format as KEYWORD>", () -> new BytesRef("yyyy"), DataType.KEYWORD),
+            new TypedDataSupplier("<format as TEXT>", () -> new BytesRef("yyyy"), DataType.TEXT)
+        );
     }
 
     /**
@@ -1390,10 +1412,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         /**
          * Warnings that are added by calling {@link AbstractFunctionTestCase#evaluator}
-         * or {@link Expression#fold()} on the expression built by this.
+         * or {@link Expression#fold} on the expression built by this.
          */
         private final String[] expectedBuildEvaluatorWarnings;
 
+        /**
+         * @deprecated use subclasses of {@link ErrorsForCasesWithoutExamplesTestCase}
+         */
+        @Deprecated
         private final String expectedTypeError;
         private final boolean canBuildEvaluator;
 
@@ -1414,6 +1440,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this(data, evaluatorToString, expectedType, matcher, null, null, null, null, null, null);
         }
 
+        /**
+         * Build a test case for type errors.
+         * @deprecated use a subclass of {@link ErrorsForCasesWithoutExamplesTestCase} instead
+         */
+        @Deprecated
         public static TestCase typeError(List<TypedData> data, String expectedTypeError) {
             return new TestCase(data, null, null, null, null, null, expectedTypeError, null, null, null);
         }
@@ -1520,7 +1551,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         /**
          * Warnings that are added by calling {@link AbstractFunctionTestCase#evaluator}
-         * or {@link Expression#fold()} on the expression built by this.
+         * or {@link Expression#fold} on the expression built by this.
          */
         public String[] getExpectedBuildEvaluatorWarnings() {
             return expectedBuildEvaluatorWarnings;
@@ -1534,6 +1565,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return foldingExceptionMessage;
         }
 
+        /**
+         * @deprecated use subclasses of {@link ErrorsForCasesWithoutExamplesTestCase}
+         */
+        @Deprecated
         public String getExpectedTypeError() {
             return expectedTypeError;
         }
@@ -1602,7 +1637,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         /**
          * Warnings that are added by calling {@link AbstractFunctionTestCase#evaluator}
-         * or {@link Expression#fold()} on the expression built by this.
+         * or {@link Expression#fold} on the expression built by this.
          */
         public TestCase withBuildEvaluatorWarning(String warning) {
             return new TestCase(

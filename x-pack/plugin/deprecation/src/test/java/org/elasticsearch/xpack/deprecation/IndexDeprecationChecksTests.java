@@ -19,8 +19,8 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -29,6 +29,8 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -49,10 +51,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "Old index with a compatibility version < 8.0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/current/migrating-8.0.html#breaking-changes-8.0",
             "This index has version: " + createdWith.toReleaseVersion(),
             false,
-            null
+            singletonMap("reindex_required", true)
         );
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, clusterState));
         assertEquals(singletonList(expected), issues);
@@ -98,6 +100,20 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .build();
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, clusterState));
         assertThat(issues.size(), equalTo(0));
+    }
+
+    public void testOldIndicesCheckSnapshotIgnored() {
+        IndexVersion createdWith = IndexVersion.fromId(7170099);
+        Settings.Builder settings = settings(createdWith);
+        settings.put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, clusterState));
+
+        assertThat(issues, empty());
     }
 
     public void testTranslogRetentionSettings() {
@@ -207,10 +223,12 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             issues,
             contains(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
-                    "index [test] is a frozen index. The frozen indices feature is deprecated and will be removed in a future version",
+                    DeprecationIssue.Level.CRITICAL,
+                    "Index [test] is a frozen index. The frozen indices feature is deprecated and will be removed in version 9.0.",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/frozen-indices.html",
-                    "Frozen indices no longer offer any advantages. Consider cold or frozen tiers in place of frozen indices.",
+                    "Frozen indices must be unfrozen before upgrading to version 9.0."
+                        + " (The legacy frozen indices feature no longer offers any advantages."
+                        + " You may consider cold or frozen tiers in place of frozen indices.)",
                     false,
                     null
                 )
@@ -229,7 +247,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             + "} }";
 
         IndexMetadata simpleIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(IndexVersions.V_7_0_0))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .putMapping(simpleMapping)

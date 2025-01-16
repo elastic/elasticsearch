@@ -22,8 +22,8 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
-  classname 'org.elasticsearch.reindex.ReindexPlugin'
+  description = 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
+  classname = 'org.elasticsearch.reindex.ReindexPlugin'
 }
 
 testClusters.configureEach {
@@ -136,7 +136,8 @@ if (OS.current() == OS.WINDOWS) {
     TaskProvider<AntFixture> fixture = tasks.register("oldEs${version}Fixture", AntFixture) {
       dependsOn project.configurations.oldesFixture, jdks.legacy, oldEsDependency
       executable = "${buildParams.runtimeJavaHome.get()}/bin/java"
-      env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
+      def oldesFixtureConfiguration = project.configurations.oldesFixture
+      env 'CLASSPATH', "${-> oldesFixtureConfiguration.asPath}"
       // old versions of Elasticsearch need JAVA_HOME
       env 'JAVA_HOME', jdks.legacy.javaHomePath
       // If we are running on certain arm systems we need to explicitly set the stack size to overcome JDK page size bug

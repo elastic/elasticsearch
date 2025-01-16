@@ -23,8 +23,14 @@ import java.util.Set;
  * unless they also support that feature (this is known as the 'feature ratchet').
  * So once a feature is supported by a cluster, it will always be supported by that cluster in the future.
  * <p>
+ * The only situation where features can be removed is on a compatibility boundary (normally a new major version).
+ * Because a new major version can only form a cluster with the highest minor of the previous major,
+ * any features introduced before that point can be assumed to always be present on that cluster.
+ * The feature itself can be removed by marking it as assumed by {@link NodeFeature#assumedAfterNextCompatibilityBoundary()},
+ * in the last minor, and then removing it and associated conditions in the new major version.
+ * <p>
  * The feature information in cluster state should not normally be directly accessed.
- * All feature checks should be done through {@code FeatureService} to ensure that Elasticsearch's
+ * All feature checks should be done through {@link FeatureService} to ensure that Elasticsearch's
  * guarantees on the introduction of new functionality are followed;
  * that is, new functionality is not enabled until all nodes in the cluster support it.
  * <p>

@@ -1517,6 +1517,17 @@
                   "ignore_above": 1024,
                   "type": "keyword"
                 },
+                "tier_preference": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "creation_date": {
+                  "type": "date"
+                },
+                "version": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
                 "recovery": {
                   "properties": {
                     "stop_time": {

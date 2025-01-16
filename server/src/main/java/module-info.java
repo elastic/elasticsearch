@@ -430,6 +430,7 @@ module org.elasticsearch.server {
             org.elasticsearch.repositories.RepositoriesFeatures,
             org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
+            org.elasticsearch.index.IndexFeatures,
             org.elasticsearch.ingest.IngestGeoIpFeatures,
             org.elasticsearch.search.SearchFeatures,
             org.elasticsearch.script.ScriptFeatures,
@@ -474,5 +475,5 @@ module org.elasticsearch.server {
     exports org.elasticsearch.lucene.spatial;
     exports org.elasticsearch.inference.configuration;
     exports org.elasticsearch.monitor.metrics;
-
+    exports org.elasticsearch.plugins.internal.rewriter to org.elasticsearch.inference;
 }

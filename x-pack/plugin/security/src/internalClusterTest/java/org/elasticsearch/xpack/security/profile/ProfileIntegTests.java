@@ -557,8 +557,11 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             equalTo(profileHits4.subList(2, profileHits4.size()))
         );
 
+        // Exclude profile for "*" space since that can match _all_ profiles, if the full name is a substring of "user" or the name of
+        // another profile
+        final List<Profile> nonWildcardProfiles = profiles.stream().filter(p -> false == p.user().fullName().endsWith("*")).toList();
         // A record will not be included if name does not match even when it has matching hint
-        final Profile hintedProfile5 = randomFrom(profiles);
+        final Profile hintedProfile5 = randomFrom(nonWildcardProfiles);
         final List<Profile> profileHits5 = Arrays.stream(
             doSuggest(
                 Set.of(),

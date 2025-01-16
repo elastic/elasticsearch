@@ -45,12 +45,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<QueryRuleRetrieverBuilder> {
 
     public static final String NAME = "rule";
-    public static final NodeFeature QUERY_RULE_RETRIEVERS_SUPPORTED = new NodeFeature("query_rule_retriever_supported");
+    public static final NodeFeature QUERY_RULE_RETRIEVERS_SUPPORTED = new NodeFeature("query_rule_retriever_supported", true);
 
     public static final ParseField RULESET_IDS_FIELD = new ParseField("ruleset_ids");
     public static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
-    public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<QueryRuleRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(

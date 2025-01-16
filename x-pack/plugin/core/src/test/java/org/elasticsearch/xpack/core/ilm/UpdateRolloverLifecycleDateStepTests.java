@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.function.LongSupplier;
 
@@ -68,7 +67,7 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .putRolloverInfo(new RolloverInfo(alias, Collections.emptyList(), rolloverTime))
+            .putRolloverInfo(new RolloverInfo(alias, List.of(), rolloverTime))
             .settings(settings(IndexVersion.current()).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
@@ -88,7 +87,7 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
         long rolloverTime = randomValueOtherThan(creationDate, () -> randomNonNegativeLong());
         String dataStreamName = "test-datastream";
         IndexMetadata originalIndexMeta = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
-            .putRolloverInfo(new RolloverInfo(dataStreamName, Collections.emptyList(), rolloverTime))
+            .putRolloverInfo(new RolloverInfo(dataStreamName, List.of(), rolloverTime))
             .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))

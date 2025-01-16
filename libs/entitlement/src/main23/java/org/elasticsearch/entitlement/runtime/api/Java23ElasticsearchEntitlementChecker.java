@@ -19,8 +19,8 @@ public class Java23ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
     }
 
     @Override
-    public void check$java_lang_System$exit(Class<?> callerClass, int status) {
+    public void check$java_lang_Runtime$exit(Class<?> callerClass, Runtime runtime, int status) {
         // TODO: this is just an example, we shouldn't really override a method implemented in the superclass
-        super.check$java_lang_System$exit(callerClass, status);
+        super.check$java_lang_Runtime$exit(callerClass, runtime, status);
     }
 }

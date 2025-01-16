@@ -2012,3 +2012,41 @@ synthetic_source with copy_to pointing inside dynamic object:
       hits.hits.2.fields:
         c.copy.keyword: [ "hello", "zap" ]
 
+---
+create index with use_synthetic_source:
+  - requires:
+      cluster_features: ["mapper.synthetic_recovery_source"]
+      reason: requires synthetic recovery source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              recovery:
+                use_synthetic_source: true
+              mapping:
+                source:
+                  mode: synthetic
+
+  - do:
+      indices.get_settings: {}
+  - match: { test.settings.index.mapping.source.mode: synthetic}
+  - is_true: test.settings.index.recovery.use_synthetic_source
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body: { foo: bar }
+  - match: { _version: 1 }
+
+  - do:
+      indices.disk_usage:
+        index: test
+        run_expensive_tasks: true
+        flush: false
+  - gt: { test.store_size_in_bytes: 0 }
+  - is_false: test.fields._recovery_source

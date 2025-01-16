@@ -26,7 +26,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION;
 import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION;
 
 public class MlDeprecationChecker implements DeprecationChecker {
@@ -69,7 +68,7 @@ public class MlDeprecationChecker implements DeprecationChecker {
     }
 
     static Optional<DeprecationIssue> checkModelSnapshot(ModelSnapshot modelSnapshot) {
-        if (modelSnapshot.getMinVersion().before(MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION)) {
+        if (modelSnapshot.getMinVersion().before(MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION)) {
             StringBuilder details = new StringBuilder(
                 String.format(
                     Locale.ROOT,

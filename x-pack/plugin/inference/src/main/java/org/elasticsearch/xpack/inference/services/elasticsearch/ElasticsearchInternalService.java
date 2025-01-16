@@ -18,9 +18,8 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -29,11 +28,9 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SettingsConfiguration;
-import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.inference.configuration.SettingsConfigurationSelectOption;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
@@ -70,17 +67,16 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_THREADS;
-import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V1_MODEL;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL_LINUX_X86;
 
@@ -103,6 +99,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     public static final String DEFAULT_E5_ID = ".multilingual-e5-small-elasticsearch";
     public static final String DEFAULT_RERANK_ID = ".rerank-v1-elasticsearch";
 
+    private static final String SERVICE_NAME = "Elasticsearch";
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
         TaskType.RERANK,
         TaskType.TEXT_EMBEDDING,
@@ -136,7 +133,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> config,
         ActionListener<Model> modelListener
     ) {
-        if (inferenceEntityId.equals(DEFAULT_ELSER_ID)) {
+        if (isDefaultId(inferenceEntityId)) {
             modelListener.onFailure(
                 new ElasticsearchStatusException(
                     "[{}] is a reserved inference Id. Cannot create a new inference endpoint with a reserved Id",
@@ -579,6 +576,16 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     }
 
     @Override
+    public void unifiedCompletionInfer(
+        Model model,
+        UnifiedCompletionRequest request,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        throwUnsupportedUnifiedCompletionOperation(NAME);
+    }
+
+    @Override
     public void infer(
         Model model,
         @Nullable String query,
@@ -687,7 +694,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
-        ActionListener<List<ChunkedInferenceServiceResults>> listener
+        ActionListener<List<ChunkedInference>> listener
     ) {
         chunkedInfer(model, null, input, taskSettings, inputType, timeout, listener);
     }
@@ -700,7 +707,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
-        ActionListener<List<ChunkedInferenceServiceResults>> listener
+        ActionListener<List<ChunkedInference>> listener
     ) {
         if ((TaskType.TEXT_EMBEDDING.equals(model.getTaskType()) || TaskType.SPARSE_EMBEDDING.equals(model.getTaskType())) == false) {
             listener.onFailure(
@@ -1139,61 +1146,45 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.DROPDOWN)
+                    new SettingsConfiguration.Builder().setDefaultValue(MULTILINGUAL_E5_SMALL_MODEL_ID)
+                        .setDescription("The name of the model to use for the inference task.")
                         .setLabel("Model ID")
-                        .setOrder(1)
                         .setRequired(true)
                         .setSensitive(false)
-                        .setTooltip("The name of the model to use for the inference task.")
+                        .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)
-                        .setOptions(
-                            Stream.of(
-                                ELSER_V1_MODEL,
-                                ELSER_V2_MODEL,
-                                ELSER_V2_MODEL_LINUX_X86,
-                                MULTILINGUAL_E5_SMALL_MODEL_ID,
-                                MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86
-                            ).map(v -> new SettingsConfigurationSelectOption.Builder().setLabelAndValue(v).build()).toList()
-                        )
-                        .setDefaultValue(MULTILINGUAL_E5_SMALL_MODEL_ID)
                         .build()
                 );
 
                 configurationMap.put(
                     NUM_ALLOCATIONS,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.NUMERIC)
+                    new SettingsConfiguration.Builder().setDefaultValue(1)
+                        .setDescription("The total number of allocations this model is assigned across machine learning nodes.")
                         .setLabel("Number Allocations")
-                        .setOrder(2)
                         .setRequired(true)
                         .setSensitive(false)
-                        .setTooltip("The total number of allocations this model is assigned across machine learning nodes.")
+                        .setUpdatable(true)
                         .setType(SettingsConfigurationFieldType.INTEGER)
-                        .setDefaultValue(1)
                         .build()
                 );
 
                 configurationMap.put(
                     NUM_THREADS,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.NUMERIC)
+                    new SettingsConfiguration.Builder().setDefaultValue(2)
+                        .setDescription("Sets the number of threads used by each model allocation during inference.")
                         .setLabel("Number Threads")
-                        .setOrder(3)
                         .setRequired(true)
                         .setSensitive(false)
-                        .setTooltip("Sets the number of threads used by each model allocation during inference.")
+                        .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.INTEGER)
-                        .setDefaultValue(2)
                         .build()
                 );
 
-                return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
-                    Map<String, SettingsConfiguration> taskSettingsConfig;
-                    switch (t) {
-                        case RERANK -> taskSettingsConfig = CustomElandRerankModel.Configuration.get();
-                        // SPARSE_EMBEDDING, TEXT_EMBEDDING task types have no task settings
-                        default -> taskSettingsConfig = EmptySettingsConfiguration.get();
-                    }
-                    return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
-                }).toList()).setConfiguration(configurationMap).build();
+                return new InferenceServiceConfiguration.Builder().setService(NAME)
+                    .setName(SERVICE_NAME)
+                    .setTaskTypes(supportedTaskTypes)
+                    .setConfigurations(configurationMap)
+                    .build();
             }
         );
     }

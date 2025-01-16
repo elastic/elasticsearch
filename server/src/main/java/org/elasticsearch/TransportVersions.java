@@ -144,6 +144,24 @@ public class TransportVersions {
     public static final TransportVersion RETRIES_AND_OPERATIONS_IN_BLOBSTORE_STATS = def(8_804_00_0);
     public static final TransportVersion ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES = def(8_805_00_0);
     public static final TransportVersion KNN_QUERY_RESCORE_OVERSAMPLE = def(8_806_00_0);
+    public static final TransportVersion SEMANTIC_QUERY_LENIENT = def(8_807_00_0);
+    public static final TransportVersion ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS = def(8_808_00_0);
+    public static final TransportVersion EQL_ALLOW_PARTIAL_SEARCH_RESULTS = def(8_809_00_0);
+    public static final TransportVersion NODE_VERSION_INFORMATION_WITH_MIN_READ_ONLY_INDEX_VERSION = def(8_810_00_0);
+    public static final TransportVersion ERROR_TRACE_IN_TRANSPORT_HEADER = def(8_811_00_0);
+    public static final TransportVersion FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING = def(8_812_00_0);
+    public static final TransportVersion SIMULATE_IGNORED_FIELDS = def(8_813_00_0);
+    public static final TransportVersion TRANSFORMS_UPGRADE_MODE = def(8_814_00_0);
+    public static final TransportVersion NODE_SHUTDOWN_EPHEMERAL_ID_ADDED = def(8_815_00_0);
+    public static final TransportVersion ESQL_CCS_TELEMETRY_STATS = def(8_816_00_0);
+    public static final TransportVersion TEXT_EMBEDDING_QUERY_VECTOR_BUILDER_INFER_MODEL_ID = def(8_817_00_0);
+    public static final TransportVersion ESQL_ENABLE_NODE_LEVEL_REDUCTION = def(8_818_00_0);
+    public static final TransportVersion JINA_AI_INTEGRATION_ADDED = def(8_819_00_0);
+    public static final TransportVersion TRACK_INDEX_FAILED_DUE_TO_VERSION_CONFLICT_METRIC = def(8_820_00_0);
+    public static final TransportVersion REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX = def(8_821_00_0);
+    public static final TransportVersion ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION = def(8_822_00_0);
+    public static final TransportVersion KQL_QUERY_TECH_PREVIEW = def(8_823_00_0);
+    public static final TransportVersion ESQL_PROFILE_ROWS_PROCESSED = def(8_824_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -208,7 +226,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_15_2;
+    public static final TransportVersion MINIMUM_CCS_VERSION = QUERY_RULES_LIST_INCLUDES_TYPES_BACKPORT_8_16;
 
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
 

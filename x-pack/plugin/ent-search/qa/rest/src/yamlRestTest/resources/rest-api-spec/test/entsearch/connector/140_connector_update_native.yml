@@ -7,7 +7,7 @@ setup:
       connector.put:
         connector_id: test-connector
         body:
-          index_name: search-1-test
+          index_name: content-search-1-test
           name: my-connector
           language: pl
           is_native: false
@@ -29,7 +29,6 @@ setup:
         connector_id: test-connector
 
   - match: { is_native: true }
-  - match: { status: configured }
 
   - do:
       connector.update_native:
@@ -44,7 +43,6 @@ setup:
         connector_id: test-connector
 
   - match: { is_native: false }
-  - match: { status: configured }
 
 ---
 "Update Connector Native - 404 when connector doesn't exist":

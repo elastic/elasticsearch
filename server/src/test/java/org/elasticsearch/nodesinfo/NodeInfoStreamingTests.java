@@ -138,7 +138,11 @@ public class NodeInfoStreamingTests extends ESTestCase {
             List<ThreadPool.Info> threadPoolInfos = new ArrayList<>(numThreadPools);
             for (int i = 0; i < numThreadPools; i++) {
                 threadPoolInfos.add(
-                    new ThreadPool.Info(randomAlphaOfLengthBetween(3, 10), randomFrom(ThreadPool.ThreadPoolType.values()), randomInt())
+                    new ThreadPool.Info(
+                        randomAlphaOfLengthBetween(3, 10),
+                        randomFrom(ThreadPool.ThreadPoolType.FIXED, ThreadPool.ThreadPoolType.SCALING),
+                        randomInt()
+                    )
                 );
             }
             threadPoolInfo = new ThreadPoolInfo(threadPoolInfos);

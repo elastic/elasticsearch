@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
@@ -24,7 +26,6 @@ import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.esql.core.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
-import org.elasticsearch.xpack.esql.core.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils;
+import org.elasticsearch.xpack.esql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -52,6 +54,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.querydsl.query.KqlQuery;
+import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
+import org.elasticsearch.xpack.esql.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -91,7 +95,7 @@ public final class EsqlExpressionTranslators {
         new ExpressionTranslators.IsNotNulls(),
         new ExpressionTranslators.Nots(),
         new ExpressionTranslators.Likes(),
-        new ExpressionTranslators.MultiMatches(),
+        new MultiMatches(),
         new MatchFunctionTranslator(),
         new QueryStringFunctionTranslator(),
         new KqlFunctionTranslator(),
@@ -100,7 +104,11 @@ public final class EsqlExpressionTranslators {
     );
 
     public static Query toQuery(Expression e, TranslatorHandler handler) {
+        if (e instanceof TranslationAware ta) {
+            return ta.asQuery(handler);
+        }
         Query translation = null;
+
         for (ExpressionTranslator<?> translator : QUERY_TRANSLATORS) {
             translation = translator.translate(e, handler);
             if (translation != null) {
@@ -137,7 +145,7 @@ public final class EsqlExpressionTranslators {
         static Query translate(InsensitiveEquals bc) {
             TypedAttribute attribute = checkIsPushableAttribute(bc.left());
             Source source = bc.source();
-            BytesRef value = BytesRefs.toBytesRef(valueOf(bc.right()));
+            BytesRef value = BytesRefs.toBytesRef(valueOf(FoldContext.small() /* TODO remove me */, bc.right()));
             String name = pushableAttributeName(attribute);
             return new TermQuery(source, name, value.utf8ToString(), true);
         }
@@ -181,7 +189,7 @@ public final class EsqlExpressionTranslators {
             TypedAttribute attribute = checkIsPushableAttribute(bc.left());
             Source source = bc.source();
             String name = handler.nameOf(attribute);
-            Object result = bc.right().fold();
+            Object result = bc.right().fold(FoldContext.small() /* TODO remove me */);
             Object value = result;
             String format = null;
             boolean isDateLiteralComparison = false;
@@ -262,7 +270,7 @@ public final class EsqlExpressionTranslators {
                 return null;
             }
             Source source = bc.source();
-            Object value = valueOf(bc.right());
+            Object value = valueOf(FoldContext.small() /* TODO remove me */, bc.right());
 
             // Comparisons with multi-values always return null in ESQL.
             if (value instanceof List<?>) {
@@ -362,7 +370,7 @@ public final class EsqlExpressionTranslators {
             if (f instanceof CIDRMatch cm) {
                 if (cm.ipField() instanceof FieldAttribute fa && Expressions.foldable(cm.matches())) {
                     String targetFieldName = handler.nameOf(fa.exactAttribute());
-                    Set<Object> set = new LinkedHashSet<>(Expressions.fold(cm.matches()));
+                    Set<Object> set = new LinkedHashSet<>(Expressions.fold(FoldContext.small() /* TODO remove me */, cm.matches()));
 
                     Query query = new TermsQuery(f.source(), targetFieldName, set);
                     // CIDR_MATCH applies only to single values.
@@ -413,7 +421,7 @@ public final class EsqlExpressionTranslators {
             String name = handler.nameOf(attribute);
 
             try {
-                Geometry shape = SpatialRelatesUtils.makeGeometryFromLiteral(constantExpression);
+                Geometry shape = SpatialRelatesUtils.makeGeometryFromLiteral(FoldContext.small() /* TODO remove me */, constantExpression);
                 return new SpatialRelatesQuery(bc.source(), name, bc.queryRelation(), shape, attribute.dataType());
             } catch (IllegalArgumentException e) {
                 throw new QlIllegalArgumentException(e.getMessage(), e);
@@ -454,7 +462,7 @@ public final class EsqlExpressionTranslators {
                             queries.add(query);
                         }
                     } else {
-                        terms.add(valueOf(rhs));
+                        terms.add(valueOf(FoldContext.small() /* TODO remove me */, rhs));
                     }
                 }
             }
@@ -480,8 +488,8 @@ public final class EsqlExpressionTranslators {
         }
 
         private static RangeQuery translate(Range r, TranslatorHandler handler) {
-            Object lower = valueOf(r.lower());
-            Object upper = valueOf(r.upper());
+            Object lower = valueOf(FoldContext.small() /* TODO remove me */, r.lower());
+            Object upper = valueOf(FoldContext.small() /* TODO remove me */, r.upper());
             String format = null;
 
             DataType dataType = r.value().dataType();
@@ -529,6 +537,18 @@ public final class EsqlExpressionTranslators {
                 format,
                 r.zoneId()
             );
+        }
+    }
+
+    public static class MultiMatches extends ExpressionTranslator<MultiMatchQueryPredicate> {
+
+        @Override
+        protected Query asQuery(MultiMatchQueryPredicate q, TranslatorHandler handler) {
+            return doTranslate(q, handler);
+        }
+
+        public static Query doTranslate(MultiMatchQueryPredicate q, TranslatorHandler handler) {
+            return new MultiMatchQuery(q.source(), q.query(), q.fields(), q);
         }
     }
 

@@ -307,11 +307,15 @@ public class TransportSearchIT extends ESIntegTestCase {
 
     public void testWaitForRefreshIndexValidation() throws Exception {
         int numberOfShards = randomIntBetween(3, 10);
-        assertAcked(prepareCreate("test1").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)));
-        assertAcked(prepareCreate("test2").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)));
-        assertAcked(prepareCreate("test3").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)));
-        indicesAdmin().prepareAliases().addAlias("test1", "testAlias").get();
-        indicesAdmin().prepareAliases().addAlias(new String[] { "test2", "test3" }, "testFailedAlias").get();
+        assertAcked(
+            prepareCreate("test1").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)),
+            prepareCreate("test2").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)),
+            prepareCreate("test3").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards))
+        );
+        assertAcked(
+            indicesAdmin().prepareAliases().addAlias("test1", "testAlias"),
+            indicesAdmin().prepareAliases().addAlias(new String[] { "test2", "test3" }, "testFailedAlias")
+        );
 
         long[] validCheckpoints = new long[numberOfShards];
         Arrays.fill(validCheckpoints, SequenceNumbers.UNASSIGNED_SEQ_NO);
@@ -376,8 +380,10 @@ public class TransportSearchIT extends ESIntegTestCase {
         try {
             final int numPrimaries1 = randomIntBetween(2, 10);
             final int numPrimaries2 = randomIntBetween(1, 10);
-            assertAcked(prepareCreate("test1").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numPrimaries1)));
-            assertAcked(prepareCreate("test2").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numPrimaries2)));
+            assertAcked(
+                prepareCreate("test1").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numPrimaries1)),
+                prepareCreate("test2").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numPrimaries2))
+            );
 
             // no exception
             prepareSearch("test1").get().decRef();

@@ -62,7 +62,8 @@ public class SentenceBoundaryChunker implements Chunker {
      *
      * @param input Text to chunk
      * @param maxNumberWordsPerChunk Maximum size of the chunk
-     * @return The input text chunked
+     * @param includePrecedingSentence Include the previous sentence
+     * @return The input text offsets
      */
     public List<ChunkOffset> chunk(String input, int maxNumberWordsPerChunk, boolean includePrecedingSentence) {
         var chunks = new ArrayList<ChunkOffset>();
@@ -156,6 +157,11 @@ public class SentenceBoundaryChunker implements Chunker {
 
         if (chunkWordCount > 0) {
             chunks.add(new ChunkOffset(chunkStart, input.length()));
+        }
+
+        if (chunks.isEmpty()) {
+            // The input did not chunk, return the entire input
+            chunks.add(new ChunkOffset(0, input.length()));
         }
 
         return chunks;

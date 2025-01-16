@@ -15,6 +15,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -47,16 +48,14 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
         suppliers.add(supplier("text unicode", DataType.TEXT, () -> randomUnicodeOfLengthBetween(1, 10)));
         suppliers.add(supplier("semantic_text ascii", DataType.SEMANTIC_TEXT, () -> randomAlphaOfLengthBetween(1, 10)));
         suppliers.add(supplier("semantic_text unicode", DataType.SEMANTIC_TEXT, () -> randomUnicodeOfLengthBetween(1, 10)));
-
-        // add null as parameter
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "string");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     public void testRandomLocale() {
         String testString = randomAlphaOfLength(10);
         Configuration cfg = randomLocaleConfig();
         ToLower func = new ToLower(Source.EMPTY, new Literal(Source.EMPTY, testString, DataType.KEYWORD), cfg);
-        assertThat(BytesRefs.toBytesRef(testString.toLowerCase(cfg.locale())), equalTo(func.fold()));
+        assertThat(BytesRefs.toBytesRef(testString.toLowerCase(cfg.locale())), equalTo(func.fold(FoldContext.small())));
     }
 
     private Configuration randomLocaleConfig() {
@@ -83,7 +82,7 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
     private static TestCaseSupplier supplier(String name, DataType type, Supplier<String> valueSupplier) {
         return new TestCaseSupplier(name, List.of(type), () -> {
             List<TestCaseSupplier.TypedData> values = new ArrayList<>();
-            String expectedToString = "ToLowerEvaluator[val=Attribute[channel=0], locale=en_US]";
+            String expectedToString = "ChangeCaseEvaluator[val=Attribute[channel=0], locale=en_US, caseType=LOWER]";
 
             String value = valueSupplier.get();
             values.add(new TestCaseSupplier.TypedData(new BytesRef(value), type, "0"));

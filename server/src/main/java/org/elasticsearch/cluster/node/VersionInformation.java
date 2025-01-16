@@ -17,14 +17,21 @@ import java.util.Objects;
 
 /**
  * Represents the versions of various aspects of an Elasticsearch node.
- * @param nodeVersion       The node {@link Version}
- * @param minIndexVersion   The minimum {@link IndexVersion} supported by this node
- * @param maxIndexVersion   The maximum {@link IndexVersion} supported by this node
+ * @param nodeVersion               The node {@link Version}
+ * @param minIndexVersion           The minimum {@link IndexVersion} supported by this node
+ * @param minReadOnlyIndexVersion   The minimum {@link IndexVersion} for read-only indices supported by this node
+ * @param maxIndexVersion           The maximum {@link IndexVersion} supported by this node
  */
-public record VersionInformation(Version nodeVersion, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
+public record VersionInformation(
+    Version nodeVersion,
+    IndexVersion minIndexVersion,
+    IndexVersion minReadOnlyIndexVersion,
+    IndexVersion maxIndexVersion
+) {
 
     public static final VersionInformation CURRENT = new VersionInformation(
         Version.CURRENT,
+        IndexVersions.MINIMUM_COMPATIBLE,
         IndexVersions.MINIMUM_COMPATIBLE,
         IndexVersion.current()
     );
@@ -45,9 +52,16 @@ public record VersionInformation(Version nodeVersion, IndexVersion minIndexVersi
         }
     }
 
+    @Deprecated
+    public VersionInformation(Version version, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
+        this(version, minIndexVersion, minIndexVersion, maxIndexVersion);
+    }
+
     public VersionInformation {
         Objects.requireNonNull(nodeVersion);
         Objects.requireNonNull(minIndexVersion);
+        Objects.requireNonNull(minReadOnlyIndexVersion);
         Objects.requireNonNull(maxIndexVersion);
+        assert minReadOnlyIndexVersion.onOrBefore(minIndexVersion) : minReadOnlyIndexVersion + " > " + minIndexVersion;
     }
 }

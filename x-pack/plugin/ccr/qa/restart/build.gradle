@@ -1,6 +1,10 @@
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+import org.elasticsearch.gradle.testclusters.TestClusterValueSource
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.testclusters.TestClustersRegistry
+import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -8,6 +12,8 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 dependencies {
   testImplementation project(':x-pack:plugin:ccr:qa')
 }
+
+def clusterPath = getPath()
 
 def leaderCluster = testClusters.register('leader-cluster') {
   testDistribution = 'DEFAULT'
@@ -22,11 +28,22 @@ def followCluster = testClusters.register('follow-cluster') {
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   user username: 'admin', password: 'admin-password', role: 'superuser'
+
+  Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
+    project.gradle.sharedServices,
+    TestClustersPlugin.REGISTRY_SERVICE_NAME
+  )
+  def leaderInfo = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
+    it.parameters.clusterName.set("leader-cluster")
+    it.parameters.service = serviceProvider
+  }
+  def leaderUri = leaderInfo.map { it.getAllTransportPortURI().get(0) }
+
   setting 'cluster.remote.leader_cluster.seeds',
-          { "\"${leaderCluster.get().getAllTransportPortURI().get(0)}\"" }, IGNORE_VALUE
+          { "\"${leaderUri.get()}\"" }, IGNORE_VALUE
   nameCustomization = { 'follow' }
 }
-
 
 tasks.register('leader-cluster', RestIntegTestTask) {
   mustRunAfter("precommit")
@@ -37,8 +54,19 @@ tasks.register('follow-cluster', RestIntegTestTask) {
   dependsOn 'leader-cluster'
   useCluster leaderCluster
   systemProperty 'tests.target_cluster', 'follow'
+
+  Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
+    project.gradle.sharedServices,
+    TestClustersPlugin.REGISTRY_SERVICE_NAME
+  )
+  def leaderUri = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
+    it.parameters.clusterName.set("leader-cluster")
+    it.parameters.service = serviceProvider
+  }.map { it.allHttpSocketURI.get(0) }
+
   nonInputProperties.systemProperty 'tests.leader_host',
-          "${-> leaderCluster.get().getAllHttpSocketURI().get(0)}"
+          "${-> leaderUri.get() }"
 }
 
 tasks.register("followClusterRestartTest", StandaloneRestIntegTestTask) {
@@ -48,10 +76,27 @@ tasks.register("followClusterRestartTest", StandaloneRestIntegTestTask) {
 
   systemProperty 'tests.rest.load_packaged', 'false'
   systemProperty 'tests.target_cluster', 'follow-restart'
+  Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
+    project.gradle.sharedServices,
+    TestClustersPlugin.REGISTRY_SERVICE_NAME
+  )
+  def leaderUri = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
+    it.parameters.clusterName.set("leader-cluster")
+    it.parameters.service = serviceProvider
+  }.map { it.allHttpSocketURI.get(0) }
+
+  def followUris = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
+    it.parameters.clusterName.set("follow-cluster")
+    it.parameters.service = serviceProvider
+  }.map { it.allHttpSocketURI.join(",") }
+
+  nonInputProperties.systemProperty 'tests.leader_host', leaderUri
+  nonInputProperties.systemProperty 'tests.rest.cluster', followUris
+
   doFirst {
-    followCluster.get().restart()
-    nonInputProperties.systemProperty 'tests.leader_host', leaderCluster.map(c-> c.getAllHttpSocketURI().get(0))
-    nonInputProperties.systemProperty 'tests.rest.cluster', followCluster.map(c -> c.getAllHttpSocketURI().join(","))
+    serviceProvider.get().restart(clusterPath, "follow-cluster")
   }
 }
 

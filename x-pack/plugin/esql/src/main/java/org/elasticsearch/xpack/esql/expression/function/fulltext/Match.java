@@ -8,15 +8,19 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -27,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.planner.EsqlExpressionTranslators;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -47,6 +52,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -55,7 +61,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
 /**
  * Full text function that performs a {@link QueryStringQuery} .
  */
-public class Match extends FullTextFunction implements Validatable {
+public class Match extends FullTextFunction implements PostOptimizationVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
 
@@ -66,6 +72,7 @@ public class Match extends FullTextFunction implements Validatable {
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
         KEYWORD,
         TEXT,
+        SEMANTIC_TEXT,
         BOOLEAN,
         DATETIME,
         DATE_NANOS,
@@ -109,7 +116,11 @@ public class Match extends FullTextFunction implements Validatable {
             description = "Value to find in the provided field."
         ) Expression matchQuery
     ) {
-        super(source, matchQuery, List.of(field, matchQuery));
+        this(source, field, matchQuery, null);
+    }
+
+    public Match(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder) {
+        super(source, matchQuery, List.of(field, matchQuery), queryBuilder);
         this.field = field;
     }
 
@@ -117,7 +128,11 @@ public class Match extends FullTextFunction implements Validatable {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
-        return new Match(source, field, query);
+        QueryBuilder queryBuilder = null;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+            queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+        }
+        return new Match(source, field, query, queryBuilder);
     }
 
     @Override
@@ -125,6 +140,9 @@ public class Match extends FullTextFunction implements Validatable {
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(queryBuilder());
+        }
     }
 
     @Override
@@ -177,7 +195,7 @@ public class Match extends FullTextFunction implements Validatable {
     }
 
     @Override
-    public void validate(Failures failures) {
+    public void postOptimizationVerification(Failures failures) {
         Expression fieldExpression = field();
         // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
         if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
@@ -198,7 +216,7 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     public Object queryAsObject() {
-        Object queryAsObject = query().fold();
+        Object queryAsObject = query().fold(FoldContext.small() /* TODO remove me */);
 
         // Convert BytesRef to string for string-based values
         if (queryAsObject instanceof BytesRef bytesRef) {
@@ -224,12 +242,12 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Match(source(), newChildren.get(0), newChildren.get(1));
+        return new Match(source(), newChildren.get(0), newChildren.get(1), queryBuilder());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Match::new, field, query());
+        return NodeInfo.create(this, Match::new, field, query(), queryBuilder());
     }
 
     protected TypeResolutions.ParamOrdinal queryParamOrdinal() {
@@ -243,6 +261,16 @@ public class Match extends FullTextFunction implements Validatable {
     @Override
     public String functionType() {
         return isOperator() ? "operator" : super.functionType();
+    }
+
+    @Override
+    protected ExpressionTranslator<Match> translator() {
+        return new EsqlExpressionTranslators.MatchFunctionTranslator();
+    }
+
+    @Override
+    public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
+        return new Match(source(), field, query(), queryBuilder);
     }
 
     @Override

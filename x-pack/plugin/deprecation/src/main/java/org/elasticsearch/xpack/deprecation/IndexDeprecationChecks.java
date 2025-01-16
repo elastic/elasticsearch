@@ -17,9 +17,11 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -36,14 +38,14 @@ public class IndexDeprecationChecks {
         // TODO: this check needs to be revised. It's trivially true right now.
         IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
         // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
-        if (currentCompatibilityVersion.before(IndexVersions.V_8_0_0) && isNotDataStreamIndex(indexMetadata, clusterState)) {
+        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata) && isNotDataStreamIndex(indexMetadata, clusterState)) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "Old index with a compatibility version < 8.0",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/current/migrating-8.0.html#breaking-changes-8.0",
                 "This index has version: " + currentCompatibilityVersion.toReleaseVersion(),
                 false,
-                null
+                Collections.singletonMap("reindex_required", true)
             );
         }
         return null;
@@ -117,12 +119,12 @@ public class IndexDeprecationChecks {
         if (Boolean.TRUE.equals(isIndexFrozen)) {
             String indexName = indexMetadata.getIndex().getName();
             return new DeprecationIssue(
-                DeprecationIssue.Level.WARNING,
-                "index ["
-                    + indexName
-                    + "] is a frozen index. The frozen indices feature is deprecated and will be removed in a future version",
+                DeprecationIssue.Level.CRITICAL,
+                "Index [" + indexName + "] is a frozen index. The frozen indices feature is deprecated and will be removed in version 9.0.",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/frozen-indices.html",
-                "Frozen indices no longer offer any advantages. Consider cold or frozen tiers in place of frozen indices.",
+                "Frozen indices must be unfrozen before upgrading to version 9.0."
+                    + " (The legacy frozen indices feature no longer offers any advantages."
+                    + " You may consider cold or frozen tiers in place of frozen indices.)",
                 false,
                 null
             );

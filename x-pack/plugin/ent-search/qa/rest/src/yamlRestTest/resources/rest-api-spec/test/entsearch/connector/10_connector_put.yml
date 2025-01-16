@@ -58,7 +58,7 @@ setup:
       connector.put:
         connector_id: test-connector-native
         body:
-          index_name: search-test
+          index_name: content-search-test
           is_native: true
 
   - match: { result: 'created' }
@@ -68,7 +68,7 @@ setup:
         connector_id: test-connector-native
 
   - match: { id: test-connector-native }
-  - match: { index_name: search-test }
+  - match: { index_name: content-search-test }
   - match: { is_native: true }
   - match: { sync_now: false }
   - match: { status: needs_configuration }
@@ -150,6 +150,7 @@ setup:
           language: pl
           is_native: false
           service_type: super-connector
+
 
 ---
 'Create Connector - Id returned as part of response':

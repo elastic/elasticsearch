@@ -97,7 +97,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                 .put("index.similarity.my_similarity.after_effect", "l")
                 .build()
         );
-        service.verifyIndexMetadata(src, IndexVersions.MINIMUM_COMPATIBLE);
+        service.verifyIndexMetadata(src, IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.MINIMUM_COMPATIBLE);
     }
 
     public void testIncompatibleVersion() {
@@ -110,7 +110,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
         );
         String message = expectThrows(
             IllegalStateException.class,
-            () -> service.verifyIndexMetadata(metadata, IndexVersions.MINIMUM_COMPATIBLE)
+            () -> service.verifyIndexMetadata(metadata, IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.MINIMUM_COMPATIBLE)
         ).getMessage();
         assertThat(
             message,
@@ -132,7 +132,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
 
         indexCreated = IndexVersionUtils.randomVersionBetween(random(), minCompat, IndexVersion.current());
         IndexMetadata goodMeta = newIndexMeta("foo", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated).build());
-        service.verifyIndexMetadata(goodMeta, IndexVersions.MINIMUM_COMPATIBLE);
+        service.verifyIndexMetadata(goodMeta, IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.MINIMUM_COMPATIBLE);
     }
 
     private IndexMetadataVerifier getIndexMetadataVerifier() {

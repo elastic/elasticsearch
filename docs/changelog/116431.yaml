@@ -1,5 +1,0 @@
-pr: 116431
-summary: Adds support for `input_type` field to Vertex inference service
-area: Machine Learning
-type: enhancement
-issues: []

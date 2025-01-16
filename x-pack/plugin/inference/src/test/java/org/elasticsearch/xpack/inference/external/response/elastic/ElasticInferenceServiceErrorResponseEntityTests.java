@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.external.response.elastic;
 import org.apache.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
+import org.hamcrest.Matchers;
 
 import java.nio.charset.StandardCharsets;
 
@@ -25,7 +27,7 @@ public class ElasticInferenceServiceErrorResponseEntityTests extends ESTestCase 
             }
             """;
 
-        ElasticInferenceServiceErrorResponseEntity errorResponseEntity = ElasticInferenceServiceErrorResponseEntity.fromResponse(
+        var errorResponseEntity = ElasticInferenceServiceErrorResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -40,11 +42,11 @@ public class ElasticInferenceServiceErrorResponseEntityTests extends ESTestCase 
             }
             """;
 
-        ElasticInferenceServiceErrorResponseEntity errorResponseEntity = ElasticInferenceServiceErrorResponseEntity.fromResponse(
+        var errorResponseEntity = ElasticInferenceServiceErrorResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertNull(errorResponseEntity);
+        assertThat(errorResponseEntity, Matchers.sameInstance(ErrorResponse.UNDEFINED_ERROR));
     }
 
     public void testFromResponse_InvalidJson() {
@@ -52,10 +54,10 @@ public class ElasticInferenceServiceErrorResponseEntityTests extends ESTestCase 
             {
             """;
 
-        ElasticInferenceServiceErrorResponseEntity errorResponseEntity = ElasticInferenceServiceErrorResponseEntity.fromResponse(
+        var errorResponseEntity = ElasticInferenceServiceErrorResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), invalidResponseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertNull(errorResponseEntity);
+        assertThat(errorResponseEntity, Matchers.sameInstance(ErrorResponse.UNDEFINED_ERROR));
     }
 }

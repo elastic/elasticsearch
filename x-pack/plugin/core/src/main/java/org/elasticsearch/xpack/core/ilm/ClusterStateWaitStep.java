@@ -33,22 +33,6 @@ public abstract class ClusterStateWaitStep extends Step {
         return true;
     }
 
-    public static class Result {
-        private final boolean complete;
-        private final ToXContentObject informationContext;
-
-        public Result(boolean complete, ToXContentObject informationContext) {
-            this.complete = complete;
-            this.informationContext = informationContext;
-        }
-
-        public boolean isComplete() {
-            return complete;
-        }
-
-        public ToXContentObject getInformationContext() {
-            return informationContext;
-        }
-    }
+    public record Result(boolean complete, ToXContentObject informationContext) {}
 
 }

@@ -1,8 +1,4 @@
 setup:
-  - requires:
-      cluster_features: 'query_rule_retriever_supported'
-      reason: 'test requires query rule retriever implementation'
-
   - do:
       indices.create:
         index: test-index1

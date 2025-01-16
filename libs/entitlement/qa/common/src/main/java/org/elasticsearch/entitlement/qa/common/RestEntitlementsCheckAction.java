@@ -60,9 +60,6 @@ import java.util.stream.Collectors;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.qa.common.RestEntitlementsCheckAction.CheckAction.alwaysDenied;
@@ -147,13 +144,18 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("createURLStreamHandlerProvider", alwaysDenied(RestEntitlementsCheckAction::createURLStreamHandlerProvider)),
         entry("createURLWithURLStreamHandler", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler)),
         entry("createURLWithURLStreamHandler2", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler2)),
-        entry("sslSessionImpl_getSessionContext", alwaysDenied(RestEntitlementsCheckAction::sslSessionImplGetSessionContext)),
         entry("datagram_socket_bind", forPlugins(RestEntitlementsCheckAction::bindDatagramSocket)),
         entry("datagram_socket_connect", forPlugins(RestEntitlementsCheckAction::connectDatagramSocket)),
         entry("datagram_socket_send", forPlugins(RestEntitlementsCheckAction::sendDatagramSocket)),
         entry("datagram_socket_receive", forPlugins(RestEntitlementsCheckAction::receiveDatagramSocket)),
         entry("datagram_socket_join_group", forPlugins(RestEntitlementsCheckAction::joinGroupDatagramSocket)),
-        entry("datagram_socket_leave_group", forPlugins(RestEntitlementsCheckAction::leaveGroupDatagramSocket))
+        entry("datagram_socket_leave_group", forPlugins(RestEntitlementsCheckAction::leaveGroupDatagramSocket)),
+
+        entry("create_socket_with_proxy", forPlugins(NetworkAccessCheckActions::createSocketWithProxy)),
+        entry("socket_bind", forPlugins(NetworkAccessCheckActions::socketBind)),
+        entry("socket_connect", forPlugins(NetworkAccessCheckActions::socketConnect)),
+        entry("server_socket_bind", forPlugins(NetworkAccessCheckActions::serverSocketBind)),
+        entry("server_socket_accept", forPlugins(NetworkAccessCheckActions::serverSocketAccept))
     );
 
     private static void createURLStreamHandlerProvider() {
@@ -163,15 +165,6 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                 return null;
             }
         };
-    }
-
-    private static void sslSessionImplGetSessionContext() throws IOException {
-        SSLSocketFactory factory = HttpsURLConnection.getDefaultSSLSocketFactory();
-        try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
-            SSLSession session = socket.getSession();
-
-            session.getSessionContext();
-        }
     }
 
     @SuppressWarnings("deprecation")

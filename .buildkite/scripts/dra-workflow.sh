@@ -75,7 +75,7 @@ PATH="$PATH:${JAVA_HOME}/bin" # Required by the following script
 if [[ -z "${VERSION_QUALIFIER:-}" ]]; then
 x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier="$VERSION_SUFFIX"
 else
-x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier="$VERSION_QUALIFIER"
+x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier="-$VERSION_QUALIFIER"
 fi
 
 # we regenerate this file as part of the release manager invocation

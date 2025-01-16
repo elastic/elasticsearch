@@ -59,7 +59,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     static final Setting<String> CLIENT_NAME = Setting.simpleString("client", "default");
 
     /**
-     * We will retry deletes that fail due to throttling. We use an {@link BackoffPolicy#linearBackoff(TimeValue, int, TimeValue)}
+     * We will retry CASes that fail due to throttling. We use an {@link BackoffPolicy#linearBackoff(TimeValue, int, TimeValue)}
      * with the following parameters
      */
     static final Setting<TimeValue> RETRY_THROTTLED_CAS_DELAY_INCREMENT = Setting.timeSetting(

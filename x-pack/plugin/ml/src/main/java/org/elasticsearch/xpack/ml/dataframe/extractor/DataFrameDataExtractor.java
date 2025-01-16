@@ -125,7 +125,7 @@ public class DataFrameDataExtractor {
      * Does no sorting of the results.
      * @param listener To alert with the extracted rows
      */
-    public void preview(ActionListener<List<PreviewRow>> listener) {
+    public void preview(ActionListener<List<String[]>> listener) {
 
         SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client)
             // This ensures the search throws if there are failures and the scroll context gets cleared automatically
@@ -154,10 +154,10 @@ public class DataFrameDataExtractor {
                     return;
                 }
 
-                List<PreviewRow> rows = new ArrayList<>(searchResponse.getHits().getHits().length);
+                List<String[]> rows = new ArrayList<>(searchResponse.getHits().getHits().length);
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     String[] extractedValues = extractValues(hit);
-                    rows.add(new PreviewRow(extractedValues));
+                    rows.add(extractedValues);
                 }
                 delegate.onResponse(rows);
             })
@@ -430,21 +430,6 @@ public class DataFrameDataExtractor {
         public DataSummary(long rows, int cols) {
             this.rows = rows;
             this.cols = cols;
-        }
-    }
-
-    public static class PreviewRow {
-
-        @Nullable
-        private final String[] values;
-
-        private PreviewRow(String[] values) {
-            this.values = values;
-        }
-
-        @Nullable
-        public String[] getValues() {
-            return values;
         }
     }
 

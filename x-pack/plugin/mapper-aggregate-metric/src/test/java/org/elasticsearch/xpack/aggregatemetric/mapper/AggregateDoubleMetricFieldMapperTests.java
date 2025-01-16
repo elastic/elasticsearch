@@ -36,6 +36,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.IGNORE_MALFORMED;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.METRICS;
@@ -617,5 +618,16 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsCopyTo() {
         return false;
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return n -> ((Number) n);
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
+        assumeTrue("Not supporting", false);
+        return null;
     }
 }

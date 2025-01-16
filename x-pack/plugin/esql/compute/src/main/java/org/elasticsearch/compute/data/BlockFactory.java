@@ -432,6 +432,10 @@ public class BlockFactory {
         return b;
     }
 
+    public AggregateDoubleMetricBlockBuilder newAggregatedDoubleMetricBlockBuilder(int estimatedSize) {
+        return new AggregateDoubleMetricBlockBuilder(estimatedSize, this);
+    }
+
     /**
      * Returns the maximum number of bytes that a Block should be backed by a primitive array before switching to using BigArrays.
      */

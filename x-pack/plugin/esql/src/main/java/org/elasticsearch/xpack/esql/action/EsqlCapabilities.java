@@ -738,7 +738,12 @@ public class EsqlCapabilities {
         /**
          * Support named argument for function in map format.
          */
-        OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION(Build.current().isSnapshot());
+        OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Support for aggregate_metric_double type
+         */
+        AGGREGATE_METRIC_DOUBLE;
 
         private final boolean enabled;
 

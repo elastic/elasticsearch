@@ -80,8 +80,8 @@ setup:
                 time_series_dimension: true
               agg_metric:
                 type: aggregate_metric_double
-                metrics:
-                  - max
+                # TODO: tests with a subset of metrics
+                metrics: [ min, max, sum, value_count ]
                 default_metric: max
               k8s:
                 properties:
@@ -99,9 +99,9 @@ setup:
         index: test2
         body:
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": "A", "agg_metric": {"max": 10}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": "A", "agg_metric": {"max": 10, "min": -1, "sum": 20, "value_count": 5}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "dim": "B", "agg_metric": {"max": 20}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "dim": "B", "agg_metric": {"max": 20, "min": 3, "sum": 50, "value_count": 7}}'
 
 ---
 load everything:
@@ -201,6 +201,14 @@ cast then sort on counter:
 
 ---
 from doc with aggregate_metric_double:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double]
+      reason: "Support for aggregate_metric_double"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -211,7 +219,7 @@ from doc with aggregate_metric_double:
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
   - match: {columns.1.name: "agg_metric"}
-  - match: {columns.1.type: "unsupported"}
+  - match: {columns.1.type: "aggregate_metric_double"}
   - match: {columns.2.name: "dim"}
   - match: {columns.2.type: "keyword"}
   - match: {columns.3.name: "k8s.pod.ip"}
@@ -222,14 +230,45 @@ from doc with aggregate_metric_double:
 
 ---
 stats on aggregate_metric_double:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double]
+      reason: "Support for aggregate_metric_double"
   - do:
-      catch: /Cannot use field \[agg_metric\] with unsupported type \[aggregate_metric_double\]/
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test2 | STATS max(agg_metric) BY dim'
+          query: 'FROM test2 | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric)'
+  - length: {values: 1}
+  - length: {values.0: 4}
+  - match: {columns.0.name: "max(agg_metric)"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "min(agg_metric)"}
+  - match: {columns.1.type: "double"}
+  - match: {columns.2.name: "sum(agg_metric)"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "count(agg_metric)"}
+  - match: {columns.3.type: "long"}
+  - match: {values.0.0: 20.0}
+  - match: {values.0.1: -1.0}
+  - match: {values.0.2: 70.0}
+  - match: {values.0.3: 12.0}
 
 ---
 from index pattern unsupported counter:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double]
+      reason: "Support for aggregate_metric_double"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -240,7 +279,7 @@ from index pattern unsupported counter:
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
   - match: {columns.1.name: "agg_metric"}
-  - match: {columns.1.type: "unsupported"}
+  - match: {columns.1.type: "aggregate_metric_double"}
   - match: {columns.2.name: "dim"}
   - match: {columns.2.type: "keyword"}
   - match: {columns.3.name: "k8s.pod.ip"}

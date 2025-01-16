@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
+import org.elasticsearch.compute.data.AggregateDoubleMetricBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateDoubleMetric;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
@@ -33,6 +35,7 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 
 public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
@@ -71,6 +74,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             optional = true,
             name = "field",
             type = {
+                "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
                 "date",
@@ -141,6 +145,16 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     public Expression surrogate() {
         var s = source();
         var field = field();
+        if (field.dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
+            return new Sum(
+                s,
+                new FromAggregateDoubleMetric(
+                    source(),
+                    field,
+                    new Literal(s, AggregateDoubleMetricBlockBuilder.Metric.COUNT.ordinal(), INTEGER)
+                )
+            );
+        }
 
         if (field.foldable()) {
             if (field instanceof Literal l) {

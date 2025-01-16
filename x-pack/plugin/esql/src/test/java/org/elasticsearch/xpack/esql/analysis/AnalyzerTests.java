@@ -1961,7 +1961,7 @@ public class AnalyzerTests extends ESTestCase {
              found value [x] type [unsigned_long]
             line 2:96: first argument of [percentile(x, 10)] must be [numeric except unsigned_long],\
              found value [x] type [unsigned_long]
-            line 2:115: argument of [sum(x)] must be [numeric except unsigned_long or counter types],\
+            line 2:115: argument of [sum(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]""");
 
         verifyUnsupported("""
@@ -1976,7 +1976,8 @@ public class AnalyzerTests extends ESTestCase {
             line 2:29: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [version]
             line 2:59: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], found value [x] type [version]
-            line 2:78: argument of [sum(x)] must be [numeric except unsigned_long or counter types], found value [x] type [version]""");
+            line 2:78: argument of [sum(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
+             found value [x] type [version]""");
     }
 
     public void testInOnText() {

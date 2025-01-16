@@ -39,6 +39,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -175,7 +176,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             t -> false == DataType.isPrimitiveAndSupported(t)
                 || t == DataType.DATE_PERIOD
                 || t == DataType.TIME_DURATION
-                || t == DataType.PARTIAL_AGG,
+                || t == DataType.PARTIAL_AGG
+                || t == DataType.AGGREGATE_METRIC_DOUBLE,
             () -> randomFrom(DataType.types())
         ).widenSmallNumeric();
         return new ColumnInfoImpl(randomAlphaOfLength(10), type.esType());
@@ -213,6 +215,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 );
                 case CARTESIAN_SHAPE -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                     CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()))
+                );
+                case AGGREGATE_METRIC_DOUBLE -> ((BlockLoader.AggregateDoubleMetricBuilder) builder).append(
+                    randomDouble(),
+                    randomDouble(),
+                    randomDouble(),
+                    randomInt()
                 );
                 case NULL -> builder.appendNull();
                 case SOURCE -> {
@@ -903,6 +911,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         BytesRef wkb = stringToSpatial(value.toString());
                         ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }
+                    case AGGREGATE_METRIC_DOUBLE -> ((BlockLoader.AggregateDoubleMetricBuilder) builder).append(
+                        ((Number) value).doubleValue(),
+                        ((Number) value).doubleValue(),
+                        ((Number) value).doubleValue(),
+                        ((Number) value).intValue()
+                    );
                 }
             }
         }

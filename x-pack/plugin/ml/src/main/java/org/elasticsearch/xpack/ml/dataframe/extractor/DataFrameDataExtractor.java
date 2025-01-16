@@ -249,7 +249,7 @@ public class DataFrameDataExtractor {
             hasNext = false;
             return null;
         }
-        return searchResponse.getHits().getHits();
+        return searchResponse.getHits().asUnpooled().getHits();
     }
 
     private String extractNonProcessedValues(SearchHit hit, String organicFeature) {
@@ -306,13 +306,12 @@ public class DataFrameDataExtractor {
     }
 
     public Row createRow(SearchHit hit) {
-        var unpooled = hit.asUnpooled();
-        String[] extractedValues = extractValues(unpooled);
+        String[] extractedValues = extractValues(hit);
         if (extractedValues == null) {
-            return new Row(null, unpooled, true);
+            return new Row(null, hit, true);
         }
         boolean isTraining = trainTestSplitter.get().isTraining(extractedValues);
-        Row row = new Row(extractedValues, unpooled, isTraining);
+        Row row = new Row(extractedValues, hit, isTraining);
         LOGGER.trace(
             () -> format(
                 "[%s] Extracted row: sort key = [%s], is_training = [%s], values = %s",

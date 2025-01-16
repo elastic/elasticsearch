@@ -20,11 +20,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 public abstract class AbstractEnrichProcessor extends AbstractProcessor {
 
     private final String policyName;
-    private final BiConsumer<SearchRequest, BiConsumer<List<Map<?, ?>>, Exception>> searchRunner;
+    private final EnrichProcessorFactory.SearchRunner searchRunner;
     private final TemplateScript.Factory field;
     private final TemplateScript.Factory targetField;
     private final boolean ignoreMissing;
@@ -35,7 +36,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
     protected AbstractEnrichProcessor(
         String tag,
         String description,
-        BiConsumer<SearchRequest, BiConsumer<List<Map<?, ?>>, Exception>> searchRunner,
+        EnrichProcessorFactory.SearchRunner searchRunner,
         String policyName,
         TemplateScript.Factory field,
         TemplateScript.Factory targetField,
@@ -68,20 +69,23 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
                 return;
             }
 
-            QueryBuilder queryBuilder = getQueryBuilder(value);
-            ConstantScoreQueryBuilder constantScore = new ConstantScoreQueryBuilder(queryBuilder);
-            SearchSourceBuilder searchBuilder = new SearchSourceBuilder();
-            searchBuilder.from(0);
-            searchBuilder.size(maxMatches);
-            searchBuilder.trackScores(false);
-            searchBuilder.fetchSource(true);
-            searchBuilder.query(constantScore);
-            SearchRequest req = new SearchRequest();
-            req.indices(EnrichPolicy.getBaseName(getPolicyName()));
-            req.preference(Preference.LOCAL.type());
-            req.source(searchBuilder);
+            Supplier<SearchRequest> searchRequestSupplier = () -> {
+                QueryBuilder queryBuilder = getQueryBuilder(value);
+                ConstantScoreQueryBuilder constantScore = new ConstantScoreQueryBuilder(queryBuilder);
+                SearchSourceBuilder searchBuilder = new SearchSourceBuilder();
+                searchBuilder.from(0);
+                searchBuilder.size(maxMatches);
+                searchBuilder.trackScores(false);
+                searchBuilder.fetchSource(true);
+                searchBuilder.query(constantScore);
+                SearchRequest req = new SearchRequest();
+                req.indices(EnrichPolicy.getBaseName(getPolicyName()));
+                req.preference(Preference.LOCAL.type());
+                req.source(searchBuilder);
+                return req;
+            };
 
-            searchRunner.accept(req, (searchHits, e) -> {
+            searchRunner.accept(policyName, maxMatches, value, searchRequestSupplier, (searchHits, e) -> {
                 if (e != null) {
                     handler.accept(null, e);
                     return;

@@ -8,16 +8,12 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
@@ -26,9 +22,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongBiFunction;
 
@@ -52,12 +47,13 @@ import java.util.function.ToLongBiFunction;
  */
 public final class EnrichCache {
 
+    private static final CacheValue EMPTY_CACHE_VALUE = new CacheValue(List.of(), 0L);
+
     private final Cache<CacheKey, CacheValue> cache;
     private final LongSupplier relativeNanoTimeProvider;
     private final AtomicLong hitsTimeInNanos = new AtomicLong(0);
     private final AtomicLong missesTimeInNanos = new AtomicLong(0);
     private final AtomicLong sizeInBytes = new AtomicLong(0);
-    private volatile Metadata metadata;
 
     EnrichCache(long maxSize) {
         this(maxSize, System::nanoTime);
@@ -89,30 +85,35 @@ public final class EnrichCache {
     }
 
     /**
-     * This method notifies the given listener of the value in this cache for the given searchRequest. If there is no value in the cache
-     * for the searchRequest, then the new cache value is computed using searchResponseFetcher.
-     * @param searchRequest The key for the cache request
+     * This method notifies the given listener of the value in this cache for the given search parameters. If there is no value in the cache
+     * for these search parameters, then the new cache value is computed using searchResponseFetcher.
+     * @param enrichIndex The enrich index from which the results will be retrieved
+     * @param maxMatches The max number of matches that the search will return
+     * @param value The value that will be used in the search
      * @param searchResponseFetcher The function used to compute the value to be put in the cache, if there is no value in the cache already
      * @param listener A listener to be notified of the value in the cache
      */
     public void computeIfAbsent(
-        SearchRequest searchRequest,
-        BiConsumer<SearchRequest, ActionListener<SearchResponse>> searchResponseFetcher,
+        String enrichIndex,
+        int maxMatches,
+        Object value,
+        Consumer<ActionListener<SearchResponse>> searchResponseFetcher,
         ActionListener<List<Map<?, ?>>> listener
     ) {
         // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
         long cacheStart = relativeNanoTimeProvider.getAsLong();
-        List<Map<?, ?>> response = get(searchRequest);
+        var cacheKey = new CacheKey(enrichIndex, maxMatches, value);
+        List<Map<?, ?>> response = get(cacheKey);
         long cacheRequestTime = relativeNanoTimeProvider.getAsLong() - cacheStart;
         if (response != null) {
             hitsTimeInNanos.addAndGet(cacheRequestTime);
             listener.onResponse(response);
         } else {
             final long retrieveStart = relativeNanoTimeProvider.getAsLong();
-            searchResponseFetcher.accept(searchRequest, ActionListener.wrap(resp -> {
-                CacheValue value = toCacheValue(resp);
-                put(searchRequest, value);
-                List<Map<?, ?>> copy = deepCopy(value.hits, false);
+            searchResponseFetcher.accept(ActionListener.wrap(resp -> {
+                CacheValue cacheValue = toCacheValue(resp);
+                put(cacheKey, cacheValue);
+                List<Map<?, ?>> copy = deepCopy(cacheValue.hits, false);
                 long databaseQueryAndCachePutTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
                 missesTimeInNanos.addAndGet(cacheRequestTime + databaseQueryAndCachePutTime);
                 listener.onResponse(copy);
@@ -121,10 +122,7 @@ public final class EnrichCache {
     }
 
     // non-private for unit testing only
-    List<Map<?, ?>> get(SearchRequest searchRequest) {
-        String enrichIndex = getEnrichIndexKey(searchRequest);
-        CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
-
+    List<Map<?, ?>> get(CacheKey cacheKey) {
         CacheValue response = cache.get(cacheKey);
         if (response != null) {
             return deepCopy(response.hits, false);
@@ -134,16 +132,9 @@ public final class EnrichCache {
     }
 
     // non-private for unit testing only
-    void put(SearchRequest searchRequest, CacheValue cacheValue) {
-        String enrichIndex = getEnrichIndexKey(searchRequest);
-        CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
-
+    void put(CacheKey cacheKey, CacheValue cacheValue) {
         cache.put(cacheKey, cacheValue);
         sizeInBytes.addAndGet(cacheValue.sizeInBytes);
-    }
-
-    void setMetadata(Metadata metadata) {
-        this.metadata = metadata;
     }
 
     public EnrichStatsAction.Response.CacheStats getStats(String localNodeId) {
@@ -160,16 +151,10 @@ public final class EnrichCache {
         );
     }
 
-    private String getEnrichIndexKey(SearchRequest searchRequest) {
-        String alias = searchRequest.indices()[0];
-        IndexAbstraction ia = metadata.getIndicesLookup().get(alias);
-        if (ia == null) {
-            throw new IndexNotFoundException("no generated enrich index [" + alias + "]");
-        }
-        return ia.getIndices().get(0).getName();
-    }
-
     static CacheValue toCacheValue(SearchResponse response) {
+        if (response.getHits().getHits().length == 0) {
+            return EMPTY_CACHE_VALUE;
+        }
         List<Map<?, ?>> result = new ArrayList<>(response.getHits().getHits().length);
         long size = 0;
         for (SearchHit hit : response.getHits()) {
@@ -206,29 +191,8 @@ public final class EnrichCache {
         }
     }
 
-    private static class CacheKey {
-
-        final String enrichIndex;
-        final SearchRequest searchRequest;
-
-        private CacheKey(String enrichIndex, SearchRequest searchRequest) {
-            this.enrichIndex = enrichIndex;
-            this.searchRequest = searchRequest;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            CacheKey cacheKey = (CacheKey) o;
-            return enrichIndex.equals(cacheKey.enrichIndex) && searchRequest.equals(cacheKey.searchRequest);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(enrichIndex, searchRequest);
-        }
-    }
+    // Visibility for testing
+    record CacheKey(String enrichIndex, int maxMatches, Object value) {}
 
     // Visibility for testing
     record CacheValue(List<Map<?, ?>> hits, Long sizeInBytes) {}

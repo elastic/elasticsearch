@@ -65,24 +65,28 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
         }
         // create a new array to avoid changing ScoreDocs in place
         ScoreDoc[] scoreDocs = new ScoreDoc[docs.length];
-        if (min == null || max == null) {
-            float xMin = Float.MAX_VALUE;
-            float xMax = Float.MIN_VALUE;
-            for (ScoreDoc rd : docs) {
-                if (rd.score > xMax) {
-                    xMax = rd.score;
-                }
-                if (rd.score < xMin) {
-                    xMin = rd.score;
-                }
+        float correction = 0f;
+        float xMin = Float.MAX_VALUE;
+        float xMax = Float.MIN_VALUE;
+        for (ScoreDoc rd : docs) {
+            if (rd.score > xMax) {
+                xMax = rd.score;
             }
-            if (min == null) {
-                min = xMin;
-            }
-            if (max == null) {
-                max = xMax;
+            if (rd.score < xMin) {
+                xMin = rd.score;
             }
         }
+        if (min == null) {
+            min = xMin;
+        }else {
+            if (min > xMin) {
+                correction = min - xMin;
+            }
+        }
+        if (max == null) {
+            max = xMax;
+        }
+
         if (min > max) {
             throw new IllegalArgumentException("[min=" + min + "] must be less than [max=" + max + "]");
         }
@@ -91,7 +95,7 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
             if (min.equals(max)) {
                 score = min;
             } else {
-                score = (docs[i].score - min) / (max - min);
+                score = correction + (docs[i].score - min) / (max - min);
             }
             scoreDocs[i] = new ScoreDoc(docs[i].doc, score, docs[i].shardIndex);
         }

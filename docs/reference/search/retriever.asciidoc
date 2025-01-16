@@ -269,7 +269,8 @@ This value must be fewer than or equal to `num_candidates`.
 [[linear-retriever]]
 ==== Linear Retriever
 A retriever that normalizes and linearly combines the scores of other retrievers. If the final scores produced after the
-weighted combination of all sub-retrievers are negative, they are set to increments of `1e-6` to avoid negative scores.
+weighted combination of all sub-retrievers are negative, a corrective factor is applied equal to the minimum score,
+so all scores are positive.
 
 ===== Parameters
 

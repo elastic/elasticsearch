@@ -243,7 +243,6 @@ setup:
                         }
                       }
                     },
-                    weight: 10.0,
                     normalizer: {
                       minmax: {
                         min: 42,
@@ -270,13 +269,13 @@ setup:
 
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._id: "4" }
-  - close_to: { hits.hits.0._score: { value: 2.93103, error: 0.001 } }
+  - close_to: { hits.hits.0._score: { value: 50.2931, error: 0.001 } }
   - match: { hits.hits.1._id: "1" }
-  - close_to: { hits.hits.1._score: { value: 0.000003, error: 0.001 } }
+  - close_to: { hits.hits.1._score: { value: 40.4482, error: 0.001 } }
   - match: { hits.hits.2._id: "2" }
-  - close_to: { hits.hits.2._score: { value: 0.000002, error: 0.001 } }
+  - close_to: { hits.hits.2._score: { value: 40.4310, error: 0.001 } }
   - match: { hits.hits.3._id: "3" }
-  - close_to: { hits.hits.3._score: { value: 0.000001, error: 0.001 } }
+  - close_to: { hits.hits.3._score: { value: 40.3620, error: 0.001 } }
 
 ---
 "should throw on unknown normalizer":

@@ -1201,21 +1201,21 @@ public class AnalyzerTests extends ESTestCase {
         verifyUnsupported("""
             from test
             | eval date_format(int)
-            """, "first argument of [date_format(int)] must be [datetime], found value [int] type [integer]");
+            """, "first argument of [date_format(int)] must be [datetime or date_nanos], found value [int] type [integer]");
     }
 
     public void testDateFormatOnFloat() {
         verifyUnsupported("""
             from test
             | eval date_format(float)
-            """, "first argument of [date_format(float)] must be [datetime], found value [float] type [double]");
+            """, "first argument of [date_format(float)] must be [datetime or date_nanos], found value [float] type [double]");
     }
 
     public void testDateFormatOnText() {
         verifyUnsupported("""
             from test
             | eval date_format(keyword)
-            """, "first argument of [date_format(keyword)] must be [datetime], found value [keyword] type [keyword]");
+            """, "first argument of [date_format(keyword)] must be [datetime or date_nanos], found value [keyword] type [keyword]");
     }
 
     public void testDateFormatWithNumericFormat() {
@@ -2143,7 +2143,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLookupJoinUnknownIndex() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
 
         String errorMessage = "Unknown index [foobar]";
         IndexResolution missingLookupIndex = IndexResolution.invalid(errorMessage);
@@ -2172,7 +2172,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLookupJoinUnknownField() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
 
         String query = "FROM test | LOOKUP JOIN languages_lookup ON last_name";
         String errorMessage = "1:45: Unknown column [last_name] in right side of join";
@@ -2195,7 +2195,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testMultipleLookupJoinsGiveDifferentAttributes() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
 
         // The field attributes that get contributed by different LOOKUP JOIN commands must have different name ids,
         // even if they have the same names. Otherwise, things like dependency analysis - like in PruneColumns - cannot work based on
@@ -2225,7 +2225,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLookupJoinIndexMode() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
 
         var indexResolution = AnalyzerTestUtils.expandedDefaultIndexResolution();
         var lookupResolution = AnalyzerTestUtils.defaultLookupResolution();

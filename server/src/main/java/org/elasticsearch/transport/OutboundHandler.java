@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -102,7 +103,7 @@ final class OutboundHandler {
         final Compression.Scheme compressionScheme,
         final boolean isHandshake
     ) throws IOException, TransportException {
-        assert this.version.onOrAfter(transportVersion) : this.version + " vs " + transportVersion;
+        assert assertValidTransportVersion(transportVersion);
         final OutboundMessage.Request message = new OutboundMessage.Request(
             threadPool.getThreadContext(),
             request,
@@ -141,7 +142,7 @@ final class OutboundHandler {
         final boolean isHandshake,
         final ResponseStatsConsumer responseStatsConsumer
     ) {
-        assert this.version.onOrAfter(transportVersion) : this.version + " vs " + transportVersion;
+        assert assertValidTransportVersion(transportVersion);
         OutboundMessage.Response message = new OutboundMessage.Response(
             threadPool.getThreadContext(),
             response,
@@ -187,7 +188,7 @@ final class OutboundHandler {
         final ResponseStatsConsumer responseStatsConsumer,
         final Exception error
     ) {
-        assert this.version.onOrAfter(transportVersion) : this.version + " vs " + transportVersion;
+        assert assertValidTransportVersion(transportVersion);
         OutboundMessage.Response message = new OutboundMessage.Response(
             threadPool.getThreadContext(),
             new RemoteTransportException(nodeName, channel.getLocalAddress(), action, error),
@@ -309,6 +310,12 @@ final class OutboundHandler {
 
     public boolean rstOnClose() {
         return rstOnClose;
+    }
+
+    private boolean assertValidTransportVersion(TransportVersion transportVersion) {
+        assert this.version.before(TransportVersions.MINIMUM_COMPATIBLE) // running an incompatible-version test
+            || this.version.onOrAfter(transportVersion) : this.version + " vs " + transportVersion;
+        return true;
     }
 
 }

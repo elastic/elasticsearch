@@ -174,6 +174,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.DEFAULT_PIPELINE,
         IndexSettings.FINAL_PIPELINE,
         MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
+        MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING,
         ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING,
         DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS,
         ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP,

@@ -37,10 +37,10 @@ public class EnrichCacheTests extends ESTestCase {
     public void testCaching() {
         // Emulated search requests that an enrich processor could generate:
         // (two unique searches for two enrich policies)
-        var cacheKey1 = new EnrichCache.CacheKey("policy1-1", 1, "1");
-        var cacheKey2 = new EnrichCache.CacheKey("policy1-1", 1, "2");
-        var cacheKey3 = new EnrichCache.CacheKey("policy2-1", 1, "1");
-        var cacheKey4 = new EnrichCache.CacheKey("policy2-1", 1, "2");
+        var cacheKey1 = new EnrichCache.CacheKey("policy1-1", "1", 1);
+        var cacheKey2 = new EnrichCache.CacheKey("policy1-1", "2", 1);
+        var cacheKey3 = new EnrichCache.CacheKey("policy2-1", "1", 1);
+        var cacheKey4 = new EnrichCache.CacheKey("policy2-1", "2", 1);
         // Emulated search response (content doesn't matter, since it isn't used, it just a cache entry)
         EnrichCache.CacheValue searchResponse = new EnrichCache.CacheValue(List.of(Map.of("test", "entry")), 1L);
 
@@ -74,10 +74,10 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(cacheStats.evictions(), equalTo(1L));
         assertThat(cacheStats.cacheSizeInBytes(), equalTo(3L));
 
-        cacheKey1 = new EnrichCache.CacheKey("policy1-2", 1, "1");
-        cacheKey2 = new EnrichCache.CacheKey("policy1-2", 1, "2");
-        cacheKey3 = new EnrichCache.CacheKey("policy2-2", 1, "1");
-        cacheKey4 = new EnrichCache.CacheKey("policy2-2", 1, "2");
+        cacheKey1 = new EnrichCache.CacheKey("policy1-2", "1", 1);
+        cacheKey2 = new EnrichCache.CacheKey("policy1-2", "2", 1);
+        cacheKey3 = new EnrichCache.CacheKey("policy2-2", "1", 1);
+        cacheKey4 = new EnrichCache.CacheKey("policy2-2", "2", 1);
 
         // Because enrich index has changed, cache can't serve cached entries
         assertThat(enrichCache.get(cacheKey1), nullValue());
@@ -117,7 +117,7 @@ public class EnrichCacheTests extends ESTestCase {
         {
             CountDownLatch queriedDatabaseLatch = new CountDownLatch(1);
             CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
-            enrichCache.computeIfAbsent("policy1-1", 1, "1", (searchResponseActionListener) -> {
+            enrichCache.computeIfAbsent("policy1-1", "1", 1, (searchResponseActionListener) -> {
                 SearchResponse searchResponse = convertToSearchResponse(searchResponseMap);
                 searchResponseActionListener.onResponse(searchResponse);
                 searchResponse.decRef();
@@ -147,7 +147,7 @@ public class EnrichCacheTests extends ESTestCase {
 
         {
             CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
-            enrichCache.computeIfAbsent("policy1-1", 1, "1", (searchResponseActionListener) -> {
+            enrichCache.computeIfAbsent("policy1-1", "1", 1, (searchResponseActionListener) -> {
                 fail("Expected no call to the database because item should have been in the cache");
             }, new ActionListener<>() {
                 @Override

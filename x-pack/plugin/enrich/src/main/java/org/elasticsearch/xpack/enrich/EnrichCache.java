@@ -87,22 +87,23 @@ public final class EnrichCache {
     /**
      * This method notifies the given listener of the value in this cache for the given search parameters. If there is no value in the cache
      * for these search parameters, then the new cache value is computed using searchResponseFetcher.
+     *
      * @param enrichIndex The enrich index from which the results will be retrieved
-     * @param maxMatches The max number of matches that the search will return
      * @param value The value that will be used in the search
+     * @param maxMatches The max number of matches that the search will return
      * @param searchResponseFetcher The function used to compute the value to be put in the cache, if there is no value in the cache already
      * @param listener A listener to be notified of the value in the cache
      */
     public void computeIfAbsent(
         String enrichIndex,
-        int maxMatches,
         Object value,
+        int maxMatches,
         Consumer<ActionListener<SearchResponse>> searchResponseFetcher,
         ActionListener<List<Map<?, ?>>> listener
     ) {
         // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
         long cacheStart = relativeNanoTimeProvider.getAsLong();
-        var cacheKey = new CacheKey(enrichIndex, maxMatches, value);
+        var cacheKey = new CacheKey(enrichIndex, value, maxMatches);
         List<Map<?, ?>> response = get(cacheKey);
         long cacheRequestTime = relativeNanoTimeProvider.getAsLong() - cacheStart;
         if (response != null) {
@@ -192,7 +193,7 @@ public final class EnrichCache {
     }
 
     // Visibility for testing
-    record CacheKey(String enrichIndex, int maxMatches, Object value) {}
+    record CacheKey(String enrichIndex, Object value, int maxMatches) {}
 
     // Visibility for testing
     record CacheValue(List<Map<?, ?>> hits, Long sizeInBytes) {}

@@ -396,8 +396,8 @@ public class MatchProcessorTests extends ESTestCase {
 
         @Override
         public void accept(
-            int maxMatches,
             Object value,
+            int maxMatches,
             Supplier<SearchRequest> searchRequestSupplier,
             BiConsumer<List<Map<?, ?>>, Exception> handler
         ) {

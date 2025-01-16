@@ -127,12 +127,12 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
 
     private SearchRunner createSearchRunner(String indexAlias, Client client, EnrichCache enrichCache) {
         Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
-        return (maxMatches, value, reqSupplier, handler) -> {
+        return (value, maxMatches, reqSupplier, handler) -> {
             // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
             enrichCache.computeIfAbsent(
                 getEnrichIndexKey(indexAlias),
-                maxMatches,
                 value,
+                maxMatches,
                 (searchResponseActionListener) -> originClient.execute(
                     EnrichCoordinatorProxyAction.INSTANCE,
                     reqSupplier.get(),
@@ -153,8 +153,8 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
 
     public interface SearchRunner {
         void accept(
-            int maxMatches,
             Object value,
+            int maxMatches,
             Supplier<SearchRequest> searchRequestSupplier,
             BiConsumer<List<Map<?, ?>>, Exception> handler
         );

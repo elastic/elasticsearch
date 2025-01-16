@@ -332,7 +332,7 @@ See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
 See <<security-api-suggest-user-profile,Suggest user profile API>>.
 // [END] Security redirects
 
-[roles="exclude",id="modules-scripting-stored-scripts"]
+[role="exclude",id="modules-scripting-stored-scripts"]
 === Stored scripts
 
 See <<script-stored-scripts,Store and retrieve scripts>>

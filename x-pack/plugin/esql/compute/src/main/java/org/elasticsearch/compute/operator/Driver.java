@@ -186,7 +186,13 @@ public class Driver implements Releasable, Describable {
         long nextStatus = startTime + statusNanos;
         int iter = 0;
         while (true) {
-            IsBlockedResult isBlocked = runSingleLoopIteration();
+            IsBlockedResult isBlocked = Operator.NOT_BLOCKED;
+            try {
+                isBlocked = runSingleLoopIteration();
+            } catch (DriverEarlyTerminationException unused) {
+                closeEarlyFinishedOperators();
+                assert isFinished() : "not finished after early termination";
+            }
             iter++;
             if (isBlocked.listener().isDone() == false) {
                 updateStatus(nowSupplier.getAsLong() - startTime, iter, DriverStatus.Status.ASYNC, isBlocked.reason());
@@ -242,39 +248,59 @@ public class Driver implements Releasable, Describable {
     }
 
     private IsBlockedResult runSingleLoopIteration() {
-        ensureNotCancelled();
+        driverContext.checkForEarlyTermination();
         boolean movedPage = false;
 
-        if (activeOperators.isEmpty() == false && activeOperators.getLast().isFinished() == false) {
-            for (int i = 0; i < activeOperators.size() - 1; i++) {
-                Operator op = activeOperators.get(i);
-                Operator nextOp = activeOperators.get(i + 1);
+        for (int i = 0; i < activeOperators.size() - 1; i++) {
+            Operator op = activeOperators.get(i);
+            Operator nextOp = activeOperators.get(i + 1);
 
-                // skip blocked operator
-                if (op.isBlocked().listener().isDone() == false) {
-                    continue;
-                }
+            // skip blocked operator
+            if (op.isBlocked().listener().isDone() == false) {
+                continue;
+            }
 
-                if (op.isFinished() == false && nextOp.needsInput()) {
-                    Page page = op.getOutput();
-                    if (page == null) {
-                        // No result, just move to the next iteration
-                    } else if (page.getPositionCount() == 0) {
-                        // Empty result, release any memory it holds immediately and move to the next iteration
+            if (op.isFinished() == false && nextOp.needsInput()) {
+                driverContext.checkForEarlyTermination();
+                Page page = op.getOutput();
+                if (page == null) {
+                    // No result, just move to the next iteration
+                } else if (page.getPositionCount() == 0) {
+                    // Empty result, release any memory it holds immediately and move to the next iteration
+                    page.releaseBlocks();
+                } else {
+                    // Non-empty result from the previous operation, move it to the next operation
+                    try {
+                        driverContext.checkForEarlyTermination();
+                    } catch (DriverEarlyTerminationException | TaskCancelledException e) {
                         page.releaseBlocks();
-                    } else {
-                        // Non-empty result from the previous operation, move it to the next operation
-                        nextOp.addInput(page);
-                        movedPage = true;
+                        throw e;
                     }
+                    nextOp.addInput(page);
+                    movedPage = true;
                 }
+            }
 
-                if (op.isFinished()) {
-                    nextOp.finish();
-                }
+            if (op.isFinished()) {
+                driverContext.checkForEarlyTermination();
+                nextOp.finish();
             }
         }
 
+        closeEarlyFinishedOperators();
+
+        if (movedPage == false) {
+            return oneOf(
+                activeOperators.stream()
+                    .map(Operator::isBlocked)
+                    .filter(laf -> laf.listener().isDone() == false)
+                    .collect(Collectors.toList())
+            );
+        }
+        return Operator.NOT_BLOCKED;
+    }
+
+    private void closeEarlyFinishedOperators() {
         for (int index = activeOperators.size() - 1; index >= 0; index--) {
             if (activeOperators.get(index).isFinished()) {
                 /*
@@ -300,28 +326,11 @@ public class Driver implements Releasable, Describable {
                 break;
             }
         }
-
-        if (movedPage == false) {
-            return oneOf(
-                activeOperators.stream()
-                    .map(Operator::isBlocked)
-                    .filter(laf -> laf.listener().isDone() == false)
-                    .collect(Collectors.toList())
-            );
-        }
-        return Operator.NOT_BLOCKED;
     }
 
     public void cancel(String reason) {
         if (cancelReason.compareAndSet(null, reason)) {
             scheduler.runPendingTasks();
-        }
-    }
-
-    private void ensureNotCancelled() {
-        String reason = cancelReason.get();
-        if (reason != null) {
-            throw new TaskCancelledException(reason);
         }
     }
 
@@ -335,16 +344,33 @@ public class Driver implements Releasable, Describable {
         driver.completionListener.addListener(listener);
         if (driver.started.compareAndSet(false, true)) {
             driver.updateStatus(0, 0, DriverStatus.Status.STARTING, "driver starting");
-            // Register a listener to an exchange sink to handle early completion scenarios:
-            // 1. When the query accumulates sufficient data (e.g., reaching the LIMIT).
-            // 2. When users abort the query but want to retain the current result.
-            // This allows the Driver to finish early without waiting for the scheduled task.
-            if (driver.activeOperators.isEmpty() == false) {
-                if (driver.activeOperators.getLast() instanceof ExchangeSinkOperator sinkOperator) {
-                    sinkOperator.addCompletionListener(ActionListener.running(driver.scheduler::runPendingTasks));
-                }
-            }
+            initializeEarlyTerminationChecker(driver);
             schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, threadContext, executor, driver, driver.completionListener);
+        }
+    }
+
+    private static void initializeEarlyTerminationChecker(Driver driver) {
+        // Register a listener to an exchange sink to handle early completion scenarios:
+        // 1. When the query accumulates sufficient data (e.g., reaching the LIMIT).
+        // 2. When users abort the query but want to retain the current result.
+        // This allows the Driver to finish early without waiting for the scheduled task.
+        final AtomicBoolean earlyFinished = new AtomicBoolean();
+        driver.driverContext.initializeEarlyTerminationChecker(() -> {
+            final String reason = driver.cancelReason.get();
+            if (reason != null) {
+                throw new TaskCancelledException(reason);
+            }
+            if (earlyFinished.get()) {
+                throw new DriverEarlyTerminationException("Exchange sink is closed");
+            }
+        });
+        if (driver.activeOperators.isEmpty() == false) {
+            if (driver.activeOperators.getLast() instanceof ExchangeSinkOperator sinkOperator) {
+                sinkOperator.addCompletionListener(ActionListener.running(() -> {
+                    earlyFinished.set(true);
+                    driver.scheduler.runPendingTasks();
+                }));
+            }
         }
     }
 

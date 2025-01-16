@@ -119,7 +119,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             if (licenseService.fallbackToStoredSource(isTemplateValidation, legacyLicensedUsageOfSyntheticSourceAllowed)) {
                 LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
                 settingsBuilder = getBuilder(settingsBuilder).put(
-                    SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+                    IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
                     SourceFieldMapper.Mode.STORED.toString()
                 );
             }

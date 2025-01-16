@@ -318,7 +318,7 @@ public class MistralService extends SenderService {
 
                 configurationMap.put(
                     MODEL_FIELD,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
                         "Refer to the Mistral models documentation for the list of available text embedding models."
                     )
                         .setLabel("Model")
@@ -331,7 +331,7 @@ public class MistralService extends SenderService {
 
                 configurationMap.put(
                     MAX_INPUT_TOKENS,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
                         "Allows you to specify the maximum number of tokens per input."
                     )
                         .setLabel("Maximum Input Tokens")
@@ -342,8 +342,8 @@ public class MistralService extends SenderService {
                         .build()
                 );
 
-                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(EnumSet.of(TaskType.TEXT_EMBEDDING)));
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(EnumSet.of(TaskType.TEXT_EMBEDDING)));
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)

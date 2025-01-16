@@ -351,9 +351,7 @@ public class GoogleAiStudioService extends SenderService {
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION)).setDescription(
-                        "ID of the LLM you're using."
-                    )
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("ID of the LLM you're using.")
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -362,12 +360,8 @@ public class GoogleAiStudioService extends SenderService {
                         .build()
                 );
 
-                configurationMap.putAll(
-                    DefaultSecretSettings.toSettingsConfiguration(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION))
-                );
-                configurationMap.putAll(
-                    RateLimitSettings.toSettingsConfiguration(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION))
-                );
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)

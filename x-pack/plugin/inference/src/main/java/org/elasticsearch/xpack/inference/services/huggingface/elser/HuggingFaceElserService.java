@@ -176,9 +176,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
 
                 configurationMap.put(
                     URL,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING)).setDescription(
-                        "The URL endpoint to use for the requests."
-                    )
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("The URL endpoint to use for the requests.")
                         .setLabel("URL")
                         .setRequired(true)
                         .setSensitive(false)
@@ -187,8 +185,8 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
                         .build()
                 );
 
-                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)

@@ -378,9 +378,7 @@ public class AmazonBedrockService extends SenderService {
 
                 configurationMap.put(
                     PROVIDER_FIELD,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION)).setDescription(
-                        "The model provider for your deployment."
-                    )
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("The model provider for your deployment.")
                         .setLabel("Provider")
                         .setRequired(true)
                         .setSensitive(false)
@@ -391,7 +389,7 @@ public class AmazonBedrockService extends SenderService {
 
                 configurationMap.put(
                     MODEL_FIELD,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION)).setDescription(
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
                         "The base model ID or an ARN to a custom model based on a foundational model."
                     )
                         .setLabel("Model")
@@ -404,7 +402,7 @@ public class AmazonBedrockService extends SenderService {
 
                 configurationMap.put(
                     REGION_FIELD,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION)).setDescription(
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
                         "The region that your model or ARN is deployed in."
                     )
                         .setLabel("Region")
@@ -419,7 +417,7 @@ public class AmazonBedrockService extends SenderService {
                 configurationMap.putAll(
                     RateLimitSettings.toSettingsConfigurationWithDescription(
                         "By default, the amazonbedrock service sets the number of requests allowed per minute to 240.",
-                        EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION)
+                        supportedTaskTypes
                     )
                 );
 

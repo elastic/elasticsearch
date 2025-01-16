@@ -406,7 +406,7 @@ public class AzureAiStudioService extends SenderService {
 
                 configurationMap.put(
                     TARGET_FIELD,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION)).setDescription(
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
                         "The target URL of your Azure AI Studio model deployment."
                     )
                         .setLabel("Target")
@@ -419,7 +419,7 @@ public class AzureAiStudioService extends SenderService {
 
                 configurationMap.put(
                     ENDPOINT_TYPE_FIELD,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION)).setDescription(
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
                         "Specifies the type of endpoint that is used in your model deployment."
                     )
                         .setLabel("Endpoint Type")
@@ -432,9 +432,7 @@ public class AzureAiStudioService extends SenderService {
 
                 configurationMap.put(
                     PROVIDER_FIELD,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION)).setDescription(
-                        "The model provider for your deployment."
-                    )
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("The model provider for your deployment.")
                         .setLabel("Provider")
                         .setRequired(true)
                         .setSensitive(false)
@@ -443,12 +441,8 @@ public class AzureAiStudioService extends SenderService {
                         .build()
                 );
 
-                configurationMap.putAll(
-                    DefaultSecretSettings.toSettingsConfiguration(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION))
-                );
-                configurationMap.putAll(
-                    RateLimitSettings.toSettingsConfiguration(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION))
-                );
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)

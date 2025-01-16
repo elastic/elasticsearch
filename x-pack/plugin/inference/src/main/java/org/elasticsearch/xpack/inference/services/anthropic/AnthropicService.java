@@ -256,7 +256,7 @@ public class AnthropicService extends SenderService {
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.COMPLETION)).setDescription(
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
                         "The name of the model to use for the inference task."
                     )
                         .setLabel("Model ID")
@@ -267,11 +267,11 @@ public class AnthropicService extends SenderService {
                         .build()
                 );
 
-                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(EnumSet.of(TaskType.COMPLETION)));
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
                 configurationMap.putAll(
                     RateLimitSettings.toSettingsConfigurationWithDescription(
                         "By default, the anthropic service sets the number of requests allowed per minute to 50.",
-                        EnumSet.of(TaskType.COMPLETION)
+                        supportedTaskTypes
                     )
                 );
 

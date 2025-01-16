@@ -379,9 +379,9 @@ public class AlibabaCloudSearchService extends SenderService {
 
                 configurationMap.put(
                     SERVICE_ID,
-                    new SettingsConfiguration.Builder(
-                        EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, TaskType.RERANK, TaskType.COMPLETION)
-                    ).setDescription("The name of the model service to use for the {infer} task.")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                        "The name of the model service to use for the {infer} task."
+                    )
                         .setLabel("Project ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -392,9 +392,7 @@ public class AlibabaCloudSearchService extends SenderService {
 
                 configurationMap.put(
                     HOST,
-                    new SettingsConfiguration.Builder(
-                        EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, TaskType.RERANK, TaskType.COMPLETION)
-                    ).setDescription(
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
                         "The name of the host address used for the {infer} task. You can find the host address at "
                             + "https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[ the API keys section] "
                             + "of the documentation."
@@ -409,9 +407,7 @@ public class AlibabaCloudSearchService extends SenderService {
 
                 configurationMap.put(
                     HTTP_SCHEMA_NAME,
-                    new SettingsConfiguration.Builder(
-                        EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, TaskType.RERANK, TaskType.COMPLETION)
-                    ).setDescription("")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("")
                         .setLabel("HTTP Schema")
                         .setRequired(true)
                         .setSensitive(false)
@@ -422,9 +418,9 @@ public class AlibabaCloudSearchService extends SenderService {
 
                 configurationMap.put(
                     WORKSPACE_NAME,
-                    new SettingsConfiguration.Builder(
-                        EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, TaskType.RERANK, TaskType.COMPLETION)
-                    ).setDescription("The name of the workspace used for the {infer} task.")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                        "The name of the workspace used for the {infer} task."
+                    )
                         .setLabel("Workspace")
                         .setRequired(true)
                         .setSensitive(false)
@@ -436,14 +432,10 @@ public class AlibabaCloudSearchService extends SenderService {
                 configurationMap.putAll(
                     DefaultSecretSettings.toSettingsConfigurationWithDescription(
                         "A valid API key for the AlibabaCloud AI Search API.",
-                        EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, TaskType.RERANK, TaskType.COMPLETION)
+                        supportedTaskTypes
                     )
                 );
-                configurationMap.putAll(
-                    RateLimitSettings.toSettingsConfiguration(
-                        EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, TaskType.RERANK, TaskType.COMPLETION)
-                    )
-                );
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)

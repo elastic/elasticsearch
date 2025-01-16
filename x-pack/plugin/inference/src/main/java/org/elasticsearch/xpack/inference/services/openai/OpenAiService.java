@@ -415,8 +415,9 @@ public class OpenAiService extends SenderService {
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION))
-                        .setDescription("The name of the model to use for the inference task.")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES_FOR_SERVICES_API).setDescription(
+                        "The name of the model to use for the inference task."
+                    )
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -427,8 +428,9 @@ public class OpenAiService extends SenderService {
 
                 configurationMap.put(
                     ORGANIZATION,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION))
-                        .setDescription("The unique identifier of your organization.")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES_FOR_SERVICES_API).setDescription(
+                        "The unique identifier of your organization."
+                    )
                         .setLabel("Organization ID")
                         .setRequired(false)
                         .setSensitive(false)
@@ -439,8 +441,9 @@ public class OpenAiService extends SenderService {
 
                 configurationMap.put(
                     URL,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION))
-                        .setDefaultValue("https://api.openai.com/v1/chat/completions")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES_FOR_SERVICES_API).setDefaultValue(
+                        "https://api.openai.com/v1/chat/completions"
+                    )
                         .setDescription(
                             "The OpenAI API endpoint URL. For more information on the URL, refer to the "
                                 + "https://platform.openai.com/docs/api-reference."
@@ -457,13 +460,13 @@ public class OpenAiService extends SenderService {
                     DefaultSecretSettings.toSettingsConfigurationWithDescription(
                         "The OpenAI API authentication key. For more details about generating OpenAI API keys, "
                             + "refer to the https://platform.openai.com/account/api-keys.",
-                        EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION)
+                        SUPPORTED_TASK_TYPES_FOR_SERVICES_API
                     )
                 );
                 configurationMap.putAll(
                     RateLimitSettings.toSettingsConfigurationWithDescription(
                         "Default number of requests allowed per minute. For text_embedding is 3000. For completion is 500.",
-                        EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION)
+                        SUPPORTED_TASK_TYPES_FOR_SERVICES_API
                     )
                 );
 

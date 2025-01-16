@@ -181,9 +181,7 @@ public class HuggingFaceService extends HuggingFaceBaseService {
 
                 configurationMap.put(
                     URL,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)).setDefaultValue(
-                        "https://api.openai.com/v1/embeddings"
-                    )
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDefaultValue("https://api.openai.com/v1/embeddings")
                         .setDescription("The URL endpoint to use for the requests.")
                         .setLabel("URL")
                         .setRequired(true)
@@ -193,12 +191,8 @@ public class HuggingFaceService extends HuggingFaceBaseService {
                         .build()
                 );
 
-                configurationMap.putAll(
-                    DefaultSecretSettings.toSettingsConfiguration(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING))
-                );
-                configurationMap.putAll(
-                    RateLimitSettings.toSettingsConfiguration(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING))
-                );
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)

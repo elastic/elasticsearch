@@ -289,7 +289,7 @@ public class SettingsConfiguration implements Writeable, ToXContentObject {
         private final EnumSet<TaskType> supportedTaskTypes;
 
         public Builder(EnumSet<TaskType> supportedTaskTypes) {
-            this.supportedTaskTypes = Objects.requireNonNull(supportedTaskTypes);
+            this.supportedTaskTypes = TaskType.copyOf(Objects.requireNonNull(supportedTaskTypes));
         }
 
         public Builder setDefaultValue(Object defaultValue) {

@@ -324,9 +324,7 @@ public class IbmWatsonxService extends SenderService {
 
                 configurationMap.put(
                     API_VERSION,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
-                        "The IBM Watsonx API version ID to use."
-                    )
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("The IBM Watsonx API version ID to use.")
                         .setLabel("API Version")
                         .setRequired(true)
                         .setSensitive(false)
@@ -337,7 +335,7 @@ public class IbmWatsonxService extends SenderService {
 
                 configurationMap.put(
                     PROJECT_ID,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription("")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("")
                         .setLabel("Project ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -348,7 +346,7 @@ public class IbmWatsonxService extends SenderService {
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
                         "The name of the model to use for the inference task."
                     )
                         .setLabel("Model ID")
@@ -361,7 +359,7 @@ public class IbmWatsonxService extends SenderService {
 
                 configurationMap.put(
                     URL,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription("")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("")
                         .setLabel("URL")
                         .setRequired(true)
                         .setSensitive(false)

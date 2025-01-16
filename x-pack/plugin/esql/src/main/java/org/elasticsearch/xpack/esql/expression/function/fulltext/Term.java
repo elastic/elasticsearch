@@ -100,7 +100,7 @@ public class Term extends FullTextFunction implements PostOptimizationVerificati
     }
 
     @Override
-    public void postLogicalOptimizationVerification(Failures failures) {
+    public void postOptimizationVerification(Failures failures) {
         if (field instanceof FieldAttribute == false) {
             failures.add(
                 Failure.fail(

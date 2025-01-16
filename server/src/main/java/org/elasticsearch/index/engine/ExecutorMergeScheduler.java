@@ -198,7 +198,8 @@ public class ExecutorMergeScheduler extends MergeScheduler implements Elasticsea
                     message(
                         String.format(
                             Locale.ROOT,
-                            "merge task %s merge segment [%s] done estSize=%.1f MB (written=%.1f MB) runTime=%.1fs (stopped=%.1fs, paused=%.1fs) rate=%s",
+                            "merge task %s merge segment [%s] done estSize=%.1f MB (written=%.1f MB) "
+                                + "runTime=%.1fs (stopped=%.1fs, paused=%.1fs) rate=%s",
                             getName(),
                             getSegmentName(onGoingMerge.getMerge()),
                             bytesToMB(onGoingMerge.getMerge().estimatedMergeBytes),

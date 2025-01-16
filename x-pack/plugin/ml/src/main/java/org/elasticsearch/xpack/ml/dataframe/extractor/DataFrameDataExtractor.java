@@ -245,7 +245,7 @@ public class DataFrameDataExtractor {
     }
 
     private SearchHit[] processSearchResponse(SearchResponse searchResponse) {
-        if (searchResponse.getHits().getHits().length == 0) {
+        if (isCancelled || searchResponse.getHits().getHits().length == 0) {
             hasNext = false;
             return null;
         }

@@ -26,7 +26,7 @@ public interface TestClustersAware extends Task {
     Collection<ElasticsearchCluster> getClusters();
 
     @ServiceReference(REGISTRY_SERVICE_NAME)
-    Property<TestClustersRegistry> getRegistery();
+    Property<TestClustersRegistry> getRegistry();
 
     @ServiceReference(TEST_CLUSTER_TASKS_SERVICE)
     Property<TestClustersPlugin.TaskEventsService> getTasksService();
@@ -45,6 +45,14 @@ public interface TestClustersAware extends Task {
             dependsOn(cluster.getPluginAndModuleConfigurations());
         }
         getClusters().add(cluster);
+    }
+
+    default Provider<TestClusterInfo> getClusterInfo(String clusterName) {
+        return getProject().getProviders().of(TestClusterValueSource.class, source -> {
+            source.getParameters().getService().set(getRegistry());
+            source.getParameters().getClusterName().set(clusterName);
+            source.getParameters().getPath().set(getProject().getIsolated().getPath());
+        });
     }
 
     default void useCluster(Provider<ElasticsearchCluster> cluster) {

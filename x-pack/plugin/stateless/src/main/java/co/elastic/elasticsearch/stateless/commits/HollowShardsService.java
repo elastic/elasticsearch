@@ -19,8 +19,6 @@ package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
@@ -83,7 +81,6 @@ public class HollowShardsService extends AbstractLifecycleComponent {
     public HollowShardsService(Settings settings, ClusterService clusterService, LongSupplier relativeTimeSupplierInMillis) {
         this.clusterService = clusterService;
         this.relativeTimeSupplierInMillis = relativeTimeSupplierInMillis;
-        assert DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE) : "HollowShardsService should exist only on index nodes";
         this.featureEnabled = HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(settings);
         this.ingestionDataStreamNonWriteTtl = HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.get(settings);
         this.ingestionTtl = HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.get(settings);
@@ -99,8 +96,12 @@ public class HollowShardsService extends AbstractLifecycleComponent {
     }
 
     public boolean isHollowableIndexShard(IndexShard indexShard) {
-        // TODO: for ES-10258 we may need a variation of this function that does not check the primary permits (which may be held already)
-        if (featureEnabled && indexShard.isSystem() == false && indexShard.getActiveOperationsCount() == 0) {
+        return isHollowableIndexShard(indexShard, true);
+    }
+
+    public boolean isHollowableIndexShard(IndexShard indexShard, boolean checkPrimaryPermits) {
+        boolean noActiveOperations = checkPrimaryPermits ? indexShard.getActiveOperationsCount() == 0 : true;
+        if (featureEnabled && indexShard.isSystem() == false && noActiveOperations) {
             final var engine = indexShard.getEngineOrNull();
             if (engine instanceof IndexEngine indexEngine) {
                 final var index = indexShard.shardId().getIndex();

@@ -18,6 +18,7 @@ import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
@@ -129,7 +130,7 @@ public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
      */
     public void testExpectationFailed() {
         var sendRequest = httpRequest();
-        sendRequest.headers().set(HttpHeaderNames.EXPECT, "Potato");
+        sendRequest.headers().set(HttpHeaderNames.EXPECT, randomValueOtherThan(HttpHeaderValues.CONTINUE, ESTestCase::randomIdentifier));
         channel.writeInbound(encode(sendRequest));
         var resp = (FullHttpResponse) channel.readOutbound();
         assertEquals(HttpResponseStatus.EXPECTATION_FAILED, resp.status());

@@ -529,7 +529,6 @@ language.id:integer | language.name:text | language.name.keyword:keyword
 ;
 
 joinOnNestedNestedFieldRowImplicitKeyword
-required_capability: join_lookup_v10
 required_capability: lookup_join_text
 
 ROW language.name = "English"
@@ -542,7 +541,6 @@ language.id:integer | language.name:keyword | language.name.keyword:keyword
 ;
 
 joinOnNestedNestedFieldRowImplicitKeywords
-required_capability: join_lookup_v10
 required_capability: lookup_join_text
 
 ROW language.name = ["English", "French"]

@@ -148,6 +148,40 @@ FROM partial_mapping_sample_data
 2024-10-23T12:15:03.360Z | 3450232             | 3450234
 ;
 
+fieldIsUnmappedButSourceIsDisabledSingleIndex
+required_capability: source_field_mapping
+required_capability: unmapped_fields
+FROM partial_mapping_no_source_sample_data
+| INSIST message
+;
+
+@timestamp:date          | message:keyword
+2024-10-23T13:55:01.543Z | null
+2024-10-23T13:53:55.832Z | null
+2024-10-23T13:52:55.015Z | null
+2024-10-23T13:51:54.732Z | null
+2024-10-23T13:33:34.937Z | null
+2024-10-23T12:27:28.948Z | null
+2024-10-23T12:15:03.360Z | null
+;
+
+fieldIsUnmappedButExcludedFromSourceSingleIndex
+required_capability: source_field_mapping
+required_capability: unmapped_fields
+FROM partial_mapping_excluded_source_sample_data
+| INSIST message
+;
+
+@timestamp:date          | message:keyword
+2024-10-23T13:55:01.543Z | null
+2024-10-23T13:53:55.832Z | null
+2024-10-23T13:52:55.015Z | null
+2024-10-23T13:51:54.732Z | null
+2024-10-23T13:33:34.937Z | null
+2024-10-23T12:27:28.948Z | null
+2024-10-23T12:15:03.360Z | null
+;
+
 #####################
 # Multi index tests #
 #####################
@@ -415,18 +449,70 @@ FROM sample_data, no_mapping_sample_data
 ;
 
 event_duration:double
-8268153.0            
-8268152.0            
-5033755.0            
-5033754.0            
-3450233.0            
-3450232.0            
-2764889.0            
-2764888.0            
-1756467.0            
-1756466.0            
-1232382.0            
-1232381.0            
-725448.0             
+8268153.0
+8268152.0
+5033755.0
+5033754.0
+3450233.0
+3450232.0
+2764889.0
+2764888.0
+1756467.0
+1756466.0
+1232382.0
+1232381.0
+725448.0
 725447.0
+;
+
+fieldIsPartiallyUnmappedPartiallySourceIsDisabledMultiIndex
+required_capability: source_field_mapping
+required_capability: unmapped_fields
+FROM partial_mapping_sample_data,partial_mapping_no_source_sample_data
+| INSIST message
+| KEEP @timestamp, message
+| SORT @timestamp, message
+;
+
+@timestamp:date          | message:keyword
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
+2024-10-23T12:15:03.360Z | null
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2!
+2024-10-23T12:27:28.948Z | null
+2024-10-23T13:33:34.937Z | 42
+2024-10-23T13:33:34.937Z | null
+2024-10-23T13:51:54.732Z | Connection error?
+2024-10-23T13:51:54.732Z | null
+2024-10-23T13:52:55.015Z | Connection error?
+2024-10-23T13:52:55.015Z | null
+2024-10-23T13:53:55.832Z | Connection error?
+2024-10-23T13:53:55.832Z | null
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
+2024-10-23T13:55:01.543Z | null
+;
+
+fieldIsPartiallyUnmappedPartiallySourceIsDisabledMultiIndex
+required_capability: source_field_mapping
+required_capability: unmapped_fields
+FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data
+| INSIST message
+| KEEP @timestamp, message
+| SORT @timestamp, message
+;
+
+@timestamp:date          | message:keyword
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
+2024-10-23T12:15:03.360Z | null
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2!
+2024-10-23T12:27:28.948Z | null
+2024-10-23T13:33:34.937Z | 42
+2024-10-23T13:33:34.937Z | null
+2024-10-23T13:51:54.732Z | Connection error?
+2024-10-23T13:51:54.732Z | null
+2024-10-23T13:52:55.015Z | Connection error?
+2024-10-23T13:52:55.015Z | null
+2024-10-23T13:53:55.832Z | Connection error?
+2024-10-23T13:53:55.832Z | null
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
+2024-10-23T13:55:01.543Z | null
 ;

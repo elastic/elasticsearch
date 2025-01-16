@@ -91,6 +91,16 @@ public class CsvTestsDataLoader {
         "mapping-no_mapping_sample_data.json",
         "partial_mapping_sample_data.csv"
     ).withTypeMapping(Stream.of("timestamp", "client_ip", "event_duration").collect(Collectors.toMap(k -> k, k -> "keyword")));
+    private static final TestDataset SAMPLE_DATA_PARTIAL_MAPPING_NO_SOURCE = new TestDataset(
+        "partial_mapping_no_source_sample_data",
+        "mapping-partial_mapping_no_source_sample_data.json",
+        "partial_mapping_sample_data.csv"
+    );
+    private static final TestDataset SAMPLE_DATA_PARTIAL_MAPPING_EXCLUDED_SOURCE = new TestDataset(
+        "partial_mapping_excluded_source_sample_data",
+        "mapping-partial_mapping_excluded_source_sample_data.json",
+        "partial_mapping_sample_data.csv"
+    );
     private static final TestDataset CLIENT_IPS = new TestDataset("clientips");
     private static final TestDataset CLIENT_IPS_LOOKUP = CLIENT_IPS.withIndex("clientips_lookup")
         .withSetting("clientips_lookup-settings.json");
@@ -138,6 +148,8 @@ public class CsvTestsDataLoader {
         Map.entry(SAMPLE_DATA.indexName, SAMPLE_DATA),
         Map.entry(SAMPLE_DATA_PARTIAL_MAPPING.indexName, SAMPLE_DATA_PARTIAL_MAPPING),
         Map.entry(SAMPLE_DATA_NO_MAPPING.indexName, SAMPLE_DATA_NO_MAPPING),
+        Map.entry(SAMPLE_DATA_PARTIAL_MAPPING_NO_SOURCE.indexName, SAMPLE_DATA_PARTIAL_MAPPING_NO_SOURCE),
+        Map.entry(SAMPLE_DATA_PARTIAL_MAPPING_EXCLUDED_SOURCE.indexName, SAMPLE_DATA_PARTIAL_MAPPING_EXCLUDED_SOURCE),
         Map.entry(MV_SAMPLE_DATA.indexName, MV_SAMPLE_DATA),
         Map.entry(ALERTS.indexName, ALERTS),
         Map.entry(SAMPLE_DATA_STR.indexName, SAMPLE_DATA_STR),

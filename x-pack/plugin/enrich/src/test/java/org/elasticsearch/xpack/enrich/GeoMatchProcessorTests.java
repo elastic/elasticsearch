@@ -159,7 +159,6 @@ public class GeoMatchProcessorTests extends ESTestCase {
 
         @Override
         public void accept(
-            String policyName,
             int maxMatches,
             Object value,
             Supplier<SearchRequest> searchRequestSupplier,

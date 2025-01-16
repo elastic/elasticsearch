@@ -88,7 +88,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
                 return req;
             };
 
-            searchRunner.accept(policyName, maxMatches, value, searchRequestSupplier, (searchHits, e) -> {
+            searchRunner.accept(maxMatches, value, searchRequestSupplier, (searchHits, e) -> {
                 if (e != null) {
                     handler.accept(null, e);
                     return;

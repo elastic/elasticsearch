@@ -143,16 +143,7 @@ indexString
     ;
 
 metadata
-    : metadataOption
-    | deprecated_metadata
-    ;
-
-metadataOption
     : METADATA UNQUOTED_SOURCE (COMMA UNQUOTED_SOURCE)*
-    ;
-
-deprecated_metadata
-    : OPENING_BRACKET metadataOption CLOSING_BRACKET
     ;
 
 metricsCommand

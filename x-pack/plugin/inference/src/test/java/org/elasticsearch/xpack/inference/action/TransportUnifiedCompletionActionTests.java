@@ -33,6 +33,10 @@ import static org.mockito.Mockito.when;
 
 public class TransportUnifiedCompletionActionTests extends BaseTransportInferenceActionTestCase<UnifiedCompletionAction.Request> {
 
+    public TransportUnifiedCompletionActionTests() {
+        super(TaskType.CHAT_COMPLETION);
+    }
+
     @Override
     protected BaseTransportInferenceAction<UnifiedCompletionAction.Request> createAction(
         TransportService transportService,

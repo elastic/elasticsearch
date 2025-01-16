@@ -309,7 +309,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         var translogReplayTime = TimeValue.timeValueNanos(System.nanoTime() - startNanos);
         var networkTime = TimeValue.timeValueNanos(listUnfilteredFilesNanos + createPlanNanos + operationsReadNanos);
         var blobCount = blobsToRead.size();
-        var blobSizeInBytes = new ByteSizeValue(blobsToRead.stream().mapToLong(BlobMetadata::length).sum(), ByteSizeUnit.BYTES);
+        var blobSizeInBytes = ByteSizeValue.of(blobsToRead.stream().mapToLong(BlobMetadata::length).sum(), ByteSizeUnit.BYTES);
 
         if (translogReplayTime.compareTo(SIXTY_SECONDS_SLOW_RECOVERY_THRESHOLD) >= 0) {
             logger.warn(
@@ -326,7 +326,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
                 blobSizeInBytes,
                 filesWithShardOperations,
                 operationsRead,
-                new ByteSizeValue(operationBytesRead, ByteSizeUnit.BYTES),
+                ByteSizeValue.of(operationBytesRead, ByteSizeUnit.BYTES),
                 indexOperationsProcessed,
                 indexOperationsWithIDProcessed,
                 deleteOperationsProcessed,

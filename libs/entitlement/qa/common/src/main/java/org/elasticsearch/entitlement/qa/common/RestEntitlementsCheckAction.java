@@ -151,7 +151,13 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("datagram_socket_send", forPlugins(RestEntitlementsCheckAction::sendDatagramSocket)),
         entry("datagram_socket_receive", forPlugins(RestEntitlementsCheckAction::receiveDatagramSocket)),
         entry("datagram_socket_join_group", forPlugins(RestEntitlementsCheckAction::joinGroupDatagramSocket)),
-        entry("datagram_socket_leave_group", forPlugins(RestEntitlementsCheckAction::leaveGroupDatagramSocket))
+        entry("datagram_socket_leave_group", forPlugins(RestEntitlementsCheckAction::leaveGroupDatagramSocket)),
+
+        entry("create_socket_with_proxy", forPlugins(NetworkAccessCheckActions::createSocketWithProxy)),
+        entry("socket_bind", forPlugins(NetworkAccessCheckActions::socketBind)),
+        entry("socket_connect", forPlugins(NetworkAccessCheckActions::socketConnect)),
+        entry("server_socket_bind", forPlugins(NetworkAccessCheckActions::serverSocketBind)),
+        entry("server_socket_accept", forPlugins(NetworkAccessCheckActions::serverSocketAccept))
     )
         .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
         .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));

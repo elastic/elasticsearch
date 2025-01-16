@@ -165,6 +165,9 @@ public class DataFrameDataExtractor {
     }
 
     protected SearchHit[] nextSearch() throws IOException {
+        if (isCancelled) {
+            return null;
+        }
         return tryRequestWithSearchResponse(() -> executeSearchRequest(buildSearchRequest()));
     }
 

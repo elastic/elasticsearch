@@ -52,12 +52,12 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     @Override
     public Processor create(Map<String, Processor.Factory> processorFactories, String tag, String description, Map<String, Object> config)
         throws Exception {
-        String policyName = ConfigurationUtils.readStringProperty(TYPE, tag, config, "policy_name");
-        String policyAlias = EnrichPolicy.getBaseName(policyName);
+        final String policyName = ConfigurationUtils.readStringProperty(TYPE, tag, config, "policy_name");
+        final String indexAlias = EnrichPolicy.getBaseName(policyName);
         if (metadata == null) {
             throw new IllegalStateException("enrich processor factory has not yet been initialized with cluster state");
         }
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(policyAlias);
+        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexAlias);
         if (indexAbstraction == null) {
             throw new IllegalArgumentException("no enrich index exists for policy with name [" + policyName + "]");
         }
@@ -144,10 +144,10 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     }
 
     private String getEnrichIndexKey(String policyName) {
-        String alias = EnrichPolicy.getBaseName(policyName);
-        IndexAbstraction ia = metadata.getIndicesLookup().get(alias);
+        final String indexAlias = EnrichPolicy.getBaseName(policyName);
+        IndexAbstraction ia = metadata.getIndicesLookup().get(indexAlias);
         if (ia == null) {
-            throw new IndexNotFoundException("no generated enrich index [" + alias + "]");
+            throw new IndexNotFoundException("no generated enrich index [" + indexAlias + "]");
         }
         return ia.getIndices().get(0).getName();
     }

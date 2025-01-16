@@ -554,6 +554,9 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_security_cert_CertStore$$getInstance(Class<?> callerClass, String type, CertStoreParameters params) {
+        // We need to check "just" the LDAPCertStore instantiation: this is the CertStore that will try to perform a network operation
+        // (connect to an LDAP server). But LDAPCertStore is internal (created via SPI), so we instrument the general factory instead and
+        // then do the check only for the path that leads to sensitive code (by looking at the `type` parameter).
         if ("LDAP".equals(type)) {
             policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
         }

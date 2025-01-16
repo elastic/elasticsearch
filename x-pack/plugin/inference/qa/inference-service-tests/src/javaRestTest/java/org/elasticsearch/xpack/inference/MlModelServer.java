@@ -35,6 +35,7 @@ class MlModelServer {
     private final ExecutorService mlModelServerExecutor;
 
     MlModelServer(int port) throws IOException {
+        logger.info("Starting ML model server on port {}", port);
         mlModelServer = HttpServer.create(new InetSocketAddress(port), 10);
         mlModelServer.createContext("/", this::handle);
         mlModelServerExecutor = Executors.newCachedThreadPool();
@@ -43,6 +44,7 @@ class MlModelServer {
     }
 
     void close() {
+        logger.info("Stopping ML model server");
         mlModelServer.stop(5);
         mlModelServerExecutor.close();
     }

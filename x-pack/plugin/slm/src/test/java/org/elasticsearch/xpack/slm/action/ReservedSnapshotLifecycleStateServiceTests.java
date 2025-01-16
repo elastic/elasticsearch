@@ -92,7 +92,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(clusterName).build();
         ReservedSnapshotAction action = new ReservedSnapshotAction();
-        TransformState prevState = new TransformState<>(state, Set.of());
+        TransformState<ClusterState> prevState = new TransformState<>(state, Set.of());
 
         String badPolicyJSON = """
             {

@@ -362,7 +362,8 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                     "task cancelled",
                     "request cancelled test cancel",
                     "parent task was cancelled [test cancel]",
-                    "cancelled on failure"
+                    "cancelled on failure",
+                    "task cancelled [cancelled on failure]"
                 )
             )
         );

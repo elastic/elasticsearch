@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
+import org.elasticsearch.xpack.esql.action.EsqlAsyncStopAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequestBuilder;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
@@ -60,6 +61,7 @@ import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
@@ -151,7 +153,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             new ActionHandler<>(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
             new ActionHandler<>(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
-            new ActionHandler<>(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class)
+            new ActionHandler<>(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
+            new ActionHandler<>(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class)
         );
     }
 
@@ -171,6 +174,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             new RestEsqlQueryAction(),
             new RestEsqlAsyncQueryAction(),
             new RestEsqlGetAsyncResultAction(),
+            new RestEsqlStopAsyncAction(),
             new RestEsqlDeleteAsyncResultAction()
         );
     }

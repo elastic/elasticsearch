@@ -127,7 +127,7 @@ public class AbstractCrossClustersUsageTelemetryIT extends AbstractMultiClusters
         return getTelemetrySnapshot(queryNode);
     }
 
-    private CCSTelemetrySnapshot getTelemetrySnapshot(String nodeName) {
+    protected CCSTelemetrySnapshot getTelemetrySnapshot(String nodeName) {
         var usage = cluster(LOCAL_CLUSTER).getInstance(UsageService.class, nodeName);
         return usage.getEsqlUsageHolder().getCCSTelemetrySnapshot();
     }

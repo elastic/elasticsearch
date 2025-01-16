@@ -19,9 +19,9 @@ However, if you do not plan to use the {infer} APIs to use these models or if yo
 [[update-inference-api-request]]
 ==== {api-request-title}
 
-`POST _inference/<inference_id>/_update`
+`PUT _inference/<inference_id>/_update`
 
-`POST _inference/<task_type>/<inference_id>/_update`
+`PUT _inference/<task_type>/<inference_id>/_update`
 
 
 [discrete]
@@ -52,7 +52,7 @@ Click the links to review the service configuration details:
 * <<infer-service-elasticsearch,Elasticsearch>> (`rerank`, `sparse_embedding`, `text_embedding` - this service is for built-in models and models uploaded through Eland)
 * <<infer-service-elser,ELSER>> (`sparse_embedding`)
 * <<infer-service-google-ai-studio,Google AI Studio>> (`completion`, `text_embedding`)
-* <<infer-service-google-vertex-ai,Google Vertex AI>> (`rerank`, `text_embedding`) 
+* <<infer-service-google-vertex-ai,Google Vertex AI>> (`rerank`, `text_embedding`)
 * <<infer-service-hugging-face,Hugging Face>> (`text_embedding`)
 * <<infer-service-mistral,Mistral>> (`text_embedding`)
 * <<infer-service-openai,OpenAI>> (`completion`, `text_embedding`)
@@ -81,7 +81,7 @@ The following example shows how to update an API key of an {infer} endpoint call
 
 [source,console]
 ------------------------------------------------------------
-POST _inference/my-inference-endpoint/_update
+PUT _inference/my-inference-endpoint/_update
 {
  "service_settings": {
    "api_key": "<API_KEY>"

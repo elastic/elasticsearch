@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
@@ -36,17 +35,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder<TextSimilarityRankRetrieverBuilder> {
 
-    public static final NodeFeature TEXT_SIMILARITY_RERANKER_RETRIEVER_SUPPORTED = new NodeFeature(
-        "text_similarity_reranker_retriever_supported",
-        true
-    );
-    public static final NodeFeature TEXT_SIMILARITY_RERANKER_COMPOSITION_SUPPORTED = new NodeFeature(
-        "text_similarity_reranker_retriever_composition_supported",
-        true
-    );
     public static final NodeFeature TEXT_SIMILARITY_RERANKER_ALIAS_HANDLING_FIX = new NodeFeature(
-        "text_similarity_reranker_alias_handling_fix",
-        true
+        "text_similarity_reranker_alias_handling_fix"
     );
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
@@ -83,14 +73,6 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         RetrieverParserContext context,
         XPackLicenseState licenceState
     ) throws IOException {
-        if (context.clusterSupportsFeature(TEXT_SIMILARITY_RERANKER_RETRIEVER_SUPPORTED) == false) {
-            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + TextSimilarityRankBuilder.NAME + "]");
-        }
-        if (context.clusterSupportsFeature(TEXT_SIMILARITY_RERANKER_COMPOSITION_SUPPORTED) == false) {
-            throw new IllegalArgumentException(
-                "[text_similarity_reranker] retriever composition feature is not supported by all nodes in the cluster"
-            );
-        }
         if (TextSimilarityRankBuilder.TEXT_SIMILARITY_RERANKER_FEATURE.check(licenceState) == false) {
             throw LicenseUtils.newComplianceException(TextSimilarityRankBuilder.NAME);
         }

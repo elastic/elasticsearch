@@ -1,0 +1,25 @@
+{
+  "packaged_model_id": "elser_model_2",
+  "minimum_version": "11.0.0",
+  "size": 1859662,
+  "sha256": "b4486bccd45bbfaa9f8d0293d9acb9fe325a3d1e5b575080f8e5ad763440c764",
+  "description": "Elastic Learned Sparse EncodeR v2",
+  "model_type": "pytorch",
+  "tags": [
+    "elastic"
+  ],
+  "inference_config": {
+    "text_expansion": {
+      "tokenization": {
+        "bert": {
+          "do_lower_case": true,
+          "with_special_tokens": true,
+          "max_sequence_length": 512,
+          "truncate": "first",
+          "span": -1
+        }
+      }
+    }
+  },
+  "vocabulary_file": "elser_model_2.vocab.json"
+}

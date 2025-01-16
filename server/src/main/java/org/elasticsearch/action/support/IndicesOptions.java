@@ -1470,6 +1470,9 @@ public record IndicesOptions(
             + ignoreThrottled()
             // Until the feature flag is removed we access the field directly from the gatekeeper options.
             + (DataStream.isFailureStoreFeatureFlagEnabled() ? ", allow_selectors=" + gatekeeperOptions().allowSelectors() : "")
+            + (DataStream.isFailureStoreFeatureFlagEnabled()
+                ? ", include_failure_indices=" + gatekeeperOptions().includeFailureIndices()
+                : "")
             + ']';
     }
 }

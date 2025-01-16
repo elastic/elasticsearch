@@ -41,8 +41,10 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchContextMissingException;
@@ -60,6 +62,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -324,6 +327,9 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
     }
 
     public static class NodeQueryResponse extends TransportResponse {
+
+        private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
+
         private final Object[] results;
         private final SearchPhaseController.TopDocsStats topDocsStats;
         private final QueryPhaseResultConsumer.MergeResult mergeResult;
@@ -341,9 +347,14 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             SearchPhaseController.TopDocsStats topDocsStats
         ) {
             this.results = results;
+            for (int i = 0; i < results.length; i++) {
+                if (results[i] instanceof RefCounted r) {
+                    r.incRef();
+                }
+            }
             this.mergeResult = mergeResult;
             this.topDocsStats = topDocsStats;
-            assert Arrays.stream(results).noneMatch(Objects::isNull) : Arrays.asList(results);
+            assert Arrays.stream(results).noneMatch(Objects::isNull) : Arrays.toString(results);
         }
 
         // public for tests
@@ -365,6 +376,36 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             }, results);
             mergeResult.writeTo(out);
             topDocsStats.writeTo(out);
+        }
+
+        @Override
+        public void incRef() {
+            refCounted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refCounted.tryIncRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refCounted.hasReferences();
+        }
+
+        @Override
+        public boolean decRef() {
+            if (refCounted.decRef()) {
+                for (int i = 0; i < results.length; i++) {
+                    Object result = results[i];
+                    if (result instanceof RefCounted r) {
+                        r.decRef();
+                    }
+                    results[i] = null;
+                }
+                return true;
+            }
+            return false;
         }
     }
 
@@ -608,6 +649,9 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
 
                     @Override
                     public void handleResponse(NodeQueryResponse response) {
+                        if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
+                            queryPhaseResultConsumer.addPartialResult(response.topDocsStats, response.mergeResult);
+                        }
                         for (int i = 0; i < response.results.length; i++) {
                             var s = request.shards.get(i);
                             int shardIdx = s.shardIndex;
@@ -1173,10 +1217,15 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
                                 assert results[i] != null;
                             }
                         }
-                        queryPhaseResultConsumer.buffer.clear();
-                        channelListener.onResponse(
-                            new NodeQueryResponse(EMPTY_PARTIAL_MERGE_RESULT, results, queryPhaseResultConsumer.topDocsStats)
+                        ActionListener.respondAndRelease(
+                            channelListener,
+                            new NodeQueryResponse(
+                                Objects.requireNonNullElse(queryPhaseResultConsumer.consumePartialResult(), EMPTY_PARTIAL_MERGE_RESULT),
+                                results,
+                                queryPhaseResultConsumer.topDocsStats
+                            )
                         );
+                        queryPhaseResultConsumer.buffer = null;
                     } catch (Throwable e) {
                         throw new AssertionError(e);
                     }

@@ -170,15 +170,19 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     private final List<Tuple<TopDocsStats, MergeResult>> batchedResults = new ArrayList<>();
 
-    public void reduce(Object[] results, TopDocsStats topDocsStats, MergeResult mergeResult) {
-        synchronized (this) {
-            // batchedResults.add(new Tuple<>(topDocsStats, mergeResult));
-            for (Object result : results) {
-                if (result instanceof QuerySearchResult querySearchResult) {
-                    this.results.set(querySearchResult.getShardIndex(), querySearchResult);
-                    querySearchResult.incRef();
-                    buffer.add(querySearchResult);
-                }
+    public MergeResult consumePartialResult() {
+        var mergeResult = this.mergeResult;
+        this.mergeResult = null;
+        if (runningTask.get() != null) {
+            throw new AssertionError();
+        }
+        return mergeResult;
+    }
+
+    public void addPartialResult(TopDocsStats topDocsStats, MergeResult mergeResult) {
+        if (mergeResult.processedShards.isEmpty() == false) {
+            synchronized (this) {
+                batchedResults.add(new Tuple<>(topDocsStats, mergeResult));
             }
         }
     }
@@ -200,12 +204,16 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             buffer = this.buffer;
             buffer = buffer == null ? Collections.emptyList() : buffer;
             this.buffer = null;
+
         }
         // ensure consistent ordering
         buffer.sort(RESULT_COMPARATOR);
         final TopDocsStats topDocsStats = this.topDocsStats;
         var mergeResult = this.mergeResult;
-        this.mergeResult = null;
+        if (mergeResult != null) {
+            this.mergeResult = null;
+            batchedResults.add(Tuple.tuple(new TopDocsStats(Integer.MAX_VALUE), mergeResult));
+        }
         final int resultSize = buffer.size() + (mergeResult == null ? 0 : 1);
         final List<TopDocs> topDocsList = hasTopDocs ? new ArrayList<>(resultSize) : null;
         final List<DelayableWriteable<InternalAggregations>> aggsList = hasAggs ? new ArrayList<>(resultSize) : null;
@@ -218,15 +226,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
             topDocsStats.add(batchedResult.v1());
         }
-        if (mergeResult != null) {
-            if (topDocsList != null) {
-                topDocsList.add(mergeResult.reducedTopDocs);
-            }
-            if (aggsList != null) {
-                aggsList.add(DelayableWriteable.referencing(mergeResult.reducedAggs));
-            }
-        }
         for (QuerySearchResult result : buffer) {
+            if (result.isReduced()) {
+                continue;
+            }
             topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
             if (topDocsList != null) {
                 TopDocsAndMaxScore topDocs = result.consumeTopDocs();
@@ -333,6 +336,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 : InternalAggregations.topLevelReduceDelayable(aggsList, aggReduceContextBuilder.forPartialReduction());
         } finally {
             releaseAggs(toConsume);
+            for (QuerySearchResult querySearchResult : toConsume) {
+                querySearchResult.setReduced();
+            }
         }
         if (lastMerge != null) {
             processedShards.addAll(lastMerge.processedShards);

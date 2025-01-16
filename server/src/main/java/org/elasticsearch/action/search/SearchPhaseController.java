@@ -487,7 +487,8 @@ public final class SearchPhaseController {
                     }
                 }
             }
-            assert bufferedTopDocs.isEmpty() || result.hasConsumedTopDocs() : "firstResult has no aggs but we got non null buffered aggs?";
+            assert bufferedTopDocs.isEmpty() || result.hasConsumedTopDocs() || result.isReduced()
+                : "firstResult has no aggs but we got non null buffered aggs?";
             if (hasProfileResults) {
                 profileShardResults.put(result.getSearchShardTarget().toString(), result.consumeProfileResult());
             }

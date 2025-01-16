@@ -134,7 +134,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
     /**
      * The max consecutive failed sync attempts before skipping further sync attempts.
      */
-    public static final int MAX_FAILED_SYNC_ATTEMPTS = 10;
+    static final int MAX_FAILED_SYNC_ATTEMPTS = 10;
 
     /**
      * The counter of unexpected sync failures. Reset to 0 when a successful sync occurs or when a master node is restarted.

@@ -285,12 +285,9 @@ class IndicesAndAliasesResolver {
              */
             assert indicesRequest.indices() == null || indicesRequest.indices().length == 0
                 : "indices are: " + Arrays.toString(indicesRequest.indices()); // Arrays.toString() can handle null values - all good
-            String indexName = ((PutMappingRequest) indicesRequest).getConcreteIndex().getName();
-            if (authorizedIndices.check(indexName)) {
-                resolvedIndicesBuilder.addLocal(
-                    getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices::check, metadata)
-                );
-            }
+            resolvedIndicesBuilder.addLocal(
+                getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices::check, metadata)
+            );
         } else if (indicesRequest instanceof final IndicesRequest.Replaceable replaceable) {
             final IndicesOptions indicesOptions = indicesRequest.indicesOptions();
 

@@ -131,7 +131,10 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
     }
 
     private void assertSettings() {
-        GetIndexResponse getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(index)).actionGet();
+        GetIndexResponse getIndexResponse = client().admin()
+            .indices()
+            .getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(index))
+            .actionGet();
         Settings settings = getIndexResponse.getSettings().get(index);
         Settings expected = AsyncTaskIndexService.settings();
         assertThat(expected, is(settings.filter(expected::hasValue)));

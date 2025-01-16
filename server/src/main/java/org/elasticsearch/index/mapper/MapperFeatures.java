@@ -21,7 +21,7 @@ public class MapperFeatures implements FeatureSpecification {
 
     // Used to avoid noise in mixed cluster and rest compatibility tests. Must not be backported to 8.x branch.
     // This label gets added to tests with such failures before merging with main, then removed when backported to 8.x.
-    public static final NodeFeature BWC_WORKAROUND_9_0 = new NodeFeature("mapper.bwc_workaround_9_0");
+    public static final NodeFeature BWC_WORKAROUND_9_0 = new NodeFeature("mapper.bwc_workaround_9_0", true);
 
     @Override
     public Set<NodeFeature> getFeatures() {

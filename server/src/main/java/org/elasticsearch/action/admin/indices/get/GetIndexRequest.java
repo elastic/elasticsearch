@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -93,8 +94,8 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     private boolean humanReadable = false;
     private transient boolean includeDefaults = false;
 
-    public GetIndexRequest() {
-        super(IndicesOptions.strictExpandOpen());
+    public GetIndexRequest(TimeValue masterTimeout) {
+        super(masterTimeout, IndicesOptions.strictExpandOpen());
     }
 
     public GetIndexRequest(StreamInput in) throws IOException {

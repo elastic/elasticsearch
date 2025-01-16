@@ -1,0 +1,5 @@
+pr: 120326
+summary: Update model to return correct model for CHAT_COMPLETION task type
+area: Machine Learning
+type: bug
+issues: []

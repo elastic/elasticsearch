@@ -683,7 +683,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             20021,
                             20000,
                             12,
-                            List.of(new DriverStatus.OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10021, 10))),
+                            List.of(new DriverStatus.OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10021, 10, 111, 222))),
                             DriverSleeps.empty()
                         )
                     )
@@ -722,7 +722,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             "operator" : "asdf",
                             "status" : {
                               "process_nanos" : 10021,
-                              "pages_processed" : 10
+                              "pages_processed" : 10,
+                              "rows_received" : 111,
+                              "rows_emitted" : 222
                             }
                           }
                         ],

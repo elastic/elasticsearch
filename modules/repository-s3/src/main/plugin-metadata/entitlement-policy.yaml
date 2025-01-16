@@ -1,0 +1,4 @@
+ALL-UNNAMED:
+  - network:
+      actions:
+        - connect

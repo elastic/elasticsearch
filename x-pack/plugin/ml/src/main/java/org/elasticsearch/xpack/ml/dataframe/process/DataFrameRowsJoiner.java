@@ -96,6 +96,9 @@ class DataFrameRowsJoiner implements AutoCloseable {
     private void joinCurrentResults() {
         try (LimitAwareBulkIndexer bulkIndexer = new LimitAwareBulkIndexer(settings, this::executeBulkRequest)) {
             while (currentResults.isEmpty() == false) {
+                if (dataExtractor.isCancelled()) {
+                    break;
+                }
                 RowResults result = currentResults.pop();
                 DataFrameDataExtractor.Row row = dataFrameRowsIterator.next();
                 checkChecksumsMatch(row, result);
@@ -174,7 +177,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
         @Override
         public DataFrameDataExtractor.Row next() {
             DataFrameDataExtractor.Row row = null;
-            while (hasNoMatch(row) && hasNext() && dataExtractor.isCancelled() == false) {
+            while (hasNoMatch(row) && hasNext()) {
                 advanceToNextBatchIfNecessary();
                 row = dataExtractor.createRow(currentDataFrameRows[currentDataFrameRowsIndex++]);
             }

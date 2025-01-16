@@ -53,6 +53,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         provider.init(
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
             IndexVersion::current,
+            true,
             true
         );
     }
@@ -115,6 +116,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         provider.init(
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
             IndexVersion::current,
+            true,
             true
         );
 

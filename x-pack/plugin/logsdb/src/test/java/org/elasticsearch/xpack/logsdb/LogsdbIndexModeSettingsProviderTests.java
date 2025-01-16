@@ -91,7 +91,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         provider.init(im -> {
             newMapperServiceCounter.incrementAndGet();
             return MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName());
-        }, IndexVersion::current, true);
+        }, IndexVersion::current, true, true);
         return provider;
     }
 
@@ -108,7 +108,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         provider.init(im -> {
             newMapperServiceCounter.incrementAndGet();
             return MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName());
-        }, IndexVersion::current, true);
+        }, IndexVersion::current, true, true);
         var result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(DATA_STREAM_NAME, 0),
             DATA_STREAM_NAME,

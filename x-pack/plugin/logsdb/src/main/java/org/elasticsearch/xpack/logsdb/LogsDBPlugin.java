@@ -74,6 +74,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
                 IndexVersion.current(),
                 parameters.clusterService().state().nodes().getMaxDataNodeCompatibleIndexVersion()
             ),
+            DiscoveryNode.isStateless(settings) == false,
             DiscoveryNode.isStateless(settings) == false
         );
         return List.of(logsdbIndexModeSettingsProvider);

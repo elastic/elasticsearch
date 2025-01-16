@@ -53,6 +53,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     private final SetOnce<CheckedFunction<IndexMetadata, MapperService, IOException>> mapperServiceFactory = new SetOnce<>();
     private final SetOnce<Supplier<IndexVersion>> createdIndexVersion = new SetOnce<>();
     private final SetOnce<Boolean> supportFallbackToStoredSource = new SetOnce<>();
+    private final SetOnce<Boolean> supportFallbackLogsdbRouting = new SetOnce<>();
 
     private volatile boolean isLogsdbEnabled;
 
@@ -68,11 +69,13 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     void init(
         CheckedFunction<IndexMetadata, MapperService, IOException> factory,
         Supplier<IndexVersion> indexVersion,
-        boolean supportFallbackToStoredSource
+        boolean supportFallbackToStoredSource,
+        boolean supportFallbackLogsdbRouting
     ) {
         this.mapperServiceFactory.set(factory);
         this.createdIndexVersion.set(indexVersion);
         this.supportFallbackToStoredSource.set(supportFallbackToStoredSource);
+        this.supportFallbackLogsdbRouting.set(supportFallbackLogsdbRouting);
     }
 
     @Override
@@ -137,7 +140,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
 
             // Inject routing path matching sort fields.
             if (settings.getAsBoolean(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false)) {
-                if (licenseService.allowLogsdbRoutingOnSortField(isTemplateValidation)) {
+                if (supportFallbackLogsdbRouting.get() == false || licenseService.allowLogsdbRoutingOnSortField(isTemplateValidation)) {
                     List<String> sortFields = new ArrayList<>(settings.getAsList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey()));
                     sortFields.removeIf(s -> s.equals(DataStreamTimestampFieldMapper.DEFAULT_PATH));
                     if (sortFields.size() < 2) {

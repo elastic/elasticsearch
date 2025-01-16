@@ -101,24 +101,6 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             });
         });
 
-        // Hardcoded Git remote and branch to use when executing BWC tests against 8.18
-        // TODO Remove this
-        String remote8x = "tlrx";
-        String refspec8x = "tlrx/2025/01/07/ES-10320-8.x";
-        TaskProvider<LoggedExec> addRemoteTaskProvider8x = tasks.register("addRemote8x", LoggedExec.class, addRemote8x -> {
-            addRemote8x.dependsOn(createCloneTaskProvider);
-            addRemote8x.setIgnoreExitValue(true);
-            addRemote8x.getWorkingDir().set(gitExtension.getCheckoutDir());
-            addRemote8x.getLogger().lifecycle("Adding Git remote [{}]...", remote8x);
-            addRemote8x.commandLine(
-                "git",
-                "remote",
-                "add",
-                remote8x,
-                "https://github.com/" + remote8x + "/" + project.getRootProject().getName()
-            );
-        });
-
         boolean isOffline = project.getGradle().getStartParameter().isOffline();
         TaskProvider<LoggedExec> fetchLatestTaskProvider = tasks.register("fetchLatest", LoggedExec.class, fetchLatest -> {
             var gitFetchLatest = providerFactory.systemProperty("tests.bwc.git_fetch_latest").orElse("true").map(fetchProp -> {
@@ -132,7 +114,6 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             });
             fetchLatest.onlyIf("online and gitFetchLatest == true", t -> isOffline == false && gitFetchLatest.get());
             fetchLatest.dependsOn(addRemoteTaskProvider);
-            fetchLatest.dependsOn(addRemoteTaskProvider8x);
             fetchLatest.getWorkingDir().set(gitExtension.getCheckoutDir());
             // Fetch latest from remotes, including tags, overriding any existing local refs
             fetchLatest.commandLine("git", "fetch", "--all", "--tags", "--force");
@@ -141,34 +122,26 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         String projectPath = project.getPath();
         TaskProvider<Task> checkoutBwcBranchTaskProvider = tasks.register("checkoutBwcBranch", checkoutBwcBranch -> {
             checkoutBwcBranch.dependsOn(fetchLatestTaskProvider);
-            checkoutBwcBranch.dependsOn(addRemoteTaskProvider8x);
             ExtraPropertiesExtension taskExtensionsProperties = checkoutBwcBranch.getExtensions().getExtraProperties();
             checkoutBwcBranch.doLast(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
                     File checkoutDir = gitExtension.getCheckoutDir().get();
                     String bwcBranch = gitExtension.getBwcBranch().get();
-                    final String refspec;
-                    if ("8.x".equals(bwcBranch)) {
-                        refspec = refspec8x;
-                    } else {
-                        refspec = providerFactory.systemProperty("bwc.refspec." + bwcBranch)
-                            .orElse(providerFactory.systemProperty("tests.bwc.refspec." + bwcBranch))
-                            .orElse(
-                                providerFactory.provider(
-                                    () -> taskExtensionsProperties.has("refspec")
-                                        ? taskExtensionsProperties.get("refspec").toString()
-                                        : null
-                                )
+                    final String refspec = providerFactory.systemProperty("bwc.refspec." + bwcBranch)
+                        .orElse(providerFactory.systemProperty("tests.bwc.refspec." + bwcBranch))
+                        .orElse(
+                            providerFactory.provider(
+                                () -> taskExtensionsProperties.has("refspec") ? taskExtensionsProperties.get("refspec").toString() : null
                             )
-                            .getOrElse(remote.get() + "/" + bwcBranch);
-                    }
+                        )
+                        .getOrElse(remote.get() + "/" + bwcBranch);
 
                     String effectiveRefSpec = maybeAlignedRefSpec(task.getLogger(), refspec);
                     task.getLogger().lifecycle("Performing checkout of {}...", refspec);
                     LoggedExec.exec(execOperations, spec -> {
                         spec.workingDir(checkoutDir);
-                        spec.commandLine("git", "checkout", "--force", "--recurse-submodules", effectiveRefSpec);
+                        spec.commandLine("git", "checkout", "--recurse-submodules", effectiveRefSpec);
                     });
 
                     String checkoutHash = GitInfo.gitInfo(checkoutDir).getRevision();

@@ -28,7 +28,7 @@ import javax.xml.XMLConstants;
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamWriter;
 
-import static fixture.aws.AwsFixtureUtils.sendError;
+import static fixture.aws.AwsCredentialsUtils.checkAuthorization;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.junit.Assert.assertNull;
@@ -53,11 +53,7 @@ public class AwsEc2HttpHandler implements HttpHandler {
 
             if ("POST".equals(exchange.getRequestMethod()) && "/".equals(exchange.getRequestURI().getPath())) {
 
-                if (authorizationPredicate.test(
-                    exchange.getRequestHeaders().getFirst("Authorization"),
-                    exchange.getRequestHeaders().getFirst("x-amz-security-token")
-                ) == false) {
-                    sendError(exchange, RestStatus.FORBIDDEN, "AccessDenied", "Access denied by " + authorizationPredicate);
+                if (checkAuthorization(authorizationPredicate, exchange) == false) {
                     return;
                 }
 

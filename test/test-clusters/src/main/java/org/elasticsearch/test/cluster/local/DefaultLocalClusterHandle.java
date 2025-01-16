@@ -266,7 +266,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         String transportUris = execute(() -> nodes.parallelStream().map(Node::getTransportEndpoint).collect(Collectors.joining("\n")));
         execute(() -> nodes.parallelStream().forEach(node -> {
             try {
-                if (node.getSpec().getPlugins().contains("discovery-ec2")) {
+                if (node.getSpec().getPlugins().containsKey("discovery-ec2")) {
                     // TODO find a better way to do this
                     LOGGER.info("Skipping writing unicast hosts file for node {}", node.getName());
                     return;

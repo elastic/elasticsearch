@@ -25,17 +25,19 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.containsString;
+import javax.xml.namespace.QName;
+import javax.xml.stream.XMLInputFactory;
+import javax.xml.stream.XMLStreamConstants;
+import javax.xml.stream.XMLStreamException;
 
-public class AwsStsHttpHandlerTests extends ESTestCase {
+public class AwsEc2HttpHandlerTests extends ESTestCase {
 
-    public void testGenerateCredentials() {
+    public void testDescribeInstances() throws IOException, XMLStreamException {
         final List<String> addresses = randomList(
             1,
             10,
@@ -44,27 +46,44 @@ public class AwsStsHttpHandlerTests extends ESTestCase {
 
         final var handler = new AwsEc2HttpHandler((ignored1, ignored2) -> true, () -> addresses);
 
-        final var response = handleRequest(handler, Map.of());
+        final var response = handleRequest(handler);
         assertEquals(RestStatus.OK, response.status());
 
-        final var responseBody = response.body().utf8ToString();
-        for (final var address : addresses) {
-            assertThat(responseBody, containsString("<AccessKeyId>" + address + "</AccessKeyId>"));
+        final var unseenAddressesInTags = Stream.of("privateDnsName", "dnsName", "privateIpAddress", "ipAddress")
+            .collect(
+                Collectors.toMap(
+                    localName -> new QName("http://ec2.amazonaws.com/doc/2013-02-01/", localName),
+                    localName -> new HashSet<>(addresses)
+                )
+            );
+
+        final var xmlStreamReader = XMLInputFactory.newDefaultFactory().createXMLStreamReader(response.body().streamInput());
+        try {
+            for (; xmlStreamReader.getEventType() != XMLStreamConstants.END_DOCUMENT; xmlStreamReader.next()) {
+                if (xmlStreamReader.getEventType() == XMLStreamConstants.START_ELEMENT) {
+                    final var unseenAddresses = unseenAddressesInTags.get(xmlStreamReader.getName());
+                    if (unseenAddresses != null) {
+                        xmlStreamReader.next();
+                        assertEquals(XMLStreamConstants.CHARACTERS, xmlStreamReader.getEventType());
+                        final var currentAddress = xmlStreamReader.getText();
+                        assertTrue(currentAddress, unseenAddresses.remove(currentAddress));
+                    }
+                }
+            }
+        } finally {
+            xmlStreamReader.close();
         }
+
+        assertTrue(unseenAddressesInTags.toString(), unseenAddressesInTags.values().stream().allMatch(HashSet::isEmpty));
     }
 
     private record TestHttpResponse(RestStatus status, BytesReference body) {}
 
-    private static TestHttpResponse handleRequest(AwsEc2HttpHandler handler, Map<String, String> body) {
+    private static TestHttpResponse handleRequest(AwsEc2HttpHandler handler) {
         final var httpExchange = new TestHttpExchange(
             "POST",
-            "/assume-role-with-web-identity/",
-            new BytesArray(
-                body.entrySet()
-                    .stream()
-                    .map(e -> e.getKey() + "=" + URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8))
-                    .collect(Collectors.joining("&"))
-            ),
+            "/",
+            new BytesArray("Action=DescribeInstances"),
             TestHttpExchange.EMPTY_HEADERS
         );
         try {

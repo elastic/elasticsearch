@@ -1239,7 +1239,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return randomBoolean() ? null : randomLong();
     }
 
-    public static Long randomPositiveLongOrNull() {
+    public static Long randomNonNegativeLongOrNull() {
         return randomBoolean() ? null : randomNonNegativeLong();
     }
 
@@ -1247,7 +1247,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return randomBoolean() ? null : randomInt();
     }
 
-    public static Integer randomPositiveIntOrNull() {
+    public static Integer randomNonNegativeIntOrNull() {
         return randomBoolean() ? null : randomNonNegativeInt();
     }
 

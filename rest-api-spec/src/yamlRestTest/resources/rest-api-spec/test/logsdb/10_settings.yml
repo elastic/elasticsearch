@@ -312,7 +312,6 @@ override sort mode settings:
 ---
 override sort field using nested field type in sorting:
   - requires:
-      cluster_features: ["mapper.index_sorting_on_nested"]
       test_runner_features: [ capabilities ]
       capabilities:
         - method: PUT
@@ -358,9 +357,6 @@ override sort field using nested field type in sorting:
 
 ---
 override sort field using nested field type:
-  - requires:
-      cluster_features: ["mapper.index_sorting_on_nested"]
-      reason: "Support for index sorting on indexes with nested objects required"
 
   - do:
       indices.create:

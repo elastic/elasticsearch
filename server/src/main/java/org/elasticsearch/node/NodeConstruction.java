@@ -1219,7 +1219,6 @@ class NodeConstruction {
         DataStreamAutoShardingService dataStreamAutoShardingService = new DataStreamAutoShardingService(
             settings,
             clusterService,
-            featureService,
             threadPool::absoluteTimeInMillis
         );
         dataStreamAutoShardingService.init();
@@ -1370,7 +1369,7 @@ class NodeConstruction {
 
         var serverHealthIndicatorServices = Stream.of(
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
-            new RepositoryIntegrityHealthIndicatorService(clusterService, featureService),
+            new RepositoryIntegrityHealthIndicatorService(clusterService),
             new DiskHealthIndicatorService(clusterService, featureService),
             new ShardsCapacityHealthIndicatorService(clusterService, featureService),
             fileSettingsHealthIndicatorService
@@ -1395,14 +1394,7 @@ class NodeConstruction {
             new DiskHealthTracker(nodeService, clusterService),
             new RepositoriesHealthTracker(repositoriesService)
         );
-        LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(
-            settings,
-            clusterService,
-            threadPool,
-            client,
-            featureService,
-            healthTrackers
-        );
+        LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, threadPool, client, healthTrackers);
         HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
 
         return b -> {

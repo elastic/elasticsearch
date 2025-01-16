@@ -52,6 +52,22 @@ public class PolicyParserTests extends ESTestCase {
         assertEquals(expected, parsedPolicy);
     }
 
+    public void testParseNetwork() throws IOException {
+        Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - network:
+                  actions:
+                    - listen
+                    - accept
+                    - connect
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
+        Policy expected = new Policy(
+            "test-policy.yaml",
+            List.of(new Scope("entitlement-module-name", List.of(new NetworkEntitlement(List.of("listen", "accept", "connect")))))
+        );
+        assertEquals(expected, parsedPolicy);
+    }
+
     public void testParseCreateClassloader() throws IOException {
         Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:

@@ -155,7 +155,33 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("socket_bind", forPlugins(NetworkAccessCheckActions::socketBind)),
         entry("socket_connect", forPlugins(NetworkAccessCheckActions::socketConnect)),
         entry("server_socket_bind", forPlugins(NetworkAccessCheckActions::serverSocketBind)),
-        entry("server_socket_accept", forPlugins(NetworkAccessCheckActions::serverSocketAccept))
+        entry("server_socket_accept", forPlugins(NetworkAccessCheckActions::serverSocketAccept)),
+
+        entry("server_socket_channel_bind", forPlugins(NetworkAccessCheckActions::serverSocketChannelBind)),
+        entry("server_socket_channel_bind_backlog", forPlugins(NetworkAccessCheckActions::serverSocketChannelBindWithBacklog)),
+        entry("server_socket_channel_accept", forPlugins(NetworkAccessCheckActions::serverSocketChannelAccept)),
+        entry("asynchronous_server_socket_channel_bind", forPlugins(NetworkAccessCheckActions::asynchronousServerSocketChannelBind)),
+        entry(
+            "asynchronous_server_socket_channel_bind_backlog",
+            forPlugins(NetworkAccessCheckActions::asynchronousServerSocketChannelBindWithBacklog)
+        ),
+        entry("asynchronous_server_socket_channel_accept", forPlugins(NetworkAccessCheckActions::asynchronousServerSocketChannelAccept)),
+        entry(
+            "asynchronous_server_socket_channel_accept_with_handler",
+            forPlugins(NetworkAccessCheckActions::asynchronousServerSocketChannelAcceptWithHandler)
+        ),
+        entry("socket_channel_bind", forPlugins(NetworkAccessCheckActions::socketChannelBind)),
+        entry("socket_channel_connect", forPlugins(NetworkAccessCheckActions::socketChannelConnect)),
+        entry("asynchronous_socket_channel_bind", forPlugins(NetworkAccessCheckActions::asynchronousSocketChannelBind)),
+        entry("asynchronous_socket_channel_connect", forPlugins(NetworkAccessCheckActions::asynchronousSocketChannelConnect)),
+        entry(
+            "asynchronous_socket_channel_connect_with_completion",
+            forPlugins(NetworkAccessCheckActions::asynchronousSocketChannelConnectWithCompletion)
+        ),
+        entry("datagram_channel_bind", forPlugins(NetworkAccessCheckActions::datagramChannelBind)),
+        entry("datagram_channel_connect", forPlugins(NetworkAccessCheckActions::datagramChannelConnect)),
+        entry("datagram_channel_send", forPlugins(NetworkAccessCheckActions::datagramChannelSend)),
+        entry("datagram_channel_receive", forPlugins(NetworkAccessCheckActions::datagramChannelReceive))
     );
 
     private static void createURLStreamHandlerProvider() {

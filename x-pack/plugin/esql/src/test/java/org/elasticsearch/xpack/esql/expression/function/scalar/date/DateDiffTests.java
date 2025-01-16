@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.time.Instant;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -86,11 +85,17 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
         // Error cases
         Instant zdtStart2 = Instant.parse("2023-12-04T10:15:00Z");
         Instant zdtEnd2 = Instant.parse("2023-12-04T10:20:00Z");
-        suppliers.addAll(makeSuppliers(zdtStart2, zdtEnd2, "nanoseconds", "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [300000000000] out of [integer] range"));
+        suppliers.addAll(
+            makeSuppliers(
+                zdtStart2,
+                zdtEnd2,
+                "nanoseconds",
+                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [300000000000] out of [integer] range"
+            )
+        );
 
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
-
 
     private static List<TestCaseSupplier> makeSuppliers(Instant startTimestamp, Instant endTimestamp, String unit, int expected) {
         // Units as Keyword case
@@ -167,6 +172,7 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
             )
         );
     }
+
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new DateDiff(source, args.get(0), args.get(1), args.get(2));

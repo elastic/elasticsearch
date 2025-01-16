@@ -15,6 +15,7 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
+import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpObject;
@@ -113,7 +114,9 @@ public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
             HttpUtil.setContentLength(sendRequest, MAX_CONTENT_LENGTH);
             var sendContent = lastHttpContent(MAX_CONTENT_LENGTH);
             channel.writeInbound(encode(sendRequest, sendContent));
-            assertEquals("should send back 100-continue", Netty4HttpContentSizeHandler.CONTINUE, channel.readOutbound());
+            var resp = (FullHttpResponse) channel.readOutbound();
+            assertEquals("should send back 100-continue", Netty4HttpContentSizeHandler.CONTINUE, resp);
+            resp.release();
             var recvRequest = (HttpRequest) channel.readInbound();
             assertNotNull(recvRequest);
             var recvContent = (HttpContent) channel.readInbound();
@@ -133,10 +136,11 @@ public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
             HttpUtil.set100ContinueExpected(sendRequest, true);
             HttpUtil.setContentLength(sendRequest, OVERSIZED_LENGTH);
             channel.writeInbound(encode(sendRequest, LastHttpContent.EMPTY_LAST_CONTENT));
-            var resp = (HttpResponse) channel.readOutbound();
+            var resp = (FullHttpResponse) channel.readOutbound();
             assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
             assertNull("request should not pass", channel.readInbound());
             assertTrue("should not close channel", channel.isActive());
+            resp.release();
         }
     }
 
@@ -181,7 +185,7 @@ public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
 
         var part1 = httpContent(MAX_CONTENT_LENGTH);
         channel.writeInbound(encode(part1));
-        assertTrue("first part should pass", channel.readInbound() instanceof HttpContent);
+        ((HttpContent) channel.readInbound()).release();
 
         var part2 = httpContent(MAX_CONTENT_LENGTH);
         channel.writeInbound(encode(part2));

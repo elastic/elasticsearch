@@ -118,7 +118,7 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
     // For now, synthetic source is only supported when "synthetic_source_keep" is "none"
     @Ignore
     @Override
-    public void testSyntheticSourceKeepAll() throws IOException{
+    public void testSyntheticSourceKeepAll() throws IOException {
         super.testSyntheticSourceKeepAll();
     }
 

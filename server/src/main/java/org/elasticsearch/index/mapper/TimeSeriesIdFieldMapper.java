@@ -140,7 +140,10 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)
                 ? routingPathFields.routingBuilder()
                 : null,
-            timeSeriesId
+            timeSeriesId,
+            getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_METRIC_NAMES_HASH_IN_ID)
+                ? null
+                : routingPathFields.buildMetricNamesHash()
         );
     }
 

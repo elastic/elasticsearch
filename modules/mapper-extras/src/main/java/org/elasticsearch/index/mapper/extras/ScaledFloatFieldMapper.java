@@ -566,6 +566,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         if (hasDocValues == false && (indexed || stored)) {
             context.addToFieldNames(fieldType().name());
         }
+        if (metricType != null) {
+            context.getRoutingFields().addMetricName(fullPath());
+        }
     }
 
     static long encode(double value, double scalingFactor) {

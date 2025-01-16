@@ -234,6 +234,6 @@ public class VersionsTests extends ESTestCase {
     }
 
     private static String createTSDBId(long timestamp) {
-        return createId(randomInt(), new BytesRef("tsid"), timestamp);
+        return createId(randomInt(), new BytesRef("tsid"), 0L, timestamp);
     }
 }

@@ -164,10 +164,14 @@ public final class VersionsAndSeqNoResolver {
     public static DocIdAndVersion timeSeriesLoadDocIdAndVersion(IndexReader reader, BytesRef uid, String id, boolean loadSeqNo)
         throws IOException {
         byte[] idAsBytes = Base64.getUrlDecoder().decode(id);
-        assert idAsBytes.length == 20;
-        // id format: [4 bytes (basic hash routing fields), 8 bytes prefix of 128 murmurhash dimension fields, 8 bytes
-        // @timestamp)
-        long timestamp = ByteUtils.readLongBE(idAsBytes, 12);
+        int idLength = idAsBytes.length;
+        assert idLength == 20 || idLength == 28 : "Expected _id field to be 20 or 28 but got " + idLength;
+        // id format:
+        // 4 bytes (basic hash routing fields),
+        // 8 bytes prefix of 128 murmurhash dimension fields,
+        // 8 bytes prefix of 128 murmurhash time_series_metric field names,
+        // 8 bytes @timestamp
+        long timestamp = ByteUtils.readLongBE(idAsBytes, idLength - 8);
 
         PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, true);
         List<LeafReaderContext> leaves = reader.leaves();

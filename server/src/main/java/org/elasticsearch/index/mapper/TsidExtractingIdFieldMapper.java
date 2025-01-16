@@ -46,12 +46,17 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
     private static final long SEED = 0;
 
-    public static void createField(DocumentParserContext context, IndexRouting.ExtractFromSource.Builder routingBuilder, BytesRef tsid) {
+    public static void createField(
+        DocumentParserContext context,
+        IndexRouting.ExtractFromSource.Builder routingBuilder,
+        BytesRef tsid,
+        Long metricNamesHash
+    ) {
         final long timestamp = DataStreamTimestampFieldMapper.extractTimestampValue(context.doc());
         String id;
         if (routingBuilder != null) {
-            byte[] suffix = new byte[16];
-            id = createId(context.hasDynamicMappers(), routingBuilder, tsid, timestamp, suffix);
+            byte[] suffix = new byte[metricNamesHash == null ? 16 : 24];
+            id = createId(context.hasDynamicMappers(), routingBuilder, tsid, metricNamesHash, timestamp, suffix);
             /*
              * Make sure that _id from extracting the tsid matches that _id
              * from extracting the _source. This should be true for all valid
@@ -67,7 +72,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
                 || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
         } else if (context.sourceToParse().routing() != null) {
             int routingHash = TimeSeriesRoutingHashFieldMapper.decode(context.sourceToParse().routing());
-            id = createId(routingHash, tsid, timestamp);
+            id = createId(routingHash, tsid, metricNamesHash, timestamp);
         } else {
             if (context.sourceToParse().id() == null) {
                 throw new IllegalArgumentException(
@@ -96,14 +101,18 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         context.doc().add(new StringField(NAME, uidEncoded, Field.Store.YES));
     }
 
-    public static String createId(int routingHash, BytesRef tsid, long timestamp) {
+    public static String createId(int routingHash, BytesRef tsid, Long metricNamesHash, long timestamp) {
         Hash128 hash = new Hash128();
         MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);
 
-        byte[] bytes = new byte[20];
+        byte[] bytes = new byte[metricNamesHash == null ? 20 : 28];
+        int offset = 0;
         ByteUtils.writeIntLE(routingHash, bytes, 0);
-        ByteUtils.writeLongLE(hash.h1, bytes, 4);
-        ByteUtils.writeLongBE(timestamp, bytes, 12);   // Big Ending shrinks the inverted index by ~37%
+        ByteUtils.writeLongLE(hash.h1, bytes, offset += 4);
+        if (metricNamesHash != null) {
+            ByteUtils.writeLongLE(metricNamesHash, bytes, offset += 8);
+        }
+        ByteUtils.writeLongBE(timestamp, bytes, offset + 8);   // Big Ending shrinks the inverted index by ~37%
 
         return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(bytes);
     }
@@ -112,14 +121,22 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         boolean dynamicMappersExists,
         IndexRouting.ExtractFromSource.Builder routingBuilder,
         BytesRef tsid,
+        Long metricNamesHash,
         long timestamp,
         byte[] suffix
     ) {
         Hash128 hash = new Hash128();
         MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);
 
+        int offset = 0;
         ByteUtils.writeLongLE(hash.h1, suffix, 0);
-        ByteUtils.writeLongBE(timestamp, suffix, 8);   // Big Ending shrinks the inverted index by ~37%
+        if (metricNamesHash != null) {
+            assert suffix.length == 24;
+            ByteUtils.writeLongLE(metricNamesHash, suffix, offset += 8);
+        } else {
+            assert suffix.length == 16;
+        }
+        ByteUtils.writeLongBE(timestamp, suffix, offset + 8);   // Big Ending shrinks the inverted index by ~37%
 
         String id = routingBuilder.createId(suffix, dynamicMappersExists ? () -> 0 : () -> {
             throw new IllegalStateException(

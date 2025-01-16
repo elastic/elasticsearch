@@ -17,6 +17,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 
 import java.io.IOException;
@@ -97,6 +98,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
             SortedDocValues routingHashDocValues = builders == null
                 ? DocValues.getSorted(reader, TimeSeriesRoutingHashFieldMapper.NAME)
                 : null;
+            SortedDocValues metricNameHashes = DocValues.getSorted(reader, TimeSeriesMetricNamesHashFieldMapper.NAME);
             for (int i = 0; i < docIdsInLeaf.length; i++) {
                 int docId = docIdsInLeaf[i];
 
@@ -107,9 +109,16 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 assert found;
                 assert timestampDocValues.docValueCount() == 1;
                 long timestamp = timestampDocValues.nextValue();
+
+                Long metricNamesHash = null;
+                if (metricNameHashes.advanceExact(docId)) {
+                    metricNamesHash = ByteUtils.readLongLE(metricNameHashes.lookupOrd(metricNameHashes.ordValue()).bytes, 0);
+                }
+
                 if (builders != null) {
                     var routingBuilder = builders[i];
-                    ids[i] = TsidExtractingIdFieldMapper.createId(false, routingBuilder, tsid, timestamp, new byte[16]);
+                    byte[] suffix = new byte[metricNamesHash == null ? 16 : 24];
+                    ids[i] = TsidExtractingIdFieldMapper.createId(false, routingBuilder, tsid, metricNamesHash, timestamp, suffix);
                 } else {
                     found = routingHashDocValues.advanceExact(docId);
                     assert found;
@@ -117,7 +126,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                     int routingHash = TimeSeriesRoutingHashFieldMapper.decode(
                         Uid.decodeId(routingHashBytes.bytes, routingHashBytes.offset, routingHashBytes.length)
                     );
-                    ids[i] = TsidExtractingIdFieldMapper.createId(routingHash, tsid, timestamp);
+                    ids[i] = TsidExtractingIdFieldMapper.createId(routingHash, tsid, metricNamesHash, timestamp);
                 }
             }
             return new TsIdLeaf(docIdsInLeaf, ids);

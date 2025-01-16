@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -32,7 +33,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
+import java.util.SortedSet;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 /**
  * Implementation of routing fields, using field matching based on the routing path content.
@@ -54,6 +57,8 @@ public final class RoutingPathFields implements RoutingFields {
      * to build the _tsid field for the document.
      */
     private final SortedMap<BytesRef, List<BytesReference>> routingValues = new TreeMap<>();
+    private final SortedSet<String> metricNames = new TreeSet<>();
+    private long metricNamesHash;
 
     /**
      * Builds the routing. Used for building {@code _id}. If null then skipped.
@@ -71,6 +76,29 @@ public final class RoutingPathFields implements RoutingFields {
 
     IndexRouting.ExtractFromSource.Builder routingBuilder() {
         return routingBuilder;
+    }
+
+    /**
+     * Returns a hash of all field names that are mapped as a time_series_metric.
+     * It's used as a component of the _id so that multiple documents with the same _tsid can exist for the same timestamp
+     * if they contain different metrics
+     */
+    public long buildMetricNamesHash() {
+        if (metricNamesHash != 0) {
+            return metricNamesHash;
+        }
+        Murmur3Hasher hasher = new Murmur3Hasher(SEED);
+        int maxLength = 0;
+        for (String name : metricNames) {
+            maxLength = Math.max(UnicodeUtil.maxUTF8Length(name.length()), maxLength);
+        }
+        byte[] buffer = new byte[maxLength];
+        for (String name : metricNames) {
+            int length = UnicodeUtil.UTF16toUTF8(name, 0, name.length(), buffer);
+            hasher.update(buffer, 0, length);
+        }
+        metricNamesHash = hasher.digestHash().h1;
+        return metricNamesHash;
     }
 
     /**
@@ -204,6 +232,13 @@ public final class RoutingPathFields implements RoutingFields {
         } catch (IOException e) {
             throw new IllegalArgumentException("Routing field cannot be serialized.", e);
         }
+        return this;
+    }
+
+    @Override
+    public RoutingFields addMetricName(String metricName) {
+        metricNames.add(metricName);
+        metricNamesHash = 0;
         return this;
     }
 

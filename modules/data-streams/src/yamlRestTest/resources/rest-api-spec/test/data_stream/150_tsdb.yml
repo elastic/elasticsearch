@@ -1416,3 +1416,90 @@ multi value dimensions:
   - match: { aggregations.dims.buckets.1.doc_count: 3 }
   - match: { aggregations.dims.buckets.2.key: c }
   - match: { aggregations.dims.buckets.2.doc_count: 1 }
+
+---
+documents with different metrics are not considered duplicates:
+  - requires:
+      cluster_features: ["mapper.keyword_dimension_ignore_above"]
+      reason: support for ignore_above on keyword dimensions
+  - do:
+      allowed_warnings:
+        - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+                time_series:
+                  start_time: 2025-01-11T13:30:00.000Z
+                  end_time: 2025-01-12T13:30:00.000Z
+
+            mappings:
+              properties:
+                attributes:
+                  type: passthrough
+                  dynamic: true
+                  time_series_dimension: true
+                  priority: 1
+              dynamic_templates:
+                - counter_metric:
+                    mapping:
+                      type: integer
+                      time_series_metric: counter
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "metrics.foo": "counter_metric" } } }'
+          - '{ "@timestamp": "2025-01-11T13:30:00.000Z", "attributes.service.name": "foo", "metrics.foo": 10 }'
+          - '{ "create": { "dynamic_templates": { "metrics.bar": "counter_metric" } } }'
+          - '{ "@timestamp": "2025-01-11T13:30:00.000Z", "attributes.service.name": "foo", "metrics.bar": 10 }'
+          - '{ "create": { "dynamic_templates": { "metrics.foo": "counter_metric", "metrics.bar": "counter_metric" } } }'
+          - '{ "@timestamp": "2025-01-11T13:30:10.000Z", "attributes.service.name": "foo", "metrics.foo": 20, "metrics.bar": 20 }'
+  - match: { errors: false }
+  - match: { items.0.create.result: created }
+  - set: { items.0.create._id: id0 }
+  - set: { items.0.create._index: index }
+  - match: { items.1.create.result: created }
+  - set: { items.1.create._id: id1 }
+  - match: { items.2.create.result: created }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          query:
+            exists:
+              field: metrics.foo
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: eq }
+  - length: { aggregations.tsids.buckets: 1 }
+  - match: { aggregations.tsids.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          query:
+            ids:
+              values: [ $id0 ]
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: $id0 }
+
+  - do:
+      get:
+        index: $index
+        id: $id0
+  - is_true: found
+  - match: { _id: $id0 }

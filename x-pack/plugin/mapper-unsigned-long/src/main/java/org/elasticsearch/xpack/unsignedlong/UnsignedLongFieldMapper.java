@@ -647,6 +647,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         if (dimension && numericValue != null) {
             context.getRoutingFields().addUnsignedLong(fieldType().name(), numericValue);
         }
+        if (metricType != null) {
+            context.getRoutingFields().addMetricName(fullPath());
+        }
 
         List<Field> fields = new ArrayList<>();
         if (indexed && hasDocValues) {

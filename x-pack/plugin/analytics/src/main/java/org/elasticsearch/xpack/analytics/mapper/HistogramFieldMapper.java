@@ -279,6 +279,10 @@ public class HistogramFieldMapper extends FieldMapper {
     public void parse(DocumentParserContext context) throws IOException {
         context.path().add(leafName());
 
+        if (fieldType().getMetricType() != null) {
+            context.getRoutingFields().addMetricName(fullPath());
+        }
+
         boolean shouldStoreMalformedDataForSyntheticSource = context.mappingLookup().isSourceSynthetic() && ignoreMalformed();
         XContentParser.Token token;
         XContentSubParser subParser = null;

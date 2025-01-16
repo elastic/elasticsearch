@@ -126,7 +126,7 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
     @Override
     public void postParse(DocumentParserContext context) {
         if (context.indexSettings().getMode() == IndexMode.TIME_SERIES
-            && context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {
+            && context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_METRIC_NAMES_HASH_IN_ID)) {
             String routingHash = context.sourceToParse().routing();
             if (routingHash == null) {
                 assert context.sourceToParse().id() != null;

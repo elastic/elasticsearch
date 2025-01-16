@@ -109,7 +109,10 @@ public class DataStreamsActionUtilTests extends ESTestCase {
             indexNameExpressionResolver,
             clusterState,
             query,
-            IndicesOptions.builder().wildcardOptions(IndicesOptions.WildcardOptions.builder().includeHidden(true)).gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(false).includeFailureIndices(true)).build()
+            IndicesOptions.builder()
+                .wildcardOptions(IndicesOptions.WildcardOptions.builder().includeHidden(true))
+                .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(false).includeFailureIndices(true))
+                .build()
         );
 
         assertThat(resolved, containsInAnyOrder(".ds-foo1", ".ds-foo2", ".ds-baz1", ".fs-foo1"));

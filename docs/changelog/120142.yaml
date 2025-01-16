@@ -1,0 +1,12 @@
+pr: 120142
+summary: Limit `ByteSizeUnit` to 2 decimals
+area: Infra/Core
+type: breaking
+issues: []
+breaking:
+  title: Limit `ByteSizeUnit` to 2 decimals
+  area: Infra/Core
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

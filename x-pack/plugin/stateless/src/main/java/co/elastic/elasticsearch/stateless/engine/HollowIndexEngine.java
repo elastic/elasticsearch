@@ -25,7 +25,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -35,6 +34,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 /**
@@ -47,7 +47,7 @@ public class HollowIndexEngine extends ReadOnlyEngine {
 
     private final StatelessCommitService statelessCommitService;
 
-    private final SetOnce<Releasable> primaryPermitsRef = new SetOnce<>();
+    private final AtomicReference<Releasable> primaryPermitsRef = new AtomicReference<>();
 
     public HollowIndexEngine(EngineConfig config, StatelessCommitService statelessCommitService) {
         super(config, null, new TranslogStats(), true, Function.identity(), true, true);
@@ -116,8 +116,12 @@ public class HollowIndexEngine extends ReadOnlyEngine {
     }
 
     public void setPrimaryPermits(Releasable primaryPermits) {
-        boolean notSetBefore = primaryPermitsRef.trySet(primaryPermits);
-        assert notSetBefore : primaryPermitsRef;
+        var old = primaryPermitsRef.getAndSet(primaryPermits);
+        assert old == null : primaryPermitsRef;
+    }
+
+    public Releasable handOffPrimaryPermits() {
+        return primaryPermitsRef.getAndSet(null);
     }
 
     public boolean arePrimaryPermitsHeld() {

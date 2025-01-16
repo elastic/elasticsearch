@@ -19,7 +19,9 @@ package co.elastic.elasticsearch.stateless.recovery;
 
 import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
 import co.elastic.elasticsearch.stateless.IndexShardCacheWarmer;
+import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
@@ -123,6 +125,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private final ThreadContext threadContext;
     private final ThreadPool threadPool;
     private final IndexShardCacheWarmer indexShardCacheWarmer;
+    private final HollowShardsService hollowShardsService;
 
     @Inject
     public TransportStatelessPrimaryRelocationAction(
@@ -132,7 +135,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         IndicesService indicesService,
         PeerRecoveryTargetService peerRecoveryTargetService,
         StatelessCommitService statelessCommitService,
-        IndexShardCacheWarmer indexShardCacheWarmer
+        IndexShardCacheWarmer indexShardCacheWarmer,
+        HollowShardsService hollowShardsService
     ) {
         super(TYPE.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -141,6 +145,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         this.peerRecoveryTargetService = peerRecoveryTargetService;
         this.statelessCommitService = statelessCommitService;
         this.indexShardCacheWarmer = indexShardCacheWarmer;
+        this.hollowShardsService = hollowShardsService;
 
         this.threadPool = transportService.getThreadPool();
         this.recoveryExecutor = threadPool.generic();
@@ -237,11 +242,11 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         final long beforeRelocation = threadPool.relativeTimeInMillis();
 
         final IndexShard indexShard;
-        final IndexEngine engine;
+        final Engine engine;
         try {
             final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
             indexShard = indexService.getShard(request.shardId().id());
-            engine = ensureIndexEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
+            engine = ensureIndexOrHollowEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -266,8 +271,15 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             l.onFailure(e);
         }).delegateFailureAndWrap((listener0, preFlushResult) -> {
             final var initialFlushDuration = getTimeSince(beforeInitialFlush);
-            logger.debug("[{}] acquiring all primary operation permits", request.shardId());
             final long beforeAcquiringPermits = threadPool.relativeTimeInMillis();
+            Releasable primaryPermits;
+            if (engine instanceof HollowIndexEngine hollowIndexEngine) {
+                assert hollowIndexEngine.arePrimaryPermitsHeld() : "Hollow index engine must hold primary permits before relocation";
+                primaryPermits = hollowIndexEngine.handOffPrimaryPermits();
+            } else {
+                primaryPermits = null;
+            }
+            logger.debug("[{}] acquiring all primary operation permits {} {}", request.shardId(), engine, primaryPermits);
             indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
                 threadDumpListener.onResponse(null);
                 logShardStats("obtained primary context", indexShard, engine);
@@ -276,7 +288,15 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
                 // Do not wait on flush durability as we will wait at the stateless commit service level for the upload
                 final long beforeFinalFlush = threadPool.relativeTimeInMillis();
-                engine.flush(false, true, ActionListener.noop());
+
+                if (engine instanceof IndexEngine indexEngine) {
+                    if (hollowShardsService.isHollowableIndexShard(indexShard, false)) {
+                        logger.debug("Flushing hollowable shard {}", indexShard.shardId());
+                        indexEngine.flushHollow(ActionListener.noop());
+                    } else {
+                        indexEngine.flush(false, true, ActionListener.noop());
+                    }
+                }
                 logShardStats("flush after acquiring primary context completed", indexShard, engine);
                 long lastFlushedGeneration = engine.getLastCommittedSegmentInfos().getGeneration();
 
@@ -365,6 +385,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                     public void onFailure(Exception e) {
                         try {
                             handoffCompleteListener.onFailure(e);
+                            // TODO ES-10573
+                            // Switch to a hollow engine in case of a relocation failure
                         } finally {
                             handoffResultListener.onFailure(e);
                         }
@@ -395,7 +417,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         new ActionListenerResponseHandler<>(finalHandoffListener, in -> TransportResponse.Empty.INSTANCE, recoveryExecutor)
                     );
                 }), recoveryExecutor, threadContext);
-            }, listener0);
+            }, listener0, primaryPermits);
         }), recoveryExecutor, threadContext);
     }
 
@@ -414,9 +436,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         }
     }
 
-    private IndexEngine ensureIndexEngine(Engine engine, IndexShardState indexShardState, ShardRouting shardRouting) {
-        if (engine instanceof IndexEngine indexEngine) {
-            return indexEngine;
+    private Engine ensureIndexOrHollowEngine(Engine engine, IndexShardState indexShardState, ShardRouting shardRouting) {
+        if (engine instanceof IndexEngine indexEngine || engine instanceof HollowIndexEngine) {
+            return engine;
         } else if (engine == null) {
             throw new AlreadyClosedException("source shard closed before recovery started: " + shardRouting);
         } else {

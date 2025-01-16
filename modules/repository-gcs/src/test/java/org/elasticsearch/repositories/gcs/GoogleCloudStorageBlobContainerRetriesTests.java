@@ -476,7 +476,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         httpServer.createContext("/", new ResponseInjectingHttpHandler(requestHandlers, new GoogleCloudStorageHttpHandler("bucket")));
 
         final int maxRetries = 3;
-        final BlobContainer container = createBlobContainer(3, null, null, null);
+        final BlobContainer container = createBlobContainer(maxRetries, null, null, null);
         final byte[] data = randomBytes(randomIntBetween(1, BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH));
         final String key = randomIdentifier();
 
@@ -486,8 +486,8 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         assertEquals(createResult, OptionalBytesReference.EMPTY);
 
         final byte[] updatedData = randomBytes(randomIntBetween(1, BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH));
-        final int failuresToTriggerRetry = maxRetries + 1;
-        final int numberOfThrottles = randomIntBetween(failuresToTriggerRetry, 3 * failuresToTriggerRetry);
+        final int failuresToExhaustAttempts = maxRetries + 1;
+        final int numberOfThrottles = randomIntBetween(failuresToExhaustAttempts, (4 * failuresToExhaustAttempts) - 1);
         for (int i = 0; i < numberOfThrottles; i++) {
             requestHandlers.offer(
                 new ResponseInjectingHttpHandler.FixedRequestHandler(

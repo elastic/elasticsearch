@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.enrich;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
@@ -17,13 +18,13 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.lookup.QueryList;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * {@link LookupFromIndexService} performs lookup against a Lookup index for
@@ -52,12 +54,12 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     ) {
         super(
             LOOKUP_ACTION_NAME,
-            ClusterPrivilegeResolver.MONITOR_ENRICH.name(), // TODO some other privilege
             clusterService,
             searchService,
             transportService,
             bigArrays,
             blockFactory,
+            false,
             TransportRequest::readFrom
         );
     }
@@ -81,6 +83,21 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         MappedFieldType fieldType = context.getFieldType(request.matchField);
         validateTypes(request.inputDataType, fieldType);
         return termQueryList(fieldType, context, inputBlock, inputDataType);
+    }
+
+    @Override
+    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) throws IOException {
+        return new LookupResponse(pages, blockFactory);
+    }
+
+    @Override
+    protected AbstractLookupService.LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+        return new LookupResponse(in, blockFactory);
+    }
+
+    @Override
+    protected String getRequiredPrivilege() {
+        return null;
     }
 
     private static void validateTypes(DataType inputDataType, MappedFieldType fieldType) {
@@ -174,6 +191,67 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         @Override
         protected String extraDescription() {
             return " ,match_field=" + matchField;
+        }
+    }
+
+    protected static class LookupResponse extends AbstractLookupService.LookupResponse {
+        private List<Page> pages;
+
+        LookupResponse(List<Page> pages, BlockFactory blockFactory) {
+            super(blockFactory);
+            this.pages = pages;
+        }
+
+        LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+            super(blockFactory);
+            try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                this.pages = bsi.readCollectionAsList(Page::new);
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            long bytes = pages.stream().mapToLong(Page::ramBytesUsedByBlocks).sum();
+            blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize lookup join response");
+            reservedBytes += bytes;
+            out.writeCollection(pages);
+        }
+
+        @Override
+        protected List<Page> takePages() {
+            var p = pages;
+            pages = null;
+            return p;
+        }
+
+        List<Page> pages() {
+            return pages;
+        }
+
+        @Override
+        protected void innerRelease() {
+            if (pages != null) {
+                Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(pages.iterator(), page -> page::releaseBlocks)));
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            LookupResponse that = (LookupResponse) o;
+            return Objects.equals(pages, that.pages);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(pages);
+        }
+
+        @Override
+        public String toString() {
+            return "LookupResponse{pages=" + pages + '}';
         }
     }
 }

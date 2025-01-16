@@ -456,14 +456,14 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
 
         final var response = client().execute(
             GetComposableIndexTemplateAction.INSTANCE,
-            new GetComposableIndexTemplateAction.Request("template*")
+            new GetComposableIndexTemplateAction.Request(TEST_REQUEST_TIMEOUT, "template*")
         ).get();
 
         assertThat(response.indexTemplates().keySet().stream().collect(Collectors.toSet()), containsInAnyOrder("template_1", "template_2"));
 
         final var componentResponse = client().execute(
             GetComponentTemplateAction.INSTANCE,
-            new GetComponentTemplateAction.Request("other*")
+            new GetComponentTemplateAction.Request(TEST_REQUEST_TIMEOUT, "other*")
         ).get();
 
         assertTrue(componentResponse.getComponentTemplates().isEmpty());
@@ -594,7 +594,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
 
         final var response = client().execute(
             GetComposableIndexTemplateAction.INSTANCE,
-            new GetComposableIndexTemplateAction.Request("err*")
+            new GetComposableIndexTemplateAction.Request(TEST_REQUEST_TIMEOUT, "err*")
         ).get();
 
         assertTrue(response.indexTemplates().isEmpty());

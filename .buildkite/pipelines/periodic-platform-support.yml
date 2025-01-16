@@ -63,6 +63,7 @@ steps:
             image:
               - almalinux-8-aarch64
               - ubuntu-2004-aarch64
+              - ubuntu-2404-aarch64
             GRADLE_TASK:
               - checkPart1
               - checkPart2

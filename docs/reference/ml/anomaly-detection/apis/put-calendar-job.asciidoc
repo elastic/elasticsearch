@@ -5,6 +5,12 @@
 <titleabbrev>Add jobs to calendar</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Adds an {anomaly-job} to a calendar.
 
 [[ml-put-calendar-job-request]]

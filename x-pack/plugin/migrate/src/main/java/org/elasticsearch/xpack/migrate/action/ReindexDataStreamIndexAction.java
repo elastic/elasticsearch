@@ -41,10 +41,6 @@ public class ReindexDataStreamIndexAction extends ActionType<ReindexDataStreamIn
             this.sourceIndex = in.readString();
         }
 
-        public static Request readFrom(StreamInput in) throws IOException {
-            return new Request(in);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);

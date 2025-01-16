@@ -5,6 +5,12 @@
 <titleabbrev>Cluster stats</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[Cluster APIs].
+--
+
 Returns cluster statistics.
 
 [[cluster-stats-api-request]]
@@ -19,7 +25,6 @@ Returns cluster statistics.
 
 * If the {es} {security-features} are enabled, you must have the `monitor` or
 `manage` <<privileges-list-cluster,cluster privilege>> to use this API.
-
 [[cluster-stats-api-desc]]
 ==== {api-description-title}
 
@@ -1391,7 +1396,7 @@ as a human-readable string.
 
 
 `_search`:::
-(object) Contains the information about the <<modules-cross-cluster-search, {ccs}>> usage in the cluster.
+(object) Contains information about <<modules-cross-cluster-search, {ccs}>> usage.
 +
 .Properties of `_search`
 [%collapsible%open]
@@ -1522,7 +1527,11 @@ This may include requests where partial results were returned, but not requests 
 
 =======
 
+
 ======
+`_esql`:::
+(object) Contains information about <<esql-cross-clusters,{esql} {ccs}>> usage.
+The structure of the object is the same as the `_search` object above.
 
 =====
 

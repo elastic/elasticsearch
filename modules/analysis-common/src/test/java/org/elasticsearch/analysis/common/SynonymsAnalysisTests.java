@@ -118,7 +118,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         // Test with an index version where lenient should always be false by default
         IndexVersion randomNonLenientIndexVersion = IndexVersionUtils.randomVersionBetween(
             random(),
-            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersions.INDEX_SORTING_ON_NESTED
         );
         assertIsNotLenient.accept(randomNonLenientIndexVersion, false);
@@ -177,7 +177,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         // Test with an index version where lenient should always be false by default
         IndexVersion randomNonLenientIndexVersion = IndexVersionUtils.randomVersionBetween(
             random(),
-            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersions.INDEX_SORTING_ON_NESTED
         );
         assertIsNotLenient.accept(randomNonLenientIndexVersion, false);
@@ -231,7 +231,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         // Test with an index version where lenient should always be false by default
         IndexVersion randomNonLenientIndexVersion = IndexVersionUtils.randomVersionBetween(
             random(),
-            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersions.INDEX_SORTING_ON_NESTED
         );
         assertIsNotLenient.accept(randomNonLenientIndexVersion, false);
@@ -338,7 +338,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersion.current())
             )
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.synonyms.type", "synonym")
@@ -392,7 +392,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersion.current())
             )
             .put("path.home", createTempDir().toString())
             .build();
@@ -424,7 +424,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersion.current())
             )
             .put("path.home", createTempDir().toString())
             .putList("common_words", "a", "b")

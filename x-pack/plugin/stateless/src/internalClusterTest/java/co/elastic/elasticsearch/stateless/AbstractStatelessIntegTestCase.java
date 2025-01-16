@@ -728,7 +728,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     protected static Map<Index, Integer> resolveIndices() {
         return client().admin()
             .indices()
-            .prepareGetIndex()
+            .prepareGetIndex(TEST_REQUEST_TIMEOUT)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN)
             .get()
             .getSettings()

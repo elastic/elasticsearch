@@ -16,40 +16,36 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link SpatialExtentGeoPointDocValuesAggregator}.
- * This class is generated. Edit {@code GroupingAggregatorImplementer} instead.
+ * {@link GroupingAggregatorFunction} implementation for {@link SpatialExtentCartesianShapeDocValuesAggregator}.
+ * This class is generated. Do not edit it.
  */
-public final class SpatialExtentGeoPointDocValuesGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("top", ElementType.INT),
-      new IntermediateStateDesc("bottom", ElementType.INT),
-      new IntermediateStateDesc("negLeft", ElementType.INT),
-      new IntermediateStateDesc("negRight", ElementType.INT),
-      new IntermediateStateDesc("posLeft", ElementType.INT),
-      new IntermediateStateDesc("posRight", ElementType.INT)  );
+      new IntermediateStateDesc("minX", ElementType.INT),
+      new IntermediateStateDesc("maxX", ElementType.INT),
+      new IntermediateStateDesc("maxY", ElementType.INT),
+      new IntermediateStateDesc("minY", ElementType.INT)  );
 
-  private final SpatialExtentGroupingStateWrappedLongitudeState state;
+  private final SpatialExtentGroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
-  public SpatialExtentGeoPointDocValuesGroupingAggregatorFunction(List<Integer> channels,
-      SpatialExtentGroupingStateWrappedLongitudeState state, DriverContext driverContext) {
+  public SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunction(List<Integer> channels,
+      SpatialExtentGroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
   }
 
-  public static SpatialExtentGeoPointDocValuesGroupingAggregatorFunction create(
+  public static SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunction create(
       List<Integer> channels, DriverContext driverContext) {
-    return new SpatialExtentGeoPointDocValuesGroupingAggregatorFunction(channels, SpatialExtentGeoPointDocValuesAggregator.initGrouping(), driverContext);
+    return new SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunction(channels, SpatialExtentCartesianShapeDocValuesAggregator.initGrouping(), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -64,8 +60,8 @@ public final class SpatialExtentGeoPointDocValuesGroupingAggregatorFunction impl
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
       Page page) {
-    LongBlock valuesBlock = page.getBlock(channels.get(0));
-    LongVector valuesVector = valuesBlock.asVector();
+    IntBlock valuesBlock = page.getBlock(channels.get(0));
+    IntVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       if (valuesBlock.mayHaveNulls()) {
         state.enableGroupIdTracking(seenGroupIds);
@@ -103,7 +99,7 @@ public final class SpatialExtentGeoPointDocValuesGroupingAggregatorFunction impl
     };
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, LongBlock values) {
+  private void addRawInput(int positionOffset, IntVector groups, IntBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       if (values.isNull(groupPosition + positionOffset)) {
@@ -111,20 +107,19 @@ public final class SpatialExtentGeoPointDocValuesGroupingAggregatorFunction impl
       }
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+      int[] valuesArray = new int[valuesEnd - valuesStart];
       for (int v = valuesStart; v < valuesEnd; v++) {
-        SpatialExtentGeoPointDocValuesAggregator.combine(state, groupId, values.getLong(v));
+        valuesArray[v-valuesStart] = values.getInt(v);
       }
+      SpatialExtentCartesianShapeDocValuesAggregator.combine(state, groupId, valuesArray);
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, LongVector values) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      SpatialExtentGeoPointDocValuesAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
-    }
+  private void addRawInput(int positionOffset, IntVector groups, IntVector values) {
+    // This type does not support vectors because all values are multi-valued
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, LongBlock values) {
+  private void addRawInput(int positionOffset, IntBlock groups, IntBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -138,25 +133,17 @@ public final class SpatialExtentGeoPointDocValuesGroupingAggregatorFunction impl
         }
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+        int[] valuesArray = new int[valuesEnd - valuesStart];
         for (int v = valuesStart; v < valuesEnd; v++) {
-          SpatialExtentGeoPointDocValuesAggregator.combine(state, groupId, values.getLong(v));
+          valuesArray[v-valuesStart] = values.getInt(v);
         }
+        SpatialExtentCartesianShapeDocValuesAggregator.combine(state, groupId, valuesArray);
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, LongVector values) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
-      }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        SpatialExtentGeoPointDocValuesAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
-      }
-    }
+  private void addRawInput(int positionOffset, IntBlock groups, IntVector values) {
+    // This type does not support vectors because all values are multi-valued
   }
 
   @Override
@@ -168,40 +155,30 @@ public final class SpatialExtentGeoPointDocValuesGroupingAggregatorFunction impl
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block topUncast = page.getBlock(channels.get(0));
-    if (topUncast.areAllValuesNull()) {
+    Block minXUncast = page.getBlock(channels.get(0));
+    if (minXUncast.areAllValuesNull()) {
       return;
     }
-    IntVector top = ((IntBlock) topUncast).asVector();
-    Block bottomUncast = page.getBlock(channels.get(1));
-    if (bottomUncast.areAllValuesNull()) {
+    IntVector minX = ((IntBlock) minXUncast).asVector();
+    Block maxXUncast = page.getBlock(channels.get(1));
+    if (maxXUncast.areAllValuesNull()) {
       return;
     }
-    IntVector bottom = ((IntBlock) bottomUncast).asVector();
-    Block negLeftUncast = page.getBlock(channels.get(2));
-    if (negLeftUncast.areAllValuesNull()) {
+    IntVector maxX = ((IntBlock) maxXUncast).asVector();
+    Block maxYUncast = page.getBlock(channels.get(2));
+    if (maxYUncast.areAllValuesNull()) {
       return;
     }
-    IntVector negLeft = ((IntBlock) negLeftUncast).asVector();
-    Block negRightUncast = page.getBlock(channels.get(3));
-    if (negRightUncast.areAllValuesNull()) {
+    IntVector maxY = ((IntBlock) maxYUncast).asVector();
+    Block minYUncast = page.getBlock(channels.get(3));
+    if (minYUncast.areAllValuesNull()) {
       return;
     }
-    IntVector negRight = ((IntBlock) negRightUncast).asVector();
-    Block posLeftUncast = page.getBlock(channels.get(4));
-    if (posLeftUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector posLeft = ((IntBlock) posLeftUncast).asVector();
-    Block posRightUncast = page.getBlock(channels.get(5));
-    if (posRightUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector posRight = ((IntBlock) posRightUncast).asVector();
-    assert top.getPositionCount() == bottom.getPositionCount() && top.getPositionCount() == negLeft.getPositionCount() && top.getPositionCount() == negRight.getPositionCount() && top.getPositionCount() == posLeft.getPositionCount() && top.getPositionCount() == posRight.getPositionCount();
+    IntVector minY = ((IntBlock) minYUncast).asVector();
+    assert minX.getPositionCount() == maxX.getPositionCount() && minX.getPositionCount() == maxY.getPositionCount() && minX.getPositionCount() == minY.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      SpatialExtentGeoPointDocValuesAggregator.combineIntermediate(state, groupId, top.getInt(groupPosition + positionOffset), bottom.getInt(groupPosition + positionOffset), negLeft.getInt(groupPosition + positionOffset), negRight.getInt(groupPosition + positionOffset), posLeft.getInt(groupPosition + positionOffset), posRight.getInt(groupPosition + positionOffset));
+      SpatialExtentCartesianShapeDocValuesAggregator.combineIntermediate(state, groupId, minX.getInt(groupPosition + positionOffset), maxX.getInt(groupPosition + positionOffset), maxY.getInt(groupPosition + positionOffset), minY.getInt(groupPosition + positionOffset));
     }
   }
 
@@ -210,9 +187,9 @@ public final class SpatialExtentGeoPointDocValuesGroupingAggregatorFunction impl
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    SpatialExtentGroupingStateWrappedLongitudeState inState = ((SpatialExtentGeoPointDocValuesGroupingAggregatorFunction) input).state;
+    SpatialExtentGroupingState inState = ((SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    SpatialExtentGeoPointDocValuesAggregator.combineStates(state, groupId, inState, position);
+    SpatialExtentCartesianShapeDocValuesAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override
@@ -223,7 +200,7 @@ public final class SpatialExtentGeoPointDocValuesGroupingAggregatorFunction impl
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       DriverContext driverContext) {
-    blocks[offset] = SpatialExtentGeoPointDocValuesAggregator.evaluateFinal(state, selected, driverContext);
+    blocks[offset] = SpatialExtentCartesianShapeDocValuesAggregator.evaluateFinal(state, selected, driverContext);
   }
 
   @Override

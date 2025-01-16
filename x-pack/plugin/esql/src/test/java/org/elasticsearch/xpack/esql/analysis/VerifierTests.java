@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -1190,21 +1189,6 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testMatchFilter() throws Exception {
-        assertEquals(
-            "1:19: Invalid condition [first_name:\"Anna\" or starts_with(first_name, \"Anne\")]. "
-                + "Full text functions can be used in an OR condition, "
-                + "but only if just full text functions are used in the OR condition",
-            error("from test | where first_name:\"Anna\" or starts_with(first_name, \"Anne\")")
-        );
-
-        assertEquals(
-            "1:51: Invalid condition [first_name:\"Anna\" OR new_salary > 100]. Full text functions can be"
-                + " used in an OR condition, but only if just full text functions are used in the OR condition",
-            error("from test | eval new_salary = salary + 10 | where first_name:\"Anna\" OR new_salary > 100")
-        );
-    }
-
     public void testMatchFunctionNotAllowedAfterCommands() throws Exception {
         assertEquals(
             "1:24: [MATCH] function cannot be used after LIMIT",
@@ -1426,25 +1410,13 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void checkWithDisjunctions(String functionName, String functionInvocation, String functionType) {
-        String expression = functionInvocation + " or length(first_name) > 12";
-        checkdisjunctionError("1:19", expression, functionName, functionType);
-        expression = "(" + functionInvocation + " or first_name is not null) or (length(first_name) > 12 and match(last_name, \"Smith\"))";
-        checkdisjunctionError("1:19", expression, functionName, functionType);
-        expression = functionInvocation + " or (last_name is not null and first_name is null)";
-        checkdisjunctionError("1:19", expression, functionName, functionType);
-    }
-
-    private void checkdisjunctionError(String position, String expression, String functionName, String functionType) {
-        assertEquals(
-            LoggerMessageFormat.format(
-                null,
-                "{}: Invalid condition [{}]. Full text functions can be used in an OR condition, "
-                    + "but only if just full text functions are used in the OR condition",
-                position,
-                expression
-            ),
-            error("from test | where " + expression)
+        query("from test | where " + functionInvocation + " or length(first_name) > 12");
+        query(
+            "from test | where ("
+                + functionInvocation
+                + " or first_name is not null) or (length(first_name) > 12 and match(last_name, \"Smith\"))"
         );
+        query("from test | where " + functionInvocation + " or (last_name is not null and first_name is null)");
     }
 
     public void testFullTextFunctionsDisjunctions() {
@@ -1456,17 +1428,13 @@ public class VerifierTests extends ESTestCase {
 
     private void checkWithFullTextFunctionsDisjunctions(String functionName, String functionInvocation, String functionType) {
 
-        String expression = functionInvocation + " or length(first_name) > 10";
-        checkdisjunctionError("1:19", expression, functionName, functionType);
-
-        expression = "match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)";
-        checkdisjunctionError("1:19", expression, functionName, functionType);
-
-        expression = "("
-            + functionInvocation
-            + " and length(first_name) > 0) or (match(last_name, \"Anneke\") and length(first_name) > 10)";
-        checkdisjunctionError("1:19", expression, functionName, functionType);
-
+        query("from test | where " + functionInvocation + " or length(first_name) > 10");
+        query("from test | where match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)");
+        query(
+            "from test | where ("
+                + functionInvocation
+                + " and length(first_name) > 0) or (match(last_name, \"Anneke\") and length(first_name) > 10)"
+        );
         query("from test | where " + functionInvocation + " or match(first_name, \"Anna\")");
         query("from test | where " + functionInvocation + " or not match(first_name, \"Anna\")");
         query("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and length(first_name) > 10");

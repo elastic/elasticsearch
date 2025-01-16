@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.nio.file.Path;
@@ -149,7 +150,10 @@ public final class TranslogConfig {
      * translog, the shard is not writeable.
      */
     public boolean hasTranslog() {
-        // Expect no translog files to exist for searchable snapshots
-        return false == indexSettings.getIndexMetadata().isSearchableSnapshot();
+        var compatibilityVersion = indexSettings.getIndexMetadata().getCompatibilityVersion();
+        if (compatibilityVersion.before(IndexVersions.MINIMUM_COMPATIBLE) || indexSettings.getIndexMetadata().isSearchableSnapshot()) {
+            return false;
+        }
+        return true;
     }
 }

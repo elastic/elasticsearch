@@ -780,9 +780,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final BiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>> consumer,
         final ActionListener<Void> listener
     ) throws IllegalIndexShardStateException, IllegalStateException {
+        relocated(targetNodeId, targetAllocationId, consumer, listener, null);
+    }
+
+    /**
+     * Provides an variant of {@link IndexShard#relocated(String, String, BiConsumer, ActionListener, Releasable)} with an option
+     * to relocate the shard under externally acquired primary permits.
+     *
+     * @param acquiredPrimaryPermits if null, waits until all the primary permits are acquired, otherwise it calls the consumer immediately
+     */
+    public void relocated(
+        final String targetNodeId,
+        final String targetAllocationId,
+        final BiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>> consumer,
+        final ActionListener<Void> listener,
+        @Nullable final Releasable acquiredPrimaryPermits
+    ) throws IllegalIndexShardStateException, IllegalStateException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
+        assert acquiredPrimaryPermits == null || indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED
+            : "external primary permits are provided but not held by the shard";
         try (Releasable forceRefreshes = refreshListeners.forceRefreshes()) {
-            indexShardOperationPermits.blockOperations(new ActionListener<>() {
+            ActionListener<Releasable> onAcquired = new ActionListener<>() {
                 @Override
                 public void onResponse(Releasable releasable) {
                     boolean success = false;
@@ -860,8 +878,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         listener.onFailure(e);
                     }
                 }
-            }, 30L, TimeUnit.MINUTES, EsExecutors.DIRECT_EXECUTOR_SERVICE); // Wait on current thread because this execution is wrapped by
-                                                                            // CancellableThreads and we want to be able to interrupt it
+            };
+            if (acquiredPrimaryPermits == null) {
+                // Wait on current thread because this execution is wrapped by CancellableThreads and we want to be able to interrupt it
+                indexShardOperationPermits.blockOperations(onAcquired, 30L, TimeUnit.MINUTES, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            } else {
+                ActionListener.completeWith(onAcquired, () -> acquiredPrimaryPermits);
+            }
         }
     }
 
@@ -1489,7 +1512,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * @return true the shard has a translog.
+     * @return true the shard has a translog. In the case there is no translog, the shard is not writeable.
      */
     public boolean hasTranslog() {
         return translogConfig.hasTranslog();

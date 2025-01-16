@@ -41,7 +41,7 @@ public class DeprecatedIndexPredicate {
 
     private static boolean isNotVerifiedReadOnly(IndexMetadata indexMetadata) {
         // no need to check blocks.
-        return MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexMetadata.getSettings());
+        return MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexMetadata.getSettings()) == false;
     }
 
     private static boolean isNotSearchableSnapshot(IndexMetadata indexMetadata) {

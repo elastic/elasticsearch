@@ -12,7 +12,6 @@ package org.elasticsearch.entitlement.qa.common;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
-import java.net.BindException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -134,7 +133,7 @@ class NetworkAccessCheckActions {
         try (var socketChannel = SocketChannel.open()) {
             try {
                 socketChannel.connect(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
-            } catch (BindException e) {
+            } catch (SocketException e) {
                 // We expect to fail, not a valid address to connect to
             }
         }

@@ -1489,7 +1489,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * @return true the shard has a translog.
+     * @return true the shard has a translog. In the case there is no translog, the shard is not writeable.
      */
     public boolean hasTranslog() {
         return translogConfig.hasTranslog();

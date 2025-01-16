@@ -199,7 +199,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             ActionListener.wrap(createIndexResponse -> startPersistentTask(job, listener, persistentTasksService), e -> {
                 if (e instanceof ResourceAlreadyExistsException) {
                     logger.debug("Rolled index already exists for rollup job [" + job.getConfig().getId() + "], updating metadata.");
-                    updateMapping(job, listener, persistentTasksService, client, logger);
+                    updateMapping(job, listener, persistentTasksService, client, logger, request.masterNodeTimeout());
                 } else {
                     String msg = "Could not create index for rollup job [" + job.getConfig().getId() + "]";
                     logger.error(msg);
@@ -249,7 +249,8 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         ActionListener<AcknowledgedResponse> listener,
         PersistentTasksService persistentTasksService,
         Client client,
-        Logger logger
+        Logger logger,
+        TimeValue masterTimeout
     ) {
 
         final String indexName = job.getConfig().getRollupIndex();
@@ -304,7 +305,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             );
         };
 
-        GetMappingsRequest request = new GetMappingsRequest();
+        GetMappingsRequest request = new GetMappingsRequest(masterTimeout);
         client.execute(GetMappingsAction.INSTANCE, request, ActionListener.wrap(getMappingResponseHandler, e -> {
             String msg = "Could not update mappings for rollup job [" + job.getConfig().getId() + "]";
             logger.error(msg);

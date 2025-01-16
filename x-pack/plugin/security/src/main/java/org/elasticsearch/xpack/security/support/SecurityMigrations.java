@@ -143,7 +143,7 @@ public class SecurityMigrations {
 
         @Override
         public Set<NodeFeature> nodeFeaturesRequired() {
-            return Set.of(SecuritySystemIndices.SECURITY_ROLES_METADATA_FLATTENED);
+            return Set.of();
         }
 
         @Override
@@ -223,7 +223,7 @@ public class SecurityMigrations {
 
         @Override
         public Set<NodeFeature> nodeFeaturesRequired() {
-            return Set.of(SecuritySystemIndices.SECURITY_ROLE_MAPPING_CLEANUP);
+            return Set.of();
         }
 
         @Override

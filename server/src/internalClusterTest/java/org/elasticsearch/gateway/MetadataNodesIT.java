@@ -118,7 +118,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
             )
             .get();
 
-        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(index).get();
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, index).get();
         assertNotNull(
             ((Map<String, ?>) (getMappingsResponse.getMappings().get(index).getSourceAsMap().get("properties"))).get("integer_field")
         );
@@ -149,7 +149,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
             )
             .get();
 
-        getMappingsResponse = indicesAdmin().prepareGetMappings(index).get();
+        getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, index).get();
         assertNotNull(
             ((Map<String, ?>) (getMappingsResponse.getMappings().get(index).getSourceAsMap().get("properties"))).get("float_field")
         );

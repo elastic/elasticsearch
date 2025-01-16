@@ -22,7 +22,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -79,7 +79,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
                 }
                 AnalysisStats.countMapping(mappingCounts, indexMetadata);
 
-                var sourceMode = SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexMetadata.getSettings());
+                var sourceMode = IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexMetadata.getSettings());
                 sourceModeUsageCount.merge(sourceMode.toString().toLowerCase(Locale.ENGLISH), 1, Integer::sum);
             }
             for (MappingMetadata mappingMetadata : project.getMappingsByHash().values()) {

@@ -212,7 +212,8 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         // Clone the input so that the operator can close it, then, later, we can read it again to build the assertion.
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
 
-        List<Page> results = drive(simple().get(context), input.iterator(), context);
+        var operator = simple().get(context);
+        List<Page> results = drive(operator, input.iterator(), context);
         assertSimpleOutput(origInput, results);
         assertThat(context.breaker().getUsed(), equalTo(0L));
 

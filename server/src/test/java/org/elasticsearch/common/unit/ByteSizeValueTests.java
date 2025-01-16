@@ -558,6 +558,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             checkTransportRoundTrip(ByteSizeValue.ZERO, tv);
             checkTransportRoundTrip(ByteSizeValue.MINUS_ONE, tv);
             for (var unit : ByteSizeUnit.values()) {
+                // Try increasing values until we exceed Long.MAX_VALUE and it wraps around negative
                 for (long bytes = unit.toBytes(1); bytes > 0; bytes *= 10) {
                     checkTransportRoundTrip(new ByteSizeValue(bytes, unit), tv);
                 }

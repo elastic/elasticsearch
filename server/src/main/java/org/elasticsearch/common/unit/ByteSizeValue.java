@@ -330,45 +330,9 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
             try {
                 return of(Long.parseLong(s), unit);
             } catch (final NumberFormatException e) {
-                BigDecimal decimalValue;
-                try {
-                    decimalValue = new BigDecimal(s);
-                } catch (NumberFormatException e2) {
-                    ElasticsearchParseException toThrow = new ElasticsearchParseException(
-                        "failed to parse setting [{}] with value [{}]",
-                        e,
-                        settingName,
-                        initialInput
-                    );
-                    toThrow.addSuppressed(e2);
-                    throw toThrow;
-                }
-                if (decimalValue.signum() < 0) {
-                    throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", settingName, initialInput);
-                } else if (decimalValue.scale() > 2) {
-                    throw new ElasticsearchParseException(
-                        "failed to parse setting [{}] with more than two decimals in value [{}]",
-                        settingName,
-                        initialInput
-                    );
-                }
-                long sizeInBytes;
-                try {
-                    // Note we always round up here for two reasons:
-                    // 1. Practically: toString truncates, so if we ever round down, we'll lose a tenth
-                    // 2. In principle: if the user asks for 1.1kb, which is 1126.4 bytes, and we only give then 1126, then
-                    // we have not given them what they asked for.
-                    sizeInBytes = decimalValue.multiply(new BigDecimal(unit.toBytes(1))).setScale(0, RoundingMode.UP).longValueExact();
-                } catch (ArithmeticException e2) {
-                    ElasticsearchParseException toThrow = new ElasticsearchParseException(
-                        "failed to parse setting [{}] with value beyond {}: [{}]",
-                        settingName,
-                        Long.MAX_VALUE,
-                        initialInput
-                    );
-                    toThrow.addSuppressed(e2);
-                    throw toThrow;
-                }
+                // If it's not an integer, it could be a valid number with a decimal
+                BigDecimal decimalValue = parseDecimal(s, settingName, initialInput, e);
+                long sizeInBytes = convertToBytes(decimalValue, unit, settingName, initialInput, e);
                 return new ByteSizeValue(sizeInBytes, unit);
             }
         } catch (IllegalArgumentException e) {
@@ -378,6 +342,82 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
                 settingName,
                 initialInput
             );
+        }
+    }
+
+    /**
+     * @param numericPortion the number to parse
+     * @param settingName for error reporting - the name of the setting we're parsing
+     * @param settingValue for error reporting - the whole string value of the setting
+     * @param originalException for error reporting - the exception that occurred when we tried to parse the setting as an integer
+     */
+    private static BigDecimal parseDecimal(
+        String numericPortion,
+        String settingName,
+        String settingValue,
+        NumberFormatException originalException
+    ) {
+        BigDecimal decimalValue;
+        try {
+            decimalValue = new BigDecimal(numericPortion);
+        } catch (NumberFormatException e) {
+            // Here, we choose to use originalException as the cause, because a NumberFormatException here
+            // indicates the string wasn't actually a valid BigDecimal after all, so there's no reason
+            // to confuse matters by reporting BigDecimal in the stack trace.
+            ElasticsearchParseException toThrow = new ElasticsearchParseException(
+                "failed to parse setting [{}] with value [{}]",
+                originalException,
+                settingName,
+                settingValue
+            );
+            toThrow.addSuppressed(e);
+            throw toThrow;
+        }
+        if (decimalValue.signum() < 0) {
+            throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", settingName, settingValue);
+        } else if (decimalValue.scale() > 2) {
+            throw new ElasticsearchParseException(
+                "failed to parse setting [{}] with more than two decimals in value [{}]",
+                settingName,
+                settingValue
+            );
+        }
+        return decimalValue;
+    }
+
+    /**
+     * @param decimalValue the number of {@code unit}s
+     * @param unit the specified {@link ByteSizeUnit}
+     * @param settingName for error reporting - the name of the setting we're parsing
+     * @param settingValue for error reporting - the whole string value of the setting
+     * @param originalException for error reporting - the exception that occurred when we tried to parse the setting as an integer
+     */
+    private static long convertToBytes(
+        BigDecimal decimalValue,
+        ByteSizeUnit unit,
+        String settingName,
+        String settingValue,
+        NumberFormatException originalException
+    ) {
+        BigDecimal sizeInBytes = decimalValue.multiply(new BigDecimal(unit.toBytes(1)));
+        try {
+            // Note we always round up here for two reasons:
+            // 1. Practically: toString truncates, so if we ever round down, we'll lose a tenth
+            // 2. In principle: if the user asks for 1.1kb, which is 1126.4 bytes, and we only give then 1126, then
+            // we have not given them what they asked for.
+            return sizeInBytes.setScale(0, RoundingMode.UP).longValueExact();
+        } catch (ArithmeticException e) {
+            // Here, we choose to use the ArithmeticException as the cause, because we already know the
+            // number is a valid BigDecimal, so it makes sense to supply that context in the stack trace.
+            ElasticsearchParseException toThrow = new ElasticsearchParseException(
+                "failed to parse setting [{}] with value beyond {}: [{}]",
+                e,
+                settingName,
+                Long.MAX_VALUE,
+                settingValue
+            );
+            toThrow.addSuppressed(originalException);
+            throw toThrow;
         }
     }
 

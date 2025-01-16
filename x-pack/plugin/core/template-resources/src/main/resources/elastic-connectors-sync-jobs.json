@@ -122,16 +122,16 @@
           "type": "date"
         },
         "deleted_document_count": {
-          "type": "long"
+          "type": "integer"
         },
         "error": {
           "type": "keyword"
         },
         "indexed_document_count": {
-          "type": "long"
+          "type": "integer"
         },
         "indexed_document_volume": {
-          "type": "long"
+          "type": "integer"
         },
         "job_type": {
           "type": "keyword"
@@ -149,7 +149,7 @@
           "type": "keyword"
         },
         "total_document_count": {
-          "type": "long"
+          "type": "integer"
         },
         "trigger_method": {
           "type": "keyword"

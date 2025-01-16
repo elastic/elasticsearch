@@ -35,7 +35,7 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
         WildcardLike::new
     );
 
-    @FunctionInfo(returnType = "boolean", operator = "LIKE", description = """
+    @FunctionInfo(returnType = "boolean", description = """
         Use `LIKE` to filter data based on string patterns using wildcards. `LIKE`
         usually acts on a field placed on the left-hand side of the operator, but it can
         also act on a constant (literal) expression. The right-hand side of the operator

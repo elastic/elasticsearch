@@ -22,7 +22,9 @@ public @interface FunctionInfo {
      * If this function implements an operator, what is its symbol?
      * <p>
      *     This exists entirely to add to the Kibana function definition
-     *     json files.
+     *     json files. Kibana thinks of something as an operator if the
+     *     text that triggers it is not the name of the function. So {@code +}
+     *     is an operator but {@code IS NULL} doesn't count.
      * </p>
      */
     String operator() default "";

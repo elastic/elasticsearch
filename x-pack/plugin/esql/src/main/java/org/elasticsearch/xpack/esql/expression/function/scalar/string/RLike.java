@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RLike", RLike::new);
 
-    @FunctionInfo(returnType = "boolean", operator = "RLIKE", description = """
+    @FunctionInfo(returnType = "boolean", description = """
         Use `RLIKE` to filter data based on string patterns using using
         <<regexp-syntax,regular expressions>>. `RLIKE` usually acts on a field placed on
         the left-hand side of the operator, but it can also act on a constant (literal)

@@ -263,6 +263,7 @@ public class AnalyticsProcessManager {
                     if (dataExtractor.isCancelled()) {
                         break;
                     }
+                    rowsProcessed++;
                     DataFrameDataExtractor.Row row = dataExtractor.createRow(searchHit);
                     if (row.shouldSkip()) {
                         dataCountsTracker.incrementSkippedDocsCount();
@@ -276,7 +277,6 @@ public class AnalyticsProcessManager {
                         }
                     }
                 }
-                rowsProcessed += rows.get().length;
                 progressTracker.updateLoadingDataProgress(rowsProcessed >= totalRows ? 100 : (int) (rowsProcessed * 100.0 / totalRows));
             }
         }

@@ -4363,32 +4363,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Reset the current engine to a new one without doing translog recovery.
-     */
-    public void resetEngine() throws IOException {
-        assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
-        assert getActiveOperationsCount() == OPERATIONS_BLOCKED
-            : "resetting engine without blocking operations; active operations are [" + getActiveOperationsCount() + ']';
-        var engineConfig = newEngineConfig(replicationTracker);
-        try {
-            synchronized (engineMutex) {
-                verifyNotClosed();
-                IOUtils.close(currentEngineReference.get());
-
-                var newEngine = createEngine(engineConfig);
-                assert newEngine instanceof ReadOnlyEngine;
-                currentEngineReference.set(newEngine);
-                onNewEngine(newEngine);
-                active.set(true);
-            }
-            onSettingsChanged();
-            checkAndCallWaitForEngineOrClosedShardListeners();
-        } catch (Exception e) {
-            failShard("Unable to reset engine", e);
-        }
-    }
-
-    /**
      * Rollback the current engine to the safe commit, then replay local translog up to the global checkpoint.
      */
     void resetEngineToGlobalCheckpoint() throws IOException {

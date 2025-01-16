@@ -483,7 +483,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
             GetIndexResponse getIndexResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD))
-            ).admin().indices().prepareGetIndex().setIndices("test").get();
+            ).admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices("test").get();
             assertExpectedFields(getIndexResponse.getMappings(), "field1");
         }
 
@@ -503,7 +503,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
             GetIndexResponse getIndexResponse = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD))
-            ).admin().indices().prepareGetIndex().setIndices("test").get();
+            ).admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices("test").get();
             assertExpectedFields(getIndexResponse.getMappings(), "field1", "_field1");
         }
     }

@@ -444,7 +444,7 @@ public class MetadataUpdateSettingsService {
                         if (block.contains(ClusterBlockLevel.WRITE)) {
                             IndexMetadata indexMetadata = metadataBuilder.get(index);
                             Settings.Builder indexSettings = Settings.builder().put(indexMetadata.getSettings());
-                            indexSettings.putNull(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey());
+                            indexSettings.remove(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey());
                             metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(indexSettings));
                         }
                     }

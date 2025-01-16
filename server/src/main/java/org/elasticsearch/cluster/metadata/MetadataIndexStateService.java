@@ -385,11 +385,18 @@ public class MetadataIndexStateService {
     ) {
         final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
 
+        final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
         final Set<Index> indicesToAddBlock = new HashSet<>();
         for (Index index : indices) {
-            metadata.getSafe(index); // to check if index exists
+            IndexMetadata indexMetadata = metadata.getSafe(index);// to check if index exists
             if (currentState.blocks().hasIndexBlock(index.getName(), block.block)) {
-                logger.debug("index {} already has block {}, ignoring", index, block.block);
+                if (block.block.contains(ClusterBlockLevel.WRITE) && isIndexWriteBlockVerified(indexMetadata)) {
+                    logger.debug("index {} already has block {}, ignoring", index, block.block);
+                } else {
+                    // remove the block, we'll add a uuid based block below instead, never leaving it unblocked.
+                    blocks.removeIndexBlock(index.getName(), block.block);
+                    indicesToAddBlock.add(index);
+                }
             } else {
                 indicesToAddBlock.add(index);
             }
@@ -399,7 +406,6 @@ public class MetadataIndexStateService {
             return Tuple.tuple(currentState, Map.of());
         }
 
-        final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
         final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
 
         for (Index index : indicesToAddBlock) {
@@ -407,7 +413,7 @@ public class MetadataIndexStateService {
             final Set<ClusterBlock> clusterBlocks = currentState.blocks().indices().get(index.getName());
             if (clusterBlocks != null) {
                 for (ClusterBlock clusterBlock : clusterBlocks) {
-                    if (clusterBlock.id() == block.block.id()) {
+                    if (clusterBlock.id() == block.block.id() && clusterBlock.uuid() != null) {
                         // Reuse the existing UUID-based block
                         indexBlock = clusterBlock;
                         break;
@@ -438,6 +444,10 @@ public class MetadataIndexStateService {
             blockedIndices.keySet().stream().map(Object::toString).toList()
         );
         return Tuple.tuple(ClusterState.builder(currentState).blocks(blocks).metadata(metadata).build(), blockedIndices);
+    }
+
+    private static boolean isIndexWriteBlockVerified(IndexMetadata indexMetadata) {
+        return VERIFIED_READ_ONLY_SETTING.get(indexMetadata.getSettings());
     }
 
     /**
@@ -1046,19 +1056,20 @@ public class MetadataIndexStateService {
 
                 if (block.getBlock().contains(ClusterBlockLevel.WRITE) && markVerified) {
                     final IndexMetadata indexMetadata = metadata.getSafe(index);
-                    final IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.CLOSE);
-                    metadata.put(
-                        updatedMetadata.settings(
-                            Settings.builder().put(indexMetadata.getSettings()).put(VERIFIED_READ_ONLY_SETTING.getKey(), true)
-                        )
-                    );
+                    final IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(indexMetadata)
+                        .settings(Settings.builder().put(indexMetadata.getSettings()).put(VERIFIED_READ_ONLY_SETTING.getKey(), true))
+                        .settingsVersion(indexMetadata.getSettingsVersion() + 1);
+                    metadata.put(updatedMetadata);
                 }
             } catch (final IndexNotFoundException e) {
                 logger.debug("index {} has been deleted since blocking it started, ignoring", index);
             }
         }
         logger.info("completed adding [index.blocks.{}] block to indices {}", block.name, effectivelyBlockedIndices);
-        return Tuple.tuple(ClusterState.builder(currentState).blocks(blocks).build(), List.copyOf(blockingResults.values()));
+        return Tuple.tuple(
+            ClusterState.builder(currentState).metadata(metadata).blocks(blocks).build(),
+            List.copyOf(blockingResults.values())
+        );
     }
 
     /**

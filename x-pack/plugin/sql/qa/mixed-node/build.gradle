@@ -39,22 +39,23 @@ buildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.10.3") &&
       mustRunAfter("precommit")
       testClassesDirs = sourceSets.javaRestTest.output.classesDirs
       classpath = sourceSets.javaRestTest.runtimeClasspath
+      def beforeUpdateInfo = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
+      def afterUpdateInfo = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
       doFirst {
           def cluster = baseCluster.get()
           // Getting the endpoints causes a wait for the cluster
-          println "Endpoints are: ${-> cluster.allHttpSocketURI.join(",")}"
+          println "Endpoints are: ${-> beforeUpdateInfo.get()}"
           println "Upgrading one node to create a mixed cluster"
-          cluster.nextNodeToNextVersion()
-
-          println "Upgrade complete, endpoints are: ${-> cluster.allHttpSocketURI.join(",")}"
-          nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
-          nonInputProperties.systemProperty('tests.clustername', baseName)
-
+          getRegistry().get().nextNodeToNextVersion(cluster)
+          println "Upgrade complete, endpoints are: ${-> afterUpdateInfo.get() }"
       }
+      nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
+      nonInputProperties.systemProperty('tests.clustername', baseName)
       systemProperty 'tests.bwc_nodes_version', bwcVersion.toString().replace('-SNAPSHOT', '')
       systemProperty 'tests.new_nodes_version', project.version.toString().replace('-SNAPSHOT', '')
 
-      onlyIf("BWC tests disabled") { project.bwc_tests_enabled }
+      def bwcEnabled = project.bwc_tests_enabled
+      onlyIf("BWC tests disabled") { bwcEnabled }
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {

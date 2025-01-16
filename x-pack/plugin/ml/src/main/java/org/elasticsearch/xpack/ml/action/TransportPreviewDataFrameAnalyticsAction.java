@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.extractor.ExtractedFieldsDetectorFactory;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -77,7 +78,7 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
         this.clusterService = clusterService;
     }
 
-    private static Map<String, Object> mergeRow(DataFrameDataExtractor.PreviewRow row, List<String> fieldNames) {
+    private static Map<String, Object> mergeRow(DataFrameDataExtractor.Row row, List<String> fieldNames) {
         return row.getValues() == null
             ? Collections.emptyMap()
             : IntStream.range(0, row.getValues().length).boxed().collect(Collectors.toMap(fieldNames::get, i -> row.getValues()[i]));
@@ -121,7 +122,9 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
             ).newExtractor(false);
             extractor.preview(delegate.delegateFailureAndWrap((l, rows) -> {
                 List<String> fieldNames = extractor.getFieldNames();
-                l.onResponse(new Response(rows.stream().map((r) -> mergeRow(r, fieldNames)).collect(Collectors.toList())));
+                l.onResponse(
+                    new Response(Arrays.stream(rows).map((r) -> mergeRow(extractor.createRow(r), fieldNames)).collect(Collectors.toList()))
+                );
             }));
         }));
     }

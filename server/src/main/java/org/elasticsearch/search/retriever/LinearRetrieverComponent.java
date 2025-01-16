@@ -59,9 +59,10 @@ public class LinearRetrieverComponent implements ToXContentObject {
                 return ScoreNormalizer.valueOf(normalizer);
             } else if (p.currentToken() == XContentParser.Token.START_OBJECT) {
                 p.nextToken();
-                ScoreNormalizer normalizer = p.namedObject(ScoreNormalizer.class, p.currentName(), c);
+                final String normalizerName = p.currentName();
+                ScoreNormalizer scoreNormalizer = ScoreNormalizer.parse(normalizerName, p);
                 p.nextToken();
-                return normalizer;
+                return scoreNormalizer;
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, NORMALIZER_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);

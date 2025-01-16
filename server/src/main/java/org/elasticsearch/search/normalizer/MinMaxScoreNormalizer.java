@@ -89,7 +89,7 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
         for (int i = 0; i < docs.length; i++) {
             float score;
             if (min.equals(max)) {
-                score = (max + min) / 2;
+                score = min;
             } else {
                 score = (docs[i].score - min) / (max - min);
             }

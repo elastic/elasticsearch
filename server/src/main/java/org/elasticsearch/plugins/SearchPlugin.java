@@ -37,8 +37,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.normalizer.ScoreNormalizer;
-import org.elasticsearch.search.normalizer.ScoreNormalizerParser;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -313,45 +311,6 @@ public interface SearchPlugin {
         }
 
         public RetrieverParser<RB> getParser() {
-            return parser;
-        }
-    }
-
-    /**
-     * Specification of custom {@link ScoreNormalizer}.
-     */
-    class ScoreNormalizerSpec<SN extends ScoreNormalizer> {
-
-        private final ParseField name;
-        private final ScoreNormalizerParser<SN> parser;
-
-        /**
-         * Specification of custom {@link ScoreNormalizer}.
-         *
-         * @param name holds the names by which this score normalizer might be parsed. The {@link ParseField#getPreferredName()}
-         *        is special as it is the name by under which the reader is registered.
-         * @param parser the parser the reads the retriever builder from xcontent
-         */
-        public ScoreNormalizerSpec(ParseField name, ScoreNormalizerParser<SN> parser) {
-            this.name = name;
-            this.parser = parser;
-        }
-
-        /**
-         * Specification of custom {@link ScoreNormalizer}.
-         *
-         * @param name the name by which this normalizer might be parsed or deserialized
-         * @param parser the parser the reads the {@code ScoreNormalizer} from xcontent
-         */
-        public ScoreNormalizerSpec(String name, ScoreNormalizerParser<SN> parser) {
-            this(new ParseField(name), parser);
-        }
-
-        public ParseField getName() {
-            return name;
-        }
-
-        public ScoreNormalizerParser<SN> getParser() {
             return parser;
         }
     }

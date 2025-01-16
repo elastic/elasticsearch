@@ -15,6 +15,8 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
@@ -108,7 +110,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTask task;
     protected final SearchPhaseResults<SearchPhaseResult> results;
-    private final Version minNodeVersion;
+    private final TransportVersion minNodeVersion;
     private final Map<String, AliasFilter> aliasFilter;
     private final Map<String, Float> concreteIndexBoosts;
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
@@ -181,7 +183,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
         this.listener = ActionListener.runAfter(listener, () -> Releasables.close(releasables));
         this.nodeIdToConnection = nodeIdToConnection;
         this.concreteIndexBoosts = concreteIndexBoosts;
-        this.minNodeVersion = clusterState.nodes().getMinNodeVersion();
+        this.minNodeVersion = clusterState.getMinTransportVersion();
         this.aliasFilter = aliasFilter;
         this.results = resultConsumer;
         // register the release of the query consumer to free up the circuit breaker memory
@@ -583,7 +585,7 @@ public class SearchQueryThenFetchAsyncAction extends SearchPhase implements Asyn
             finishIfAllDone();
             return;
         }
-        final boolean supportsBatchedQuery = minNodeVersion.onOrAfter(BATCHED_QUERY_PHASE_VERSION);
+        final boolean supportsBatchedQuery = minNodeVersion.onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION);
         final Map<String, NodeQueryRequest> perNodeQueries = new HashMap<>();
         doCheckNoMissingShards(getName(), request, shardsIts);
         final String localClusterAlias = request.getLocalClusterAlias();

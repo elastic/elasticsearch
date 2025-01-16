@@ -394,7 +394,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 sortValueFormats[i] = in.readNamedWriteable(DocValueFormat.class);
             }
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.current())) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION)) {
             if (in.readBoolean()) {
                 setTopDocs(readTopDocs(in));
             }
@@ -424,9 +424,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
             setRescoreDocIds(new RescoreDocIds(in));
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 rankShardResult = in.readOptionalNamedWriteable(RankShardResult.class);
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersion.current())) {
-                reduced = in.readBoolean();
+                if (in.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION)) {
+                    reduced = in.readBoolean();
+                }
             }
             success = true;
         } finally {
@@ -461,7 +461,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 out.writeNamedWriteable(sortValueFormats[i]);
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.current())) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION)) {
             if (topDocsAndMaxScore != null) {
                 out.writeBoolean(true);
                 writeTopDocs(out, topDocsAndMaxScore);

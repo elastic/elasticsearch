@@ -8,11 +8,16 @@ Learn how to combine different retrievers in these hands-on examples.
 ==== Add example data
 
 To begin with, lets create the `retrievers_example` index, and add some documents to it.
+We will set `number_of_shards=1` and `number_of_replicas=0` for our examples to ensure consistent and reproducible ordering.
 
 [source,console]
 ----
 PUT retrievers_example
 {
+    "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0
+    },
    "mappings": {
        "properties": {
            "vector": {

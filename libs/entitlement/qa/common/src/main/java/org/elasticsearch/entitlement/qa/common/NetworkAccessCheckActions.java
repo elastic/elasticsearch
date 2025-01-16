@@ -193,7 +193,7 @@ class NetworkAccessCheckActions {
     static void datagramChannelSend() throws IOException {
         try (var channel = DatagramChannel.open()) {
             channel.configureBlocking(false);
-            channel.send(ByteBuffer.wrap(new byte[] {0}), new InetSocketAddress(InetAddress.getLoopbackAddress(), 1234));
+            channel.send(ByteBuffer.wrap(new byte[] { 0 }), new InetSocketAddress(InetAddress.getLoopbackAddress(), 1234));
         }
     }
 

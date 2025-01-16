@@ -139,6 +139,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         if (indicesOptions == null) {
             validationException = addValidationError("indicesOptions is missing", validationException);
         }
+        // This action does not use the IndexNameExpressionResolver to resolve concrete indices, this is why we check here for selectors
         if (indicesOptions.allowSelectors() == false) {
             for (String index : indices) {
                 try {

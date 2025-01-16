@@ -31,6 +31,7 @@ import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteCom
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -403,7 +404,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .cluster()
                 .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
                 .setWaitForCompletion(true)
-                .setIndices(dataStreamName + "::data")
+                .setIndices(dataStreamName + "::" + randomFrom(IndexComponentSelector.values()).getKey())
                 .setIncludeGlobalState(false)
                 .get();
             fail("Should have failed because selectors are not allowed in snapshot creation");
@@ -428,7 +429,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .cluster()
                 .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO, SNAPSHOT)
                 .setWaitForCompletion(true)
-                .setIndices(dataStreamName + "::data")
+                .setIndices(dataStreamName + "::" + randomFrom(IndexComponentSelector.values()).getKey())
                 .get();
             fail("Should have failed because selectors are not allowed in snapshot restore");
         } catch (IllegalArgumentException e) {

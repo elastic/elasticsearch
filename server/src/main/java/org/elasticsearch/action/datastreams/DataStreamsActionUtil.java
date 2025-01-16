@@ -54,15 +54,15 @@ public class DataStreamsActionUtil {
         String[] names,
         IndicesOptions indicesOptions
     ) {
-        List<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.dataStreams(
+        List<ResolvedExpression> resolvedDataStreamExpressions = indexNameExpressionResolver.dataStreams(
             clusterState,
             updateIndicesOptions(indicesOptions),
             names
         );
         SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
 
-        List<String> results = new ArrayList<>(resolvedExpressions.size());
-        for (ResolvedExpression resolvedExpression : resolvedExpressions) {
+        List<String> results = new ArrayList<>(resolvedDataStreamExpressions.size());
+        for (ResolvedExpression resolvedExpression : resolvedDataStreamExpressions) {
             IndexAbstraction indexAbstraction = indicesLookup.get(resolvedExpression.resource());
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {

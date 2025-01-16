@@ -300,7 +300,8 @@ public record IndicesOptions(
      * @param allowAliasToMultipleIndices, allow aliases to multiple indices, true by default.
      * @param allowClosedIndices, allow closed indices, true by default.
      * @param allowSelectors, allow selectors within index expressions, true by default.
-     * @param includeFailureIndices, includes the failure indices when a data stream or a data stream alias is included.
+     * @param includeFailureIndices, when true includes the failure indices when a data stream or a data stream alias is encountered and
+     *                              selectors are not allowed.
      * @param ignoreThrottled, filters out throttled (aka frozen indices), defaults to true. This is deprecated and the only one
      *                         that only filters and never throws an error.
      */
@@ -448,9 +449,9 @@ public record IndicesOptions(
         ERROR_WHEN_CLOSED_INDICES,
         IGNORE_THROTTLED,
 
-        ALLOW_FAILURE_INDICES, // Added in 8.14, Removed in 8.18
-        ALLOW_SELECTORS,       // Added in 8.18
-        INCLUDE_FAILURE_INDICES
+        ALLOW_FAILURE_INDICES,  // Added in 8.14, Removed in 8.18
+        ALLOW_SELECTORS,        // Added in 8.18
+        INCLUDE_FAILURE_INDICES // Added in 8.18
     }
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndicesOptions.class);
@@ -484,7 +485,7 @@ public record IndicesOptions(
                 .ignoreThrottled(false)
         )
         .build();
-    public static final IndicesOptions STRICT_EXPAND_OPEN_NO_SELECTOR_WITH_FAILURE_STORE = IndicesOptions.builder()
+    public static final IndicesOptions STRICT_EXPAND_OPEN_FAILURE_NO_SELECTOR = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
         .wildcardOptions(
             WildcardOptions.builder()
@@ -1328,7 +1329,7 @@ public record IndicesOptions(
      * in the expression (no :: separators).
      */
     public static IndicesOptions strictExpandOpenFailureNoSelectors() {
-        return STRICT_EXPAND_OPEN_NO_SELECTOR_WITH_FAILURE_STORE;
+        return STRICT_EXPAND_OPEN_FAILURE_NO_SELECTOR;
     }
 
     /**

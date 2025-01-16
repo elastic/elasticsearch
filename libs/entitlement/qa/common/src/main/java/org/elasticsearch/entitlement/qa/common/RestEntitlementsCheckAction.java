@@ -160,7 +160,8 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("url_open_connection_proxy", forPlugins(NetworkAccessCheckActions::urlOpenConnectionWithProxy)),
         entry("http_client_builder_build", forPlugins(NetworkAccessCheckActions::httpClientBuilderBuild)),
         entry("http_client_send", forPlugins(NetworkAccessCheckActions::httpClientSend)),
-        entry("http_client_send_async", forPlugins(NetworkAccessCheckActions::httpClientSendAsync))
+        entry("http_client_send_async", forPlugins(NetworkAccessCheckActions::httpClientSendAsync)),
+        entry("create_ldap_cert_store", forPlugins(NetworkAccessCheckActions::createLDAPCertStore))
     );
 
     private static void createURLStreamHandlerProvider() {

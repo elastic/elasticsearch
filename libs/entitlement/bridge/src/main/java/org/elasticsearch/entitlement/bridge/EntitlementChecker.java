@@ -288,5 +288,7 @@ public interface EntitlementChecker {
         HttpResponse.PushPromiseHandler<?> pushPromiseHandler
     );
 
-    void check$sun_security_provider_certpath_ldap_LDAPCertStore$(Class<?> callerClass, CertStoreParameters params);
+    // We need to check the LDAPCertStore, as this will connect, but this is internal/created via SPI,
+    // so we instrument the general factory instead and then filter in the check method implementation
+    void check$java_security_cert_CertStore$$getInstance(Class<?> callerClass, String type, CertStoreParameters params);
 }

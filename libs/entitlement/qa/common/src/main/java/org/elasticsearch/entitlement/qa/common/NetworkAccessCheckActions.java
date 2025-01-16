@@ -22,6 +22,10 @@ import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertStore;
+import java.util.Arrays;
 
 class NetworkAccessCheckActions {
 
@@ -104,6 +108,16 @@ class NetworkAccessCheckActions {
                 assert ex instanceof IOException;
                 return null;
             });
+        }
+    }
+
+    static void createLDAPCertStore() throws NoSuchAlgorithmException {
+        try {
+            // We pass down null params to provoke a InvalidAlgorithmParameterException
+            CertStore.getInstance("LDAP", null);
+        } catch (InvalidAlgorithmParameterException ex) {
+            // Assert we actually hit the class we care about, LDAPCertStore (or its impl)
+            assert Arrays.stream(ex.getStackTrace()).anyMatch(e -> e.getClassName().endsWith("LDAPCertStore"));
         }
     }
 }

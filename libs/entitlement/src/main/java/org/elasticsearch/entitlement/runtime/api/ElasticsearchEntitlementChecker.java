@@ -553,7 +553,9 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
-    public void check$sun_security_provider_certpath_ldap_LDAPCertStore$(Class<?> callerClass, CertStoreParameters params) {
-        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
+    public void check$java_security_cert_CertStore$$getInstance(Class<?> callerClass, String type, CertStoreParameters params) {
+        if ("LDAP".equals(type)) {
+            policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
+        }
     }
 }

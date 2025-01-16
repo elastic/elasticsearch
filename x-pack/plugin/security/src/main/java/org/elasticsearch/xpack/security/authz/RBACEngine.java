@@ -32,6 +32,7 @@ import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -528,7 +529,12 @@ public class RBACEngine implements AuthorizationEngine {
                 + Arrays.stream(indices).filter(Regex::isSimpleMatchPattern).toList();
 
         // Check if the parent context has already successfully authorized access to the child's indices
-        return Arrays.stream(indices).allMatch(indicesAccessControl::hasIndexPermissions);
+        for (String index : indices) {
+            if (indicesAccessControl.hasIndexPermissions(index) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -873,6 +879,10 @@ public class RBACEngine implements AuthorizationEngine {
                         if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                             // add data stream and its backing indices for any authorized data streams
                             for (Index index : indexAbstraction.getIndices()) {
+                                indicesAndAliases.add(index.getName());
+                            }
+                            // TODO: We need to limit if a data stream's failure indices should return here.
+                            for (Index index : ((DataStream) indexAbstraction).getFailureIndices().getIndices()) {
                                 indicesAndAliases.add(index.getName());
                             }
                         }

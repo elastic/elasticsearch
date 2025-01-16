@@ -78,9 +78,7 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
                 getIndices().values().iterator(),
                 indexSegments -> Iterators.concat(
 
-                    ChunkedToXContentHelper.singleChunk(
-                        (builder, p) -> builder.startObject(indexSegments.getIndex()).startObject(Fields.SHARDS)
-                    ),
+                    ChunkedToXContentHelper.chunk((builder, p) -> builder.startObject(indexSegments.getIndex()).startObject(Fields.SHARDS)),
                     Iterators.flatMap(
                         indexSegments.iterator(),
                         indexSegment -> Iterators.concat(
@@ -90,7 +88,7 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
                                 indexSegment.iterator(),
                                 shardSegments -> Iterators.concat(
 
-                                    ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                                    ChunkedToXContentHelper.chunk((builder, p) -> {
                                         builder.startObject();
 
                                         builder.startObject(Fields.ROUTING);
@@ -112,7 +110,7 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
                                         shardSegments.iterator(),
                                         segment -> Iterators.concat(
 
-                                            ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                                            ChunkedToXContentHelper.chunk((builder, p) -> {
                                                 builder.startObject(segment.getName());
                                                 builder.field(Fields.GENERATION, segment.getGeneration());
                                                 builder.field(Fields.NUM_DOCS, segment.getNumDocs());
@@ -132,7 +130,7 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
                                                 return builder;
                                             }),
                                             getSegmentSortChunks(segment.getSegmentSort()),
-                                            ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                                            ChunkedToXContentHelper.chunk((builder, p) -> {
                                                 if (segment.attributes != null && segment.attributes.isEmpty() == false) {
                                                     builder.field("attributes", segment.attributes);
                                                 }
@@ -141,13 +139,13 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
                                             })
                                         )
                                     ),
-                                    ChunkedToXContentHelper.singleChunk((builder, p) -> builder.endObject().endObject())
+                                    ChunkedToXContentHelper.chunk((builder, p) -> builder.endObject().endObject())
                                 )
                             ),
                             ChunkedToXContentHelper.endArray()
                         )
                     ),
-                    ChunkedToXContentHelper.singleChunk((builder, p) -> builder.endObject().endObject())
+                    ChunkedToXContentHelper.chunk((builder, p) -> builder.endObject().endObject())
                 )
             ),
             ChunkedToXContentHelper.endObject()

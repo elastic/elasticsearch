@@ -2,6 +2,12 @@
 [[async-search]]
 === Async search
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
+
 The async search API let you asynchronously execute a search request, monitor
 its progress, and retrieve partial results as they become available.
 

@@ -97,7 +97,7 @@ public class ReadOnlyEngine extends Engine {
     @SuppressWarnings("this-escape")
     public ReadOnlyEngine(
         EngineConfig config,
-        SeqNoStats seqNoStats,
+        @Nullable SeqNoStats seqNoStats,
         @Nullable TranslogStats translogStats,
         boolean obtainLock,
         Function<DirectoryReader, DirectoryReader> readerWrapperFunction,
@@ -267,7 +267,8 @@ public class ReadOnlyEngine extends Engine {
                 translogDeletionPolicy,
                 config.getGlobalCheckpointSupplier(),
                 config.getPrimaryTermSupplier(),
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationAsserter.DEFAULT
             )
         ) {
             return translog.stats();

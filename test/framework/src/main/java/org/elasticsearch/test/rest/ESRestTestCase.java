@@ -781,7 +781,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             "profiling-60-days",
             "profiling-60-days@lifecycle",
             "synthetics",
+            "agentless",
             "synthetics@lifecycle",
+            "traces@lifecycle",
             "7-days-default",
             "7-days@lifecycle",
             "30-days-default",
@@ -2214,6 +2216,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "metrics-tsdb-settings":
             case "metrics-mappings":
             case "synthetics":
+            case "agentless":
             case "synthetics-settings":
             case "synthetics-mappings":
             case ".snapshot-blob-cache":

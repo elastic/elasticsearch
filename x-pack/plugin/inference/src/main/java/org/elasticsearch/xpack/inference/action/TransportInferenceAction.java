@@ -16,6 +16,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
@@ -28,6 +29,7 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
     public TransportInferenceAction(
         TransportService transportService,
         ActionFilters actionFilters,
+        XPackLicenseState licenseState,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
@@ -37,6 +39,7 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
             InferenceAction.NAME,
             transportService,
             actionFilters,
+            licenseState,
             modelRegistry,
             serviceRegistry,
             inferenceStats,

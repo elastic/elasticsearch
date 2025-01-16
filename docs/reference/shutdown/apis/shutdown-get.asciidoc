@@ -3,6 +3,12 @@
 
 NOTE: {cloud-only}
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-shutdown[Node lifecycle APIs].
+--
+
 Retrieves the status of a node that's being prepared for shutdown.
 
 [[get-shutdown-api-request]]

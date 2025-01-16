@@ -18,6 +18,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -72,6 +73,11 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
      * Ensure plugin is installed into the distribution.
      */
     T plugin(String pluginName);
+
+    /**
+     * Ensure plugin is installed into the distribution.
+     */
+    T plugin(String pluginName, Consumer<? super PluginInstallSpec> config);
 
     /**
      * Require feature to be enabled in the cluster.

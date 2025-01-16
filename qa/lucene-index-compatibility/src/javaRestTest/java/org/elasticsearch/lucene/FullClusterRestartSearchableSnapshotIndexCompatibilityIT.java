@@ -76,7 +76,6 @@ public class FullClusterRestartSearchableSnapshotIndexCompatibilityIT extends Fu
             var mountedIndex = suffix("index-mounted");
             logger.debug("--> mounting index [{}] as [{}]", index, mountedIndex);
             mountIndex(repository, snapshot, index, randomBoolean(), mountedIndex);
-
             ensureGreen(mountedIndex);
 
             assertThat(indexVersion(mountedIndex), equalTo(VERSION_MINUS_2));
@@ -88,6 +87,23 @@ public class FullClusterRestartSearchableSnapshotIndexCompatibilityIT extends Fu
             logger.debug("--> adding replica to test peer-recovery");
             updateIndexSettings(mountedIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
             ensureGreen(mountedIndex);
+
+            logger.debug("--> closing index [{}]", mountedIndex);
+            closeIndex(mountedIndex);
+            ensureGreen(mountedIndex);
+
+            logger.debug("--> adding replica to test peer-recovery for closed shards");
+            updateIndexSettings(mountedIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2));
+            ensureGreen(mountedIndex);
+
+            logger.debug("--> re-opening index [{}]", mountedIndex);
+            openIndex(mountedIndex);
+            ensureGreen(mountedIndex);
+
+            assertDocCount(client(), mountedIndex, numDocs);
+
+            logger.debug("--> deleting index [{}]", mountedIndex);
+            deleteIndex(mountedIndex);
         }
     }
 
@@ -138,11 +154,29 @@ public class FullClusterRestartSearchableSnapshotIndexCompatibilityIT extends Fu
 
             assertThat(indexVersion(mountedIndex), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), mountedIndex, numDocs);
+
+            if (randomBoolean()) {
+                logger.debug("--> adding replica to test upgrade with replica");
+                updateIndexSettings(mountedIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+                ensureGreen(mountedIndex);
+            }
+
+            if (randomBoolean()) {
+                logger.debug("--> random closing of index [{}] before upgrade", mountedIndex);
+                closeIndex(mountedIndex);
+                ensureGreen(mountedIndex);
+            }
             return;
         }
 
         if (isFullyUpgradedTo(VERSION_CURRENT)) {
             ensureGreen(mountedIndex);
+
+            if (isIndexClosed(mountedIndex)) {
+                logger.debug("--> re-opening index [{}] after upgrade", mountedIndex);
+                openIndex(mountedIndex);
+                ensureGreen(mountedIndex);
+            }
 
             assertThat(indexVersion(mountedIndex), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), mountedIndex, numDocs);
@@ -151,7 +185,7 @@ public class FullClusterRestartSearchableSnapshotIndexCompatibilityIT extends Fu
             updateRandomMappings(mountedIndex);
 
             logger.debug("--> adding replica to test peer-recovery");
-            updateIndexSettings(mountedIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+            updateIndexSettings(mountedIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2));
             ensureGreen(mountedIndex);
         }
     }

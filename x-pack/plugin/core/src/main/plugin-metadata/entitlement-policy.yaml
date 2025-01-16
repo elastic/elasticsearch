@@ -1,0 +1,4 @@
+org.apache.httpcomponents.httpclient:
+  - network:
+      actions:
+        - connect # For SamlRealm

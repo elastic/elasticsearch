@@ -805,7 +805,7 @@ public class RolloverIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             try {
-                indicesAdmin().prepareGetIndex().addIndices(writeIndexPrefix + "000002").get();
+                indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(writeIndexPrefix + "000002").get();
             } catch (Exception e) {
                 logger.info("--> expecting second index to be created but it has not yet been created");
                 fail("expecting second index to exist");
@@ -824,7 +824,7 @@ public class RolloverIT extends ESIntegTestCase {
         });
 
         // We should *NOT* have a third index, it should have rolled over *exactly* once
-        expectThrows(Exception.class, indicesAdmin().prepareGetIndex().addIndices(writeIndexPrefix + "000003"));
+        expectThrows(Exception.class, indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(writeIndexPrefix + "000003"));
     }
 
     public void testRolloverConcurrently() throws Exception {
@@ -866,7 +866,7 @@ public class RolloverIT extends ESIntegTestCase {
 
         for (int i = 0; i < numOfThreads; i++) {
             var aliasName = "test-" + i;
-            var response = indicesAdmin().getAliases(new GetAliasesRequest(aliasName)).get();
+            var response = indicesAdmin().getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT, aliasName)).get();
             List<Map.Entry<String, List<AliasMetadata>>> actual = response.getAliases().entrySet().stream().toList();
             List<Map.Entry<String, List<AliasMetadata>>> expected = new ArrayList<>(numberOfRolloversPerThread);
             int numOfIndices = numberOfRolloversPerThread + 1;

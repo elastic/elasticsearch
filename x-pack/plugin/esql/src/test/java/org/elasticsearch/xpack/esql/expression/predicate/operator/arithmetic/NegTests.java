@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -110,7 +111,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
                 equalTo(arg.negated())
             ).withoutEvaluator();
         })));
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers, (v, p) -> "numeric, date_period or time_duration");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(false, suppliers);
     }
 
     @Override
@@ -154,7 +155,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
 
     private Object foldTemporalAmount(Object val) {
         Neg neg = new Neg(Source.EMPTY, new Literal(Source.EMPTY, val, typeOf(val)));
-        return neg.fold();
+        return neg.fold(FoldContext.small());
     }
 
     private static DataType typeOf(Object val) {

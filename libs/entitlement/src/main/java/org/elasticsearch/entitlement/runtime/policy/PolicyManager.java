@@ -204,7 +204,7 @@ public class PolicyManager {
             return;
         }
 
-        ModuleEntitlements entitlements = getEntitlements(requestingClass);
+        ModuleEntitlements entitlements = getEntitlements(requestingClass, FileEntitlement.class);
         if (entitlements.fileAccess().canRead(file) == false) {
             throw new NotEntitledException(
                 Strings.format(
@@ -224,7 +224,7 @@ public class PolicyManager {
             return;
         }
 
-        ModuleEntitlements entitlements = getEntitlements(requestingClass);
+        ModuleEntitlements entitlements = getEntitlements(requestingClass, FileEntitlement.class);
         if (entitlements.fileAccess().canRead(path) == false) {
             throw new NotEntitledException(
                 Strings.format(
@@ -244,7 +244,7 @@ public class PolicyManager {
             return;
         }
 
-        ModuleEntitlements entitlements = getEntitlements(requestingClass);
+        ModuleEntitlements entitlements = getEntitlements(requestingClass, FileEntitlement.class);
         if (entitlements.fileAccess().canWrite(file) == false) {
             throw new NotEntitledException(
                 Strings.format(
@@ -263,7 +263,7 @@ public class PolicyManager {
             return;
         }
 
-        ModuleEntitlements entitlements = getEntitlements(requestingClass);
+        ModuleEntitlements entitlements = getEntitlements(requestingClass, FileEntitlement.class);
         if (entitlements.fileAccess().canWrite(path) == false) {
             throw new NotEntitledException(
                 Strings.format(

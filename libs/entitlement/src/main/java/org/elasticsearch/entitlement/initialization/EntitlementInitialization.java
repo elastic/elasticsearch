@@ -22,6 +22,7 @@ import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker
 import org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.ExitVMEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.NetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
@@ -44,6 +45,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.entitlement.runtime.policy.NetworkEntitlement.ACCEPT_ACTION;
+import static org.elasticsearch.entitlement.runtime.policy.NetworkEntitlement.CONNECT_ACTION;
+import static org.elasticsearch.entitlement.runtime.policy.NetworkEntitlement.LISTEN_ACTION;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
 
 /**
@@ -97,7 +101,15 @@ public class EntitlementInitialization {
             List.of(
                 new Scope("org.elasticsearch.base", List.of(new CreateClassLoaderEntitlement())),
                 new Scope("org.elasticsearch.xcontent", List.of(new CreateClassLoaderEntitlement())),
-                new Scope("org.elasticsearch.server", List.of(new ExitVMEntitlement(), new CreateClassLoaderEntitlement()))
+                new Scope(
+                    "org.elasticsearch.server",
+                    List.of(
+                        new ExitVMEntitlement(),
+                        new CreateClassLoaderEntitlement(),
+                        new NetworkEntitlement(LISTEN_ACTION | CONNECT_ACTION | ACCEPT_ACTION)
+                    )
+                ),
+                new Scope("org.apache.httpcomponents.httpclient", List.of(new NetworkEntitlement(CONNECT_ACTION)))
             )
         );
         // agents run without a module, so this is a special hack for the apm agent

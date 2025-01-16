@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -149,31 +148,22 @@ public final class Utils {
         latch.await();
     }
 
-    public static class TestInferencePlugin extends InferencePlugin {
-        public TestInferencePlugin(Settings settings) {
-            super(settings);
-        }
-
-        @Override
-        public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
-            return List.of(
-                TestSparseInferenceServiceExtension.TestInferenceService::new,
-                TestDenseInferenceServiceExtension.TestInferenceService::new
-            );
-        }
-    }
-
-    public static Model getInvalidModel(String inferenceEntityId, String serviceName) {
+    public static Model getInvalidModel(String inferenceEntityId, String serviceName, TaskType taskType) {
         var mockConfigs = mock(ModelConfigurations.class);
         when(mockConfigs.getInferenceEntityId()).thenReturn(inferenceEntityId);
         when(mockConfigs.getService()).thenReturn(serviceName);
-        when(mockConfigs.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+        when(mockConfigs.getTaskType()).thenReturn(taskType);
 
         var mockModel = mock(Model.class);
+        when(mockModel.getInferenceEntityId()).thenReturn(inferenceEntityId);
         when(mockModel.getConfigurations()).thenReturn(mockConfigs);
-        when(mockModel.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+        when(mockModel.getTaskType()).thenReturn(taskType);
 
         return mockModel;
+    }
+
+    public static Model getInvalidModel(String inferenceEntityId, String serviceName) {
+        return getInvalidModel(inferenceEntityId, serviceName, TaskType.TEXT_EMBEDDING);
     }
 
     public static SimilarityMeasure randomSimilarityMeasure() {

@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -51,35 +50,40 @@ class MlModelServer {
     private void handle(HttpExchange exchange) throws IOException {
         String fileName = exchange.getRequestURI().getPath().substring(1);
         String range = exchange.getRequestHeaders().getFirst("Range");
-        logger.info("Request: {} range={}", fileName, range);
-        byte[] bytes;
+        Integer rangeFrom = null;
+        Integer rangeTo = null;
+        if (range != null) {
+            assert range.startsWith("bytes=");
+            assert range.contains("-");
+            rangeFrom = Integer.parseInt(range.substring("bytes=".length(), range.indexOf('-')));
+            rangeTo = Integer.parseInt(range.substring(range.indexOf('-') + 1)) + 1;
+        }
+        logger.info("Request: {} range=[{},{})", fileName, rangeFrom, rangeTo);
         ClassLoader classloader = Thread.currentThread().getContextClassLoader();
         try (InputStream is = classloader.getResourceAsStream(fileName)) {
-            bytes = is == null ? null : is.readAllBytes();
-        }
-        if (bytes == null) {
-            logger.info("Response: {} 404", fileName);
-            exchange.sendResponseHeaders(HttpStatus.SC_NOT_FOUND, 0);
-        } else {
-            Integer rangeFrom = null;
-            Integer rangeTo = null;
-            if (range != null) {
-                assert range.startsWith("bytes=");
-                assert range.contains("-");
-                rangeFrom = Integer.parseInt(range.substring("bytes=".length(), range.indexOf('-')));
-                rangeTo = Integer.parseInt(range.substring(range.indexOf('-') + 1)) + 1;
-            }
-            int httpStatus;
-            if (range == null) {
-                httpStatus = HttpStatus.SC_OK;
+            if (is == null) {
+                logger.info("Response: {} 404", fileName);
+                exchange.sendResponseHeaders(HttpStatus.SC_NOT_FOUND, 0);
             } else {
-                httpStatus = HttpStatus.SC_PARTIAL_CONTENT;
-                bytes = Arrays.copyOfRange(bytes, rangeFrom, rangeTo);
-            }
-            logger.info("Response: {} {}", fileName, httpStatus);
-            exchange.sendResponseHeaders(httpStatus, bytes.length);
-            try (OutputStream os = exchange.getResponseBody()) {
-                os.write(bytes);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    int httpStatus;
+                    int numBytes;
+                    if (range == null) {
+                        httpStatus = HttpStatus.SC_OK;
+                        numBytes = is.available();
+                    } else {
+                        httpStatus = HttpStatus.SC_PARTIAL_CONTENT;
+                        is.skipNBytes(rangeFrom);
+                        numBytes = rangeTo - rangeFrom;
+                    }
+                    logger.info("Response: {} {}", fileName, httpStatus);
+                    exchange.sendResponseHeaders(httpStatus, numBytes);
+                    while (numBytes > 0) {
+                        byte[] bytes = is.readNBytes(Math.min(1<<20, numBytes));
+                        os.write(bytes);
+                        numBytes -= bytes.length;
+                    }
+                }
             }
         }
     }

@@ -271,8 +271,8 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         countRequest.setParentTask(parentTaskId);
         client.search(countRequest, listener.delegateFailure((delegate, response) -> {
             var totalHits = response.getHits().getTotalHits();
-            assert totalHits.relation() == TotalHits.Relation.EQUAL_TO;
-            delegate.onResponse(totalHits.value());
+            assert totalHits.relation == TotalHits.Relation.EQUAL_TO;
+            delegate.onResponse(totalHits.value);
         }));
     }
 

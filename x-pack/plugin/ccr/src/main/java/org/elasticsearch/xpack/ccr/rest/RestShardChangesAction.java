@@ -24,6 +24,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -105,7 +106,12 @@ public class RestShardChangesAction extends BaseRestHandler {
             client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME)
         );
         final CompletableFuture<String> indexUUIDCompletableFuture = indexNameCompletableFuture.thenCompose(
-            concreteIndexName -> asyncGetIndexUUID(client, concreteIndexName, client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME))
+            concreteIndexName -> asyncGetIndexUUID(
+                client,
+                concreteIndexName,
+                client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME),
+                RestUtils.getMasterNodeTimeout(restRequest)
+            )
         );
         final CompletableFuture<ShardStats> shardStatsCompletableFuture = indexNameCompletableFuture.thenCompose(
             concreteIndexName -> asyncShardStats(client, concreteIndexName, client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME))
@@ -336,18 +342,20 @@ public class RestShardChangesAction extends BaseRestHandler {
      * @param client The NodeClient for executing the asynchronous request.
      * @param concreteIndexName The name of the index for which to retrieve the index UUID.
      * @param executorService The executorService service for executing the asynchronous task.
+     * @param masterTimeout The timeout for waiting until the cluster is unblocked.
      * @return A CompletableFuture that completes with the retrieved index UUID.
      * @throws ElasticsearchException If an error occurs while retrieving the index UUID.
      */
     private static CompletableFuture<String> asyncGetIndexUUID(
         final NodeClient client,
         final String concreteIndexName,
-        final ExecutorService executorService
+        final ExecutorService executorService,
+        TimeValue masterTimeout
     ) {
         return supplyAsyncTask(
             () -> client.admin()
                 .indices()
-                .prepareGetIndex()
+                .prepareGetIndex(masterTimeout)
                 .setIndices(concreteIndexName)
                 .get(GET_INDEX_UUID_TIMEOUT)
                 .getSetting(concreteIndexName, IndexMetadata.SETTING_INDEX_UUID),

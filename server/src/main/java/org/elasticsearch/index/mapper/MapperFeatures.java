@@ -11,9 +11,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.util.Set;
 
@@ -28,34 +25,7 @@ public class MapperFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(
-            BWC_WORKAROUND_9_0,
-            IgnoredSourceFieldMapper.TRACK_IGNORED_SOURCE,
-            PassThroughObjectMapper.PASS_THROUGH_PRIORITY,
-            RangeFieldMapper.NULL_VALUES_OFF_BY_ONE_FIX,
-            SourceFieldMapper.SYNTHETIC_SOURCE_FALLBACK,
-            DenseVectorFieldMapper.INT4_QUANTIZATION,
-            DenseVectorFieldMapper.BIT_VECTORS,
-            DocumentMapper.INDEX_SORTING_ON_NESTED,
-            KeywordFieldMapper.KEYWORD_DIMENSION_IGNORE_ABOVE,
-            IndexModeFieldMapper.QUERYING_INDEX_MODE,
-            NodeMappingStats.SEGMENT_LEVEL_FIELDS_STATS,
-            BooleanFieldMapper.BOOLEAN_DIMENSION,
-            ObjectMapper.SUBOBJECTS_AUTO,
-            ObjectMapper.SUBOBJECTS_AUTO_FIXES,
-            KeywordFieldMapper.KEYWORD_NORMALIZER_SYNTHETIC_SOURCE,
-            SourceFieldMapper.SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX,
-            Mapper.SYNTHETIC_SOURCE_KEEP_FEATURE,
-            SourceFieldMapper.SYNTHETIC_SOURCE_WITH_COPY_TO_AND_DOC_VALUES_FALSE_SUPPORT,
-            SourceFieldMapper.SYNTHETIC_SOURCE_COPY_TO_FIX,
-            FlattenedFieldMapper.IGNORE_ABOVE_SUPPORT,
-            IndexSettings.IGNORE_ABOVE_INDEX_LEVEL_SETTING,
-            SourceFieldMapper.SYNTHETIC_SOURCE_COPY_TO_INSIDE_OBJECTS_FIX,
-            TimeSeriesRoutingHashFieldMapper.TS_ROUTING_HASH_FIELD_PARSES_BYTES_REF,
-            TimeSeriesMetricNamesHashFieldMapper.TS_METRIC_NAMES_HASH,
-            FlattenedFieldMapper.IGNORE_ABOVE_WITH_ARRAYS_SUPPORT,
-            DenseVectorFieldMapper.BBQ_FORMAT
-        );
+        return Set.of(BWC_WORKAROUND_9_0, TimeSeriesMetricNamesHashFieldMapper.TS_METRIC_NAMES_HASH);
     }
 
     public static final NodeFeature CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX = new NodeFeature(

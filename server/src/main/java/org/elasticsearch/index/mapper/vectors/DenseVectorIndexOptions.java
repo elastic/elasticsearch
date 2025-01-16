@@ -10,9 +10,6 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.elasticsearch.xcontent.ToXContent;
-
-import java.util.Objects;
 
 public abstract class DenseVectorIndexOptions extends IndexOptions {
 

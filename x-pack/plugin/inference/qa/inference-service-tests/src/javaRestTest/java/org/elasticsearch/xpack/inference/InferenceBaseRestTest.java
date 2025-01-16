@@ -26,6 +26,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -41,15 +43,31 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class InferenceBaseRestTest extends ESRestTestCase {
+
+    static final int ML_MODEL_SERVER_PORT = 9999;
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
+        .setting("xpack.ml.model_repository", "http://localhost:" + ML_MODEL_SERVER_PORT)
         .plugin("inference-service-test")
         .user("x_pack_rest_user", "x-pack-test-password")
         .feature(FeatureFlag.INFERENCE_UNIFIED_API_ENABLED)
         .build();
+
+    private static MlModelServer mlModelServer;
+
+    @BeforeClass
+    public static void startModelServer() throws Exception {
+        mlModelServer = new MlModelServer(ML_MODEL_SERVER_PORT);
+    }
+
+    @AfterClass
+    public static void stopModelServer() {
+        mlModelServer.close();
+    }
 
     @Override
     protected String getTestRestCluster() {

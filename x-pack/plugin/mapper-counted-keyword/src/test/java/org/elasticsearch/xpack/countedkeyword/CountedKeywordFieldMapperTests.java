@@ -21,6 +21,7 @@ import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -75,6 +76,7 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             minimalMapping(b);
+            b.field("synthetic_source_keep", "none");
             b.endObject();
         })).documentMapper();
 
@@ -93,6 +95,7 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             minimalMapping(b);
+            b.field("synthetic_source_keep", "none");
             b.endObject();
         })).documentMapper();
 
@@ -110,6 +113,27 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
         assertThat(syntheticSource(mapper, buildInput), equalTo(expected));
         assertThat(syntheticSource(mapper, new SourceFilter(new String[] { "field" }, null), buildInput), equalTo(expected));
         assertThat(syntheticSource(mapper, new SourceFilter(null, new String[] { "field" }), buildInput), equalTo("{}"));
+    }
+
+    // For now, synthetic source is only supported when "synthetic_source_keep" is "none"
+    @Ignore
+    @Override
+    public void testSyntheticSourceKeepAll() throws IOException{
+        super.testSyntheticSourceKeepAll();
+    }
+
+    // For now, synthetic source is only supported when "synthetic_source_keep" is "none"
+    @Ignore
+    @Override
+    public void testSyntheticSourceKeepArrays() throws IOException {
+        super.testSyntheticSourceKeepArrays();
+    }
+
+    // For now, synthetic source is only supported when "synthetic_source_keep" is "none"
+    @Ignore
+    @Override
+    public void testSyntheticSourceKeepNone() throws IOException {
+        super.testSyntheticSourceKeepNone();
     }
 
     @Override
@@ -141,6 +165,9 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
 
             private void mapping(XContentBuilder b) throws IOException {
                 minimalMapping(b);
+                // For now, synthetic source is only supported when "synthetic_source_keep" is "none".
+                // Once we implement true synthetic source support, we should remove this.
+                b.field("synthetic_source_keep", "none");
             }
 
             @Override

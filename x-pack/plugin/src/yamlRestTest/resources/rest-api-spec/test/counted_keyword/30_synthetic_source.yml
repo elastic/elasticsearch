@@ -14,6 +14,7 @@ setup:
             properties:
               events:
                 type: counted_keyword
+                synthetic_source_keep: none
 
 
   - do:

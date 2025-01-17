@@ -645,6 +645,7 @@ IDR       |  Indore       |  POINT(75.8472 22.7167)  |  India      |  POINT(75.8
 ;
 
 enrichDroppingOriginalIndexFields
+required_capability: enrich_load
 required_capability: fix_field_names_enrich_lookup_no_valid_fields
 
 from employees

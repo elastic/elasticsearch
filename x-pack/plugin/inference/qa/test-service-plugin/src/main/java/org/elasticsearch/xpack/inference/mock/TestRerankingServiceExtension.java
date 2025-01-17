@@ -171,7 +171,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
 
                     configurationMap.put(
                         "model",
-                        new SettingsConfiguration.Builder().setDescription("")
+                        new SettingsConfiguration.Builder(EnumSet.of(TaskType.RERANK)).setDescription("")
                             .setLabel("Model")
                             .setRequired(true)
                             .setSensitive(true)

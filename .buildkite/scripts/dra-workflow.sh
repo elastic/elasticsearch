@@ -22,6 +22,7 @@ if [[ "$BRANCH" == "main" ]]; then
 fi
 
 ES_VERSION=$(grep elasticsearch build-tools-internal/version.properties | sed "s/elasticsearch *= *//g")
+BASE_VERSION="$ES_VERSION"
 echo "ES_VERSION=$ES_VERSION"
 
 VERSION_SUFFIX=""
@@ -104,7 +105,7 @@ docker run --rm \
   --commit "$BUILDKITE_COMMIT" \
   --workflow "$WORKFLOW" \
   --qualifier "${VERSION_QUALIFIER:-}" \
-  --version "$ES_VERSION" \
+  --version "$BASE_VERSION" \
   --artifact-set main \
   --dependency "beats:https://artifacts-${WORKFLOW}.elastic.co/beats/${BEATS_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json" \
   --dependency "ml-cpp:https://artifacts-${WORKFLOW}.elastic.co/ml-cpp/${ML_CPP_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json"

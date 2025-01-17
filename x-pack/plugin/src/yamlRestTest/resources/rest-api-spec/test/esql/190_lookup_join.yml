@@ -25,7 +25,6 @@ setup:
           settings:
             index:
               mode: lookup
-            number_of_shards: 1
           mappings:
             properties:
               key:

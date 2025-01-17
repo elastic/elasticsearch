@@ -287,10 +287,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     private static final String LEGACY_VERSION_FIELD_VALUE = "8.12.0";
 
     private static final String REINDEX_SCRIPT_FROM_V7 = """
-        if (ctx._source.containsKey('input') &&
-            ctx._source.input.containsKey('search') &&
-            ctx._source.input.search.containsKey('request') &&
-            ctx._source.input.search.request.containsKey('types')) {
+        if (ctx._source.input?.search?.request?.types != null) {
           ctx._source.input.search.request.remove('types');
         }
         """;

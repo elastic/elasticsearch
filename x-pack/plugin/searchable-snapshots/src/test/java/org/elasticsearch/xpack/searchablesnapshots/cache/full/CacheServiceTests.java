@@ -336,6 +336,37 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         cacheService.stop();
     }
 
+    public void testCacheSynchronizationForNonExistingFile() throws Exception {
+        // Create a CacheFile and ensure there is a NEEDS_FSYNC event queued for it. Make sure that if the file is removed while
+        // fsync is pending, no more NEEDS_FSYNC events are enqueued for this file.
+        final Index index = new Index(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random()));
+        final String snapshotUUID = UUIDs.randomBase64UUID(random());
+        final String snapshotIndexName = UUIDs.randomBase64UUID(random());
+        final ShardId shardId = new ShardId(index, 0);
+        final Path shardDataPath = randomShardPath(shardId);
+        assertFalse(Files.exists(shardDataPath));
+        final Path shardCacheDir = Files.createDirectories(CacheService.resolveSnapshotCache(shardDataPath).resolve(snapshotUUID));
+        try (CacheService cacheService = defaultCacheService()) {
+            cacheService.setCacheSyncInterval(TimeValue.timeValueMillis(Long.MAX_VALUE));
+            cacheService.start();
+            final String fileName = randomAlphaOfLength(10);
+            final CacheKey cacheKey = new CacheKey(snapshotUUID, snapshotIndexName, shardId, fileName);
+            final CacheFile cacheFile = cacheService.get(cacheKey, 1000, shardCacheDir);
+            final CacheFile.EvictionListener listener = evictedCacheFile -> {};
+            cacheFile.acquire(listener);
+            // trigger an fsync
+            SortedSet<ByteRange> newRanges;
+            do {
+                newRanges = randomPopulateAndReads(cacheFile);
+            } while (newRanges.isEmpty() == false);
+            assertTrue(cacheService.isCacheFileToSync(cacheFile));
+            assertTrue(Files.deleteIfExists(cacheFile.getFile()));
+            cacheService.synchronizeCache();
+            assertFalse(cacheService.isCacheFileToSync(cacheFile));
+            cacheFile.release(listener);
+        }
+    }
+
     private static class BlockingEvictionListener implements CacheFile.EvictionListener {
 
         private final CountDownLatch evictionLatch = new CountDownLatch(1);

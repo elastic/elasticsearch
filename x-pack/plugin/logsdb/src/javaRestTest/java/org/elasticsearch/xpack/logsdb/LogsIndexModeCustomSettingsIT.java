@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -122,6 +123,18 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
         String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
         assertThat(sourceMode, equalTo("stored"));
+
+        request = new Request("GET", "/_migration/deprecations");
+        var nodeSettings = (Map<?, ?>) ((List<?>) entityAsMap(client.performRequest(request)).get("node_settings")).getFirst();
+        assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
+        assertThat(
+            (String) nodeSettings.get("details"),
+            allOf(
+                containsString(SourceFieldMapper.DEPRECATION_WARNING),
+                containsString("Affected indexes: [.ds-logs-custom-dev-"),
+                containsString("Affected component templates: [logs@custom]")
+            )
+        );
     }
 
     public void testConfigureDisabledSourceBeforeIndexCreation() {
@@ -196,6 +209,18 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
         String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
         assertThat(sourceMode, equalTo("stored"));
+
+        request = new Request("GET", "/_migration/deprecations");
+        var nodeSettings = (Map<?, ?>) ((List<?>) entityAsMap(client.performRequest(request)).get("node_settings")).getFirst();
+        assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
+        assertThat(
+            (String) nodeSettings.get("details"),
+            allOf(
+                containsString(SourceFieldMapper.DEPRECATION_WARNING),
+                containsString("Affected indexes: [.ds-logs-custom-dev-"),
+                containsString("Affected component templates: [logs@custom]")
+            )
+        );
     }
 
     public void testConfigureDisabledSourceWhenIndexIsCreated() throws IOException {

@@ -9,15 +9,13 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -35,21 +33,6 @@ public class GetMappingsResponse extends ActionResponse implements ChunkedToXCon
         this.mappings = mappings;
     }
 
-    GetMappingsResponse(StreamInput in) throws IOException {
-        super(in);
-        mappings = in.readImmutableMap(in.getTransportVersion().before(TransportVersions.V_8_0_0) ? i -> {
-            int mappingCount = i.readVInt();
-            assert mappingCount == 1 || mappingCount == 0 : "Expected 0 or 1 mappings but got " + mappingCount;
-            if (mappingCount == 1) {
-                String type = i.readString();
-                assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected type [_doc] but got [" + type + "]";
-                return new MappingMetadata(i);
-            } else {
-                return MappingMetadata.EMPTY_MAPPINGS;
-            }
-        } : i -> i.readBoolean() ? new MappingMetadata(i) : MappingMetadata.EMPTY_MAPPINGS);
-    }
-
     public Map<String, MappingMetadata> mappings() {
         return mappings;
     }
@@ -58,6 +41,11 @@ public class GetMappingsResponse extends ActionResponse implements ChunkedToXCon
         return mappings();
     }
 
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         MappingMetadata.writeMappingMetadata(out, mappings);

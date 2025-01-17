@@ -7,23 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.http;
+package org.elasticsearch.xpack.ilm;
 
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
-import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
-import org.elasticsearch.action.admin.indices.get.GetIndexAction;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
-import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
-import org.elasticsearch.action.admin.indices.template.post.SimulateIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.post.SimulateTemplateAction;
-import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.support.CancellableActionTestPlugin;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -31,12 +18,19 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.root.MainRestPlugin;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.transport.netty4.Netty4Plugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 
+import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -44,80 +38,38 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.oneOf;
 
-public class RestActionCancellationIT extends HttpSmokeTestCase {
+public class ILMRestActionCancellationIT extends ESIntegTestCase {
 
-    public void testIndicesRecoveryRestCancellation() {
-        createIndex("test");
-        ensureGreen("test");
-        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_recovery"), RecoveryAction.NAME);
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
     }
 
-    public void testCatRecoveryRestCancellation() {
-        createIndex("test");
-        ensureGreen("test");
-        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_cat/recovery"), RecoveryAction.NAME);
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, Netty4Plugin.NETTY_TRANSPORT_NAME)
+            .put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME)
+            .build();
     }
 
-    public void testClusterHealthRestCancellation() {
-        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_cluster/health"), TransportClusterHealthAction.NAME);
-    }
-
-    public void testClusterStateRestCancellation() {
-        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_cluster/state"), ClusterStateAction.NAME);
-    }
-
-    public void testGetAliasesCancellation() {
-        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_alias"), GetAliasesAction.NAME);
-    }
-
-    public void testCatAliasesCancellation() {
-        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_cat/aliases"), GetAliasesAction.NAME);
-    }
-
-    public void testGetComponentTemplateCancellation() {
-        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_component_template"), GetComponentTemplateAction.NAME);
-    }
-
-    public void testGetIndexTemplateCancellation() {
-        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_template"), GetIndexTemplatesAction.NAME);
-    }
-
-    public void testGetComposableTemplateCancellation() {
-        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_index_template"), GetComposableIndexTemplateAction.NAME);
-    }
-
-    public void testSimulateTemplateCancellation() {
-        runRestActionCancellationTest(
-            new Request(HttpPost.METHOD_NAME, "/_index_template/_simulate/random_index_template"),
-            SimulateTemplateAction.NAME
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(
+            getTestTransportPlugin(),
+            MainRestPlugin.class,
+            CancellableActionTestPlugin.class,
+            LocalStateCompositeXPackPlugin.class,
+            IndexLifecycle.class
         );
     }
 
-    public void testSimulateIndexTemplateCancellation() {
+    public void testExplainDataStreamLifecycleCancellation() {
         createIndex("test");
-        runRestActionCancellationTest(
-            new Request(HttpPost.METHOD_NAME, "/_index_template/_simulate_index/test"),
-            SimulateIndexTemplateAction.NAME
-        );
-    }
-
-    public void testClusterGetSettingsCancellation() {
-        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_cluster/settings"), ClusterGetSettingsAction.NAME);
-    }
-
-    public void testGetPipelineCancellation() {
-        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_ingest/pipeline"), GetPipelineAction.NAME);
-    }
-
-    public void testGetIndexCancellation() {
-        createIndex("test");
-        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/test"), GetIndexAction.NAME);
-    }
-
-    public void testGetMappingsCancellation() {
-        createIndex("test");
-        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/test/_mappings"), GetMappingsAction.NAME);
+        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/test/_ilm/explain"), ExplainLifecycleAction.NAME);
     }
 
     private void runRestActionCancellationTest(Request request, String actionName) {
@@ -160,7 +112,7 @@ public class RestActionCancellationIT extends HttpSmokeTestCase {
                                             listTasksResponse.evaluate(taskPrefix + "node"),
                                             listTasksResponse.evaluate(taskPrefix + "id")
                                         ),
-                                        wrapAsRestResponseListener(listeners.acquire(HttpSmokeTestCase::assertOK))
+                                        wrapAsRestResponseListener(listeners.acquire(ILMRestActionCancellationIT::assertOK))
                                     );
                                 }
                             }
@@ -192,8 +144,8 @@ public class RestActionCancellationIT extends HttpSmokeTestCase {
         return cancelTaskRequest;
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), CancellableActionTestPlugin.class);
+    public static void assertOK(Response response) {
+        assertThat(response.getStatusLine().getStatusCode(), oneOf(200, 201));
     }
+
 }

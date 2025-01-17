@@ -63,8 +63,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
             threadPool,
             actionFilters,
             GetIndexRequest::new,
-            indexNameExpressionResolver,
-            GetIndexResponse::new
+            indexNameExpressionResolver
         );
         this.indicesService = indicesService;
         this.settingsFilter = settingsFilter;

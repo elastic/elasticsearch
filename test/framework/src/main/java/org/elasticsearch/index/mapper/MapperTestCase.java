@@ -1769,7 +1769,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         DocumentMapper mapperAll = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("wrapper");
             b.field("type", "object");
-            b.field("synthetic_source_keep","arrays");  // Both options keep array source.
+            b.field("synthetic_source_keep", "arrays");  // Both options keep array source.
             b.startObject("properties");
             b.startObject("field");
             example.mapping().accept(b);
@@ -1806,7 +1806,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
         var settings = Settings.builder()
             .put("index.mapping.source.mode", "synthetic")
-            .put("index.mapping.synthetic_source_keep", "arrays").build();
+            .put("index.mapping.synthetic_source_keep", "arrays")
+            .build();
         DocumentMapper mapperAll = createMapperService(getVersion(), settings, () -> true, mappings).documentMapper();
 
         int elementCount = randomIntBetween(2, 5);

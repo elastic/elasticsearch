@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.core.expression.predicate.logical;
+package org.elasticsearch.xpack.esql.expression.predicate.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.predicate.PredicateBiFunction;
 

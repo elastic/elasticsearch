@@ -231,7 +231,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
     }
 
     @Override
-    public void postLogicalOptimizationVerification(Failures failures) {
+    public void postOptimizationVerification(Failures failures) {
         if (order == null) {
             return;
         }

@@ -217,6 +217,11 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
          */
         Builder copyFrom(LongBlock block, int beginInclusive, int endExclusive);
 
+        /**
+         * Copy the values in {@code block} at {@code position}.
+         */
+        Builder copyFrom(LongBlock block, int position);
+
         @Override
         Builder appendNull();
 

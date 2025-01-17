@@ -288,6 +288,11 @@ $endif$
          */
         Builder copyFrom($Type$Block block, int beginInclusive, int endExclusive);
 
+        /**
+         * Copy the values in {@code block} at {@code position}.
+         */
+        Builder copyFrom($Type$Block block, int position$if(BytesRef)$, BytesRef scratch$endif$);
+
         @Override
         Builder appendNull();
 

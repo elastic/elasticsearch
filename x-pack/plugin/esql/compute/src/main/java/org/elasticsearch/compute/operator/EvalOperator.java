@@ -96,6 +96,11 @@ public class EvalOperator extends AbstractPageMappingOperator {
                 public void close() {
 
                 }
+
+                @Override
+                public String toString() {
+                    return "ConstantNull";
+                }
             };
         }
 

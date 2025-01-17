@@ -216,6 +216,11 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
          */
         Builder copyFrom(IntBlock block, int beginInclusive, int endExclusive);
 
+        /**
+         * Copy the values in {@code block} at {@code position}.
+         */
+        Builder copyFrom(IntBlock block, int position);
+
         @Override
         Builder appendNull();
 

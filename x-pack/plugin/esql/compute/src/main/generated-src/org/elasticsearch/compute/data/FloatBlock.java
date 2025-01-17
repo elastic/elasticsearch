@@ -216,6 +216,11 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
          */
         Builder copyFrom(FloatBlock block, int beginInclusive, int endExclusive);
 
+        /**
+         * Copy the values in {@code block} at {@code position}.
+         */
+        Builder copyFrom(FloatBlock block, int position);
+
         @Override
         Builder appendNull();
 

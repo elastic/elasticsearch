@@ -223,6 +223,11 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
          */
         Builder copyFrom(BooleanBlock block, int beginInclusive, int endExclusive);
 
+        /**
+         * Copy the values in {@code block} at {@code position}.
+         */
+        Builder copyFrom(BooleanBlock block, int position);
+
         @Override
         Builder appendNull();
 

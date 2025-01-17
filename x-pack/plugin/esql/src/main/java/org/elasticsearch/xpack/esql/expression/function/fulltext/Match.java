@@ -29,8 +29,8 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -393,7 +393,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
 
     @Override
     protected Query translate(TranslatorHandler handler) {
-        Expression fieldExpression = field;
+        Expression fieldExpression = field();
         // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
         if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
             fieldExpression = convertFunction.field();
@@ -405,7 +405,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
                 fieldName = multiTypeEsField.getName();
             }
             // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
-            return new MatchQuery(source(), fieldName, queryAsObject(), Map.of("lenient", "true"));
+            return new MatchQuery(source(), fieldName, queryAsObject(), optionsMap());
         }
 
         throw new IllegalArgumentException("Match must have a field attribute as the first argument");

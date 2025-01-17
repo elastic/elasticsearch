@@ -391,6 +391,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.downsample;
     exports org.elasticsearch.plugins.internal
         to
+            org.elasticsearch.inference,
             org.elasticsearch.metering,
             org.elasticsearch.stateless,
             org.elasticsearch.settings.secure,

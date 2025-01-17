@@ -76,8 +76,7 @@ import static org.elasticsearch.common.lucene.Lucene.KEYWORD_ANALYZER;
  * 2 for each key (one per document), a <code>counted_terms</code> aggregation on a <code>counted_keyword</code> field will consider
  * the actual count and report a count of 3 for each key.</p>
  *
- * <p>Synthetic source is supported, but uses the fallback "ignore source" infrastructure unless the <code>source_keep_mode</code> is
- *  explicitly set to <code>none</code> in the field mapping parameters.</p>
+ * <p>Only regular source is supported; synthetic source won't work.</p>
  */
 public class CountedKeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "counted_keyword";
@@ -493,7 +492,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         var keepMode = sourceKeepMode();
-        if (keepMode.isPresent() == false || keepMode.get() != SourceKeepMode.NONE) {
+        if (keepMode.isPresent() && keepMode.get() != SourceKeepMode.NONE) {
             return super.syntheticSourceSupport();
         }
 

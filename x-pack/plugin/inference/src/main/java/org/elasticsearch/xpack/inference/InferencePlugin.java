@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction
 import org.elasticsearch.xpack.inference.action.TransportUnifiedCompletionInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
+import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockRequestSender;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -126,6 +127,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.inference.common.InferenceAPIClusterAwareRateLimitingFeature.*;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG;
@@ -222,6 +224,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
+        var components = new ArrayList<>();
+
+        var clusterService = services.clusterService();
         var throttlerManager = new ThrottlerManager(settings, services.threadPool(), services.clusterService());
         var truncator = new Truncator(settings, services.clusterService());
         serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator));
@@ -260,7 +265,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             elasticInferenceUrl = inferenceServiceSettings.getEisGatewayUrl();
         }
 
-        if (elasticInferenceUrl != null) {
+        boolean elasticInferenceServiceFeatureEnabled = elasticInferenceUrl != null;
+
+        if (elasticInferenceServiceFeatureEnabled) {
             elasticInferenceServiceComponents.set(new ElasticInferenceServiceComponents(elasticInferenceUrl));
 
             inferenceServices.add(
@@ -277,26 +284,37 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(
             services.client(),
             services.threadPool(),
-            services.clusterService(),
+            clusterService,
             settings
         );
 
         // This must be done after the HttpRequestSenderFactory is created so that the services can get the
         // reference correctly
-        var registry = new InferenceServiceRegistry(inferenceServices, factoryContext);
-        registry.init(services.client());
-        for (var service : registry.getServices().values()) {
+        var serviceRegistry = new InferenceServiceRegistry(inferenceServices, factoryContext);
+        serviceRegistry.init(services.client());
+        for (var service : serviceRegistry.getServices().values()) {
             service.defaultConfigIds().forEach(modelRegistry::addDefaultIds);
         }
-        inferenceServiceRegistry.set(registry);
+        inferenceServiceRegistry.set(serviceRegistry);
 
-        var actionFilter = new ShardBulkInferenceActionFilter(services.clusterService(), registry, modelRegistry);
+        var actionFilter = new ShardBulkInferenceActionFilter(services.clusterService(), serviceRegistry, modelRegistry);
         shardBulkInferenceActionFilter.set(actionFilter);
 
         var meterRegistry = services.telemetryProvider().getMeterRegistry();
-        var stats = new PluginComponentBinding<>(InferenceStats.class, InferenceStats.create(meterRegistry));
+        var inferenceStats = new PluginComponentBinding<>(InferenceStats.class, InferenceStats.create(meterRegistry));
 
-        return List.of(modelRegistry, registry, httpClientManager, stats);
+        components.add(serviceRegistry);
+        components.add(modelRegistry);
+        components.add(httpClientManager);
+        components.add(inferenceStats);
+
+        // Only add InferenceServiceNodeLocalRateLimitCalculator (which is a ClusterStateListener) for cluster aware rate limiting,
+        // if elastic inference service and the rate limiting feature flags are enabled
+        if (elasticInferenceServiceFeatureEnabled && INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG.isEnabled()) {
+            components.add(new InferenceServiceNodeLocalRateLimitCalculator(services.clusterService(), serviceRegistry));
+        }
+
+        return components;
     }
 
     @Override

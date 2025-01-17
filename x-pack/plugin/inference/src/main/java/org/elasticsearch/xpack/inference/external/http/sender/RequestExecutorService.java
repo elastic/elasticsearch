@@ -19,6 +19,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.AdjustableCapacityBlockingQueue;
+import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator;
 import org.elasticsearch.xpack.inference.common.RateLimiter;
 import org.elasticsearch.xpack.inference.external.http.RequestExecutor;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
@@ -53,7 +55,7 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
  * attempting to execute a task (aka waiting for the connection manager to lease a connection). See
  * {@link org.apache.http.client.config.RequestConfig.Builder#setConnectionRequestTimeout} for more info.
  */
-class RequestExecutorService implements RequestExecutor {
+public class RequestExecutorService implements RequestExecutor {
 
     /**
      * Provides dependency injection mainly for testing
@@ -172,6 +174,10 @@ class RequestExecutorService implements RequestExecutor {
 
     public int queueSize() {
         return rateLimitGroupings.values().stream().mapToInt(RateLimitingEndpointHandler::queueSize).sum();
+    }
+
+    public Collection<RateLimitingEndpointHandler> rateLimitingEndpointHandlers() {
+        return rateLimitGroupings.values();
     }
 
     /**
@@ -314,7 +320,7 @@ class RequestExecutorService implements RequestExecutor {
      * This allows many requests to be serialized if they are being sent too fast. If the rate limit has not been met they will be sent
      * as soon as a thread is available.
      */
-    private static class RateLimitingEndpointHandler {
+    public static class RateLimitingEndpointHandler {
 
         private static final TimeValue NO_TASKS_AVAILABLE = TimeValue.MAX_VALUE;
         private static final TimeValue EXECUTED_A_TASK = TimeValue.ZERO;
@@ -329,6 +335,8 @@ class RequestExecutorService implements RequestExecutor {
         private final Clock clock;
         private final RateLimiter rateLimiter;
         private final RequestExecutorServiceSettings requestExecutorServiceSettings;
+        private final RateLimitSettings rateLimitSettings;
+        private final Long originalRequestsPerTimeUnit;
 
         RateLimitingEndpointHandler(
             String id,
@@ -346,6 +354,8 @@ class RequestExecutorService implements RequestExecutor {
             this.requestSender = Objects.requireNonNull(requestSender);
             this.clock = Objects.requireNonNull(clock);
             this.isShutdownMethod = Objects.requireNonNull(isShutdownMethod);
+            this.rateLimitSettings = Objects.requireNonNull(rateLimitSettings);
+            this.originalRequestsPerTimeUnit = rateLimitSettings.requestsPerTimeUnit();
 
             Objects.requireNonNull(rateLimitSettings);
             Objects.requireNonNull(rateLimiterCreator);
@@ -359,6 +369,25 @@ class RequestExecutorService implements RequestExecutor {
 
         public void init() {
             requestExecutorServiceSettings.registerQueueCapacityCallback(id, this::onCapacityChange);
+        }
+
+        /**
+         * This method is solely called by {@link InferenceServiceNodeLocalRateLimitCalculator} to update
+         * rate limits, so they're "node-local".
+         * The general idea is described in {@link InferenceServiceNodeLocalRateLimitCalculator} in more detail.
+         *
+         * @param newTokensPerTimeUnit - specifies the amount of tokens per time unit the rate limiter should be updated to
+         */
+        public synchronized void updateTokensPerTimeUnit(double newTokensPerTimeUnit) {
+            rateLimiter.setRate(ACCUMULATED_TOKENS_LIMIT, newTokensPerTimeUnit, rateLimitSettings.timeUnit());
+        }
+
+        public synchronized long originalRequestsPerTimeUnit() {
+            return originalRequestsPerTimeUnit;
+        }
+
+        public String id() {
+            return id;
         }
 
         private void onCapacityChange(int capacity) {

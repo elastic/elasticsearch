@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -103,6 +105,14 @@ public class HttpRequestSender implements Sender {
             threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(service::start);
             waitForStartToComplete();
         }
+    }
+
+    public Collection<RequestExecutorService.RateLimitingEndpointHandler> rateLimitingEndpointHandlers() {
+        if (service instanceof RequestExecutorService) {
+            return ((RequestExecutorService) service).rateLimitingEndpointHandlers();
+        }
+
+        return List.of();
     }
 
     private void waitForStartToComplete() {

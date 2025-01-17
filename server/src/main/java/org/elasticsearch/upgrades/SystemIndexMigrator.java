@@ -45,6 +45,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.LinkedList;
@@ -563,6 +564,10 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         reindexRequest.setSourceIndices(migrationInfo.getCurrentIndexName());
         reindexRequest.setDestIndex(migrationInfo.getNextIndexName());
         reindexRequest.setRefresh(true);
+        String migrationScript = migrationInfo.getMigrationScript();
+        if (Strings.isNullOrEmpty(migrationScript) == false) {
+            reindexRequest.setScript(Script.parse(migrationScript));
+        }
         migrationInfo.createClient(baseClient).execute(ReindexAction.INSTANCE, reindexRequest, listener);
     }
 

@@ -1,0 +1,5 @@
+pr: 120200
+summary: "[Connector API] Support hard deletes with new URL param in delete endpoint"
+area: Extract&Transform
+type: feature
+issues: []

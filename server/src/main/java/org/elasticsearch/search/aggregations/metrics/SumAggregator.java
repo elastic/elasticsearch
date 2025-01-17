@@ -67,18 +67,33 @@ public class SumAggregator extends NumericMetricsAggregator.SingleDoubleValue {
 
     @Override
     protected LeafBucketCollector getLeafCollector(NumericDoubleValues values, final LeafBucketCollector sub) {
-        final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (values.advanceExact(doc)) {
                     maybeGrow(bucket);
+                    var sums = SumAggregator.this.sums;
                     // Compute the sum of double values with Kahan summation algorithm which is more
                     // accurate than naive summation.
-                    kahanSummation.reset(sums.get(bucket), compensations.get(bucket));
-                    kahanSummation.add(values.doubleValue());
-                    compensations.set(bucket, kahanSummation.delta());
-                    sums.set(bucket, kahanSummation.value());
+                    double value = sums.get(bucket);
+                    // If the value is Inf or NaN, just add it to the running tally to "convert" to
+                    // Inf/NaN. This keeps the behavior bwc from before kahan summing
+                    double v = values.doubleValue();
+                    if (Double.isFinite(v) == false) {
+                        value = v + value;
+                    }
+
+                    if (Double.isFinite(value)) {
+                        var compensations = SumAggregator.this.compensations;
+                        double delta = compensations.get(bucket);
+                        double correctedSum = v + delta;
+                        double updatedValue = value + correctedSum;
+                        delta = correctedSum - (updatedValue - value);
+                        value = updatedValue;
+                        compensations.set(bucket, delta);
+                    }
+
+                    sums.set(bucket, value);
                 }
             }
         };

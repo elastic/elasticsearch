@@ -87,6 +87,6 @@ Column headings for the search results. Each object is a column.
 (string) Data type for the column.
 ====
 
-`rows`::
+`values`::
 (array of arrays)
 Values for the search results.

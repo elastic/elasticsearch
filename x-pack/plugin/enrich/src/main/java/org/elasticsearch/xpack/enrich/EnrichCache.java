@@ -35,12 +35,12 @@ import java.util.function.ToLongBiFunction;
 /**
  * A simple cache for enrich that uses {@link Cache}. There is one instance of this cache and
  * multiple enrich processors with different policies will use this cache.
- *
+ * <p>
  * The key of the cache is based on the search request and the enrich index that will be used.
  * Search requests that enrich generates target the alias for an enrich policy, this class
  * resolves the alias to the actual enrich index and uses that for the cache key. This way
  * no stale entries will be returned if a policy execution happens and a new enrich index is created.
- *
+ * <p>
  * There is no cleanup mechanism of stale entries in case a new enrich index is created
  * as part of a policy execution. This shouldn't be needed as cache entries for prior enrich
  * indices will be eventually evicted, because these entries will not end up being used. The

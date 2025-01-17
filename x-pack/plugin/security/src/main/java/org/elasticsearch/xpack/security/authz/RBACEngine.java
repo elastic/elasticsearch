@@ -34,6 +34,7 @@ import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -317,7 +318,7 @@ public class RBACEngine implements AuthorizationEngine {
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
         AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-        Map<String, IndexAbstraction> aliasOrIndexLookup,
+        Metadata metadata,
         ActionListener<IndexAuthorizationResult> listener
     ) {
         final String action = requestInfo.getAction();
@@ -422,7 +423,7 @@ public class RBACEngine implements AuthorizationEngine {
                                 .allMatch(IndicesAliasesRequest.AliasActions::expandAliasesWildcards))
                         : "expanded wildcards for local indices OR the request should not expand wildcards at all";
 
-                    IndexAuthorizationResult result = buildIndicesAccessControl(action, role, resolvedIndices, aliasOrIndexLookup);
+                    IndexAuthorizationResult result = buildIndicesAccessControl(action, role, resolvedIndices, metadata);
                     if (requestInfo.getAuthentication().isCrossClusterAccess()
                         && request instanceof IndicesRequest.RemoteClusterShardRequest shardsRequest
                         && shardsRequest.shards() != null) {
@@ -882,7 +883,7 @@ public class RBACEngine implements AuthorizationEngine {
                                 indicesAndAliases.add(index.getName());
                             }
                             // TODO: We need to limit if a data stream's failure indices should return here.
-                            for (Index index : ((DataStream) indexAbstraction).getFailureIndices().getIndices()) {
+                            for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
                                 indicesAndAliases.add(index.getName());
                             }
                         }
@@ -917,12 +918,12 @@ public class RBACEngine implements AuthorizationEngine {
         String action,
         Role role,
         ResolvedIndices resolvedIndices,
-        Map<String, IndexAbstraction> aliasAndIndexLookup
+        Metadata metadata
     ) {
         final IndicesAccessControl accessControl = role.authorize(
             action,
             Sets.newHashSet(resolvedIndices.getLocal()),
-            aliasAndIndexLookup,
+            metadata,
             fieldPermissionsCache
         );
         return new IndexAuthorizationResult(accessControl);

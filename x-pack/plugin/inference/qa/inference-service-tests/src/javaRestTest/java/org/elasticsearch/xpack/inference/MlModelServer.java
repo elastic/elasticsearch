@@ -27,26 +27,53 @@ import java.util.concurrent.Executors;
  * If the file is found, its content is returned, otherwise 404.
  * Respects a range header to serve partial content.
  */
-class MlModelServer {
+public class MlModelServer {
 
     private static final Logger logger = LogManager.getLogger(MlModelServer.class);
 
-    private final HttpServer mlModelServer;
-    private final ExecutorService mlModelServerExecutor;
+    private final int port;
+    private final HttpServer server;
 
-    MlModelServer(int port) throws IOException {
-        logger.info("Starting ML model server on port {}", port);
-        mlModelServer = HttpServer.create(new InetSocketAddress(port), 10);
-        mlModelServer.createContext("/", this::handle);
-        mlModelServerExecutor = Executors.newCachedThreadPool();
-        mlModelServer.setExecutor(mlModelServerExecutor);
-        mlModelServer.start();
+    private ExecutorService executor;
+
+    public MlModelServer() {
+        try {
+            server = HttpServer.create();
+        } catch (IOException e) {
+            throw new RuntimeException("Could not create server", e);
+        }
+        server.createContext("/", this::handle);
+        port = findUnusedPort();
     }
 
-    void close() {
-        logger.info("Stopping ML model server");
-        mlModelServer.stop(5);
-        mlModelServerExecutor.close();
+    private int findUnusedPort() {
+        Exception exception = null;
+        for (int port = 10000; port < 11000; port++) {
+            try {
+                server.bind(new InetSocketAddress(port), 0);
+                return port;
+            } catch (IOException e) {
+                exception = e;
+            }
+        }
+        throw new RuntimeException("Could not find port", exception);
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    public void start() {
+        logger.info("Starting ML model server on port {}", port);
+        executor = Executors.newCachedThreadPool();
+        server.setExecutor(executor);
+        server.start();
+    }
+
+    public void stop() {
+        logger.info("Stopping ML model server in port {}", port);
+        server.stop(1);
+        executor.shutdown();
     }
 
     private void handle(HttpExchange exchange) throws IOException {

@@ -280,6 +280,20 @@ POST metrics-weather_sensors-dev/_rollover
 // TEST[teardown:tsds_cleanup]
 
 [discrete]
+[[set-up-component-templates]]
+==== A note about component templates and index.mode setting
+
+Configuring a TSDS via an index template that uses component templates is a bit more complicated.
+Typically with component templates mappings and settings get scattered across multiple component templates.
+When configuring the `index.mode` setting in a component template, the `index.routing_path` setting needs to
+be defined in the same component template. Additionally the fields mentioned in the `index.routing_path`
+also need to be defined in the same component template with the `time_series_dimension` attribute enabled.
+
+The reasons for this is that each component template needs to be valid on its own and the time series index mode
+requires the `index.routing_path` setting. When configuring the  `index.mode` setting in an index template, the `index.routing_path` setting is configured automatically. It is derived  from
+the field mappings with `time_series_dimension` attribute enabled.
+
+[discrete]
 [[set-up-tsds-whats-next]]
 ==== What's next?
 

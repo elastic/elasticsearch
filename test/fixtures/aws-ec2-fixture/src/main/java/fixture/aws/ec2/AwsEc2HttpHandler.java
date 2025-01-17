@@ -34,9 +34,9 @@ import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.junit.Assert.assertNull;
 
 /**
- * Minimal HTTP handler that emulates the AWS EC2 DescribeInstances endpoint
+ * Minimal HTTP handler that emulates the AWS EC2 endpoint (at least, just the DescribeInstances action therein)
  */
-@SuppressForbidden(reason = "this test uses a HttpServer to emulate the AWS EC2 (DescribeInstances) endpoint")
+@SuppressForbidden(reason = "this test uses a HttpServer to emulate the AWS EC2 endpoint")
 public class AwsEc2HttpHandler implements HttpHandler {
 
     private final BiPredicate<String, String> authorizationPredicate;

@@ -219,6 +219,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         public List<String> getAvailableTransportEndpoints() {
             Path portsFile = workingDir.resolve("logs").resolve("transport.ports");
             if (Files.notExists(portsFile)) {
+                // ok, nodes might not yet all be started up - if we're using this for discovery then we will retry
                 return List.of();
             }
             return readPortsFile(portsFile);

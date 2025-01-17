@@ -38,7 +38,7 @@ public abstract class DiscoveryEc2ClusterFormationTestCase extends ESRestTestCas
         final var expectedAddresses = new HashSet<>(cluster.getAvailableTransportEndpoints());
         final var addressesPattern = Pattern.compile(".* using dynamic transport addresses \\[(.*)]");
 
-        assertThat(cluster.getNumNodes(), greaterThan(1));
+        assertThat(cluster.getNumNodes(), greaterThan(1)); // multiple node cluster means discovery must have worked
         for (int nodeIndex = 0; nodeIndex < cluster.getNumNodes(); nodeIndex++) {
             try (
                 var logStream = cluster.getNodeLog(nodeIndex, LogType.SERVER);

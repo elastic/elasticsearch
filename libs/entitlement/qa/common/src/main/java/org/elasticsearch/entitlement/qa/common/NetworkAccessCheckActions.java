@@ -19,9 +19,6 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertStore;
@@ -74,42 +71,6 @@ class NetworkAccessCheckActions {
         var url = new URI("http://localhost").toURL();
         var urlConnection = url.openConnection(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(0)));
         assert urlConnection != null;
-    }
-
-    static void httpClientBuilderBuild() {
-        try (HttpClient httpClient = HttpClient.newBuilder().build()) {
-            assert httpClient != null;
-        }
-    }
-
-    static void httpClientSend() throws InterruptedException {
-        try (HttpClient httpClient = HttpClient.newBuilder().build()) {
-            // Shutdown the client, so the send action will shortcut before actually executing any network operation
-            // (but after it run our check in the prologue)
-            httpClient.shutdown();
-            try {
-                httpClient.send(HttpRequest.newBuilder(URI.create("http://localhost")).build(), HttpResponse.BodyHandlers.discarding());
-            } catch (IOException e) {
-                // Expected, since we shut down the client
-            }
-        }
-    }
-
-    static void httpClientSendAsync() {
-        try (HttpClient httpClient = HttpClient.newBuilder().build()) {
-            // Shutdown the client, so the send action will return before actually executing any network operation
-            // (but after it run our check in the prologue)
-            httpClient.shutdown();
-            var future = httpClient.sendAsync(
-                HttpRequest.newBuilder(URI.create("http://localhost")).build(),
-                HttpResponse.BodyHandlers.discarding()
-            );
-            assert future.isCompletedExceptionally();
-            future.exceptionally(ex -> {
-                assert ex instanceof IOException;
-                return null;
-            });
-        }
     }
 
     static void createLDAPCertStore() throws NoSuchAlgorithmException {

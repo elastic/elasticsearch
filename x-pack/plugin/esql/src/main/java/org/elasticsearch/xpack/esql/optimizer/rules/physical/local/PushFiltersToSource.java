@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
@@ -21,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
@@ -281,39 +280,9 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
      * @param condition        condition to check for disjunctions of full text searches
      */
     private static boolean checkPushableFullTextSearchFunctions(Expression condition) {
-        Holder<Boolean> isPushable = new Holder<>(true);
-        condition.forEachDown(Or.class, or -> {
-            if (isPushable.get() == false) {
-                // Exit early if we already have a failures
-                return;
-            }
-            boolean hasFullText = or.anyMatch(FullTextFunction.class::isInstance);
-            if (hasFullText) {
-                boolean hasOnlyFullText = onlyFullTextFunctionsInExpression(or);
-                if (hasOnlyFullText == false) {
-                    isPushable.set(false);
-                }
-            }
-        });
-        return isPushable.get();
-    }
-
-    /**
-     * Checks whether an expression contains just full text functions or negations (NOT) and combinations (AND, OR) of full text functions
-     *
-     * @param expression expression to check
-     * @return true if all children are full text functions or negations of full text functions, false otherwise
-     */
-    private static boolean onlyFullTextFunctionsInExpression(Expression expression) {
-        if (expression instanceof FullTextFunction) {
-            return true;
-        } else if (expression instanceof Not) {
-            return onlyFullTextFunctionsInExpression(expression.children().get(0));
-        } else if (expression instanceof BinaryLogic binaryLogic) {
-            return onlyFullTextFunctionsInExpression(binaryLogic.left()) && onlyFullTextFunctionsInExpression(binaryLogic.right());
-        }
-
-        return false;
+        Failures failures = new Failures();
+        FullTextFunction.checkFullTextSearchDisjunctions(condition, failures);
+        return failures.hasFailures() == false;
     }
 
     private static boolean isPushableSpatialAttribute(Expression exp, LucenePushdownPredicates p) {

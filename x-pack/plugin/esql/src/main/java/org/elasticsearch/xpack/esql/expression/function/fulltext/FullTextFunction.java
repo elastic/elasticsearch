@@ -16,18 +16,21 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAwa
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.esql.core.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TranslationAwareExpressionQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -222,13 +225,70 @@ public abstract class FullTextFunction extends Function implements TranslationAw
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );
-            // checkFullTextSearchDisjunctions(condition, ftf -> "[" + ftf.functionName() + "] " + ftf.functionType(), failures);
             checkFullTextFunctionsParents(condition, failures);
+
+            boolean usesScore = plan.output()
+                .stream()
+                .anyMatch(attr -> attr instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));
+            if (usesScore) {
+                checkFullTextSearchDisjunctions(condition, failures);
+            }
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
                 failures.add(fail(ftf, "[{}] {} is only supported in WHERE commands", ftf.functionName(), ftf.functionType()));
             });
         }
+    }
+
+    /**
+     * Checks whether a condition contains a disjunction with a full text search.
+     * If it does, check that every element of the disjunction is a full text search or combinations (AND, OR, NOT) of them.
+     * If not, add a failure to the failures collection.
+     *
+     * @param condition        condition to check for disjunctions of full text searches
+     * @param failures         failures collection to add to
+     */
+    public static void checkFullTextSearchDisjunctions(Expression condition, Failures failures) {
+        Holder<Boolean> isInvalid = new Holder<>(false);
+        condition.forEachDown(Or.class, or -> {
+            if (isInvalid.get()) {
+                // Exit early if we already have a failures
+                return;
+            }
+            boolean hasFullText = or.anyMatch(FullTextFunction.class::isInstance);
+            if (hasFullText) {
+                boolean hasOnlyFullText = onlyFullTextFunctionsInExpression(or);
+                if (hasOnlyFullText == false) {
+                    isInvalid.set(true);
+                    failures.add(
+                        fail(
+                            or,
+                            "Invalid condition when using METADATA _score [{}]. Full text functions can be used in an OR condition, "
+                                + "but only if just full text functions are used in the OR condition",
+                            or.sourceText()
+                        )
+                    );
+                }
+            }
+        });
+    }
+
+    /**
+     * Checks whether an expression contains just full text functions or negations (NOT) and combinations (AND, OR) of full text functions
+     *
+     * @param expression expression to check
+     * @return true if all children are full text functions or negations of full text functions, false otherwise
+     */
+    private static boolean onlyFullTextFunctionsInExpression(Expression expression) {
+        if (expression instanceof FullTextFunction) {
+            return true;
+        } else if (expression instanceof Not) {
+            return onlyFullTextFunctionsInExpression(expression.children().get(0));
+        } else if (expression instanceof BinaryLogic binaryLogic) {
+            return onlyFullTextFunctionsInExpression(binaryLogic.left()) && onlyFullTextFunctionsInExpression(binaryLogic.right());
+        }
+
+        return false;
     }
 
     /**

@@ -61,7 +61,10 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
-public abstract class EsqlBinaryComparison extends BinaryComparison implements EvaluatorMapper, TranslationAware.SingleValue {
+public abstract class EsqlBinaryComparison extends BinaryComparison
+    implements
+        EvaluatorMapper,
+        TranslationAware.SingleValueTranslationAware {
 
     private final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap;
 

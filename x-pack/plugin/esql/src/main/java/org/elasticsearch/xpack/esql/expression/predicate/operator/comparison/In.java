@@ -113,7 +113,7 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.ordinal;
  *     String Template generators that we use for things like {@link Block} and {@link Vector}.
  * </p>
  */
-public class In extends EsqlScalarFunction implements TranslationAware.SingleValue {
+public class In extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "In", In::new);
 
     private final Expression value;

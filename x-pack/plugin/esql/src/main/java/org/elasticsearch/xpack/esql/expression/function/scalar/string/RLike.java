@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike
     implements
         EvaluatorMapper,
-        TranslationAware.SingleValue {
+        TranslationAware.SingleValueTranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RLike", RLike::new);
 
     @FunctionInfo(returnType = "boolean", description = """

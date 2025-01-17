@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Full text function that performs a {@link QueryStringQuery} .
@@ -101,7 +102,7 @@ public class QueryString extends FullTextFunction {
 
     @Override
     protected Query translate(TranslatorHandler handler) {
-        return new QueryStringQuery(source(), (String) queryAsObject(), Map.of(), Map.of());
+        return new QueryStringQuery(source(), Objects.toString(queryAsObject()), Map.of(), Map.of());
     }
 
     @Override

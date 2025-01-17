@@ -32,7 +32,7 @@ public final class TranslatorHandler {
     public Query asQuery(Expression e) {
         if (e instanceof TranslationAware ta) {
             Query query = ta.asQuery(this);
-            return ta instanceof TranslationAware.SingleValue sv ? wrapFunctionQuery(sv.singleValueField(), query) : query;
+            return ta instanceof TranslationAware.SingleValueTranslationAware sv ? wrapFunctionQuery(sv.singleValueField(), query) : query;
         }
 
         throw new QlIllegalArgumentException("Don't know how to translate {} {}", e.nodeName(), e);

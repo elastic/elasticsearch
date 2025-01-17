@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
 // BETWEEN or range - is a mix of gt(e) AND lt(e)
-public class Range extends ScalarFunction implements TranslationAware.SingleValue {
+public class Range extends ScalarFunction implements TranslationAware.SingleValueTranslationAware {
 
     private final Expression value, lower, upper;
     private final boolean includeLower, includeUpper;

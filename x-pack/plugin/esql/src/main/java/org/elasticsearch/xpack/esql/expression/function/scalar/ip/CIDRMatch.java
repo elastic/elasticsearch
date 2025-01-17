@@ -57,7 +57,7 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStri
  * <p>
  * Example: `| eval cidr="10.0.0.0/8" | where cidr_match(ip_field, "127.0.0.1/30", cidr)`
  */
-public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.SingleValue {
+public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "CIDRMatch",

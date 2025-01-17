@@ -36,7 +36,7 @@ public interface TranslationAware {
     /**
      * Subinterface for expressions that can only process single values (and null out on MVs).
      */
-    interface SingleValue extends TranslationAware {
+    interface SingleValueTranslationAware extends TranslationAware {
         /**
          * Returns the field that only supports single-value semantics.
          */

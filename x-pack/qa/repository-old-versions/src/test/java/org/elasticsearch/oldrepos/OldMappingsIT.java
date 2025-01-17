@@ -255,7 +255,7 @@ public class OldMappingsIT extends ESRestTestCase {
         assertMatchAll("standard_token_filter");
     }
 
-    public void testDFRSimilarity() throws IOException {
+    public void testSimilarityWithLegacySettings() throws IOException {
         assertMatchAll("similarity");
     }
 

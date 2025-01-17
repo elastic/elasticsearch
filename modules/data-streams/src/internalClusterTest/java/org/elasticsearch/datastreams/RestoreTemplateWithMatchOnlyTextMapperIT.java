@@ -54,18 +54,20 @@ public class RestoreTemplateWithMatchOnlyTextMapperIT extends AbstractSnapshotIn
                 .indexPatterns(List.of("test-index-*"))
                 .template(new Template(null, CompressedXContent.fromJSON("""
                     {
-                        "properties": {
-                          "@timestamp": {
-                            "type": "date",
-                            "format": "date_optional_time||epoch_millis"
-                          },
-                          "message": {
-                           "type": "match_only_text"
-                          },
-                          "flag": {
-                            "type": "boolean"
-                          }
-                      }
+                         "_doc": {
+                           "properties": {
+                             "@timestamp": {
+                               "format": "date_optional_time||epoch_millis",
+                               "type": "date"
+                             },
+                             "flag": {
+                               "type": "boolean"
+                             },
+                             "message": {
+                               "type": "match_only_text"
+                             }
+                           }
+                         }
                     }"""), null))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
@@ -82,7 +84,7 @@ public class RestoreTemplateWithMatchOnlyTextMapperIT extends AbstractSnapshotIn
             .prepareRestoreSnapshot(TimeValue.THIRTY_SECONDS, REPO, snapshot)
             .setIndices(indexWithoutDataStream)
             .setWaitForCompletion(true)
-            .setRestoreGlobalState(false)
+            .setRestoreGlobalState(true)
             .get()
             .getRestoreInfo();
         assertThat(restoreInfo.failedShards(), is(0));

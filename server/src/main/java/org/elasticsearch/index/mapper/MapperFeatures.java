@@ -55,6 +55,10 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.constant_keyword.synthetic_source_write_fix"
     );
 
+    public static final NodeFeature COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT = new NodeFeature(
+        "mapper.counted_keyword.synthetic_source_native_support"
+    );
+
     public static final NodeFeature META_FETCH_FIELDS_ERROR_CODE_CHANGED = new NodeFeature("meta_fetch_fields_error_code_changed");
     public static final NodeFeature SPARSE_VECTOR_STORE_SUPPORT = new NodeFeature("mapper.sparse_vector.store_support");
 
@@ -71,6 +75,7 @@ public class MapperFeatures implements FeatureSpecification {
             CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX,
             META_FETCH_FIELDS_ERROR_CODE_CHANGED,
             SPARSE_VECTOR_STORE_SUPPORT,
+            COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT,
             SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE,
             ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX
         );

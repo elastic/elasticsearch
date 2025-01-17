@@ -194,30 +194,44 @@ public class PolicyManager {
         return methodName.substring(methodName.indexOf('$'));
     }
 
-    public void checkNetworkAccess(Class<?> callerClass, int actions) {
+    public void checkInboundNetworkAccess(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, InboundNetworkEntitlement.class);
+    }
+
+    public void checkOutboundNetworkAccess(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, OutboundNetworkEntitlement.class);
+    }
+
+    public void checkAllNetworkAccess(Class<?> callerClass) {
         var requestingClass = requestingClass(callerClass);
         if (isTriviallyAllowed(requestingClass)) {
             return;
         }
 
-        ModuleEntitlements entitlements = getEntitlements(requestingClass, NetworkEntitlement.class);
-        if (entitlements.getEntitlements(NetworkEntitlement.class).anyMatch(n -> n.matchActions(actions))) {
-            logger.debug(
-                () -> Strings.format(
-                    "Entitled: class [%s], module [%s], entitlement [network], actions [%s]",
+        if (getEntitlements(requestingClass, InboundNetworkEntitlement.class).hasEntitlement(InboundNetworkEntitlement.class) == false) {
+            throw new NotEntitledException(
+                Strings.format(
+                    "Missing entitlement: class [%s], module [%s], entitlement [inbound_network]",
                     requestingClass,
-                    requestingClass.getModule() == null ? "<none>" : requestingClass.getModule().getName(),
-                    NetworkEntitlement.printActions(actions)
+                    requestingClass.getModule().getName()
                 )
             );
-            return;
         }
-        throw new NotEntitledException(
-            Strings.format(
-                "Missing entitlement: class [%s], module [%s], entitlement [network], actions [%s]",
+
+        if (getEntitlements(requestingClass, OutboundNetworkEntitlement.class).hasEntitlement(OutboundNetworkEntitlement.class) == false) {
+            throw new NotEntitledException(
+                Strings.format(
+                    "Missing entitlement: class [%s], module [%s], entitlement [outbound_network]",
+                    requestingClass,
+                    requestingClass.getModule().getName()
+                )
+            );
+        }
+        logger.debug(
+            () -> Strings.format(
+                "Entitled: class [%s], module [%s], entitlements [inbound_network, outbound_network]",
                 requestingClass,
-                requestingClass.getModule() == null ? "<none>" : requestingClass.getModule().getName(),
-                NetworkEntitlement.printActions(actions)
+                requestingClass.getModule().getName()
             )
         );
     }

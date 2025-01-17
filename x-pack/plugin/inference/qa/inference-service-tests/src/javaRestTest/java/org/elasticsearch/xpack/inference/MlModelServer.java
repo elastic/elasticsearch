@@ -108,7 +108,7 @@ public class MlModelServer {
                     logger.info("Response: {} {}", fileName, httpStatus);
                     exchange.sendResponseHeaders(httpStatus, numBytes);
                     while (numBytes > 0) {
-                        byte[] bytes = is.readNBytes(Math.min(1<<20, numBytes));
+                        byte[] bytes = is.readNBytes(Math.min(1 << 20, numBytes));
                         os.write(bytes);
                         numBytes -= bytes.length;
                     }

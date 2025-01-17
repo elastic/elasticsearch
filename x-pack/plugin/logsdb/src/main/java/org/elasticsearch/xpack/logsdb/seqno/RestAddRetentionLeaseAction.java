@@ -39,6 +39,23 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
+/**
+ * This class implements a REST API for adding a retention lease to a shard in Elasticsearch.
+ * Retention leases ensure that specific sequence numbers are retained, even as the global checkpoint
+ * advances during indexing. This guarantees seq_no values availability until the retention lease is
+ * removed.
+ *
+ * The API supports adding retention leases to indices, data streams, and index aliases. For data streams
+ * or aliases, the first backing index or underlying index is identified, and the retention lease is added
+ * to its shard.
+ *
+ * **Note:** This REST API is available only in Elasticsearch snapshot builds and is intended solely
+ * for benchmarking purposes, such as benchmarking operations like the shard changes API in Rally tracks.
+ * It is not intended for use in production environments.
+ *
+ * The response provides details about the added retention lease, including the target index,
+ * shard ID, retention lease ID, and source.
+ */
 public class RestAddRetentionLeaseAction extends BaseRestHandler {
 
     private static final int DEFAULT_TIMEOUT_SECONDS = 60;

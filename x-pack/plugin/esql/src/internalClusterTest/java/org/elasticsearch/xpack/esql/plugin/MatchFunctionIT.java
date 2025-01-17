@@ -14,8 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
-import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.junit.Before;
 
 import java.util.List;
@@ -29,12 +27,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     @Before
     public void setupIndex() {
         createAndPopulateIndex();
-    }
-
-    @Override
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
-        assumeTrue("match function capability not available", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-        return super.run(request);
     }
 
     public void testSimpleWhereMatch() {
@@ -230,20 +222,19 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("Unknown column [content]"));
     }
 
-    public void testWhereMatchWithFunctions() {
+    public void testWhereMatchNotPushedDown() {
         var query = """
             FROM test
-            | WHERE match(content, "fox") OR to_upper(content) == "FOX"
+            | WHERE match(content, "fox") OR length(content) < 20
+            | KEEP id
+            | SORT id
             """;
-        var error = expectThrows(ElasticsearchException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString(
-                "Invalid condition [match(content, \"fox\") OR to_upper(content) == \"FOX\"]. "
-                    + "Full text functions can be used in an OR condition,"
-                    + " but only if just full text functions are used in the OR condition"
-            )
-        );
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(6)));
+        }
     }
 
     public void testWhereMatchWithRow() {

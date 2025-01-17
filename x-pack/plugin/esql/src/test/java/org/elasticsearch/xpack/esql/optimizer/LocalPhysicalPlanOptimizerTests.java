@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
@@ -1630,6 +1632,45 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var queryBuilder = as(queryExec.query(), MatchQueryBuilder.class);
         assertThat(queryBuilder.fieldName(), is("emp_no"));
         assertThat(queryBuilder.value(), is(123456));
+    }
+
+    public void testMatchFunctionWithPushableConjunction() {
+        String query = """
+            from test
+            | where match(last_name, "Smith") and length(first_name) > 10
+            """;
+        var plan = plannerOptimizer.plan(query);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var filterLimit = as(fieldExtract.child(), LimitExec.class);
+        var filter = as(filterLimit.child(), FilterExec.class);
+        assertThat(filter.condition(), instanceOf(GreaterThan.class));
+        var fieldFilterExtract = as(filter.child(), FieldExtractExec.class);
+        var esQuery = as(fieldFilterExtract.child(), EsQueryExec.class);
+        assertThat(esQuery.query(), instanceOf(MatchQueryBuilder.class));
+    }
+
+    public void testMatchFunctionWithNonPushableDisjunction() {
+        String query = """
+            from test
+            | where match(last_name, "Smith") or length(first_name) > 10
+            """;
+        var plan = plannerOptimizer.plan(query);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var filterLimit = as(field.child(), LimitExec.class);
+        var filter = as(filterLimit.child(), FilterExec.class);
+        Or or = as(filter.condition(), Or.class);
+        assertThat(or.left(), instanceOf(Match.class));
+        assertThat(or.right(), instanceOf(GreaterThan.class));
+        var fieldExtract = as(filter.child(), FieldExtractExec.class);
+        assertThat(fieldExtract.child(), instanceOf(EsQueryExec.class));
     }
 
     private QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {

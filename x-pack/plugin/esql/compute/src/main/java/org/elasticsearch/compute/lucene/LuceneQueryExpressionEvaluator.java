@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -44,19 +45,18 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
 
     private final BlockFactory blockFactory;
     private final ShardConfig[] shards;
-    private final int docChannel;
 
     private ShardState[] perShardState = EMPTY_SHARD_STATES;
 
-    public LuceneQueryExpressionEvaluator(BlockFactory blockFactory, ShardConfig[] shards, int docChannel) {
+    public LuceneQueryExpressionEvaluator(BlockFactory blockFactory, ShardConfig[] shards) {
         this.blockFactory = blockFactory;
         this.shards = shards;
-        this.docChannel = docChannel;
     }
 
     @Override
     public Block eval(Page page) {
-        DocVector docs = page.<DocBlock>getBlock(docChannel).asVector();
+        // Lucene based operators retrieve DocVectors as first block
+        DocVector docs = page.<DocBlock>getBlock(0).asVector();
         try {
             if (docs.singleSegmentNonDecreasing()) {
                 return evalSingleSegmentNonDecreasing(docs).asBlock();
@@ -339,6 +339,19 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
         @Override
         public void close() {
             Releasables.closeExpectNoException(builder);
+        }
+    }
+
+    public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+        private final ShardConfig[] shardConfigs;
+
+        public Factory(ShardConfig[] shardConfigs) {
+            this.shardConfigs = shardConfigs;
+        }
+
+        @Override
+        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+            return new LuceneQueryExpressionEvaluator(context.blockFactory(), shardConfigs);
         }
     }
 }

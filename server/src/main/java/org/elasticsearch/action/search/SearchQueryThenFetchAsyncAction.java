@@ -1084,19 +1084,23 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
                 var pitBuilder = searchRequest.pointInTimeBuilder();
                 var shardToQuery = request.shards.get(dataNodeLocalIdx);
                 state.dependencies.searchService.executeQueryPhase(
-                    buildShardSearchRequest(
-                        shardToQuery.shardId,
-                        searchRequest.getLocalClusterAlias(),
-                        shardToQuery.shardIndex,
-                        shardToQuery.contextId,
-                        shardToQuery.originalIndices,
-                        request.aliasFilters.get(shardToQuery.shardId.getIndex().getUUID()),
-                        pitBuilder == null ? null : pitBuilder.getKeepAlive(),
-                        shardToQuery.boost,
-                        searchRequest,
-                        request.totalShards,
-                        request.absoluteStartMillis,
-                        state.hasResponse.getAcquire()
+                    rewriteShardSearchRequest(
+                        state.bottomSortCollector,
+                        state.trackTotalHitsUpTo,
+                        buildShardSearchRequest(
+                            shardToQuery.shardId,
+                            searchRequest.getLocalClusterAlias(),
+                            shardToQuery.shardIndex,
+                            shardToQuery.contextId,
+                            shardToQuery.originalIndices,
+                            request.aliasFilters.get(shardToQuery.shardId.getIndex().getUUID()),
+                            pitBuilder == null ? null : pitBuilder.getKeepAlive(),
+                            shardToQuery.boost,
+                            searchRequest,
+                            request.totalShards,
+                            request.absoluteStartMillis,
+                            state.hasResponse.getAcquire()
+                        )
                     ),
                     state.task,
                     new ActionListener<>() {
@@ -1112,6 +1116,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
                                 searchPhaseResult.setSearchShardTarget(target);
                                 // no need for any cache effects when we're already flipped to ture => plain read + set-release
                                 state.hasResponse.compareAndExchangeRelease(false, true);
+                                state.consumeResult(searchPhaseResult.queryResult());
                                 state.queryPhaseResultConsumer.consumeResult(searchPhaseResult, state.onDone);
                             } catch (Throwable e) {
                                 throw new AssertionError(e);
@@ -1187,6 +1192,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
         private final Runnable onDone;
         private final AtomicBoolean hasResponse = new AtomicBoolean(false);
         private final int trackTotalHitsUpTo;
+        private final int topDocsSize;
         private volatile BottomSortValuesCollector bottomSortCollector;
 
         private QueryPerNodeState(
@@ -1201,6 +1207,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
             this.queryPhaseResultConsumer = queryPhaseResultConsumer;
             this.searchRequest = searchRequest;
             this.trackTotalHitsUpTo = searchRequest.searchRequest.resolveTrackTotalHitsUpTo();
+            topDocsSize = getTopDocsSize(searchRequest.searchRequest);
             this.task = task;
             final int shardCount = queryPhaseResultConsumer.getNumShards();
             final CountDown countDown = new CountDown(shardCount);
@@ -1254,6 +1261,26 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
                     }
                 }
             };
+        }
+
+        void consumeResult(QuerySearchResult queryResult) {
+            if (queryResult.isNull() == false
+                // disable sort optims for scroll requests because they keep track of the last bottom doc locally (per shard)
+                && searchRequest.searchRequest.scroll() == null
+                // top docs are already consumed if the query was cancelled or in error.
+                && queryResult.hasConsumedTopDocs() == false
+                && queryResult.topDocs() != null
+                && queryResult.topDocs().topDocs.getClass() == TopFieldDocs.class) {
+                TopFieldDocs topDocs = (TopFieldDocs) queryResult.topDocs().topDocs;
+                if (bottomSortCollector == null) {
+                    synchronized (this) {
+                        if (bottomSortCollector == null) {
+                            bottomSortCollector = new BottomSortValuesCollector(topDocsSize, topDocs.fields);
+                        }
+                    }
+                }
+                bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
+            }
         }
     }
 }

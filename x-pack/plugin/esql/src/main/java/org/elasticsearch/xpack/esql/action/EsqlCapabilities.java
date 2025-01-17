@@ -296,8 +296,11 @@ public class EsqlCapabilities {
          */
         ST_DISTANCE,
 
-        /** Support for function {@code ST_EXTENT}. */
+        /** Support for function {@code ST_EXTENT_AGG}. */
         ST_EXTENT_AGG,
+
+        /** Optimization of ST_EXTENT_AGG with doc-values as IntBlock. */
+        ST_EXTENT_AGG_DOCVALUES,
 
         /**
          * Fix determination of CRS types in spatial functions when folding.
@@ -730,7 +733,12 @@ public class EsqlCapabilities {
         /**
          * Change field caps response for semantic_text fields to be reported as text
          */
-        SEMANTIC_TEXT_FIELD_CAPS;
+        SEMANTIC_TEXT_FIELD_CAPS,
+
+        /**
+         * Support named argument for function in map format.
+         */
+        OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

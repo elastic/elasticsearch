@@ -47,7 +47,7 @@ public class PagedBytesReferenceReadLongBenchmark {
     @Setup
     public void initResults() throws IOException {
         final BytesStreamOutput tmp = new BytesStreamOutput();
-        final long bytes = new ByteSizeValue(dataMb, ByteSizeUnit.MB).getBytes();
+        final long bytes = ByteSizeValue.of(dataMb, ByteSizeUnit.MB).getBytes();
         for (int i = 0; i < bytes / 8; i++) {
             tmp.writeLong(i);
         }

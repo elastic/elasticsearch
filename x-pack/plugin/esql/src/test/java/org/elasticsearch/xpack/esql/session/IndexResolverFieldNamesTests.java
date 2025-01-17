@@ -1574,14 +1574,11 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
 
     public void testLookupJoinWithEvalKey() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
-        assertFieldNames(
-            """
-                FROM some_index
-                | EVAL key = 5
-                | LOOKUP JOIN some_lookup ON key
-                | KEEP test""",
-            Set.of("test", "test.*", "key", "key.*")
-        );
+        assertFieldNames("""
+            FROM some_index
+            | EVAL key = 5
+            | LOOKUP JOIN some_lookup ON key
+            | KEEP test""", Set.of("test", "test.*", "key", "key.*"));
     }
 
     private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {

@@ -1843,7 +1843,8 @@ public class JinaAIServiceTests extends ESTestCase {
                                 "required": true,
                                 "sensitive": true,
                                 "updatable": true,
-                                "type": "str"
+                                "type": "str",
+                                "supported_task_types": ["text_embedding", "rerank"]
                             },
                             "rate_limit.requests_per_minute": {
                                 "description": "Minimize the number of rate limit errors.",
@@ -1851,7 +1852,8 @@ public class JinaAIServiceTests extends ESTestCase {
                                 "required": false,
                                 "sensitive": false,
                                 "updatable": false,
-                                "type": "int"
+                                "type": "int",
+                                "supported_task_types": ["text_embedding", "rerank"]
                             }
                         }
                     }

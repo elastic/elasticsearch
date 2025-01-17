@@ -5,10 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.data;
+package org.elasticsearch.compute.test;
 
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 
 public class TestBlockFactory {
 

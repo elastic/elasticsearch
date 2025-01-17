@@ -21,7 +21,7 @@
  *     </li>
  * </ol>
  *
- * <h3>Functionality</h3>
+ * <h2>Functionality</h2>
  * This functionality starts with {@link org.elasticsearch.features.NodeFeature}. This is a single id representing
  * new or a change in functionality - exactly what functionality that feature represents is up to the developer. These are expected
  * to be {@code public static final} variables on a relevant class. Each area of code then exposes their features
@@ -42,12 +42,12 @@
  * node feature information, and cached in the {@link org.elasticsearch.cluster.ClusterFeatures} object.
  * Henceforth, all cluster feature checks are fast hash set lookups, at least until the nodes or master changes.
  *
- * <h3>Features test infrastructure</h3>
+ * <h2>Features test infrastructure</h2>
  * Features can be specified as conditions in YAML tests, as well as checks and conditions in code-defined rolling upgrade tests
  * (see the Elasticsearch development documentation for more information).
  * These checks are performed by the {@code TestFeatureService} interface, and its standard implementation {@code ESRestTestFeatureService}.
  *
- * <h4>Test features</h4>
+ * <h3>Test features</h3>
  * Sometimes, you want to define a feature for nodes, but the only checks you need to do are as part of a test. In this case,
  * the feature doesn't need to be included in the production feature set, it only needs to be present for automated tests.
  * So alongside {@link org.elasticsearch.features.FeatureSpecification#getFeatures}, there is
@@ -59,7 +59,7 @@
  * Test features can be removed at-will (with appropriate backports),
  * as there is no long-term upgrade guarantees required for clusters in automated tests.
  *
- * <h4>Synthetic version features</h4>
+ * <h3>Synthetic version features</h3>
  * Cluster functionality checks performed on code built from the {@code main} branch can only use features to check functionality,
  * but we also have branch releases with a longer release cadence. Sometimes tests need to be conditional on older versions
  * (where there isn't a feature already defined in the right place), determined some point after the release has been finalized.
@@ -69,7 +69,7 @@
  * This is done by {@code ESRestTestFeatureService}, matching on features of the form {@code gte_v8.12.3}.
  * For more information on their use, see the Elasticsearch developer documentation.
  *
- * <h3>Assumed features</h3>
+ * <h2>Assumed features</h2>
  * Once a feature is defined on a cluster, it can never be removed - this is to ensure that functionality that is available
  * on a cluster then never stops being available. However, this can lead to the list of features in cluster state growing ever larger.
  * It is possible to remove defined cluster features, but only on a compatibility boundary (normally a new major release).

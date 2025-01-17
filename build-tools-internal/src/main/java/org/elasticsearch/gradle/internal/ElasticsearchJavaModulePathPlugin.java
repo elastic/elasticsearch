@@ -53,7 +53,7 @@ public abstract class ElasticsearchJavaModulePathPlugin implements Plugin<Projec
     }
 
     // List of root tasks, by name, whose compileJava task should not use the module path. These are test related sources.
-    static final Set<String> EXCLUDES = Set.of(":test:framework", ":x-pack:plugin:eql:qa:common");
+    static final Set<String> EXCLUDES = Set.of(":test:framework", ":x-pack:plugin:eql:qa:common", ":x-pack:plugin:esql:compute:test");
 
     void configureCompileModulePath(Project project) {
         // first disable Gradle's builtin module path inference

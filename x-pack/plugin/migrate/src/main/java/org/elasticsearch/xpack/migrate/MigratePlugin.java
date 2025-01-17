@@ -59,6 +59,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
+import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexTransportAction.REINDEX_MAX_REQUESTS_PER_SECOND_SETTING;
 import static org.elasticsearch.xpack.migrate.task.ReindexDataStreamPersistentTaskExecutor.MAX_CONCURRENT_INDICES_REINDEXED_PER_DATA_STREAM_SETTING;
 
 public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTaskPlugin {
@@ -160,6 +161,7 @@ public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTas
     public List<Setting<?>> getSettings() {
         List<Setting<?>> pluginSettings = new ArrayList<>();
         pluginSettings.add(MAX_CONCURRENT_INDICES_REINDEXED_PER_DATA_STREAM_SETTING);
+        pluginSettings.add(REINDEX_MAX_REQUESTS_PER_SECOND_SETTING);
         return pluginSettings;
     }
 }

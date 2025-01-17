@@ -268,7 +268,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             // In case invalid mappings or setting are provided, then mapper service creation can fail.
             // In that case it is ok to return false here. The index creation will fail anyway later, so no need to fallback to stored
             // source.
-            LOGGER.info(() -> Strings.format("unable to create mapper service for index [%s]", indexName), e);
+            LOGGER.warn(() -> Strings.format("unable to create mapper service for index [%s]", indexName), e);
             return MappingHints.EMPTY;
         }
     }

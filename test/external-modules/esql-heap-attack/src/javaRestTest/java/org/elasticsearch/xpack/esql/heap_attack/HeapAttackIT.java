@@ -629,16 +629,14 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     public void testLookupExplosion() throws IOException {
-        int sensorDataCount = 1000;
-        int lookupEntries = 100;
+        int sensorDataCount = 7500;
+        int lookupEntries = 10000;
         Map<?, ?> map = responseAsMap(lookupExplosion(sensorDataCount, lookupEntries));
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
     }
 
     public void testLookupExplosionManyMatches() throws IOException {
-        assertCircuitBreaks(
-            () -> System.err.println(EntityUtils.toString(lookupExplosion(1000, 10000).getEntity(), StandardCharsets.UTF_8))
-        );
+        assertCircuitBreaks(() -> lookupExplosion(8500, 10000));
     }
 
     private Response lookupExplosion(int sensorDataCount, int lookupEntries) throws IOException {
@@ -657,9 +655,7 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     public void testEnrichExplosionManyMatches() throws IOException {
-        assertCircuitBreaks(
-            () -> System.err.println(EntityUtils.toString(enrichExplosion(1000, 10000).getEntity(), StandardCharsets.UTF_8))
-        );
+        assertCircuitBreaks(() -> enrichExplosion(1000, 10000));
     }
 
     private Response enrichExplosion(int sensorDataCount, int lookupEntries) throws IOException {
@@ -817,6 +813,7 @@ public class HeapAttackIT extends ESRestTestCase {
                     "location": { "type": "geo_point" }
                 }
             }""");
+        int docsPerBulk = 1000;
         StringBuilder data = new StringBuilder();
         for (int i = 0; i < lookupEntries; i++) {
             int sensor = i % sensorCount;
@@ -824,7 +821,7 @@ public class HeapAttackIT extends ESRestTestCase {
                 {"create":{}}
                 {"id": %d, "location": "POINT(%s)"}
                 """, sensor, location.apply(sensor)));
-            if (i % 1000 == 999) {
+            if (i % docsPerBulk == docsPerBulk - 1) {
                 bulk("sensor_lookup", data.toString());
                 data.setLength(0);
             }

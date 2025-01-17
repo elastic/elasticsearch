@@ -75,7 +75,6 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             minimalMapping(b);
-            b.field("synthetic_source_keep", "none");
             b.endObject();
         })).documentMapper();
 
@@ -94,7 +93,6 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             minimalMapping(b);
-            b.field("synthetic_source_keep", "none");
             b.endObject();
         })).documentMapper();
 
@@ -112,21 +110,6 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
         assertThat(syntheticSource(mapper, buildInput), equalTo(expected));
         assertThat(syntheticSource(mapper, new SourceFilter(new String[] { "field" }, null), buildInput), equalTo(expected));
         assertThat(syntheticSource(mapper, new SourceFilter(null, new String[] { "field" }), buildInput), equalTo("{}"));
-    }
-
-    @Override
-    public void testSyntheticSourceKeepAll() throws IOException {
-        // For now, native synthetic source is only supported when "synthetic_source_keep" mapping attribute is "none"
-    }
-
-    @Override
-    public void testSyntheticSourceKeepArrays() throws IOException {
-        // For now, native synthetic source is only supported when "synthetic_source_keep" mapping attribute is "none"
-    }
-
-    @Override
-    public void testSyntheticSourceKeepNone() throws IOException {
-        // For now, native synthetic source is only supported when "synthetic_source_keep" mapping attribute is "none"
     }
 
     @Override
@@ -158,9 +141,6 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
 
             private void mapping(XContentBuilder b) throws IOException {
                 minimalMapping(b);
-                // For now, synthetic source is only supported when "synthetic_source_keep" is "none".
-                // Once we implement true synthetic source support, we should remove this.
-                b.field("synthetic_source_keep", "none");
             }
 
             @Override

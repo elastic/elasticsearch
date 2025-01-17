@@ -70,9 +70,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
     ) {
         List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
-        var licenseMode = Optional.ofNullable(XPackPlugin.getSharedLicenseState())
-            .map(XPackLicenseState::getOperationMode)
-            .orElse(null);
+        var licenseMode = Optional.ofNullable(XPackPlugin.getSharedLicenseState()).map(XPackLicenseState::getOperationMode).orElse(null);
 
         ElasticInferenceServiceSparseEmbeddingsRequest request = new ElasticInferenceServiceSparseEmbeddingsRequest(
             truncator,

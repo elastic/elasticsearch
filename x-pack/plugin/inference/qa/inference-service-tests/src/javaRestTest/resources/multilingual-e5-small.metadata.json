@@ -1,8 +1,8 @@
 {
   "packaged_model_id": "multilingual-e5-small",
   "minimum_version": "12.0.0",
-  "size": 3322953,
-  "sha256": "94663653a7e41c29c9d71001dd25739119279c895651840c735f9b91c85e19c7",
+  "size": 5531160,
+  "sha256": "92e24566eff554d3a6808cc62731dbecf32db63e01801f3f62210aa9131c7a8b",
   "description": "E5 small multilingual",
   "model_type": "pytorch",
   "tags": [],

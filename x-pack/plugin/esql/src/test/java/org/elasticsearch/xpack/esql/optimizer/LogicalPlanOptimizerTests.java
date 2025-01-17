@@ -6244,7 +6244,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             """;
 
         String query = """
-              FROM test
+            FROM test
             | EVAL language_code = languages
             | LOOKUP JOIN languages_lookup ON language_code
             """ + commandDiscardingFields;
@@ -6260,6 +6260,44 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(joinRightRelation.output().size(), equalTo(1));
         assertThat(joinRightRelation.output().get(0).name(), equalTo("language_code"));
+    }
+
+    /**
+     * Ensure a JOIN shadowed by another JOIN doesn't request the shadowed fields.
+     *
+     * Expected
+     * Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#20]]
+     * |_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
+     * | |_Eval[[languages{f}#10 AS language_code]]
+     * | | \_Limit[1000[INTEGER]]
+     * | |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     * | \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18]
+     * \_EsRelation[languages_lookup][LOOKUP][language_code{f}#20, language_name{f}#21]
+     */
+    public void testMultipleLookupShadowing() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+
+        String query = """
+            FROM test
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var finalJoin = as(plan, Join.class);
+        var finalJoinRightRelation = as(finalJoin.right(), EsRelation.class);
+
+        assertThat(finalJoinRightRelation.output().size(), equalTo(2));
+        assertThat(finalJoinRightRelation.output().get(0).name(), equalTo("language_code"));
+        assertThat(finalJoinRightRelation.output().get(1).name(), equalTo("language_name"));
+        
+        var initialJoin = as(finalJoin.left(), Join.class);
+        var initialJoinRightRelation = as(initialJoin.right(), EsRelation.class);
+
+        assertThat(initialJoinRightRelation.output().size(), equalTo(1));
+        assertThat(initialJoinRightRelation.output().get(0).name(), equalTo("language_code"));
     }
 
     //

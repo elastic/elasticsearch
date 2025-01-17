@@ -28,6 +28,7 @@ import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
+import java.nio.channels.NotYetBoundException;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.security.InvalidAlgorithmParameterException;
@@ -97,7 +98,8 @@ class NetworkAccessCheckActions {
             try {
                 httpClient.send(HttpRequest.newBuilder(URI.create("http://localhost")).build(), HttpResponse.BodyHandlers.discarding());
             } catch (IOException e) {
-                // Expected, since we shut down the client
+                // Expected, since we shut down the client.
+                // "send" will be called and exercise the Entitlement check, we don't care if it fails afterward for this known reason.
             }
         }
     }
@@ -143,9 +145,13 @@ class NetworkAccessCheckActions {
 
     static void serverSocketChannelAccept() throws IOException {
         try (var serverSocketChannel = ServerSocketChannel.open()) {
-            serverSocketChannel.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
             serverSocketChannel.configureBlocking(false);
-            serverSocketChannel.accept();
+            try {
+                serverSocketChannel.accept();
+            } catch (NotYetBoundException e) {
+                // It's OK, we did not call bind on the socket on purpose so we can just test "accept"
+                // "accept" will be called and exercise the Entitlement check, we don't care if it fails afterward for this known reason.
+            }
         }
     }
 
@@ -163,24 +169,32 @@ class NetworkAccessCheckActions {
 
     static void asynchronousServerSocketChannelAccept() throws IOException {
         try (var serverSocketChannel = AsynchronousServerSocketChannel.open()) {
-            serverSocketChannel.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
-            var future = serverSocketChannel.accept();
-            future.cancel(true);
+            try {
+                var future = serverSocketChannel.accept();
+                future.cancel(true);
+            } catch (NotYetBoundException e) {
+                // It's OK, we did not call bind on the socket on purpose so we can just test "accept"
+                // "accept" will be called and exercise the Entitlement check, we don't care if it fails afterward for this known reason.
+            }
         }
     }
 
     static void asynchronousServerSocketChannelAcceptWithHandler() throws IOException {
         try (var serverSocketChannel = AsynchronousServerSocketChannel.open()) {
-            serverSocketChannel.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
-            serverSocketChannel.accept(null, new CompletionHandler<>() {
-                @Override
-                public void completed(AsynchronousSocketChannel result, Object attachment) {}
+            try {
+                serverSocketChannel.accept(null, new CompletionHandler<>() {
+                    @Override
+                    public void completed(AsynchronousSocketChannel result, Object attachment) {}
 
-                @Override
-                public void failed(Throwable exc, Object attachment) {
-                    assert exc.getClass().getSimpleName().equals("NotEntitledException") == false;
-                }
-            });
+                    @Override
+                    public void failed(Throwable exc, Object attachment) {
+                        assert exc.getClass().getSimpleName().equals("NotEntitledException") == false;
+                    }
+                });
+            } catch (NotYetBoundException e) {
+                // It's OK, we did not call bind on the socket on purpose so we can just test "accept"
+                // "accept" will be called and exercise the Entitlement check, we don't care if it fails afterward for this known reason.
+            }
         }
     }
 
@@ -195,7 +209,8 @@ class NetworkAccessCheckActions {
             try {
                 socketChannel.connect(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
             } catch (SocketException e) {
-                // We expect to fail, not a valid address to connect to
+                // We expect to fail, not a valid address to connect to.
+                // "connect" will be called and exercise the Entitlement check, we don't care if it fails afterward for this known reason.
             }
         }
     }
@@ -245,7 +260,8 @@ class NetworkAccessCheckActions {
             try {
                 channel.connect(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
             } catch (SocketException e) {
-                // We expect to fail, not a valid address to connect to
+                // We expect to fail, not a valid address to connect to.
+                // "connect" will be called and exercise the Entitlement check, we don't care if it fails afterward for this known reason.
             }
         }
     }

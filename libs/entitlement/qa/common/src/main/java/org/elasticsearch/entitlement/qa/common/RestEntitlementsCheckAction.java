@@ -164,7 +164,6 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("http_client_send", forPlugins(NetworkAccessCheckActions::httpClientSend)),
         entry("http_client_send_async", forPlugins(NetworkAccessCheckActions::httpClientSendAsync)),
         entry("create_ldap_cert_store", forPlugins(NetworkAccessCheckActions::createLDAPCertStore)),
-        entry("server_socket_accept", forPlugins(NetworkAccessCheckActions::serverSocketAccept)),
 
         entry("server_socket_channel_bind", forPlugins(NetworkAccessCheckActions::serverSocketChannelBind)),
         entry("server_socket_channel_bind_backlog", forPlugins(NetworkAccessCheckActions::serverSocketChannelBindWithBacklog)),

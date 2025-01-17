@@ -1452,6 +1452,7 @@ cnt:long
 ;
 
 implicit casting strings to dates for IN operator
+required_capability: string_literal_auto_casting
 FROM employees
 | WHERE birth_date IN ("1953-04-20", "1958-10-31")
 | KEEP emp_no, first_name;

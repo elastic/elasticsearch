@@ -244,6 +244,9 @@ tests:
 - class: org.elasticsearch.xpack.ccr.FollowIndexSecurityIT
   method: testCleanShardFollowTaskAfterDeleteFollower
   issue: https://github.com/elastic/elasticsearch/issues/120339
+- class: org.elasticsearch.search.ccs.CrossClusterIT
+  method: testCancel
+  issue: https://github.com/elastic/elasticsearch/issues/108061
 
 # Examples:
 #

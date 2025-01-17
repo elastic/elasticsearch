@@ -109,7 +109,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                  *    and then ignore the matching_indices value that comes back from those remotes. This is preferable to sending
                  *    just "*" since that could be an expensive operation on clusters with thousands of indices/aliases/datastreams
                  */
-                String[] dummyIndexExpr = { DUMMY_INDEX_FOR_OLDER_CLUSTERS };
+                String[] dummyIndexExpr = new String[] { DUMMY_INDEX_FOR_OLDER_CLUSTERS };
                 remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(), dummyIndexExpr, false);
                 if (remoteClusterIndices.isEmpty()) {
                     // no remote clusters are configured on the primary "querying" cluster

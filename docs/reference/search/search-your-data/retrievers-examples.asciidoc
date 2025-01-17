@@ -652,7 +652,7 @@ This would propagate the `inner_hits` defined for the `knn` query to the `rrf` r
                                 "value": 3,
                                 "relation": "eq"
                             },
-                            "max_score": 0.44353113,
+                            "max_score": 0.44444445,
                             "hits": [
                                 {
                                     "_index": "retrievers_example_nested",
@@ -661,7 +661,7 @@ This would propagate the `inner_hits` defined for the `knn` query to the `rrf` r
                                         "field": "nested_field",
                                         "offset": 2
                                     },
-                                    "_score": 0.44353113,
+                                    "_score": 0.44444445,
                                     "fields": {
                                         "nested_field": [
                                             {
@@ -679,7 +679,7 @@ This would propagate the `inner_hits` defined for the `knn` query to the `rrf` r
                                         "field": "nested_field",
                                         "offset": 1
                                     },
-                                    "_score": 0.26567122,
+                                    "_score": 0.21301977,
                                     "fields": {
                                         "nested_field": [
                                             {
@@ -697,7 +697,7 @@ This would propagate the `inner_hits` defined for the `knn` query to the `rrf` r
                                         "field": "nested_field",
                                         "offset": 0
                                     },
-                                    "_score": 0.18478848,
+                                    "_score": 0.16889325,
                                     "fields": {
                                         "nested_field": [
                                             {
@@ -729,7 +729,7 @@ This would propagate the `inner_hits` defined for the `knn` query to the `rrf` r
                                 "value": 1,
                                 "relation": "eq"
                             },
-                            "max_score": 0.32002488,
+                            "max_score": 0.31715825,
                             "hits": [
                                 {
                                     "_index": "retrievers_example_nested",
@@ -738,7 +738,7 @@ This would propagate the `inner_hits` defined for the `knn` query to the `rrf` r
                                         "field": "nested_field",
                                         "offset": 0
                                     },
-                                    "_score": 0.32002488,
+                                    "_score": 0.31715825,
                                     "fields": {
                                         "nested_field": [
                                             {

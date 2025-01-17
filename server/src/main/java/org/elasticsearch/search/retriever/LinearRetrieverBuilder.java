@@ -156,7 +156,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 builder.field(LinearRetrieverComponent.WEIGHT_FIELD.getPreferredName(), weights[index]);
                 builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizers[index]);
                 builder.endObject();
-                builder.endObject();
                 index++;
             }
             builder.endArray();

@@ -73,6 +73,9 @@ import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.planner.mapper.preprocessor.FullTextFunctionMapperPreprocessor;
+import org.elasticsearch.xpack.esql.planner.mapper.preprocessor.MapperPreprocessorExecutor;
+import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 
 import java.util.ArrayList;
@@ -114,7 +117,7 @@ public class EsqlSession {
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanningMetrics planningMetrics;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
-    private final QueryBuilderResolver queryBuilderResolver;
+    private final MapperPreprocessorExecutor mapperPreprocessorExecutor;
 
     public EsqlSession(
         String sessionId,
@@ -128,7 +131,7 @@ public class EsqlSession {
         Verifier verifier,
         PlanningMetrics planningMetrics,
         IndicesExpressionGrouper indicesExpressionGrouper,
-        QueryBuilderResolver queryBuilderResolver
+        TransportActionServices services
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -142,7 +145,9 @@ public class EsqlSession {
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planningMetrics = planningMetrics;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
-        this.queryBuilderResolver = queryBuilderResolver;
+        this.mapperPreprocessorExecutor = new MapperPreprocessorExecutor(services);
+
+        mapperPreprocessorExecutor.addPreprocessor(new FullTextFunctionMapperPreprocessor());
     }
 
     public String sessionId() {
@@ -162,16 +167,7 @@ public class EsqlSession {
             new EsqlSessionCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
                 @Override
                 public void onResponse(LogicalPlan analyzedPlan) {
-                    try {
-                        var optimizedPlan = optimizedPlan(analyzedPlan);
-                        queryBuilderResolver.resolveQueryBuilders(
-                            optimizedPlan,
-                            listener,
-                            (newPlan, next) -> executeOptimizedPlan(request, executionInfo, planRunner, newPlan, next)
-                        );
-                    } catch (Exception e) {
-                        listener.onFailure(e);
-                    }
+                    executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(analyzedPlan), listener);
                 }
             }
         );
@@ -188,11 +184,21 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         ActionListener<Result> listener
     ) {
-        PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
-        // TODO: this could be snuck into the underlying listener
-        EsqlSessionCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
-        // execute any potential subplans
-        executeSubPlans(physicalPlan, planRunner, executionInfo, request, listener);
+        mapperPreprocessorExecutor.execute(optimizedPlan, new ActionListener<>() {
+            @Override
+            public void onResponse(LogicalPlan preprocessedPlan) {
+                PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(preprocessedPlan, request);
+                // TODO: this could be snuck into the underlying listener
+                EsqlSessionCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
+                // execute any potential subplans
+                executeSubPlans(physicalPlan, planRunner, executionInfo, request, listener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     private record PlanTuple(PhysicalPlan physical, LogicalPlan logical) {}

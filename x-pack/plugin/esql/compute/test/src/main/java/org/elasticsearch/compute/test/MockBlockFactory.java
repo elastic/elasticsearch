@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.data;
+package org.elasticsearch.compute.test;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
@@ -13,7 +13,27 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.compute.data.AbstractBlockBuilder;
+import org.elasticsearch.compute.data.AbstractVectorBuilder;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Block.MvOrdering;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.BooleanVectorFixedBuilder;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.DoubleVectorFixedBuilder;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.IntVectorFixedBuilder;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.LongVectorFixedBuilder;
+import org.elasticsearch.compute.data.Vector;
 
 import java.util.BitSet;
 import java.util.HashMap;
@@ -86,7 +106,7 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
-    void adjustBreaker(final long delta) {
+    public void adjustBreaker(final long delta) {
         purgeTrackBlocks();
         super.adjustBreaker(delta);
     }
@@ -99,7 +119,7 @@ public class MockBlockFactory extends BlockFactory {
                     TRACKED_BLOCKS.remove(block);
                 }
             } else if (b instanceof AbstractBlockBuilder blockBuilder) {
-                if (blockBuilder.closed) {
+                if (blockBuilder.isReleased()) {
                     TRACKED_BLOCKS.remove(blockBuilder);
                 }
             } else if (b instanceof IntVectorFixedBuilder vecBuilder) {
@@ -119,7 +139,7 @@ public class MockBlockFactory extends BlockFactory {
                     TRACKED_BLOCKS.remove(vecBuilder);
                 }
             } else if (b instanceof AbstractVectorBuilder vecBuilder) {
-                if (vecBuilder.closed) {
+                if (vecBuilder.isReleased()) {
                     TRACKED_BLOCKS.remove(vecBuilder);
                 }
             } else if (b instanceof Vector vector) {

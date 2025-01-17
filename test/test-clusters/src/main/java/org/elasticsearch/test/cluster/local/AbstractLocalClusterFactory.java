@@ -19,6 +19,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionDescriptor;
 import org.elasticsearch.test.cluster.local.distribution.DistributionResolver;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.local.model.User;
+import org.elasticsearch.test.cluster.util.ArchivePatcher;
 import org.elasticsearch.test.cluster.util.IOUtils;
 import org.elasticsearch.test.cluster.util.OS;
 import org.elasticsearch.test.cluster.util.Pair;
@@ -651,27 +652,56 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     .toList();
 
                 List<String> toInstall = spec.getPlugins()
+                    .entrySet()
                     .stream()
                     .map(
-                        pluginName -> pluginPaths.stream()
+                        plugin -> pluginPaths.stream()
                             .map(path -> Pair.of(pattern.matcher(path.getFileName().toString()), path))
-                            .filter(pair -> pair.left.matches() && pair.left.group(1).equals(pluginName))
+                            .filter(pair -> pair.left.matches() && pair.left.group(1).equals(plugin.getKey()))
                             .map(p -> p.right.getParent().resolve(p.left.group(0)))
                             .findFirst()
+                            .map(path -> {
+                                DefaultPluginInstallSpec installSpec = plugin.getValue();
+                                // Path the plugin archive with configured overrides if necessary
+                                if (installSpec.entitlementsOverride != null || installSpec.propertiesOverride != null) {
+                                    Path target;
+                                    try {
+                                        target = Files.createTempFile("patched-", path.getFileName().toString());
+                                    } catch (IOException e) {
+                                        throw new UncheckedIOException("Failed to create temporary file", e);
+                                    }
+                                    ArchivePatcher patcher = new ArchivePatcher(path, target);
+                                    if (installSpec.entitlementsOverride != null) {
+                                        patcher.override(
+                                            "entitlement-policy.yaml",
+                                            original -> installSpec.entitlementsOverride.apply(original).asStream()
+                                        );
+                                    }
+                                    if (installSpec.propertiesOverride != null) {
+                                        patcher.override(
+                                            "plugin-descriptor.properties",
+                                            original -> installSpec.propertiesOverride.apply(original).asStream()
+                                        );
+                                    }
+                                    return patcher.patch();
+                                } else {
+                                    return path;
+                                }
+                            })
                             .orElseThrow(() -> {
                                 String taskPath = System.getProperty("tests.task");
                                 String project = taskPath.substring(0, taskPath.lastIndexOf(':'));
 
-                                throw new RuntimeException(
+                                return new RuntimeException(
                                     "Unable to locate plugin '"
-                                        + pluginName
+                                        + plugin.getKey()
                                         + "'. Ensure you've added the following to the build script for project '"
                                         + project
                                         + "':\n\n"
                                         + "dependencies {\n"
                                         + "  clusterPlugins "
                                         + "project(':plugins:"
-                                        + pluginName
+                                        + plugin.getKey()
                                         + "')"
                                         + "\n}"
                                 );

@@ -244,6 +244,7 @@ emp_no:integer
 
 dropAllOriginalIndexFields
 required_capability: join_lookup_v11
+required_capability: fix_field_names_enrich_lookup_no_valid_fields
 
 FROM employees
 | LIMIT 2

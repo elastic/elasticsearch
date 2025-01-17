@@ -413,7 +413,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         if (hasFailure()) {
             result.consumeAll();
             next.run();
-        } else if (result.isNull()) {
+        } else if (result.isNull() || result.isReduced()) {
             result.consumeAll();
             SearchShardTarget target = result.getSearchShardTarget();
             SearchShard searchShard = new SearchShard(target.getClusterAlias(), target.getShardId());

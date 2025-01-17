@@ -574,12 +574,12 @@ public final class InternalTestCluster extends TestCluster {
             if (random.nextInt(10) == 0) { // do something crazy slow here
                 builder.put(
                     RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(),
-                    new ByteSizeValue(RandomNumbers.randomIntBetween(random, 1, 10), ByteSizeUnit.MB)
+                    ByteSizeValue.of(RandomNumbers.randomIntBetween(random, 1, 10), ByteSizeUnit.MB)
                 );
             } else {
                 builder.put(
                     RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(),
-                    new ByteSizeValue(RandomNumbers.randomIntBetween(random, 10, 200), ByteSizeUnit.MB)
+                    ByteSizeValue.of(RandomNumbers.randomIntBetween(random, 10, 200), ByteSizeUnit.MB)
                 );
             }
         }

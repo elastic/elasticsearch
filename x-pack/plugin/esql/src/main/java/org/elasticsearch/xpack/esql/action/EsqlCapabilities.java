@@ -296,8 +296,11 @@ public class EsqlCapabilities {
          */
         ST_DISTANCE,
 
-        /** Support for function {@code ST_EXTENT}. */
+        /** Support for function {@code ST_EXTENT_AGG}. */
         ST_EXTENT_AGG,
+
+        /** Optimization of ST_EXTENT_AGG with doc-values as IntBlock. */
+        ST_EXTENT_AGG_DOCVALUES,
 
         /**
          * Fix determination of CRS types in spatial functions when folding.

@@ -129,7 +129,9 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         );
         client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         assertBusy(() -> {
-            List<String> indices = Arrays.asList(client().admin().indices().prepareGetIndex().addIndices(".ml*").get().indices());
+            List<String> indices = Arrays.asList(
+                client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(".ml*").get().indices()
+            );
             assertThat(indices.toString(), indices, is(empty()));
         });
         assertThat(isResetMode(), is(false));
@@ -160,7 +162,9 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         createModelDeployment();
         client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         assertBusy(() -> {
-            List<String> indices = Arrays.asList(client().admin().indices().prepareGetIndex().addIndices(".ml*").get().indices());
+            List<String> indices = Arrays.asList(
+                client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(".ml*").get().indices()
+            );
             assertThat(indices.toString(), indices, is(empty()));
         });
         assertThat(isResetMode(), is(false));

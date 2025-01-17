@@ -143,7 +143,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             Settings.builder().put("chunk_size", size + "mb").build()
         );
         chunkSize = GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repositoryMetadata);
-        assertEquals(new ByteSizeValue(size, ByteSizeUnit.MB), chunkSize);
+        assertEquals(ByteSizeValue.of(size, ByteSizeUnit.MB), chunkSize);
 
         // zero bytes is not allowed
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {

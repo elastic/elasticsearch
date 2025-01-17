@@ -592,7 +592,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStream));
         if (failureStore) {
-            return getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices().getIndices();
+            return getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices();
         } else {
             return getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
         }

@@ -379,9 +379,6 @@ tests:
 - class: org.elasticsearch.discovery.ec2.DiscoveryEc2AvailabilityZoneAttributeNoImdsIT
   method: testAvailabilityZoneAttribute
   issue: https://github.com/elastic/elasticsearch/issues/118564
-- class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
-  method: testRetryPointInTime
-  issue: https://github.com/elastic/elasticsearch/issues/118514
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/20_metrics_ingest/Test metrics-apm.app-* setting event.ingested via ingest pipeline}
   issue: https://github.com/elastic/elasticsearch/issues/118875

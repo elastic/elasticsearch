@@ -97,8 +97,20 @@ public class TransportDeleteComposableIndexTemplateAction extends AcknowledgedTr
     @Override
     public Set<String> modifiedKeys(Request request) {
         return Arrays.stream(request.names())
-            .map(n -> ReservedComposableIndexTemplateAction.reservedComposableIndexName(n))
+            .map(ReservedComposableIndexTemplateAction::reservedComposableIndexName)
             .collect(Collectors.toSet());
+    }
+
+    @Override
+    protected void validateForReservedState(Request request, ClusterState state) {
+        super.validateForReservedState(request, state);
+
+        validateForReservedState(
+            projectResolver.getProjectMetadata(state).reservedStateMetadata().values(),
+            reservedStateHandlerName().get(),
+            modifiedKeys(request),
+            request.toString()
+        );
     }
 
     public static class Request extends MasterNodeRequest<Request> {

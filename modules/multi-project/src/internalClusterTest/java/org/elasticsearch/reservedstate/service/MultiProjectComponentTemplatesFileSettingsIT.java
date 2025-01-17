@@ -22,17 +22,27 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.multiproject.MultiProjectPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -52,11 +62,47 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 @LuceneTestCase.SuppressFileSystems("*")
-public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
+public class MultiProjectComponentTemplatesFileSettingsIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(MultiProjectPlugin.class);
+    }
+
+    @Override
+    protected boolean multiProjectIntegrationTest() {
+        return true;
+    }
+
+    @Override
+    public Settings buildEnvSettings(Settings settings) {
+        return Settings.builder()
+            .put(super.buildEnvSettings(settings))
+            .put(MultiProjectPlugin.MULTI_PROJECT_ENABLED.getKey(), true)
+            .build();
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(MultiProjectPlugin.MULTI_PROJECT_ENABLED.getKey(), true)
+            .build();
+    }
 
     private static final AtomicLong versionCounter = new AtomicLong(1);
 
-    private static final String emptyJSON = """
+    private static final String settingsJSON = """
+        {
+             "metadata": {
+                 "version": "%s",
+                 "compatibility": "8.4.0"
+             },
+             "projects": ["%s"],
+             "state": {}
+        }""";
+
+    private static final String emptyProjectJSON = """
         {
              "metadata": {
                  "version": "%s",
@@ -68,7 +114,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
              }
         }""";
 
-    private static final String testJSON = """
+    private static final String projectJSON = """
         {
              "metadata": {
                  "version": "%s",
@@ -210,7 +256,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
              }
         }""";
 
-    private static final String testJSONLess = """
+    private static final String projectJSONLess = """
         {
              "metadata": {
                  "version": "%s",
@@ -310,7 +356,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
              }
         }""";
 
-    private static final String testErrorJSON = """
+    private static final String projectErrorJSON = """
         {
              "metadata": {
                  "version": "%s",
@@ -355,6 +401,8 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
              }
         }""";
 
+    private final ProjectId projectId = randomUniqueProjectId();
+
     private void assertMasterNode(Client client, String node) throws ExecutionException, InterruptedException {
         assertThat(
             client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).execute().get().getState().nodes().getMasterNode().getName(),
@@ -362,8 +410,30 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         );
     }
 
-    private void writeJSONFile(String node, String json) throws Exception {
-        FileSettingsServiceIT.writeJSONFile(node, json, logger, versionCounter.incrementAndGet());
+    private void writeProjectJSONFile(String node, String json) throws Exception {
+        long version = versionCounter.incrementAndGet();
+
+        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
+
+        Files.deleteIfExists(fileSettingsService.watchedFile());
+
+        Files.createDirectories(fileSettingsService.watchedFileDir());
+        Path tempFilePath = createTempFile();
+
+        logger.info("--> writing main settings config to node {} with path {}", node, tempFilePath);
+        logger.info(Strings.format(settingsJSON, version, projectId.id()));
+        Files.write(tempFilePath, Strings.format(settingsJSON, version, projectId.id()).getBytes(StandardCharsets.UTF_8));
+        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
+
+        tempFilePath = createTempFile();
+        logger.info("--> writing project settings config to node {} with path {}", node, tempFilePath);
+        logger.info(Strings.format(json, version));
+        Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
+        Files.move(
+            tempFilePath,
+            fileSettingsService.watchedFile().resolveSibling("project-" + projectId.id() + ".json"),
+            StandardCopyOption.ATOMIC_MOVE
+        );
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {
@@ -373,7 +443,14 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
-                ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+                if (event.state().metadata().hasProject(projectId) == false) {
+                    return;
+                }
+                ReservedStateMetadata reservedState = event.state()
+                    .metadata()
+                    .getProject(projectId)
+                    .reservedStateMetadata()
+                    .get(FileSettingsService.NAMESPACE);
                 if (reservedState != null) {
                     ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedComposableIndexTemplateAction.NAME);
                     if (handlerMetadata != null && handlerMetadata.keys().contains(reservedComposableIndexName("template_1"))) {
@@ -400,14 +477,15 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
             new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(metadataVersion.get())
         ).actionGet();
 
-        Map<String, ComposableIndexTemplate> allTemplates = clusterStateResponse.getState().metadata().getProject().templatesV2();
+        Map<String, ComposableIndexTemplate> allTemplates = clusterStateResponse.getState().metadata().getProject(projectId).templatesV2();
 
         assertThat(allTemplates.keySet(), containsInAnyOrder("template_1", "template_2", "template_other"));
 
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                client().execute(PutComponentTemplateAction.INSTANCE, sampleComponentRestRequest("component_template1"))
+                client().filterWithHeader(Map.of(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id()))
+                    .execute(PutComponentTemplateAction.INSTANCE, sampleComponentRestRequest("component_template1"))
             ).getMessage(),
             containsString("[[component_template:component_template1] set as read-only by [file_settings]]")
         );
@@ -415,7 +493,8 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                client().execute(TransportPutComposableIndexTemplateAction.TYPE, sampleIndexTemplateRestRequest("template_1"))
+                client().filterWithHeader(Map.of(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id()))
+                    .execute(TransportPutComposableIndexTemplateAction.TYPE, sampleIndexTemplateRestRequest("template_1"))
             ).getMessage(),
             containsString("[[composable_index_template:template_1] set as read-only by [file_settings]]")
         );
@@ -428,7 +507,14 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
-                ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+                if (event.state().metadata().hasProject(projectId) == false) {
+                    return;
+                }
+                ReservedStateMetadata reservedState = event.state()
+                    .metadata()
+                    .getProject(projectId)
+                    .reservedStateMetadata()
+                    .get(FileSettingsService.NAMESPACE);
                 if (reservedState != null) {
                     ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedComposableIndexTemplateAction.NAME);
                     if (handlerMetadata != null
@@ -453,22 +539,25 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        final var response = client().execute(
-            GetComposableIndexTemplateAction.INSTANCE,
-            new GetComposableIndexTemplateAction.Request(TEST_REQUEST_TIMEOUT, "template*")
-        ).get();
+        final var response = client().filterWithHeader(Map.of(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id()))
+            .execute(
+                GetComposableIndexTemplateAction.INSTANCE,
+                new GetComposableIndexTemplateAction.Request(TEST_REQUEST_TIMEOUT, "template*")
+            )
+            .get();
 
         assertThat(response.indexTemplates().keySet(), containsInAnyOrder("template_1", "template_2"));
 
-        final var componentResponse = client().execute(
-            GetComponentTemplateAction.INSTANCE,
-            new GetComponentTemplateAction.Request(TEST_REQUEST_TIMEOUT, "other*")
-        ).get();
+        final var componentResponse = client().filterWithHeader(Map.of(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id()))
+            .execute(GetComponentTemplateAction.INSTANCE, new GetComponentTemplateAction.Request(TEST_REQUEST_TIMEOUT, "other*"))
+            .get();
 
         assertThat(componentResponse.getComponentTemplates(), anEmptyMap());
 
         // this should just work, other is not locked
-        client().execute(PutComponentTemplateAction.INSTANCE, sampleComponentRestRequest("other_component_template")).get();
+        client().filterWithHeader(Map.of(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id()))
+            .execute(PutComponentTemplateAction.INSTANCE, sampleComponentRestRequest("other_component_template"))
+            .get();
 
         // this will fail now because sampleIndexTemplateRestRequest wants use the component templates
         // ["component_template1", "runtime_component_template"], which are not allowed to be used by REST requests, since they
@@ -478,7 +567,8 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                client().execute(TransportPutComposableIndexTemplateAction.TYPE, sampleIndexTemplateRestRequest("template_other"))
+                client().filterWithHeader(Map.of(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id()))
+                    .execute(TransportPutComposableIndexTemplateAction.TYPE, sampleIndexTemplateRestRequest("template_other"))
             ).getMessage(),
             containsString(
                 "with errors: [[component_template:runtime_component_template, "
@@ -487,14 +577,16 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         );
 
         // this will work now, we are saving template without components
-        client().execute(TransportPutComposableIndexTemplateAction.TYPE, sampleIndexTemplateRestRequestNoComponents("template_other"))
+        client().filterWithHeader(Map.of(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id()))
+            .execute(TransportPutComposableIndexTemplateAction.TYPE, sampleIndexTemplateRestRequestNoComponents("template_other"))
             .get();
 
         // the rest are still locked
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                client().execute(PutComponentTemplateAction.INSTANCE, sampleComponentRestRequest("component_template1"))
+                client().filterWithHeader(Map.of(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id()))
+                    .execute(PutComponentTemplateAction.INSTANCE, sampleComponentRestRequest("component_template1"))
             ).getMessage(),
             containsString("[[component_template:component_template1] set as read-only by [file_settings]]")
         );
@@ -502,7 +594,8 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                client().execute(TransportPutComposableIndexTemplateAction.TYPE, sampleIndexTemplateRestRequest("template_1"))
+                client().filterWithHeader(Map.of(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id()))
+                    .execute(TransportPutComposableIndexTemplateAction.TYPE, sampleIndexTemplateRestRequest("template_1"))
             ).getMessage(),
             containsString("[[composable_index_template:template_1] set as read-only by [file_settings]]")
         );
@@ -515,7 +608,14 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
-                ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+                if (event.state().metadata().hasProject(projectId) == false) {
+                    return;
+                }
+                ReservedStateMetadata reservedState = event.state()
+                    .metadata()
+                    .getProject(projectId)
+                    .reservedStateMetadata()
+                    .get(FileSettingsService.NAMESPACE);
                 if (reservedState != null) {
                     ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedComposableIndexTemplateAction.NAME);
                     if (handlerMetadata == null || handlerMetadata.keys().isEmpty()) {
@@ -539,7 +639,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         // In internal cluster tests, the nodes share the config directory, so when we write with the data node path
         // the master will pick it up on start
         logger.info("--> write the initial settings json with all component templates and composable index templates");
-        writeJSONFile(dataNode, testJSON);
+        writeProjectJSONFile(dataNode, projectJSON);
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode();
@@ -549,14 +649,14 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
 
         savedClusterState = setupClusterStateListenerForOtherDelete(internalCluster().getMasterName());
         logger.info("--> write the reduced JSON, so we delete template_other and other_component_template");
-        writeJSONFile(internalCluster().getMasterName(), testJSONLess);
+        writeProjectJSONFile(internalCluster().getMasterName(), projectJSONLess);
 
         assertComponentAndIndexTemplateDelete(savedClusterState.v1(), savedClusterState.v2());
 
         logger.info("---> cleanup file based settings...");
         // if clean-up doesn't succeed correctly, TestCluster.wipeAllComposableIndexTemplates will fail
         savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
-        writeJSONFile(internalCluster().getMasterName(), emptyJSON);
+        writeProjectJSONFile(internalCluster().getMasterName(), emptyProjectJSON);
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
     }
@@ -568,7 +668,14 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
-                ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+                if (event.state().metadata().hasProject(projectId) == false) {
+                    return;
+                }
+                ReservedStateMetadata reservedState = event.state()
+                    .metadata()
+                    .getProject(projectId)
+                    .reservedStateMetadata()
+                    .get(FileSettingsService.NAMESPACE);
                 if (reservedState != null && reservedState.errorMetadata() != null) {
                     assertEquals(ReservedStateErrorMetadata.ErrorKind.VALIDATION, reservedState.errorMetadata().errorKind());
                     assertThat(reservedState.errorMetadata().errors(), allOf(notNullValue(), hasSize(1)));
@@ -593,17 +700,19 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        final var response = client().execute(
-            GetComposableIndexTemplateAction.INSTANCE,
-            new GetComposableIndexTemplateAction.Request(TEST_REQUEST_TIMEOUT, "err*")
-        ).get();
+        final var response = client().filterWithHeader(Map.of(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id()))
+            .execute(GetComposableIndexTemplateAction.INSTANCE, new GetComposableIndexTemplateAction.Request(TEST_REQUEST_TIMEOUT, "err*"))
+            .get();
 
         assertThat(response.indexTemplates(), anEmptyMap());
 
         // This should succeed, nothing was reserved
-        client().execute(TransportPutComposableIndexTemplateAction.TYPE, sampleIndexTemplateRestRequestNoComponents("err_template")).get();
+        client().filterWithHeader(Map.of(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id()))
+            .execute(TransportPutComposableIndexTemplateAction.TYPE, sampleIndexTemplateRestRequestNoComponents("err_template"))
+            .get();
     }
 
+    @AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-10518")
     public void testErrorSaved() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start data node / non master node");
@@ -614,7 +723,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         assertMasterNode(internalCluster().nonMasterClient(), masterNode);
         var savedClusterState = setupClusterStateListenerForError(masterNode);
 
-        writeJSONFile(masterNode, testErrorJSON);
+        writeProjectJSONFile(masterNode, projectErrorJSON);
         assertClusterStateNotSaved(savedClusterState.v1(), savedClusterState.v2());
     }
 

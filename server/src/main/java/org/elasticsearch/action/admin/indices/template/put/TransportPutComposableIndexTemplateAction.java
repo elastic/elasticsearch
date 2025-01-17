@@ -43,6 +43,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -95,9 +96,10 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        verifyIfUsingReservedComponentTemplates(request, state);
-        ComposableIndexTemplate indexTemplate = request.indexTemplate();
         ProjectId projectId = projectResolver.getProjectId();
+        verifyIfUsingReservedComponentTemplates(request, state.metadata().reservedStateMetadata().values());
+        verifyIfUsingReservedComponentTemplates(request, state.metadata().getProject(projectId).reservedStateMetadata().values());
+        ComposableIndexTemplate indexTemplate = request.indexTemplate();
         indexTemplateService.putIndexTemplateV2(
             request.cause(),
             request.create(),
@@ -109,16 +111,16 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         );
     }
 
-    public static void verifyIfUsingReservedComponentTemplates(final Request request, final ClusterState state) {
+    public static void verifyIfUsingReservedComponentTemplates(Request request, Collection<ReservedStateMetadata> reservedStateMetadata) {
         ComposableIndexTemplate indexTemplate = request.indexTemplate();
         Set<String> composedOfKeys = indexTemplate.composedOf()
             .stream()
-            .map(c -> ReservedComposableIndexTemplateAction.reservedComponentName(c))
+            .map(ReservedComposableIndexTemplateAction::reservedComponentName)
             .collect(Collectors.toSet());
 
         List<String> errors = new ArrayList<>();
 
-        for (ReservedStateMetadata metadata : state.metadata().reservedStateMetadata().values()) {
+        for (ReservedStateMetadata metadata : reservedStateMetadata) {
             Set<String> conflicts = metadata.conflicts(ReservedComposableIndexTemplateAction.NAME, composedOfKeys);
             if (conflicts.isEmpty() == false) {
                 errors.add(format("[%s] is reserved by [%s]", String.join(", ", conflicts), metadata.namespace()));
@@ -140,6 +142,18 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
     @Override
     public Set<String> modifiedKeys(Request request) {
         return Set.of(ReservedComposableIndexTemplateAction.reservedComposableIndexName(request.name()));
+    }
+
+    @Override
+    protected void validateForReservedState(Request request, ClusterState state) {
+        super.validateForReservedState(request, state);
+
+        validateForReservedState(
+            projectResolver.getProjectMetadata(state).reservedStateMetadata().values(),
+            reservedStateHandlerName().get(),
+            modifiedKeys(request),
+            request.toString()
+        );
     }
 
     /**

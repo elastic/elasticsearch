@@ -12,14 +12,12 @@ package org.elasticsearch.action.admin.indices.template.reservedstate;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
@@ -47,7 +45,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
  */
 public class ReservedComposableIndexTemplateAction
     implements
-        ReservedClusterStateHandler<ClusterState, ReservedComposableIndexTemplateAction.ComponentsAndComposables> {
+        ReservedClusterStateHandler<ProjectMetadata, ReservedComposableIndexTemplateAction.ComponentsAndComposables> {
     public static final String NAME = "index_templates";
     public static final String COMPONENTS = "component_templates";
     private static final String COMPONENT_PREFIX = "component_template:";
@@ -135,10 +133,10 @@ public class ReservedComposableIndexTemplateAction
     }
 
     @Override
-    public TransformState<ClusterState> transform(ComponentsAndComposables source, TransformState<ClusterState> prevState)
+    public TransformState<ProjectMetadata> transform(ComponentsAndComposables source, TransformState<ProjectMetadata> prevState)
         throws Exception {
         var requests = prepare(source);
-        ClusterState state = prevState.state();
+        ProjectMetadata project = prevState.state();
 
         // We transform in the following order:
         // 1. create or update component templates (composable templates depend on them)
@@ -150,9 +148,6 @@ public class ReservedComposableIndexTemplateAction
 
         var components = requests.componentTemplates;
         var composables = requests.composableTemplates;
-        // Both the creation/update and the overlap checking below should be made project-aware.
-        @FixForMultiProject()
-        final var projectId = Metadata.DEFAULT_PROJECT_ID;
 
         // 1. create or update component templates (composable templates depend on them)
         for (var request : components) {
@@ -161,19 +156,13 @@ public class ReservedComposableIndexTemplateAction
                 indexScopedSettings
             );
 
-            state = indexTemplateService.addComponentTemplate(state.projectState(projectId), false, request.name(), template);
+            project = indexTemplateService.addComponentTemplate(project, false, request.name(), template);
         }
 
         // 2. create or update composable index templates, no overlap validation
         for (var request : composables) {
-            MetadataIndexTemplateService.validateV2TemplateRequest(state.metadata().getProject(), request.name(), request.indexTemplate());
-            state = indexTemplateService.addIndexTemplateV2(
-                state.projectState(projectId),
-                false,
-                request.name(),
-                request.indexTemplate(),
-                false
-            );
+            MetadataIndexTemplateService.validateV2TemplateRequest(project, request.name(), request.indexTemplate());
+            project = indexTemplateService.addIndexTemplateV2(project, false, request.name(), request.indexTemplate(), false);
         }
 
         Set<String> composableEntities = composables.stream().map(r -> reservedComposableIndexName(r.name())).collect(Collectors.toSet());
@@ -185,12 +174,12 @@ public class ReservedComposableIndexTemplateAction
         // 3. delete composable index templates (this will fail on attached data streams, unless we added a higher priority one)
         if (composablesToDelete.isEmpty() == false) {
             var composableNames = composablesToDelete.stream().map(c -> composableIndexNameFromReservedName(c)).toArray(String[]::new);
-            state = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state.projectState(projectId), composableNames);
+            project = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(project, composableNames);
         }
 
         // 4. validate for v2 composable template overlaps
         for (var request : composables) {
-            MetadataIndexTemplateService.v2TemplateOverlaps(state.metadata().getProject(), request.name(), request.indexTemplate(), true);
+            MetadataIndexTemplateService.v2TemplateOverlaps(project, request.name(), request.indexTemplate(), true);
         }
 
         Set<String> componentEntities = components.stream().map(r -> reservedComponentName(r.name())).collect(Collectors.toSet());
@@ -200,10 +189,10 @@ public class ReservedComposableIndexTemplateAction
         // 5. delete component templates (this will check if there are any related composable index templates and fail)
         if (componentsToDelete.isEmpty() == false) {
             var componentNames = componentsToDelete.stream().map(c -> componentNameFromReservedName(c)).toArray(String[]::new);
-            state = MetadataIndexTemplateService.innerRemoveComponentTemplate(state.projectState(projectId), componentNames);
+            project = MetadataIndexTemplateService.innerRemoveComponentTemplate(project, componentNames);
         }
 
-        return new TransformState<>(state, Sets.union(componentEntities, composableEntities));
+        return new TransformState<>(project, Sets.union(componentEntities, composableEntities));
     }
 
     @Override

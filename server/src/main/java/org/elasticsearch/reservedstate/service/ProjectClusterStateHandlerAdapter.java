@@ -59,9 +59,15 @@ class ProjectClusterStateHandlerAdapter<T> implements ReservedClusterStateHandle
     public TransformState<ClusterState> transform(T source, TransformState<ClusterState> prevState) throws Exception {
         ProjectMetadata project = prevState.state().metadata().getProject(projectId);
 
-        TransformState<ProjectMetadata> newState = handler.transform(source, new TransformState<>(project, prevState.keys()));
+        TransformState<ProjectMetadata> oldProjectState = new TransformState<>(project, prevState.keys());
+        TransformState<ProjectMetadata> newProjectState = handler.transform(source, oldProjectState);
 
-        return new TransformState<>(ClusterState.builder(prevState.state()).putProjectMetadata(newState.state()).build(), newState.keys());
+        return newProjectState == oldProjectState
+            ? prevState
+            : new TransformState<>(
+                ClusterState.builder(prevState.state()).putProjectMetadata(newProjectState.state()).build(),
+                newProjectState.keys()
+            );
     }
 
     @Override

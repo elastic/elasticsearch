@@ -989,7 +989,8 @@ class NodeConstruction {
             telemetryProvider,
             clusterService,
             rerouteService,
-            buildReservedClusterStateHandlers(
+            buildReservedClusterStateHandlers(reservedStateHandlerProviders, settingsModule),
+            buildReservedProjectStateHandlers(
                 reservedStateHandlerProviders,
                 settingsModule,
                 clusterService,
@@ -999,7 +1000,6 @@ class NodeConstruction {
                 metadataCreateIndexService,
                 dataStreamGlobalRetentionSettings
             ),
-            buildReservedProjectStateHandlers(reservedStateHandlerProviders),
             pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll),
             incrementalBulkService,
             projectResolver
@@ -1583,6 +1583,21 @@ class NodeConstruction {
 
     private List<ReservedClusterStateHandler<ClusterState, ?>> buildReservedClusterStateHandlers(
         List<? extends ReservedClusterStateHandlerProvider> handlers,
+        SettingsModule settingsModule
+    ) {
+        List<ReservedClusterStateHandler<ClusterState, ?>> reservedStateHandlers = new ArrayList<>();
+
+        // add all reserved state handlers from server
+        reservedStateHandlers.add(new ReservedClusterSettingsAction(settingsModule.getClusterSettings()));
+
+        // add all reserved state handlers from plugins
+        handlers.forEach(h -> reservedStateHandlers.addAll(h.clusterHandlers()));
+
+        return reservedStateHandlers;
+    }
+
+    private List<ReservedClusterStateHandler<ProjectMetadata, ?>> buildReservedProjectStateHandlers(
+        List<? extends ReservedClusterStateHandlerProvider> handlers,
         SettingsModule settingsModule,
         ClusterService clusterService,
         IndicesService indicesService,
@@ -1591,10 +1606,7 @@ class NodeConstruction {
         MetadataCreateIndexService metadataCreateIndexService,
         DataStreamGlobalRetentionSettings globalRetentionSettings
     ) {
-        List<ReservedClusterStateHandler<ClusterState, ?>> reservedStateHandlers = new ArrayList<>();
-
-        // add all reserved state handlers from server
-        reservedStateHandlers.add(new ReservedClusterSettingsAction(settingsModule.getClusterSettings()));
+        List<ReservedClusterStateHandler<ProjectMetadata, ?>> reservedStateHandlers = new ArrayList<>();
 
         var templateService = new MetadataIndexTemplateService(
             clusterService,
@@ -1607,17 +1619,6 @@ class NodeConstruction {
             globalRetentionSettings
         );
         reservedStateHandlers.add(new ReservedComposableIndexTemplateAction(templateService, settingsModule.getIndexScopedSettings()));
-
-        // add all reserved state handlers from plugins
-        handlers.forEach(h -> reservedStateHandlers.addAll(h.clusterHandlers()));
-
-        return reservedStateHandlers;
-    }
-
-    private List<ReservedClusterStateHandler<ProjectMetadata, ?>> buildReservedProjectStateHandlers(
-        List<? extends ReservedClusterStateHandlerProvider> handlers
-    ) {
-        List<ReservedClusterStateHandler<ProjectMetadata, ?>> reservedStateHandlers = new ArrayList<>();
 
         // add all reserved state handlers from plugins
         handlers.forEach(h -> reservedStateHandlers.addAll(h.projectHandlers()));

@@ -263,11 +263,15 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
     private void upgradeDataStream(String dataStreamName, int numRolloversOnOldCluster) throws Exception {
         Set<String> indicesNeedingUpgrade = getDataStreamIndices(dataStreamName);
-        Set<String> closedOnOldClusterIndices = getClosedIndices(dataStreamName);
+        Set<String> closedOldIndices = getClosedIndices(dataStreamName);
         final int explicitRolloverOnNewClusterCount = randomIntBetween(0, 2);
         for (int i = 0; i < explicitRolloverOnNewClusterCount; i++) {
             String oldIndexName = rollover(dataStreamName);
             if (randomBoolean()) {
+                if (i == 0) {
+                    // Since this is the first rollover on the new cluster, the old index came from the old cluster
+                    closedOldIndices.add(oldIndexName);
+                }
                 closeIndex(oldIndexName);
             }
         }
@@ -312,12 +316,12 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                  */
                 assertThat(
                     statusResponseMap.get("total_indices_requiring_upgrade"),
-                    equalTo(originalWriteIndex + numRolloversOnOldCluster - closedOnOldClusterIndices.size())
+                    equalTo(originalWriteIndex + numRolloversOnOldCluster - closedOldIndices.size())
                 );
-                assertThat(statusResponseMap.get("successes"), equalTo(numRolloversOnOldCluster + 1 - closedOnOldClusterIndices.size()));
+                assertThat(statusResponseMap.get("successes"), equalTo(numRolloversOnOldCluster + 1 - closedOldIndices.size()));
                 // We expect all the original indices to have been deleted
                 for (String oldIndex : indicesNeedingUpgrade) {
-                    if (closedOnOldClusterIndices.contains(oldIndex) == false) {
+                    if (closedOldIndices.contains(oldIndex) == false) {
                         assertThat(indexExists(oldIndex), equalTo(false));
                     }
                 }

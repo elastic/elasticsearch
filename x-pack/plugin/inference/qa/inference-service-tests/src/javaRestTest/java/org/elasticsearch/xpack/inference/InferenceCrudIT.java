@@ -272,9 +272,9 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         List<Object> services = getServices(TaskType.CHAT_COMPLETION);
         if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
             || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
-            assertThat(services.size(), equalTo(2));
+            assertThat(services.size(), equalTo(3));
         } else {
-            assertThat(services.size(), equalTo(1));
+            assertThat(services.size(), equalTo(2));
         }
 
         String[] providers = new String[services.size()];
@@ -283,7 +283,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             providers[i] = (String) serviceConfig.get("service");
         }
 
-        var providerList = new ArrayList<>(List.of("openai"));
+        var providerList = new ArrayList<>(List.of("openai", "streaming_completion_test_service"));
 
         if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
             || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {

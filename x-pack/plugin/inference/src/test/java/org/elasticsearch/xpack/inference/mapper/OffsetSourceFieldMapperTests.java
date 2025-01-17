@@ -121,6 +121,11 @@ public class OffsetSourceFieldMapperTests extends MapperTestCase {
         // This mapper doesn't support multiple values (array of objects).
     }
 
+    @Override
+    public void testSyntheticSourceInheritsKeepArrays() {
+        // This mapper doesn't support multiple values (array of objects).
+    }
+
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());

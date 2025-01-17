@@ -7,4 +7,4 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
-public record ElasticInferenceServiceComponents(String elasticInferenceServiceUrl, ElasticInferenceServiceACL acl) {}
+public record ElasticInferenceServiceComponents(String elasticInferenceServiceUrl) {}

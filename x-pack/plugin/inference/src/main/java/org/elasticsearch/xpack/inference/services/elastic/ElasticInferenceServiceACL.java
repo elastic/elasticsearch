@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.inference.services.elastic;
 
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceAclResponseEntity;
 
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -20,6 +22,22 @@ import java.util.stream.Collectors;
  * @param enabledModels a mapping of model ids to a set of {@link TaskType} to indicate which models are available and for which task types
  */
 public record ElasticInferenceServiceACL(Map<String, EnumSet<TaskType>> enabledModels) {
+
+    /**
+     * Converts an ACL response into the {@link ElasticInferenceServiceACL} format.
+     *
+     * @param responseEntity the response from the upstream gateway.
+     * @return a new {@link ElasticInferenceServiceACL}
+     */
+    public static ElasticInferenceServiceACL of(ElasticInferenceServiceAclResponseEntity responseEntity) {
+        var enabledModels = new HashMap<String, EnumSet<TaskType>>();
+
+        for (var model : responseEntity.getAllowedModels()) {
+            enabledModels.put(model.modelName(), model.taskTypes());
+        }
+
+        return new ElasticInferenceServiceACL(enabledModels);
+    }
 
     /**
      * Returns an object indicating that the cluster has no access to EIS.

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.MappedActionFilter;
@@ -46,6 +47,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -74,11 +76,15 @@ import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAct
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockRequestSender;
+import org.elasticsearch.xpack.inference.external.elastic.ElasticInferenceServiceResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
+import org.elasticsearch.xpack.inference.external.request.elastic.ElasticInferenceServiceAclRequest;
+import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceAclResponseEntity;
 import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
@@ -124,17 +130,20 @@ import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
+import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Request.DEFAULT_TIMEOUT;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG;
@@ -279,8 +288,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             String elasticInferenceUrl = this.getElasticInferenceServiceUrl(inferenceServiceSettings);
             elasticInferenceServiceComponents.set(
                 new ElasticInferenceServiceComponents(
-                    elasticInferenceUrl,
-                    new ElasticInferenceServiceACL(Map.of("model-abc", EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)))
+                    elasticInferenceUrl
+//                    new ElasticInferenceServiceACL(Map.of("model-abc", EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)))
                 )
             );
 
@@ -289,7 +298,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
                     context -> new ElasticInferenceService(
                         elasicInferenceServiceFactory.get(),
                         serviceComponents.get(),
-                        elasticInferenceServiceComponents.get()
+                        elasticInferenceServiceComponents.get(),
+                        modelRegistry
                     )
                 )
             );
@@ -318,6 +328,13 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var stats = new PluginComponentBinding<>(InferenceStats.class, InferenceStats.create(meterRegistry));
 
         return List.of(modelRegistry, registry, httpClientManager, stats);
+    }
+
+    private TraceContext getCurrentTraceInfo() {
+        var traceParent = threadPoolSetOnce.get().getThreadContext().getHeader(Task.TRACE_PARENT);
+        var traceState = threadPoolSetOnce.get().getThreadContext().getHeader(Task.TRACE_STATE);
+
+        return new TraceContext(traceParent, traceState);
     }
 
     @Override

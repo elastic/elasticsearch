@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
@@ -301,7 +303,9 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var service = new ElasticInferenceService(
                 senderFactory,
                 createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(getUrl(webServer), ElasticInferenceServiceACLTests.createEnabledAcl())
+                new ElasticInferenceServiceComponents(getUrl(webServer)),
+                mockModelRegistry(),
+                ElasticInferenceServiceACLTests.createEnabledAcl()
             )
         ) {
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer));
@@ -325,7 +329,9 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var service = new ElasticInferenceService(
                 factory,
                 createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(null, ElasticInferenceServiceACLTests.createEnabledAcl())
+                new ElasticInferenceServiceComponents(null),
+                mockModelRegistry(),
+                ElasticInferenceServiceACLTests.createEnabledAcl()
             )
         ) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -355,6 +361,12 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
+    private ModelRegistry mockModelRegistry() {
+        var client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        return new ModelRegistry(client);
+    }
+
     public void testInfer_ThrowsErrorWhenTaskTypeIsNotValid() throws IOException {
         var sender = mock(Sender.class);
 
@@ -367,7 +379,9 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var service = new ElasticInferenceService(
                 factory,
                 createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(null, ElasticInferenceServiceACLTests.createEnabledAcl())
+                new ElasticInferenceServiceComponents(null),
+                mockModelRegistry(),
+                ElasticInferenceServiceACLTests.createEnabledAcl()
             )
         ) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -412,7 +426,9 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var service = new ElasticInferenceService(
                 factory,
                 createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(null, ElasticInferenceServiceACLTests.createEnabledAcl())
+                new ElasticInferenceServiceComponents(null),
+                mockModelRegistry(),
+                ElasticInferenceServiceACLTests.createEnabledAcl()
             )
         ) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -455,7 +471,9 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var service = new ElasticInferenceService(
                 senderFactory,
                 createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(eisGatewayUrl, ElasticInferenceServiceACLTests.createEnabledAcl())
+                new ElasticInferenceServiceComponents(eisGatewayUrl),
+                mockModelRegistry(),
+                ElasticInferenceServiceACLTests.createEnabledAcl()
             )
         ) {
             String responseJson = """
@@ -512,7 +530,9 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var service = new ElasticInferenceService(
                 senderFactory,
                 createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(eisGatewayUrl, ElasticInferenceServiceACLTests.createEnabledAcl())
+                new ElasticInferenceServiceComponents(eisGatewayUrl),
+                mockModelRegistry(),
+                ElasticInferenceServiceACLTests.createEnabledAcl()
             )
         ) {
             String responseJson = """
@@ -757,7 +777,9 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         return new ElasticInferenceService(
             mock(HttpRequestSender.Factory.class),
             createWithEmptySettings(threadPool),
-            new ElasticInferenceServiceComponents(null, ElasticInferenceServiceACLTests.createEnabledAcl())
+            new ElasticInferenceServiceComponents(null),
+            mockModelRegistry(),
+            ElasticInferenceServiceACLTests.createEnabledAcl()
         );
     }
 
@@ -765,7 +787,9 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         return new ElasticInferenceService(
             mock(HttpRequestSender.Factory.class),
             createWithEmptySettings(threadPool),
-            new ElasticInferenceServiceComponents(null, acl)
+            new ElasticInferenceServiceComponents(null),
+            mockModelRegistry(),
+            acl
         );
     }
 }

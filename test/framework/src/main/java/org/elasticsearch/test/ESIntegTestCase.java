@@ -1267,7 +1267,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                                     localClusterState.stateUUID()
                                 );
                                 // We cannot compare serialization bytes since serialization order of maps is not guaranteed
-                                // but we can compare serialization sizes - they should be the same
+                                // but we can compare if the Strings are identical by "counting" the characters
                                 assertTrue("cluster states must be equal", equal(masterClusterState.toString(), localClusterState.toString()));
 
                                 // Compare JSON serialization

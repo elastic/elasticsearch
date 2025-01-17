@@ -63,7 +63,7 @@ final class ModelLoaderUtils {
     public static String METADATA_FILE_EXTENSION = ".metadata.json";
     public static String MODEL_FILE_EXTENSION = ".pt";
 
-    private static final ByteSizeValue VOCABULARY_SIZE_LIMIT = new ByteSizeValue(20, ByteSizeUnit.MB);
+    private static final ByteSizeValue VOCABULARY_SIZE_LIMIT = ByteSizeValue.of(20, ByteSizeUnit.MB);
     private static final String VOCABULARY = "vocabulary";
     private static final String MERGES = "merges";
     private static final String SCORES = "scores";

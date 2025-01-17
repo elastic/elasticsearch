@@ -34,7 +34,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -253,22 +252,15 @@ public class OldMappingsIT extends ESRestTestCase {
     }
 
     public void testStandardTokenFilter() throws IOException {
-        Request search = new Request("POST", "/" + "standard_token_filter" + "/_search");
-        XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
-            .startObject()
-            .startObject("query")
-            .startObject("match_all")
-            .endObject()
-            .endObject()
-            .endObject();
-        search.setJsonEntity(Strings.toString(query));
-        Map<String, Object> response = entityAsMap(client().performRequest(search));
-        List<?> hits = (List<?>) (XContentMapValues.extractValue("hits.hits", response));
-        assertThat(hits, hasSize(1));
+        assertMatchAll("standard_token_filter");
     }
 
     public void testDFRSimilarity() throws IOException {
-        Request search = new Request("POST", "/" + "similarity" + "/_search");
+        assertMatchAll("similarity");
+    }
+
+    private void assertMatchAll(String indexName) throws IOException {
+        Request search = new Request("POST", "/" + indexName + "/_search");
         XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("query")

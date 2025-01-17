@@ -32,7 +32,6 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.DenseCollector;
-import org.elasticsearch.compute.operator.ComputeTestCase;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -40,6 +39,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.ShuffleDocsOperator;
 import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 

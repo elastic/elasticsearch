@@ -23,9 +23,10 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
-import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockFactory;
+import org.elasticsearch.compute.test.AnyOperatorTestCase;
+import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
@@ -212,7 +213,8 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         // Clone the input so that the operator can close it, then, later, we can read it again to build the assertion.
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
 
-        List<Page> results = drive(simple().get(context), input.iterator(), context);
+        var operator = simple().get(context);
+        List<Page> results = drive(operator, input.iterator(), context);
         assertSimpleOutput(origInput, results);
         assertThat(context.breaker().getUsed(), equalTo(0L));
 

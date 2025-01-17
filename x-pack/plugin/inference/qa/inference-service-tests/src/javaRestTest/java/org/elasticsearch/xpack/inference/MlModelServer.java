@@ -78,6 +78,8 @@ public class MlModelServer {
 
     private void handle(HttpExchange exchange) throws IOException {
         String fileName = exchange.getRequestURI().getPath().substring(1);
+        // If this architecture is requested, serve the default model instead.
+        fileName = fileName.replace("_linux-x86_64", "");
         String range = exchange.getRequestHeaders().getFirst("Range");
         Integer rangeFrom = null;
         Integer rangeTo = null;

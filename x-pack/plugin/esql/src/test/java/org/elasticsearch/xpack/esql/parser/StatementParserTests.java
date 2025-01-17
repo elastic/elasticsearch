@@ -631,6 +631,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 }
                 pattern = cluster + ":" + pattern;
             }
+            if (pattern.contains(":") && pattern.contains("\"") == false) {// quote entire "cluster:index"
+                pattern = "\"" + pattern + "\"";
+            }
             return pattern;
         });
 

@@ -185,3 +185,27 @@
         body:
           _source:
             mode: synthetic
+
+---
+"modify field type with subobjects:false":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            subobjects: false
+            properties:
+              user.id:
+                type: long
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            user.id:
+              type: keyword
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "mapper [user.id] cannot be changed from type [long] to [keyword]" }

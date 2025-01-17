@@ -5,9 +5,21 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.data;
+package org.elasticsearch.compute.test;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.FloatBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Page;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -210,7 +222,7 @@ public class BlockTestUtils {
      */
     @SuppressWarnings("unchecked")
     public static <T> void assertPositionValues(Block b, int p, Matcher<T> valuesMatcher) {
-        List<Object> value = BasicBlockTests.valuesAtPositions(b, p, p + 1).get(0);
+        List<Object> value = valuesAtPositions(b, p, p + 1).get(0);
         assertThat((T) value, valuesMatcher);
         if (value == null) {
             assertThat(b.getValueCount(p), equalTo(0));
@@ -228,5 +240,31 @@ public class BlockTestUtils {
 
     public static List<Page> deepCopyOf(List<Page> pages, BlockFactory blockFactory) {
         return pages.stream().map(page -> deepCopyOf(page, blockFactory)).toList();
+    }
+
+    public static List<List<Object>> valuesAtPositions(Block block, int from, int to) {
+        List<List<Object>> result = new ArrayList<>(to - from);
+        for (int p = from; p < to; p++) {
+            if (block.isNull(p)) {
+                result.add(null);
+                continue;
+            }
+            int count = block.getValueCount(p);
+            List<Object> positionValues = new ArrayList<>(count);
+            int i = block.getFirstValueIndex(p);
+            for (int v = 0; v < count; v++) {
+                positionValues.add(switch (block.elementType()) {
+                    case INT -> ((IntBlock) block).getInt(i++);
+                    case LONG -> ((LongBlock) block).getLong(i++);
+                    case FLOAT -> ((FloatBlock) block).getFloat(i++);
+                    case DOUBLE -> ((DoubleBlock) block).getDouble(i++);
+                    case BYTES_REF -> ((BytesRefBlock) block).getBytesRef(i++, new BytesRef());
+                    case BOOLEAN -> ((BooleanBlock) block).getBoolean(i++);
+                    default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
+                });
+            }
+            result.add(positionValues);
+        }
+        return result;
     }
 }

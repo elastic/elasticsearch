@@ -29,6 +29,7 @@ import java.util.Objects;
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.DEFAULT_RERANK_ID;
 
 /**
  * A {@code RetrieverBuilder} for parsing and constructing a text similarity reranker retriever.
@@ -38,6 +39,8 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     public static final NodeFeature TEXT_SIMILARITY_RERANKER_ALIAS_HANDLING_FIX = new NodeFeature(
         "text_similarity_reranker_alias_handling_fix"
     );
+
+    public static final String DEFAULT_RERANK_V1_INFERENCE_ID = DEFAULT_RERANK_ID;
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
@@ -51,6 +54,11 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             String inferenceText = (String) args[2];
             String field = (String) args[3];
             int rankWindowSize = args[4] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[4];
+
+            if (inferenceId == null) {
+                inferenceId = DEFAULT_RERANK_V1_INFERENCE_ID;
+            }
+
             return new TextSimilarityRankRetrieverBuilder(retrieverBuilder, inferenceId, inferenceText, field, rankWindowSize);
         });
 
@@ -60,7 +68,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             c.trackRetrieverUsage(innerRetriever.getName());
             return innerRetriever;
         }, RETRIEVER_FIELD);
-        PARSER.declareString(constructorArg(), INFERENCE_ID_FIELD);
+        PARSER.declareString(optionalConstructorArg(), INFERENCE_ID_FIELD);
         PARSER.declareString(constructorArg(), INFERENCE_TEXT_FIELD);
         PARSER.declareString(constructorArg(), FIELD_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
@@ -158,6 +166,10 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     @Override
     public String getName() {
         return TextSimilarityRankBuilder.NAME;
+    }
+
+    public String inferenceId() {
+        return inferenceId;
     }
 
     public int rankWindowSize() {

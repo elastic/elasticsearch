@@ -6235,50 +6235,19 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *   |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18]
      */
-    public void testLookupJoinKeepNonLookupFields() {
+    public void testLookupJoinKeepNoLookupFields() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
 
-        String query = """
-              FROM test
-            | EVAL language_code = languages
-            | LOOKUP JOIN languages_lookup ON language_code
-            | KEEP languages
-            """;
-
-        var plan = optimizedPlan(query);
-
-        var project = as(plan, Project.class);
-        assertThat(project.projections().size(), equalTo(1));
-        assertThat(project.projections().get(0).name(), equalTo("languages"));
-
-        var join = as(project.child(), Join.class);
-        var joinRightRelation = as(join.right(), EsRelation.class);
-
-        assertThat(joinRightRelation.output().size(), equalTo(1));
-        assertThat(joinRightRelation.output().get(0).name(), equalTo("language_code"));
-    }
-
-    /**
-     * Same as {@link #testLookupJoinKeepNonLookupFields}, but with drop.
-     * Expects
-     * EsqlProject[[languages{f}#10]]
-     * \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
-     *   |_Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
-     * uages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12, languages{f}#10 AS language_code]]
-     *   | \_Limit[1000[INTEGER]]
-     *   |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18]
-     */
-    public void testLookupJoinDropAllLookupFields() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
-
-        String query = """
-              FROM test
-            | EVAL language_code = languages
-            | LOOKUP JOIN languages_lookup ON language_code
+        String commandDiscardingFields = randomBoolean() ? "| KEEP languages" : """
             | DROP _meta_field, emp_no, first_name, gender, language_code,
                    language_name, last_name, salary, hire_date, job, job.raw, long_noidx
             """;
+
+        String query = """
+              FROM test
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            """ + commandDiscardingFields;
 
         var plan = optimizedPlan(query);
 

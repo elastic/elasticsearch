@@ -35,6 +35,9 @@ import java.net.SocketImplFactory;
 import java.net.URL;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
@@ -42,6 +45,7 @@ import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.security.cert.CertStoreParameters;
 import java.util.List;
 
 import javax.net.ssl.HostnameVerifier;
@@ -511,6 +515,59 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void check$java_net_Socket$connect(Class<?> callerClass, Socket that, SocketAddress endpoint, int backlog) {
         policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
+    }
+
+    @Override
+    public void check$java_net_URL$openConnection(Class<?> callerClass, URL that, Proxy proxy) {
+        if (proxy.type() != Proxy.Type.DIRECT) {
+            policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
+        }
+    }
+
+    @Override
+    public void check$jdk_internal_net_http_HttpClientBuilderImpl$build(Class<?> callerClass, HttpClient.Builder that) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.LISTEN_ACTION);
+    }
+
+    @Override
+    public void check$jdk_internal_net_http_HttpClientImpl$send(
+        Class<?> callerClass,
+        HttpClient that,
+        HttpRequest request,
+        HttpResponse.BodyHandler<?> responseBodyHandler
+    ) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
+    }
+
+    @Override
+    public void check$jdk_internal_net_http_HttpClientImpl$sendAsync(
+        Class<?> callerClass,
+        HttpClient that,
+        HttpRequest userRequest,
+        HttpResponse.BodyHandler<?> responseHandler
+    ) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
+    }
+
+    @Override
+    public void check$jdk_internal_net_http_HttpClientImpl$sendAsync(
+        Class<?> callerClass,
+        HttpClient that,
+        HttpRequest userRequest,
+        HttpResponse.BodyHandler<?> responseHandler,
+        HttpResponse.PushPromiseHandler<?> pushPromiseHandler
+    ) {
+        policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
+    }
+
+    @Override
+    public void check$java_security_cert_CertStore$$getInstance(Class<?> callerClass, String type, CertStoreParameters params) {
+        // We need to check "just" the LDAPCertStore instantiation: this is the CertStore that will try to perform a network operation
+        // (connect to an LDAP server). But LDAPCertStore is internal (created via SPI), so we instrument the general factory instead and
+        // then do the check only for the path that leads to sensitive code (by looking at the `type` parameter).
+        if ("LDAP".equals(type)) {
+            policyManager.checkNetworkAccess(callerClass, NetworkEntitlement.CONNECT_ACTION);
+        }
     }
 
     @Override

@@ -40,7 +40,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
      * Maximum allowed object size in GCS.
      * @see <a href="https://cloud.google.com/storage/quotas#objects">GCS documentation</a> for details.
      */
-    static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(5, ByteSizeUnit.TB);
+    static final ByteSizeValue MAX_CHUNK_SIZE = ByteSizeValue.of(5, ByteSizeUnit.TB);
 
     static final String TYPE = "gcs";
 

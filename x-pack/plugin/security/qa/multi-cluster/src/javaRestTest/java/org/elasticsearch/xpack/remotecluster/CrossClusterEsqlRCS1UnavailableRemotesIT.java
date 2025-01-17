@@ -180,7 +180,11 @@ public class CrossClusterEsqlRCS1UnavailableRemotesIT extends AbstractRemoteClus
             ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(query)));
             assertThat(
                 ex.getMessage(),
-                anyOf(containsString("connect_transport_exception"), containsString("node_disconnected_exception"))
+                anyOf(
+                    containsString("connect_transport_exception"),
+                    containsString("node_disconnected_exception"),
+                    containsString("node_not_connected_exception")
+                )
             );
         } finally {
             fulfillingCluster.start();

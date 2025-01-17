@@ -650,7 +650,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var validCharacters = validFirstCharacters + "+-_.";
 
         var index = new StringBuilder();
-        if (randomInt(9) == 0) {// hidden
+        if (randomInt(9) == 0) {// hidden index
             index.append('.');
         }
         index.append(randomCharacterFrom(validFirstCharacters));

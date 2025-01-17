@@ -166,6 +166,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_RESPONSE_PARTIAL = def(8_832_00_0);
     public static final TransportVersion RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN = def(8_833_00_0);
     public static final TransportVersion ILM_ADD_SEARCHABLE_SNAPSHOT_ADD_REPLICATE_FOR = def(8_834_00_0);
+    public static final TransportVersion ESQL_RETRY_ON_SHARD_LEVEL_FAILURE = def(8_835_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

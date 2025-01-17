@@ -104,8 +104,9 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             var query = Queries.combine(Queries.Clause.FILTER, asList(queryExec.query(), planQuery));
             queryExec = new EsQueryExec(
                 queryExec.source(),
-                queryExec.index(),
+                queryExec.indexPattern(),
                 queryExec.indexMode(),
+                queryExec.indexNameWithModes(),
                 queryExec.output(),
                 query,
                 queryExec.limit(),

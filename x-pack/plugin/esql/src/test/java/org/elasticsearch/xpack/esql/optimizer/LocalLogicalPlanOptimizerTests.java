@@ -580,6 +580,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public static EsRelation relation() {
-        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), randomFrom(IndexMode.values()), randomBoolean());
+        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), randomFrom(IndexMode.values()));
     }
 }

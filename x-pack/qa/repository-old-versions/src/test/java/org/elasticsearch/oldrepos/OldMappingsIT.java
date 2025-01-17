@@ -116,7 +116,7 @@ public class OldMappingsIT extends ESRestTestCase {
                             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                             .put("index.similarity.custom_dfr.type", "DFR")
                             .put("index.similarity.custom_dfr.basic_model", "be")
-                            .put("index.similarity.custom_dfr.after_effect", "b")
+                            .put("index.similarity.custom_dfr.after_effect", "no")
                             .put("index.similarity.custom_dfr.normalization", "h2")
                             .put("index.similarity.custom_dfr.normalization.h2.c", "3.0")
                             .build()

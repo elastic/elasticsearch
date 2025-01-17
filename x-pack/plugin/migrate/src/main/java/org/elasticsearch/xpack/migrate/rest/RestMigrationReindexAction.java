@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.migrate.rest;
 
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
@@ -17,7 +18,6 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction;
-import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -63,14 +63,14 @@ public class RestMigrationReindexAction extends BaseRestHandler {
         return Collections.unmodifiableSet(capabilities);
     }
 
-    static class ReindexDataStreamRestToXContentListener extends RestBuilderListener<ReindexDataStreamResponse> {
+    static class ReindexDataStreamRestToXContentListener extends RestBuilderListener<AcknowledgedResponse> {
 
         ReindexDataStreamRestToXContentListener(RestChannel channel) {
             super(channel);
         }
 
         @Override
-        public RestResponse buildResponse(ReindexDataStreamResponse response, XContentBuilder builder) throws Exception {
+        public RestResponse buildResponse(AcknowledgedResponse response, XContentBuilder builder) throws Exception {
             response.toXContent(builder, channel.request());
             return new RestResponse(RestStatus.OK, builder);
         }

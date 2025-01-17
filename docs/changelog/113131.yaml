@@ -1,0 +1,11 @@
+pr: 113131
+summary: Emit deprecation warning when executing one of the rollup APIs (Attempt 2)
+area: Rollup
+type: deprecation
+issues: []
+deprecation:
+  title: Emit deprecation warning when executing one of the rollup APIs (Attempt 2)
+  area: Rollup
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

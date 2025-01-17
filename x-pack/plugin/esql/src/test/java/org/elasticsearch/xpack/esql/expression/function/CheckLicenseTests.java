@@ -82,7 +82,7 @@ public class CheckLicenseTests extends ESTestCase {
         plan = plan.transformDown(
             Limit.class,
             l -> Objects.equals(l.limit().fold(FoldContext.small()), 10)
-                ? new LicensedLimit(l.source(), l.limit(), l.child(), functionLicenseFeature)
+                ? new LicensedLimit(l.source(), l.limit(), l.child(), l.allowDuplicatePastExpandingNode(), functionLicenseFeature)
                 : l
         );
         return analyzer(registry, operationMode).analyze(plan);

@@ -1315,6 +1315,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testPushdownLimitsPastLeftJoin() {
+        var rule = new PushDownAndCombineLimits();
+
         var leftChild = emptySource();
         var rightChild = new LocalRelation(Source.EMPTY, List.of(fieldAttribute()), LocalSupplier.EMPTY);
         assertNotEquals(leftChild, rightChild);
@@ -1329,9 +1331,16 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var limit = new Limit(EMPTY, L(10), join, true);
 
-        var optimizedPlan = new PushDownAndCombineLimits().rule(limit, logicalOptimizerCtx);
+        var optimizedPlan = rule.apply(limit, logicalOptimizerCtx);
 
-        assertEquals(join.replaceChildren(limit.replaceChild(join.left()), join.right()), optimizedPlan);
+        assertEquals(
+            new Limit(limit.source(), limit.limit(), join.replaceChildren(limit.replaceChild(join.left()), join.right()), false),
+            optimizedPlan
+        );
+
+        var optimizedTwice = rule.apply(optimizedPlan, logicalOptimizerCtx);
+        // We mustn't create the limit after the JOIN multiple times when the rule is applied multiple times, that'd lead to infinite loops.
+        assertEquals(optimizedPlan, optimizedTwice);
     }
 
     public void testMultipleCombineLimits() {

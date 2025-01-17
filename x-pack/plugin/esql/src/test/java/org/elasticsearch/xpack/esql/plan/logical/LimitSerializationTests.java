@@ -28,12 +28,10 @@ public class LimitSerializationTests extends AbstractLogicalPlanSerializationTes
         LogicalPlan child = instance.child();
         boolean allowDuplicatePastExpandingNode = instance.allowDuplicatePastExpandingNode();
         switch (randomIntBetween(0, 2)) {
-            case 0:
-                limit = randomValueOtherThan(limit, () -> FieldAttributeTests.createFieldAttribute(0, false));
-            case 1:
-                child = randomValueOtherThan(child, () -> randomChild(0));
-            case 2:
-                allowDuplicatePastExpandingNode = allowDuplicatePastExpandingNode == false;
+            case 0 -> limit = randomValueOtherThan(limit, () -> FieldAttributeTests.createFieldAttribute(0, false));
+            case 1 -> child = randomValueOtherThan(child, () -> randomChild(0));
+            case 2 -> allowDuplicatePastExpandingNode = allowDuplicatePastExpandingNode == false;
+            default -> throw new IllegalStateException("Should never reach here");
         }
         return new Limit(instance.source(), limit, child, allowDuplicatePastExpandingNode);
     }

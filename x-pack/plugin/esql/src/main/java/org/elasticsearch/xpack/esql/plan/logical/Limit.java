@@ -22,8 +22,8 @@ public class Limit extends UnaryPlan {
 
     private final Expression limit;
     /**
-     * This should be {@code true} in most cases, which allows this instance to be duplicated past a child plan node that increases the
-     * number of rows, like for LOOKUP JOIN and MV_EXPAND.
+     * Important for optimizations. This should be {@code true} in most cases, which allows this instance to be duplicated past a child plan
+     * node that increases the number of rows, like for LOOKUP JOIN and MV_EXPAND.
      * Needs to be set to {@code false} in {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits} to avoid
      * infinite loops from adding a duplicate of the limit past the child over and over again.
      */

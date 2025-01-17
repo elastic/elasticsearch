@@ -116,17 +116,17 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     public void testSyntheticSourceKeepAll() throws IOException {
-        // For now, synthetic source is only supported when "synthetic_source_keep" is "none"
+        // For now, native synthetic source is only supported when "synthetic_source_keep" mapping attribute is "none"
     }
 
     @Override
     public void testSyntheticSourceKeepArrays() throws IOException {
-        // For now, synthetic source is only supported when "synthetic_source_keep" is "none"
+        // For now, native synthetic source is only supported when "synthetic_source_keep" mapping attribute is "none"
     }
 
     @Override
     public void testSyntheticSourceKeepNone() throws IOException {
-        // For now, synthetic source is only supported when "synthetic_source_keep" is "none"
+        // For now, native synthetic source is only supported when "synthetic_source_keep" mapping attribute is "none"
     }
 
     @Override

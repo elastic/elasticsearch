@@ -83,9 +83,9 @@ public class SumAggregator extends NumericMetricsAggregator.SingleDoubleValue {
                         value = v + value;
                     }
 
-                    var compensations = SumAggregator.this.compensations;
-                    double delta = compensations.get(bucket);
                     if (Double.isFinite(value)) {
+                        var compensations = SumAggregator.this.compensations;
+                        double delta = compensations.get(bucket);
                         double correctedSum = v + delta;
                         double updatedValue = value + correctedSum;
                         delta = correctedSum - (updatedValue - value);

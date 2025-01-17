@@ -51,7 +51,7 @@ public class EnrichProcessorMaxMatchesIT extends ESSingleNodeTestCase {
     }
 
     public void testEnrichCacheValuesAndMaxMatches() {
-        // this test is meant to much less ignorable than a mere comment in the code, since the behavior here is tricky.
+        // this test is meant to be much less ignorable than a mere comment in the code, since the behavior here is tricky.
 
         // there's an interesting edge case where two processors could be using the same policy and search, etc,
         // but that they have a different number of max_matches -- if we're not careful about how we implement caching,

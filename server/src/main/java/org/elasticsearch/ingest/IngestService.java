@@ -293,7 +293,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         if (dataStream == null) {
             return false;
         }
-        return dataStream.getBackingIndices().isRolloverOnWrite();
+        return dataStream.getDataComponent().isRolloverOnWrite();
     }
 
     /**

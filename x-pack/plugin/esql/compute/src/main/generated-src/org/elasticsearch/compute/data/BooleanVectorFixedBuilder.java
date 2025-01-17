@@ -15,7 +15,7 @@ import org.apache.lucene.util.RamUsageEstimator;
  * it's faster.
  * This class is generated. Do not edit it.
  */
-final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
+public final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
     private final BlockFactory blockFactory;
     private final boolean[] values;
     private final long preAdjustedBytes;
@@ -84,7 +84,7 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
         }
     }
 
-    boolean isReleased() {
+    public boolean isReleased() {
         return closed;
     }
 }

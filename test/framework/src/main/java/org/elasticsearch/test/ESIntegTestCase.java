@@ -1268,7 +1268,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
                                 );
                                 // We cannot compare serialization bytes since serialization order of maps is not guaranteed
                                 // but we can compare if the Strings are identical by "counting" the characters
-                                assertTrue("cluster states must be equal", equal(masterClusterState.toString(), localClusterState.toString()));
+                                assertTrue(
+                                    "cluster states must be equal",
+                                    equal(masterClusterState.toString(), localClusterState.toString())
+                                );
 
                                 // Compare JSON serialization
                                 assertNull(
@@ -1295,18 +1298,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (str1.length() != str2.length()) return false;
 
         Map<Character, Integer> charCount = new HashMap<>();
-        str1.chars()
-            .mapToObj(c -> (char) c)
-            .forEach(c -> charCount.put(c, charCount.getOrDefault(c, 0) + 1));
+        str1.chars().mapToObj(c -> (char) c).forEach(c -> charCount.put(c, charCount.getOrDefault(c, 0) + 1));
 
-        str2.chars()
-            .mapToObj(c -> (char) c)
-            .forEach(c -> {
-                charCount.put(c, charCount.getOrDefault(c, 0) - 1);
-                if (charCount.get(c) == 0) {
-                    charCount.remove(c);
-                }
-            });
+        str2.chars().mapToObj(c -> (char) c).forEach(c -> {
+            charCount.put(c, charCount.getOrDefault(c, 0) - 1);
+            if (charCount.get(c) == 0) {
+                charCount.remove(c);
+            }
+        });
 
         return charCount.isEmpty();
     }

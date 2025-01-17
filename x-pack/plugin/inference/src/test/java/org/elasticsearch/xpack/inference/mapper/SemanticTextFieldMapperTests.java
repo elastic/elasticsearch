@@ -506,7 +506,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 b.field(INDEX_OPTIONS_FIELD, expectedIndexOptions);
                 b.endObject();
             }), useLegacyFormat);
-            assertSemanticTextField(mapperService, fieldName, false, expectedIndexOptions);
+            assertSemanticTextField(mapperService, fieldName, true, expectedIndexOptions);
 
             // Verify we can successfully create a document without throwing
             DocumentMapper documentMapper = mapperService.documentMapper();

@@ -371,7 +371,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
 
         final SemanticTextFieldMapper mapper;
-        if (fieldType().getModelSettings() == null) {
+        if (fieldType().getModelSettings() == null || fieldType().getModelSettings().validate() == false) {
             context.path().remove();
             Builder builder = (Builder) new Builder(
                 leafName(),

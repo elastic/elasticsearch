@@ -95,7 +95,7 @@
  * will always have the new functionality.
  * <p>
  * So then how do we do a rolling upgrade from 8.18 to 9.0, if features have been removed? Normally, that would prevent a 9.0
- * node from joining an 8.18 cluster, as it will not have all the unnecessary features. However, we can make use
+ * node from joining an 8.18 cluster, as it will not have all the required features published. However, we can make use
  * of the major version difference to allow the rolling upgrade to proceed.
  * <p>
  * This is where the {@link org.elasticsearch.features.NodeFeature#assumedAfterNextCompatibilityBoundary()} field comes in. On 8.18,

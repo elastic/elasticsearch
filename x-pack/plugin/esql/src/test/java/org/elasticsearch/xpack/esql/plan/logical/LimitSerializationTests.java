@@ -19,19 +19,23 @@ public class LimitSerializationTests extends AbstractLogicalPlanSerializationTes
         Source source = randomSource();
         Expression limit = FieldAttributeTests.createFieldAttribute(0, false);
         LogicalPlan child = randomChild(0);
-        return new Limit(source, limit, child);
+        return new Limit(source, limit, child, randomBoolean());
     }
 
     @Override
     protected Limit mutateInstance(Limit instance) throws IOException {
         Expression limit = instance.limit();
         LogicalPlan child = instance.child();
-        if (randomBoolean()) {
-            limit = randomValueOtherThan(limit, () -> FieldAttributeTests.createFieldAttribute(0, false));
-        } else {
-            child = randomValueOtherThan(child, () -> randomChild(0));
+        boolean allowDuplicatePastExpandingNode = instance.allowDuplicatePastExpandingNode();
+        switch (randomIntBetween(0, 2)) {
+            case 0:
+                limit = randomValueOtherThan(limit, () -> FieldAttributeTests.createFieldAttribute(0, false));
+            case 1:
+                child = randomValueOtherThan(child, () -> randomChild(0));
+            case 2:
+                allowDuplicatePastExpandingNode = allowDuplicatePastExpandingNode == false;
         }
-        return new Limit(instance.source(), limit, child);
+        return new Limit(instance.source(), limit, child, allowDuplicatePastExpandingNode);
     }
 
     @Override

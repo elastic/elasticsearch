@@ -167,7 +167,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
         List<Attribute> allAttributes = Analyzer.mappingAsAttributes(randomSource(), index.mapping());
         List<Attribute> keepAttributes = keepAllFields ? allAttributes : List.of(allAttributes.get(0));
         EsRelation relation = new EsRelation(randomSource(), index, keepAttributes, IndexMode.STANDARD);
-        Limit limit = new Limit(randomSource(), new Literal(randomSource(), 10, DataType.INTEGER), relation);
+        Limit limit = new Limit(randomSource(), new Literal(randomSource(), 10, DataType.INTEGER), relation, randomBoolean());
         Project project = new Project(randomSource(), limit, limit.output());
         FragmentExec fragmentExec = new FragmentExec(project);
         ExchangeSinkExec exchangeSinkExec = new ExchangeSinkExec(randomSource(), fragmentExec.output(), false, fragmentExec);

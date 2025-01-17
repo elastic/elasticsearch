@@ -1306,10 +1306,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limitValues = new int[] { randomIntBetween(10, 99), randomIntBetween(100, 1000) };
         var firstLimit = randomBoolean() ? 0 : 1;
         var secondLimit = firstLimit == 0 ? 1 : 0;
-        var oneLimit = new Limit(EMPTY, L(limitValues[firstLimit]), emptySource());
-        var anotherLimit = new Limit(EMPTY, L(limitValues[secondLimit]), oneLimit);
+        var oneLimit = new Limit(EMPTY, L(limitValues[firstLimit]), emptySource(), true);
+        var anotherLimit = new Limit(EMPTY, L(limitValues[secondLimit]), oneLimit, true);
         assertEquals(
-            new Limit(EMPTY, L(Math.min(limitValues[0], limitValues[1])), emptySource()),
+            new Limit(EMPTY, L(Math.min(limitValues[0], limitValues[1])), emptySource(), true),
             new PushDownAndCombineLimits().rule(anotherLimit, logicalOptimizerCtx)
         );
     }
@@ -1327,7 +1327,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             default -> throw new IllegalArgumentException();
         };
 
-        var limit = new Limit(EMPTY, L(10), join);
+        var limit = new Limit(EMPTY, L(10), join, true);
 
         var optimizedPlan = new PushDownAndCombineLimits().rule(limit, logicalOptimizerCtx);
 
@@ -1345,9 +1345,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         for (int i = 0; i < numberOfLimits; i++) {
             var value = i == limitWithMinimum ? minimum : randomIntBetween(100, 1000);
-            plan = new Limit(EMPTY, L(value), plan);
+            plan = new Limit(EMPTY, L(value), plan, true);
         }
-        assertEquals(new Limit(EMPTY, L(minimum), relation), logicalOptimizer.optimize(plan));
+        assertEquals(new Limit(EMPTY, L(minimum), relation, true), logicalOptimizer.optimize(plan));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/115311")

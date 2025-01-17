@@ -31,9 +31,10 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
     public LogicalPlan rule(Limit limit, LogicalOptimizerContext ctx) {
         if (limit.child() instanceof Limit childLimit) {
             var limitSource = limit.limit();
-            var l1 = (int) limitSource.fold(ctx.foldCtx());
-            var l2 = (int) childLimit.limit().fold(ctx.foldCtx());
-            return new Limit(limit.source(), Literal.of(limitSource, Math.min(l1, l2)), childLimit.child());
+            var parentLimitValue = (int) limitSource.fold(ctx.foldCtx());
+            var childLimitValue = (int) childLimit.limit().fold(ctx.foldCtx());
+            // We want to preserve the allowDuplicatePastExpandingNode of the smaller limit, so we'll use replaceChild.
+            return parentLimitValue < childLimitValue ? limit.replaceChild(childLimit.child()) : childLimit;
         } else if (limit.child() instanceof UnaryPlan unary) {
             if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof Enrich) {
                 return unary.replaceChild(limit.replaceChild(unary.child()));
@@ -45,6 +46,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                 // | MV_EXPAND | LIMIT -> | LIMIT | MV_EXPAND | LIMIT -> ... | MV_EXPAND | LIMIT
                 // we add an inner limit to MvExpand and just push down the existing limit, ie.
                 // | MV_EXPAND | LIMIT N -> | LIMIT N | MV_EXPAND (with limit N)
+                // TODO: use allowDuplicatePastExpandingNode
                 var limitSource = limit.limit();
                 var limitVal = (int) limitSource.fold(ctx.foldCtx());
                 Integer mvxLimit = mvx.limit();
@@ -62,16 +64,22 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                     var l1 = (int) limit.limit().fold(ctx.foldCtx());
                     var l2 = (int) descendantLimit.limit().fold(ctx.foldCtx());
                     if (l2 <= l1) {
-                        return new Limit(limit.source(), Literal.of(limit.limit(), l2), limit.child());
+                        return new Limit(
+                            limit.source(),
+                            Literal.of(limit.limit(), l2),
+                            limit.child(),
+                            limit.allowDuplicatePastExpandingNode()
+                        );
                     }
                 }
             }
-        } else if (limit.child() instanceof Join join) {
+        } else if (limit.child() instanceof Join join && limit.allowDuplicatePastExpandingNode()) {
             if (join.config().type() == JoinTypes.LEFT) {
                 // Left joins increase the number of rows if any join key has multiple matches from the right hand side.
                 // Therefore, we cannot simply push down the limit - but we can add another limit before the join.
-                return limit.replaceChild(
-                    join.replaceChildren(limit.replaceChild(join.left()), join.right()));
+                // To avoid repeating this infinitely, we have to set allowDuplicatePastExpandingNode = false.
+                Join newChild = join.replaceChildren(limit.replaceChild(join.left()), join.right());
+                return new Limit(limit.source(), limit.limit(), newChild, false);
             }
         }
         return limit;

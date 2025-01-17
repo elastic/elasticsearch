@@ -107,6 +107,8 @@ public class ElasticInferenceService extends SenderService {
         enabledTaskTypes = EnumSet.noneOf(TaskType.class);
         configuration = new Configuration(enabledTaskTypes);
 
+        init();
+
         getAcl(elasticInferenceServiceComponents.elasticInferenceServiceUrl());
     }
 
@@ -126,11 +128,19 @@ public class ElasticInferenceService extends SenderService {
     }
 
     private void getAcl(String baseEISUrl) {
-        ActionListener<InferenceServiceResults> listener = ActionListener.wrap(r -> {
-            if (r instanceof ElasticInferenceServiceAclResponseEntity aclResponseEntity) {
+        ActionListener<InferenceServiceResults> listener = ActionListener.wrap(results -> {
+            if (results instanceof ElasticInferenceServiceAclResponseEntity aclResponseEntity) {
                 setEnabledTaskTypes(ElasticInferenceServiceACL.of(aclResponseEntity));
+            } else {
+                logger.warn(
+                    Strings.format(
+                        "Failed to retrieve ACL information for the Elastic Inference Service gateway. "
+                            + "Received an invalid response type: %s",
+                        results.getClass().getSimpleName()
+                    )
+                );
             }
-        }, e -> { logger.warn(Strings.format("Failed to retrieve ACL information for the Elastic Inference Service gateway: %s", e)); });
+        }, e -> logger.warn(Strings.format("Failed to retrieve ACL information for the Elastic Inference Service gateway: %s", e)));
 
         var request = new ElasticInferenceServiceAclRequest(baseEISUrl, getCurrentTraceInfo());
 

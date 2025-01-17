@@ -216,6 +216,9 @@ ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
 
+LEFT_BRACES : {this.isDevVersion()}? '{';
+RIGHT_BRACES : {this.isDevVersion()}? '}';
+
 NESTED_WHERE : WHERE -> type(WHERE);
 
 NAMED_OR_POSITIONAL_PARAM

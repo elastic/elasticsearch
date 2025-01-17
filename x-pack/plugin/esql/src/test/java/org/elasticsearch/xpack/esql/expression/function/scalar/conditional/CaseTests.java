@@ -770,10 +770,6 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testFancyFolding() {
-        if (testCase.getExpectedTypeError() != null) {
-            // Nothing to do
-            return;
-        }
         Expression e = buildFieldExpression(testCase);
         if (extra().foldable == false) {
             assertThat(e.foldable(), equalTo(false));
@@ -794,7 +790,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testPartialFold() {
-        if (testCase.getExpectedTypeError() != null || extra().foldable()) {
+        if (extra().foldable()) {
             // Nothing to do
             return;
         }

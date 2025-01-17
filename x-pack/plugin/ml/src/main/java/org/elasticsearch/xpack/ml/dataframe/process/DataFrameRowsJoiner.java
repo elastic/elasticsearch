@@ -13,6 +13,8 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
@@ -21,11 +23,9 @@ import org.elasticsearch.xpack.ml.utils.persistence.LimitAwareBulkIndexer;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -96,10 +96,13 @@ class DataFrameRowsJoiner implements AutoCloseable {
     private void joinCurrentResults() {
         try (LimitAwareBulkIndexer bulkIndexer = new LimitAwareBulkIndexer(settings, this::executeBulkRequest)) {
             while (currentResults.isEmpty() == false) {
+                if (dataExtractor.isCancelled()) {
+                    break;
+                }
                 RowResults result = currentResults.pop();
                 DataFrameDataExtractor.Row row = dataFrameRowsIterator.next();
                 checkChecksumsMatch(row, result);
-                bulkIndexer.addAndExecuteIfNeeded(createIndexRequest(result, row));
+                bulkIndexer.addAndExecuteIfNeeded(createIndexRequest(result, row.getHit()));
             }
         }
 
@@ -119,19 +122,19 @@ class DataFrameRowsJoiner implements AutoCloseable {
 
     private static void checkChecksumsMatch(DataFrameDataExtractor.Row row, RowResults result) {
         if (row.getChecksum() != result.getChecksum()) {
-            String msg = "Detected checksum mismatch for document with id [" + row.getId() + "]; ";
+            String msg = "Detected checksum mismatch for document with id [" + row.getHit().getId() + "]; ";
             msg += "expected [" + row.getChecksum() + "] but result had [" + result.getChecksum() + "]; ";
-            msg += "this implies the data frame index [" + row.getIndex() + "] was modified while the analysis was running. ";
+            msg += "this implies the data frame index [" + row.getHit().getIndex() + "] was modified while the analysis was running. ";
             msg += "We rely on this index being immutable during a running analysis and so the results will be unreliable.";
             throw ExceptionsHelper.serverError(msg);
         }
     }
 
-    private IndexRequest createIndexRequest(RowResults result, DataFrameDataExtractor.Row row) {
-        Map<String, Object> source = new LinkedHashMap<>(row.source());
+    private IndexRequest createIndexRequest(RowResults result, SearchHit hit) {
+        Map<String, Object> source = new LinkedHashMap<>(hit.getSourceAsMap());
         source.putAll(result.getResults());
-        IndexRequest indexRequest = new IndexRequest(row.getIndex());
-        indexRequest.id(row.getId());
+        IndexRequest indexRequest = new IndexRequest(hit.getIndex());
+        indexRequest.id(hit.getId());
         indexRequest.source(source);
         indexRequest.opType(DocWriteRequest.OpType.INDEX);
         indexRequest.setParentTask(parentTaskId);
@@ -163,12 +166,12 @@ class DataFrameRowsJoiner implements AutoCloseable {
 
     private class ResultMatchingDataFrameRows implements Iterator<DataFrameDataExtractor.Row> {
 
-        private List<DataFrameDataExtractor.Row> currentDataFrameRows = Collections.emptyList();
+        private SearchHit[] currentDataFrameRows = SearchHits.EMPTY;
         private int currentDataFrameRowsIndex;
 
         @Override
         public boolean hasNext() {
-            return dataExtractor.hasNext() || currentDataFrameRowsIndex < currentDataFrameRows.size();
+            return dataExtractor.hasNext() || currentDataFrameRowsIndex < currentDataFrameRows.length;
         }
 
         @Override
@@ -176,7 +179,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
             DataFrameDataExtractor.Row row = null;
             while (hasNoMatch(row) && hasNext()) {
                 advanceToNextBatchIfNecessary();
-                row = currentDataFrameRows.get(currentDataFrameRowsIndex++);
+                row = dataExtractor.createRow(currentDataFrameRows[currentDataFrameRowsIndex++]);
             }
 
             if (hasNoMatch(row)) {
@@ -190,13 +193,13 @@ class DataFrameRowsJoiner implements AutoCloseable {
         }
 
         private void advanceToNextBatchIfNecessary() {
-            if (currentDataFrameRowsIndex >= currentDataFrameRows.size()) {
-                currentDataFrameRows = getNextDataRowsBatch().orElse(Collections.emptyList());
+            if (currentDataFrameRowsIndex >= currentDataFrameRows.length) {
+                currentDataFrameRows = getNextDataRowsBatch().orElse(SearchHits.EMPTY);
                 currentDataFrameRowsIndex = 0;
             }
         }
 
-        private Optional<List<DataFrameDataExtractor.Row>> getNextDataRowsBatch() {
+        private Optional<SearchHit[]> getNextDataRowsBatch() {
             try {
                 return dataExtractor.next();
             } catch (IOException e) {

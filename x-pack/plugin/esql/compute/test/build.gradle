@@ -3,5 +3,6 @@ apply plugin: 'elasticsearch.build'
 dependencies {
   api project(':test:framework')
   api project(xpackModule('esql:compute'))
+  api project(xpackModule('esql-core'))
 }
 

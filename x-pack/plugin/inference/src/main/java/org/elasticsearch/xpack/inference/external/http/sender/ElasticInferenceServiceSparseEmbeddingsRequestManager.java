@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.elastic.ElasticInferenceServiceResponseHandler;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
@@ -68,13 +70,16 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
     ) {
         List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
+        var licenseMode = Optional.ofNullable(XPackPlugin.getSharedLicenseState())
+            .map(XPackLicenseState::getOperationMode)
+            .orElse(null);
 
         ElasticInferenceServiceSparseEmbeddingsRequest request = new ElasticInferenceServiceSparseEmbeddingsRequest(
             truncator,
             truncatedInput,
             model,
             traceContext,
-            XPackPlugin.getSharedLicenseState().getOperationMode()
+            licenseMode
         );
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

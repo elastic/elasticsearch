@@ -9,13 +9,19 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-public class PolicyIllegalArgumentException extends IllegalArgumentException {
+/**
+ * This exception is used to track validation errors thrown during the construction
+ * of entitlements. By using this instead of other exception types the policy
+ * parser is able to wrap this exception with a line/character number for
+ * additional useful error information.
+ */
+class PolicyValidationException extends RuntimeException {
 
-    public PolicyIllegalArgumentException(String message) {
+    PolicyValidationException(String message) {
         super(message);
     }
 
-    public PolicyIllegalArgumentException(String message, Throwable cause) {
+    PolicyValidationException(String message, Throwable cause) {
         super(message, cause);
     }
 }

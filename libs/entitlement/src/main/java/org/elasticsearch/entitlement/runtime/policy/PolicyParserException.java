@@ -91,46 +91,31 @@ public class PolicyParserException extends RuntimeException {
         String policyName,
         String scopeName,
         String entitlementType,
-        PolicyIllegalArgumentException cause
+        PolicyValidationException cause
     ) {
-        if (scopeName == null) {
-            return new PolicyParserException(
-                "["
-                    + location.lineNumber()
-                    + ":"
-                    + location.columnNumber()
-                    + "] policy parsing error for ["
-                    + policyName
-                    + "] for entitlement type ["
-                    + entitlementType
-                    + "]: "
-                    + cause.getMessage(),
-                cause
-            );
-        } else {
-            return new PolicyParserException(
-                "["
-                    + location.lineNumber()
-                    + ":"
-                    + location.columnNumber()
-                    + "] policy parsing error for ["
-                    + policyName
-                    + "] in scope ["
-                    + scopeName
-                    + "] for entitlement type ["
-                    + entitlementType
-                    + "]: "
-                    + cause.getMessage(),
-                cause
-            );
-        }
+        assert (scopeName != null);
+        return new PolicyParserException(
+            "["
+                + location.lineNumber()
+                + ":"
+                + location.columnNumber()
+                + "] policy parsing error for ["
+                + policyName
+                + "] in scope ["
+                + scopeName
+                + "] for entitlement type ["
+                + entitlementType
+                + "]: "
+                + cause.getMessage(),
+            cause
+        );
     }
 
     private PolicyParserException(String message) {
         super(message);
     }
 
-    private PolicyParserException(String message, PolicyIllegalArgumentException cause) {
+    private PolicyParserException(String message, PolicyValidationException cause) {
         super(message, cause);
     }
 }

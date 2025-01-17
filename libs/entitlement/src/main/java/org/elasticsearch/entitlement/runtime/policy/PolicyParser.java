@@ -172,7 +172,7 @@ public class PolicyParser {
         try {
             return (Entitlement) entitlementConstructor.newInstance(parameterValues);
         } catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
-            if (e.getCause() instanceof PolicyIllegalArgumentException piae) {
+            if (e.getCause() instanceof PolicyValidationException piae) {
                 throw newPolicyParserException(startLocation, scopeName, entitlementType, piae);
             }
             throw new IllegalStateException("internal error", e);
@@ -201,7 +201,7 @@ public class PolicyParser {
         XContentLocation location,
         String scopeName,
         String entitlementType,
-        PolicyIllegalArgumentException cause
+        PolicyValidationException cause
     ) {
         return PolicyParserException.newPolicyParserException(location, policyName, scopeName, entitlementType, cause);
     }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
@@ -68,6 +69,7 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.RerankOperator;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -130,6 +132,7 @@ public class LocalExecutionPlanner {
     private final ExchangeSinkHandler exchangeSinkHandler;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
+    private final InferenceService inferenceService;
     private final PhysicalOperationProviders physicalOperationProviders;
 
     public LocalExecutionPlanner(
@@ -144,6 +147,7 @@ public class LocalExecutionPlanner {
         ExchangeSinkHandler exchangeSinkHandler,
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
+        InferenceService inferenceService,
         PhysicalOperationProviders physicalOperationProviders
     ) {
         this.sessionId = sessionId;
@@ -156,6 +160,7 @@ public class LocalExecutionPlanner {
         this.exchangeSinkHandler = exchangeSinkHandler;
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
+        this.inferenceService = inferenceService;
         this.physicalOperationProviders = physicalOperationProviders;
         this.configuration = configuration;
     }
@@ -671,7 +676,20 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planRerank(RerankExec rerank, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(rerank.child(), context);
-        return source.with(new RerankOperator.Factory(10), source.layout);
+
+        ExpressionEvaluator.Factory inputEvaluatorSupplier = EvalMapper.toEvaluator(rerank.input(), source.layout);
+
+        int windowSize;
+        if (rerank.windowSize() instanceof Literal windowSizeLiteral) {
+            windowSize = stringToInt(windowSizeLiteral.value().toString());
+        } else {
+            throw new EsqlIllegalArgumentException("window size only supported with literal values");
+        }
+
+        String inferenceId = ((BytesRef) rerank.inferenceId().fold()).utf8ToString();
+        String queryText = ((BytesRef) rerank.queryText().fold()).utf8ToString();
+
+        return source.with(new RerankOperator.Factory(inferenceService, inferenceId, queryText, inputEvaluatorSupplier, windowSize, 10), source.layout);
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {

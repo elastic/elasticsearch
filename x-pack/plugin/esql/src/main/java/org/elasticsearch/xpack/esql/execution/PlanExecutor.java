@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
@@ -61,6 +62,7 @@ public class PlanExecutor {
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
         QueryBuilderResolver queryBuilderResolver,
+        InferenceService inferenceService,
         ActionListener<Result> listener
     ) {
         final PlanningMetrics planningMetrics = new PlanningMetrics();
@@ -76,7 +78,8 @@ public class PlanExecutor {
             verifier,
             planningMetrics,
             indicesExpressionGrouper,
-            queryBuilderResolver
+            queryBuilderResolver,
+            inferenceService
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);

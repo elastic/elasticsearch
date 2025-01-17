@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
@@ -102,25 +103,28 @@ public class ComputeService {
     private final ExchangeService exchangeService;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
+    private final InferenceService inferenceService;
     private final ClusterService clusterService;
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
 
     public ComputeService(
-        SearchService searchService,
-        TransportService transportService,
-        ExchangeService exchangeService,
-        EnrichLookupService enrichLookupService,
-        LookupFromIndexService lookupFromIndexService,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        BigArrays bigArrays,
-        BlockFactory blockFactory
+            SearchService searchService,
+            TransportService transportService,
+            ExchangeService exchangeService,
+            EnrichLookupService enrichLookupService,
+            LookupFromIndexService lookupFromIndexService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            BigArrays bigArrays,
+            InferenceService inferenceService,
+            BlockFactory blockFactory
     ) {
         this.searchService = searchService;
         this.transportService = transportService;
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
         this.esqlExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        this.inferenceService = inferenceService;
         transportService.registerRequestHandler(DATA_ACTION_NAME, this.esqlExecutor, DataNodeRequest::new, new DataNodeRequestHandler());
         transportService.registerRequestHandler(
             CLUSTER_ACTION_NAME,
@@ -460,6 +464,7 @@ public class ComputeService {
                 context.exchangeSink(),
                 enrichLookupService,
                 lookupFromIndexService,
+                inferenceService,
                 new EsPhysicalOperationProviders(contexts, searchService.getIndicesService().getAnalysis())
             );
 

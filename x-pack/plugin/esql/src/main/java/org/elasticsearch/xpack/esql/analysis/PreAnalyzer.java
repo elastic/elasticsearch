@@ -11,6 +11,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,15 +24,17 @@ import static java.util.Collections.emptyList;
 public class PreAnalyzer {
 
     public static class PreAnalysis {
-        public static final PreAnalysis EMPTY = new PreAnalysis(emptyList(), emptyList(), emptyList());
+        public static final PreAnalysis EMPTY = new PreAnalysis(emptyList(), emptyList(), emptyList(), emptyList());
 
         public final List<TableInfo> indices;
         public final List<Enrich> enriches;
+        public final List<InferencePlan> inferences;
         public final List<TableInfo> lookupIndices;
 
-        public PreAnalysis(List<TableInfo> indices, List<Enrich> enriches, List<TableInfo> lookupIndices) {
+        public PreAnalysis(List<TableInfo> indices, List<Enrich> enriches, List<InferencePlan> inferences, List<TableInfo> lookupIndices) {
             this.indices = indices;
             this.enriches = enriches;
+            this.inferences = inferences;
             this.lookupIndices = lookupIndices;
         }
     }
@@ -47,6 +50,7 @@ public class PreAnalyzer {
     protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
         List<TableInfo> indices = new ArrayList<>();
         List<Enrich> unresolvedEnriches = new ArrayList<>();
+        List<InferencePlan> inferences = new ArrayList<>();
         List<TableInfo> lookupIndices = new ArrayList<>();
 
         plan.forEachUp(UnresolvedRelation.class, p -> {
@@ -54,10 +58,11 @@ public class PreAnalyzer {
             list.add(new TableInfo(p.table()));
         });
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
+        plan.forEachUp(InferencePlan.class, inferences::add);
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
 
-        return new PreAnalysis(indices, unresolvedEnriches, lookupIndices);
+        return new PreAnalysis(indices, unresolvedEnriches, inferences, lookupIndices);
     }
 }

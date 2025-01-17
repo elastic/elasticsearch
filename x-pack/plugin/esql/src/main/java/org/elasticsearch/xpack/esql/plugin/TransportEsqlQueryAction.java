@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.QueryBuilderResolver;
@@ -79,6 +80,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final RemoteClusterService remoteClusterService;
     private final QueryBuilderResolver queryBuilderResolver;
     private final UsageService usageService;
+    private final InferenceService inferenceService;
 
     @Inject
     @SuppressWarnings("this-escape")
@@ -108,6 +110,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.enrichPolicyResolver = new EnrichPolicyResolver(clusterService, transportService, planExecutor.indexResolver());
         this.enrichLookupService = new EnrichLookupService(clusterService, searchService, transportService, bigArrays, blockFactory);
         this.lookupFromIndexService = new LookupFromIndexService(clusterService, searchService, transportService, bigArrays, blockFactory);
+        this.inferenceService = new InferenceService(client);
         this.computeService = new ComputeService(
             searchService,
             transportService,
@@ -117,6 +120,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             clusterService,
             threadPool,
             bigArrays,
+            inferenceService,
             blockFactory
         );
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(
@@ -206,6 +210,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             remoteClusterService,
             planRunner,
             queryBuilderResolver,
+            inferenceService,
             ActionListener.wrap(result -> {
                 recordCCSTelemetry(task, executionInfo, request, null);
                 listener.onResponse(toResponse(task, request, configuration, result));

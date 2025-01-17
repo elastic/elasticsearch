@@ -75,6 +75,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             InputType.UNSPECIFIED
         );
 
+        public static Builder builder(String inferenceEntityId, TaskType taskType) {
+            return new Builder().setInferenceEntityId(inferenceEntityId).setTaskType(taskType);
+        }
+
         public static Builder parseRequest(String inferenceEntityId, TaskType taskType, XContentParser parser) throws IOException {
             Request.Builder builder = PARSER.apply(parser, null);
             builder.setInferenceEntityId(inferenceEntityId);

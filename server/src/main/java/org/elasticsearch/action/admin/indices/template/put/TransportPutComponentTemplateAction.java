@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -122,5 +123,18 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
     @Override
     public Set<String> modifiedKeys(PutComponentTemplateAction.Request request) {
         return Set.of(ReservedComposableIndexTemplateAction.reservedComponentName(request.name()));
+    }
+
+    @Override
+    @FixForMultiProject // does this need to be a more general concept?
+    protected void validateForReservedState(PutComponentTemplateAction.Request request, ClusterState state) {
+        super.validateForReservedState(request, state);
+
+        validateForReservedState(
+            projectResolver.getProjectMetadata(state).reservedStateMetadata().values(),
+            reservedStateHandlerName().get(),
+            modifiedKeys(request),
+            request.toString()
+        );
     }
 }

@@ -12,7 +12,6 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -39,7 +38,6 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.FixForMultiProject;
-import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
@@ -803,11 +801,14 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 clusterCustoms = bwcCustoms.v1();
                 var projectCustoms = bwcCustoms.v2();
 
-                var bwcReservedState = readBwcReservedState(in);
-                reservedStateMetadata = bwcReservedState.v1();
-                var projectReservedState = bwcReservedState.v2();
+                // on a single-project install, all reserved state metadata is stored in Metadata rather than ProjectMetadata
+                reservedStateMetadata = DiffableUtils.readImmutableOpenMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    RESERVED_DIFF_VALUE_READER
+                );
 
-                singleProject = new ProjectMetadata.ProjectMetadataDiff(indices, templates, projectCustoms, projectReservedState);
+                singleProject = new ProjectMetadata.ProjectMetadataDiff(indices, templates, projectCustoms, DiffableUtils.emptyDiff());
                 multiProject = null;
             } else {
                 clusterCustoms = DiffableUtils.readImmutableOpenMapDiff(
@@ -846,25 +847,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 in.namedWriteableRegistry().getReaders(ProjectCustom.class).keySet()::contains,
                 PROJECT_CUSTOM_VALUE_SERIALIZER
             );
-        }
-
-        private static
-            Tuple<
-                MapDiff<String, ReservedStateMetadata, ImmutableOpenMap<String, ReservedStateMetadata>>,
-                MapDiff<String, ReservedStateMetadata, ImmutableOpenMap<String, ReservedStateMetadata>>>
-            readBwcReservedState(StreamInput in) throws IOException {
-            MapDiff<String, ReservedStateMetadata, ImmutableOpenMap<String, ReservedStateMetadata>> reservedState = DiffableUtils
-                .readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), RESERVED_DIFF_VALUE_READER);
-            // project has to come first, as that is what is checked first by split()
-            var projectCluster = DiffableUtils.split(
-                reservedState,
-                Builder.MOVED_PROJECT_RESERVED_STATE::contains,
-                RESERVED_DIFF_VALUE_READER,
-                Predicates.always(),
-                RESERVED_DIFF_VALUE_READER
-            );
-            // swap them round to match the customs - cluster/project
-            return Tuple.tuple(projectCluster.v2(), projectCluster.v1());
         }
 
         @Override
@@ -982,12 +964,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
             int reservedStateSize = in.readVInt();
             for (int i = 0; i < reservedStateSize; i++) {
-                ReservedStateMetadata metadata = ReservedStateMetadata.readFrom(in);
-                if (Builder.MOVED_PROJECT_RESERVED_STATE.contains(metadata.namespace())) {
-                    builder.putProjectReservedState(metadata);
-                } else {
-                    builder.put(metadata);
-                }
+                builder.put(ReservedStateMetadata.readFrom(in));
             }
         } else {
             readClusterCustoms(in, builder);
@@ -1494,8 +1471,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             ComponentTemplateMetadata.TYPE
         );
 
-        private static final Set<String> MOVED_PROJECT_RESERVED_STATE = Set.of(ReservedPipelineAction.NAME, "role_mappings");
-
         public static Metadata fromXContent(XContentParser parser) throws IOException {
             Builder builder = new Builder();
 
@@ -1531,15 +1506,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                         case "cluster_coordination" -> builder.coordinationMetadata(CoordinationMetadata.fromXContent(parser));
                         case "settings" -> builder.persistentSettings(Settings.fromXContent(parser));
                         case "hashes_of_consistent_settings" -> builder.hashesOfConsistentSettings(parser.mapStrings());
-                        /* Cluster reserved state (and project reserved state in older formats) */
+                        /* Cluster reserved state */
                         case "reserved_state" -> {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                ReservedStateMetadata metadata = ReservedStateMetadata.fromXContent(parser);
-                                if (MOVED_PROJECT_RESERVED_STATE.contains(metadata.namespace())) {
-                                    builder.putProjectReservedState(metadata);
-                                } else {
-                                    builder.put(metadata);
-                                }
+                                builder.put(ReservedStateMetadata.fromXContent(parser));
                             }
                         }
                         /* BwC Top-level project things */

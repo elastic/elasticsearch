@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -96,7 +95,6 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
     }
 
     @Override
-    @FixForMultiProject // does this need to be a more general concept?
     protected void validateForReservedState(PutPipelineRequest request, ClusterState state) {
         super.validateForReservedState(request, state);
 

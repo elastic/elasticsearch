@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.gateway.GatewayService;
@@ -148,6 +149,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
     }
 
+    @FixForMultiProject // this is overridden for project-specific reserved metadata checks. A common subclass needs to exist for this.
     protected void validateForReservedState(Request request, ClusterState state) {
         Optional<String> handlerName = reservedStateHandlerName();
         assert handlerName.isPresent();

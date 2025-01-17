@@ -31,7 +31,7 @@ public class MapperBuilderContextTests extends ESTestCase {
     }
 
     public void tesIsInNestedContext() {
-        MapperBuilderContext root = MapperBuilderContext.root(true, false);
+        MapperBuilderContext root = MapperBuilderContext.root(true, Mapper.SourceKeepMode.NONE, false);
         assertFalse(root.isInNestedContext());
 
         MapperBuilderContext childContext = root.createChildContext("child", ObjectMapper.Dynamic.FALSE, Optional.empty());

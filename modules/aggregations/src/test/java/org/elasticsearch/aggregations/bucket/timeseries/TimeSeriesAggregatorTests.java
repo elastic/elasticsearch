@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RoutingPathFields;
@@ -80,10 +81,10 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
 
         },
             new KeywordFieldMapper.Builder("dim1", IndexVersion.current()).dimension(true)
-                .build(MapperBuilderContext.root(true, true))
+                .build(MapperBuilderContext.root(true, Mapper.SourceKeepMode.NONE, true))
                 .fieldType(),
             new KeywordFieldMapper.Builder("dim2", IndexVersion.current()).dimension(true)
-                .build(MapperBuilderContext.root(true, true))
+                .build(MapperBuilderContext.root(true, Mapper.SourceKeepMode.NONE, true))
                 .fieldType(),
             new NumberFieldMapper.NumberFieldType("val1", NumberFieldMapper.NumberType.INTEGER)
         );
@@ -150,7 +151,7 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
                 TimeSeriesIdFieldMapper.FIELD_TYPE,
                 new DateFieldMapper.DateFieldType("@timestamp"),
                 new KeywordFieldMapper.Builder("dim1", IndexVersion.current()).dimension(true)
-                    .build(MapperBuilderContext.root(true, true))
+                    .build(MapperBuilderContext.root(true, Mapper.SourceKeepMode.NONE, true))
                     .fieldType(),
                 new NumberFieldMapper.NumberFieldType("val1", NumberFieldMapper.NumberType.INTEGER)
             ).withQuery(new MatchAllDocsQuery())
@@ -203,10 +204,10 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
             buildIndex,
             verifier,
             new KeywordFieldMapper.Builder("dim1", IndexVersion.current()).dimension(true)
-                .build(MapperBuilderContext.root(true, true))
+                .build(MapperBuilderContext.root(true, Mapper.SourceKeepMode.NONE, true))
                 .fieldType(),
             new KeywordFieldMapper.Builder("dim2", IndexVersion.current()).dimension(true)
-                .build(MapperBuilderContext.root(true, true))
+                .build(MapperBuilderContext.root(true, Mapper.SourceKeepMode.NONE, true))
                 .fieldType()
         );
     }
@@ -238,10 +239,10 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
                 buildIndex,
                 limitedVerifier,
                 new KeywordFieldMapper.Builder("dim1", IndexVersion.current()).dimension(true)
-                    .build(MapperBuilderContext.root(true, true))
+                    .build(MapperBuilderContext.root(true, Mapper.SourceKeepMode.NONE, true))
                     .fieldType(),
                 new KeywordFieldMapper.Builder("dim2", IndexVersion.current()).dimension(true)
-                    .build(MapperBuilderContext.root(true, true))
+                    .build(MapperBuilderContext.root(true, Mapper.SourceKeepMode.NONE, true))
                     .fieldType()
             );
         }

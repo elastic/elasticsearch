@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RoutingPathFields;
@@ -954,7 +955,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 new KeywordFieldMapper.Builder("group_id", IndexVersion.current()).dimension(true)
                     .docValues(true)
                     .indexed(false)
-                    .build(MapperBuilderContext.root(true, true))
+                    .build(MapperBuilderContext.root(true, Mapper.SourceKeepMode.NONE, true))
                     .fieldType()
             );
             fieldTypes.add(new NumberFieldMapper.NumberFieldType("sort_field", NumberFieldMapper.NumberType.LONG));

@@ -35,7 +35,11 @@ public class DeprecationChecks {
 
     private DeprecationChecks() {}
 
-    static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS = List.of();
+    static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS = List.of(
+        ClusterDeprecationChecks::legacyRoutingInIlmPoliciesCheck,
+        ClusterDeprecationChecks::legacyRoutingInLegacyTemplatesCheck,
+        ClusterDeprecationChecks::legacyRoutingInTemplatesCheck
+    );
 
     static final List<
         NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>> NODE_SETTINGS_CHECKS = List

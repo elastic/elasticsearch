@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.junit.After;
 
 import java.util.Collections;
 import java.util.List;
@@ -35,9 +36,14 @@ import static org.hamcrest.Matchers.hasSize;
  */
 public class PermissionPrecedenceTests extends SecurityIntegTestCase {
 
+    @After
+    public void cleanupSecurityIndex() {
+        super.deleteSecurityIndex();
+    }
+
     @Override
     protected String configRoles() {
-        return """
+        return super.configRoles() + "\n" + """
             admin:
               cluster: [ all ]\s
               indices:

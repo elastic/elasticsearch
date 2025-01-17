@@ -18,5 +18,6 @@ ip | integer | integer | ip
 keyword | integer | integer | keyword
 long | integer | integer | long
 text | integer | integer | keyword
+unsigned_long | integer | integer | unsigned_long
 version | integer | integer | version
 |===

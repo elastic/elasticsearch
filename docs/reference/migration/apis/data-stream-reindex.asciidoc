@@ -25,6 +25,15 @@ the INSERT_STATUS_API. This status will be available for 24 hours after the task
 it finished successfully or fails. A running data stream reindex task can be cancelled using the
 CANCEL_API.
 
+[source,console]
+----
+POST _migration/reindex/my-data-stream
+----
+// TEST[setup:my_data_stream]
+// TEST[teardown:data_stream_cleanup]
+
+
+
 [[data-stream-reindex-api-request]]
 ==== {api-request-title}
 

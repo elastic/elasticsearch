@@ -98,3 +98,34 @@ older version and are not closed or read-only.
 `exceptions`::
 (Optional, string) If an exception caused the data stream reindex to fail, the exception message is included here in the status.
 
+
+[[data-stream-reindex-status-example]]
+==== {api-examples-title}
+
+[source,console]
+----
+GET _migration/reindex/my-data-stream/_status
+----
+
+The API returns the following response.
+
+[source,console-result]
+----
+{
+  "start_time": "2025-01-17T20:50:47.349",
+  "start_time_millis": "1737147047349",
+  "complete": false,
+  "total_indices_in_data_stream": 10,
+  "total_indices_requiring_upgrade": 5,
+  "successes": 2,
+  "in_progress": [
+    {
+      "index": ".ds-my-data-stream-2024.03.07-000001",
+      "total_doc_count": 164937,
+      "reindexed_doc_count": 6849
+    }
+  ],
+  "pending": 2,
+  "errors": []
+}
+----

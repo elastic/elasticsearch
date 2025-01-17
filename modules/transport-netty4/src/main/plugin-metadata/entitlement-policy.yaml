@@ -1,5 +1,3 @@
-org.elasticsearch.security:
-  - set_https_connection_properties # for CommandLineHttpClient
 io.netty.transport:
   - network:
       actions:
@@ -7,5 +5,5 @@ io.netty.transport:
 io.netty.common:
   - network:
       actions:
-        - accept
         - connect
+        - accept

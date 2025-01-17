@@ -31,6 +31,7 @@ import java.net.URL;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
 import java.util.List;
+import java.util.Properties;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -112,6 +113,15 @@ public interface EntitlementChecker {
 
     ////////////////////
     //
+    // System Properties and similar
+    //
+
+    void check$java_lang_System$$setProperty(Class<?> callerClass, String key, String value);
+
+    void check$java_lang_System$$clearProperty(Class<?> callerClass, String key);
+
+    ////////////////////
+    //
     // JVM-wide state changes
     //
 
@@ -120,6 +130,8 @@ public interface EntitlementChecker {
     void check$java_lang_System$$setOut(Class<?> callerClass, PrintStream out);
 
     void check$java_lang_System$$setErr(Class<?> callerClass, PrintStream err);
+
+    void check$java_lang_System$$setProperties(Class<?> callerClass, Properties props);
 
     void check$java_lang_Runtime$addShutdownHook(Class<?> callerClass, Runtime runtime, Thread hook);
 

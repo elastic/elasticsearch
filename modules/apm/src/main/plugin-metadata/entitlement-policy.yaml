@@ -1,4 +1,8 @@
 org.elasticsearch.telemetry.apm:
   - create_class_loader
+  - write_all_properties
 elastic.apm.agent:
   - set_https_connection_properties
+  - write_properties:
+      properties:
+        - AsyncProfiler.safemode

@@ -1,2 +1,15 @@
 org.elasticsearch.security:
   - set_https_connection_properties # for CommandLineHttpClient
+  - write_properties:
+      properties:
+        - org.apache.xml.security.ignoreLineBreaks # unclear if still needed for SAML
+        # evil tests only?
+        #- javax.security.auth.useSubjectCredsOnly
+        #- java.security.krb5.conf
+        #- sun.security.krb5.debug
+        #- sun.security.spnego.debug
+# should be fixed in Java 7
+#io.netty.transport:
+#  - write_properties:
+#      properties:
+#        - sun.nio.ch.bugLevel

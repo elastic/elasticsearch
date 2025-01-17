@@ -1,0 +1,5 @@
+# should be fixed in Java 7
+#io.netty.transport:
+#  - write_properties:
+#      properties:
+#        - sun.nio.ch.bugLevel

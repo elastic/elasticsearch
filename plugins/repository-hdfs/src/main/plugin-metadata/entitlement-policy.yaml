@@ -1,0 +1,4 @@
+ALL-UNNAMED:
+  - write_properties:
+      properties:
+        - hadoop.home.dir

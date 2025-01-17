@@ -35,6 +35,7 @@ import java.net.URL;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
 import java.util.List;
+import java.util.Properties;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -197,6 +198,21 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_Thread$$setDefaultUncaughtExceptionHandler(Class<?> callerClass, Thread.UncaughtExceptionHandler ueh) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_System$$clearProperty(Class<?> callerClass, String key) {
+        policyManager.checkWriteProperty(callerClass, key);
+    }
+
+    @Override
+    public void check$java_lang_System$$setProperty(Class<?> callerClass, String key, String value) {
+        policyManager.checkWriteProperty(callerClass, key);
+    }
+
+    @Override
+    public void check$java_lang_System$$setProperties(Class<?> callerClass, Properties props) {
         policyManager.checkChangeJVMGlobalState(callerClass);
     }
 

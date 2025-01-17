@@ -15,6 +15,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -64,6 +65,33 @@ public class PolicyParserTests extends ESTestCase {
         Policy expected = new Policy(
             "test-policy.yaml",
             List.of(new Scope("entitlement-module-name", List.of(new NetworkEntitlement(List.of("listen", "accept", "connect")))))
+        );
+        assertEquals(expected, parsedPolicy);
+    }
+
+    public void testParseWriteProperties() throws IOException {
+        Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - write_properties:
+                  properties:
+                    - es.property1
+                    - es.property2
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
+        Policy expected = new Policy(
+            "test-policy.yaml",
+            List.of(new Scope("entitlement-module-name", List.of(new WritePropertiesEntitlement(Set.of("es.property1", "es.property2")))))
+        );
+        assertEquals(expected, parsedPolicy);
+    }
+
+    public void testParseWriteAllProperties() throws IOException {
+        Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - write_all_properties
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
+        Policy expected = new Policy(
+            "test-policy.yaml",
+            List.of(new Scope("entitlement-module-name", List.of(new WriteAllPropertiesEntitlement())))
         );
         assertEquals(expected, parsedPolicy);
     }

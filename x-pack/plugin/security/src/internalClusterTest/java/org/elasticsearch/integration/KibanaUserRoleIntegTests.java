@@ -149,12 +149,12 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String field = "foo";
         indexRandom(true, prepareIndex(index).setSource(field, "bar"));
 
-        GetIndexResponse response = indicesAdmin().prepareGetIndex().setIndices(index).get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(index).get();
         assertThat(response.getIndices(), arrayContaining(index));
 
         response = client().filterWithHeader(
             singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD))
-        ).admin().indices().prepareGetIndex().setIndices(index).get();
+        ).admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(index).get();
         assertThat(response.getIndices(), arrayContaining(index));
     }
 
@@ -166,7 +166,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
 
         GetMappingsResponse response = client().filterWithHeader(
             singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD))
-        ).admin().indices().prepareGetMappings("logstash-*").get();
+        ).admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, "logstash-*").get();
         Map<String, MappingMetadata> mappingsMap = response.getMappings();
         assertNotNull(mappingsMap);
         assertNotNull(mappingsMap.get(index));

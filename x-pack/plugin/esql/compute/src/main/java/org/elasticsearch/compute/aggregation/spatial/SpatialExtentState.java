@@ -14,6 +14,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 
 import java.nio.ByteOrder;
 
@@ -46,12 +48,38 @@ final class SpatialExtentState implements AggregatorState {
         pointType.computeEnvelope(geo)
             .ifPresent(
                 r -> add(
-                    pointType.encodeX(r.getMinX()),
-                    pointType.encodeX(r.getMaxX()),
-                    pointType.encodeY(r.getMaxY()),
-                    pointType.encodeY(r.getMinY())
+                    pointType.encoder().encodeX(r.getMinX()),
+                    pointType.encoder().encodeX(r.getMaxX()),
+                    pointType.encoder().encodeY(r.getMaxY()),
+                    pointType.encoder().encodeY(r.getMinY())
                 )
             );
+    }
+
+    /**
+     * This method is used when extents are extracted from the doc-values field by the {@link GeometryDocValueReader}.
+     * This optimization is enabled when the field has doc-values and is only used in the ST_EXTENT aggregation.
+     */
+    public void add(int[] values) {
+        if (values.length == 6) {
+            // Values are stored according to the order defined in the Extent class
+            int top = values[0];
+            int bottom = values[1];
+            int negLeft = values[2];
+            int negRight = values[3];
+            int posLeft = values[4];
+            int posRight = values[5];
+            add(Math.min(negLeft, posLeft), Math.max(negRight, posRight), top, bottom);
+        } else if (values.length == 4) {
+            // Values are stored according to the order defined in the Rectangle class
+            int minX = values[0];
+            int maxX = values[1];
+            int maxY = values[2];
+            int minY = values[3];
+            add(minX, maxX, maxY, minY);
+        } else {
+            throw new IllegalArgumentException("Expected 4 or 6 values, got " + values.length);
+        }
     }
 
     public void add(int minX, int maxX, int maxY, int minY) {
@@ -62,6 +90,10 @@ final class SpatialExtentState implements AggregatorState {
         this.minY = Math.min(this.minY, minY);
     }
 
+    /**
+     * This method is used when the field is a geo_point or cartesian_point and is loaded from doc-values.
+     * This optimization is enabled when the field has doc-values and is only used in a spatial aggregation.
+     */
     public void add(long encoded) {
         int x = pointType.extractX(encoded);
         int y = pointType.extractY(encoded);
@@ -74,8 +106,9 @@ final class SpatialExtentState implements AggregatorState {
     }
 
     private byte[] toWKB() {
+        CoordinateEncoder encoder = pointType.encoder();
         return WellKnownBinary.toWKB(
-            new Rectangle(pointType.decodeX(minX), pointType.decodeX(maxX), pointType.decodeY(maxY), pointType.decodeY(minY)),
+            new Rectangle(encoder.decodeX(minX), encoder.decodeX(maxX), encoder.decodeY(maxY), encoder.decodeY(minY)),
             ByteOrder.LITTLE_ENDIAN
         );
     }

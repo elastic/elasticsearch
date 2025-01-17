@@ -38,6 +38,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -819,12 +820,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         public static final MetadataSnapshot EMPTY = new MetadataSnapshot(emptyMap(), emptyMap(), 0L);
 
-        static MetadataSnapshot loadFromIndexCommit(IndexCommit commit, Directory directory, Logger logger) throws IOException {
+        static MetadataSnapshot loadFromIndexCommit(@Nullable IndexCommit commit, Directory directory, Logger logger) throws IOException {
             final long numDocs;
             final Map<String, StoreFileMetadata> metadataByFile = new HashMap<>();
             final Map<String, String> commitUserData;
             try {
-                final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
+                final SegmentInfos segmentCommitInfos = readSegmentsInfo(commit, directory);
                 numDocs = Lucene.getNumDocs(segmentCommitInfos);
                 commitUserData = Map.copyOf(segmentCommitInfos.getUserData());
                 // we don't know which version was used to write so we take the max version.
@@ -1449,7 +1450,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @see SequenceNumbers#MAX_SEQ_NO
      */
     public void bootstrapNewHistory(long localCheckpoint, long maxSeqNo) throws IOException {
-        assert indexSettings.getIndexMetadata().isSearchableSnapshot() == false;
         metadataLock.writeLock().lock();
         try (IndexWriter writer = newTemporaryAppendingIndexWriter(directory, null)) {
             final Map<String, String> map = new HashMap<>();
@@ -1573,7 +1573,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     private IndexWriterConfig newTemporaryIndexWriterConfig() {
-        assert indexSettings.getIndexMetadata().isSearchableSnapshot() == false;
+        assert assertIndexWriter(indexSettings);
         // this config is only used for temporary IndexWriter instances, used to initialize the index or update the commit data,
         // so we don't want any merges to happen
         var iwc = indexWriterConfigWithNoMerging(null).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD).setCommitOnClose(false);
@@ -1582,5 +1582,18 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             iwc.setParentField(Engine.ROOT_DOC_FIELD_NAME);
         }
         return iwc;
+    }
+
+    private static boolean assertIndexWriter(IndexSettings indexSettings) {
+        final var version = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(indexSettings.getSettings());
+        assert version.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE)
+            : "index created on version ["
+                + indexSettings.getIndexVersionCreated()
+                + "] with compatibility version ["
+                + version
+                + "] cannot be written by current version ["
+                + IndexVersion.current()
+                + ']';
+        return true;
     }
 }

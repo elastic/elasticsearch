@@ -120,7 +120,7 @@ public class CreateIndexIT extends ESIntegTestCase {
             )
         );
 
-        GetMappingsResponse response = indicesAdmin().prepareGetMappings("test").get();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
 
         MappingMetadata mappings = response.mappings().get("test");
         assertNotNull(mappings);
@@ -130,7 +130,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     public void testEmptyNestedMappings() throws Exception {
         assertAcked(prepareCreate("test").setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
 
-        GetMappingsResponse response = indicesAdmin().prepareGetMappings("test").get();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
 
         MappingMetadata mappings = response.mappings().get("test");
         assertNotNull(mappings);
@@ -150,7 +150,7 @@ public class CreateIndexIT extends ESIntegTestCase {
             prepareCreate("test").setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject())
         );
 
-        GetMappingsResponse response = indicesAdmin().prepareGetMappings("test").get();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
 
         MappingMetadata mappings = response.mappings().get("test");
         assertNotNull(mappings);
@@ -158,8 +158,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testTwoEmptyEqualMappings() throws Exception {
-        assertAcked(prepareCreate("test1"));
-        assertAcked(prepareCreate("test2").setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
+        assertAcked(prepareCreate("test1"), prepareCreate("test2").setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
         FieldCapabilitiesRequest fieldCapsReq1 = new FieldCapabilitiesRequest();
         fieldCapsReq1.indices("test1");
         fieldCapsReq1.fields("*");

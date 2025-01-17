@@ -23,9 +23,10 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
-import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockFactory;
+import org.elasticsearch.compute.test.AnyOperatorTestCase;
+import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
@@ -143,6 +144,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
 
         DriverContext driverContext = crankyDriverContext();
 
+        Exception exception = null;
         boolean driverStarted = false;
         try {
             Operator operator = simple().get(driverContext);
@@ -150,8 +152,8 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             drive(operator, input.iterator(), driverContext);
             // Either we get lucky and cranky doesn't throw and the test completes or we don't and it throws
         } catch (CircuitBreakingException e) {
-            logger.info("broken", e);
             assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+            exception = e;
         }
         if (driverStarted == false) {
             // if drive hasn't even started then we need to release the input pages
@@ -159,7 +161,14 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         }
 
         // Note the lack of try/finally here - we're asserting that when the driver throws an exception we clear the breakers.
-        assertThat(inputFactoryContext.breaker().getUsed(), equalTo(0L));
+        long inputUsedBytes = inputFactoryContext.breaker().getUsed();
+        if (inputUsedBytes != 0L) {
+            fail(exception, "Expected no used bytes for input, found: " + inputUsedBytes);
+        }
+        long driverUsedBytes = driverContext.breaker().getUsed();
+        if (driverUsedBytes != 0L) {
+            fail(exception, "Expected no used bytes for driver, found: " + driverUsedBytes);
+        }
     }
 
     /**
@@ -204,7 +213,8 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         // Clone the input so that the operator can close it, then, later, we can read it again to build the assertion.
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
 
-        List<Page> results = drive(simple().get(context), input.iterator(), context);
+        var operator = simple().get(context);
+        List<Page> results = drive(operator, input.iterator(), context);
         assertSimpleOutput(origInput, results);
         assertThat(context.breaker().getUsed(), equalTo(0L));
 

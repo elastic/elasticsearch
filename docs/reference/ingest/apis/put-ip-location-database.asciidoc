@@ -4,6 +4,12 @@
 <titleabbrev>Create or update IP geolocation database configuration</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ingest[Ingest APIs].
+--
+
 Creates or updates an IP geolocation database configuration.
 
 IMPORTANT: The Maxmind `account_id` shown below requires a license key. Because the license key is sensitive information,

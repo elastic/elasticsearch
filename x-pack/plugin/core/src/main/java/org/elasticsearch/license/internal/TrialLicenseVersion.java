@@ -27,11 +27,8 @@ public class TrialLicenseVersion implements ToXContentFragment, Writeable {
     // generic Elasticsearch version. While it's derived from the Elasticsearch version formula for BWC, it is independent of it going
     // forward. When we want users to be able to start a new trial, increment this number.
     // Pkg-private for testing only.
-    static final int TRIAL_VERSION_CUTOVER = 8_12_00_99;
-    public static final TrialLicenseVersion CURRENT = new TrialLicenseVersion(TRIAL_VERSION_CUTOVER);
-
-    // The most recently released major version when we cut over. Here for maintaining BWC behavior.
-    static final int TRIAL_VERSION_CUTOVER_MAJOR = 8;
+    static final int CURRENT_TRIAL_VERSION = 9_00_00_00;
+    public static final TrialLicenseVersion CURRENT = new TrialLicenseVersion(CURRENT_TRIAL_VERSION);
 
     private final int trialVersion;
 
@@ -84,10 +81,6 @@ public class TrialLicenseVersion implements ToXContentFragment, Writeable {
     public boolean ableToStartNewTrial() {
         assert trialVersion <= CURRENT.trialVersion
             : "trial version [" + trialVersion + "] cannot be greater than CURRENT [" + CURRENT.trialVersion + "]";
-        if (trialVersion < TRIAL_VERSION_CUTOVER) {
-            int sinceMajorVersion = trialVersion / 1_000_000; // integer division is intentional
-            return sinceMajorVersion < TRIAL_VERSION_CUTOVER_MAJOR;
-        }
         return trialVersion != CURRENT.trialVersion;
     }
 

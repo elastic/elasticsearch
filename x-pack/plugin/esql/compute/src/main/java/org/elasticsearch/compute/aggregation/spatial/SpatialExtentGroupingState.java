@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 
 import java.nio.ByteOrder;
 
@@ -53,16 +54,49 @@ final class SpatialExtentGroupingState extends AbstractArrayState {
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                assert hasValue(group);
-                minXsBuilder.appendInt(minXs.get(group));
-                maxXsBuilder.appendInt(maxXs.get(group));
-                maxYsBuilder.appendInt(maxYs.get(group));
-                minYsBuilder.appendInt(minYs.get(group));
+                if (hasValue(group)) {
+                    minXsBuilder.appendInt(minXs.get(group));
+                    maxXsBuilder.appendInt(maxXs.get(group));
+                    maxYsBuilder.appendInt(maxYs.get(group));
+                    minYsBuilder.appendInt(minYs.get(group));
+                } else {
+                    // TODO: Should we add Nulls here instead?
+                    minXsBuilder.appendInt(Integer.MAX_VALUE);
+                    maxXsBuilder.appendInt(Integer.MIN_VALUE);
+                    maxYsBuilder.appendInt(Integer.MIN_VALUE);
+                    minYsBuilder.appendInt(Integer.MAX_VALUE);
+                }
             }
             blocks[offset + 0] = minXsBuilder.build();
             blocks[offset + 1] = maxXsBuilder.build();
             blocks[offset + 2] = maxYsBuilder.build();
             blocks[offset + 3] = minYsBuilder.build();
+        }
+    }
+
+    /**
+     * This method is used when extents are extracted from the doc-values field by the {@link GeometryDocValueReader}.
+     * This optimization is enabled when the field has doc-values and is only used in the ST_EXTENT aggregation.
+     */
+    public void add(int groupId, int[] values) {
+        if (values.length == 6) {
+            // Values are stored according to the order defined in the Extent class
+            int top = values[0];
+            int bottom = values[1];
+            int negLeft = values[2];
+            int negRight = values[3];
+            int posLeft = values[4];
+            int posRight = values[5];
+            add(groupId, Math.min(negLeft, posLeft), Math.max(negRight, posRight), top, bottom);
+        } else if (values.length == 4) {
+            // Values are stored according to the order defined in the Rectangle class
+            int minX = values[0];
+            int maxX = values[1];
+            int maxY = values[2];
+            int minY = values[3];
+            add(groupId, minX, maxX, maxY, minY);
+        } else {
+            throw new IllegalArgumentException("Expected 4 or 6 values, got " + values.length);
         }
     }
 
@@ -72,14 +106,18 @@ final class SpatialExtentGroupingState extends AbstractArrayState {
             .ifPresent(
                 r -> add(
                     groupId,
-                    pointType.encodeX(r.getMinX()),
-                    pointType.encodeX(r.getMaxX()),
-                    pointType.encodeY(r.getMaxY()),
-                    pointType.encodeY(r.getMinY())
+                    pointType.encoder().encodeX(r.getMinX()),
+                    pointType.encoder().encodeX(r.getMaxX()),
+                    pointType.encoder().encodeY(r.getMaxY()),
+                    pointType.encoder().encodeY(r.getMinY())
                 )
             );
     }
 
+    /**
+     * This method is used when the field is a geo_point or cartesian_point and is loaded from doc-values.
+     * This optimization is enabled when the field has doc-values and is only used in a spatial aggregation.
+     */
     public void add(int groupId, long encoded) {
         int x = pointType.extractX(encoded);
         int y = pointType.extractY(encoded);
@@ -122,10 +160,10 @@ final class SpatialExtentGroupingState extends AbstractArrayState {
                         new BytesRef(
                             WellKnownBinary.toWKB(
                                 new Rectangle(
-                                    pointType.decodeX(minXs.get(si)),
-                                    pointType.decodeX(maxXs.get(si)),
-                                    pointType.decodeY(maxYs.get(si)),
-                                    pointType.decodeY(minYs.get(si))
+                                    pointType.encoder().decodeX(minXs.get(si)),
+                                    pointType.encoder().decodeX(maxXs.get(si)),
+                                    pointType.encoder().decodeY(maxYs.get(si)),
+                                    pointType.encoder().decodeY(minYs.get(si))
                                 ),
                                 ByteOrder.LITTLE_ENDIAN
                             )

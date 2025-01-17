@@ -4,6 +4,12 @@
 <titleabbrev>Delete snapshot</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-snapshot[Snapshot and restore APIs].
+--
+
 Deletes a <<snapshot-restore,snapshot>>.
 
 ////

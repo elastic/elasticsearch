@@ -15,9 +15,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
@@ -38,9 +40,12 @@ import org.elasticsearch.transport.TransportStats;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
 
 /**
  * Node statistics (dynamic, changes depending on when created).
@@ -342,7 +347,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-        return ChunkedToXContent.builder(outerParams).append((builder, params) -> {
+        return Iterators.concat(chunk((builder, params) -> {
             builder.field("name", getNode().getName());
             builder.field("transport_address", getNode().getAddress().toString());
             builder.field("host", getNode().getHostName());
@@ -353,7 +358,6 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
                 builder.value(role.roleName());
             }
             builder.endArray();
-
             if (getNode().getAttributes().isEmpty() == false) {
                 builder.startObject("attributes");
                 for (Map.Entry<String, String> attrEntry : getNode().getAttributes().entrySet()) {
@@ -361,30 +365,38 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
                 }
                 builder.endObject();
             }
+
             return builder;
-        })
-
-            .appendIfPresent(getIndices())
-            .append((builder, p) -> builder.value(ifPresent(getOs()), p).value(ifPresent(getProcess()), p).value(ifPresent(getJvm()), p))
-
-            .appendIfPresent(getThreadPool())
-            .appendIfPresent(getFs())
-            .appendIfPresent(getTransport())
-            .appendIfPresent(getHttp())
-            .appendIfPresent(getBreaker())
-            .appendIfPresent(getScriptStats())
-            .appendIfPresent(getDiscoveryStats())
-            .appendIfPresent(getIngestStats())
-            .appendIfPresent(getAdaptiveSelectionStats())
-            .appendIfPresent(getScriptCacheStats())
-            .append(
+        }),
+            ifPresent(getIndices()).toXContentChunked(outerParams),
+            chunk((builder, p) -> builder.value(ifPresent(getOs()), p).value(ifPresent(getProcess()), p).value(ifPresent(getJvm()), p)),
+            ifPresent(getThreadPool()).toXContentChunked(outerParams),
+            singleChunkIfPresent(getFs()),
+            ifPresent(getTransport()).toXContentChunked(outerParams),
+            ifPresent(getHttp()).toXContentChunked(outerParams),
+            singleChunkIfPresent(getBreaker()),
+            ifPresent(getScriptStats()).toXContentChunked(outerParams),
+            singleChunkIfPresent(getDiscoveryStats()),
+            ifPresent(getIngestStats()).toXContentChunked(outerParams),
+            singleChunkIfPresent(getAdaptiveSelectionStats()),
+            singleChunkIfPresent(getScriptCacheStats()),
+            chunk(
                 (builder, p) -> builder.value(ifPresent(getIndexingPressureStats()), p)
                     .value(ifPresent(getRepositoriesStats()), p)
                     .value(ifPresent(getNodeAllocationStats()), p)
-            );
+            )
+        );
+    }
+
+    private static ChunkedToXContent ifPresent(@Nullable ChunkedToXContent chunkedToXContent) {
+        return Objects.requireNonNullElse(chunkedToXContent, ChunkedToXContent.EMPTY);
     }
 
     private static ToXContent ifPresent(@Nullable ToXContent toXContent) {
         return Objects.requireNonNullElse(toXContent, ToXContent.EMPTY);
+    }
+
+    private static Iterator<ToXContent> singleChunkIfPresent(ToXContent toXContent) {
+        return toXContent == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(toXContent);
     }
 }

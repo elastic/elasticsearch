@@ -390,8 +390,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockThreads.getCount()).thenReturn(9);
 
         final JvmStats.Mem mockMem = mock(JvmStats.Mem.class);
-        when(mockMem.getHeapUsed()).thenReturn(new ByteSizeValue(512, ByteSizeUnit.MB));
-        when(mockMem.getHeapMax()).thenReturn(new ByteSizeValue(24, ByteSizeUnit.GB));
+        when(mockMem.getHeapUsed()).thenReturn(ByteSizeValue.of(512, ByteSizeUnit.MB));
+        when(mockMem.getHeapMax()).thenReturn(ByteSizeValue.of(24, ByteSizeUnit.GB));
 
         final JvmStats mockJvmStats = mock(JvmStats.class);
         when(mockNodeStats.getJvm()).thenReturn(mockJvmStats);
@@ -462,7 +462,6 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             pluginEsBuildVersion,
             Version.CURRENT,
             IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersion.current(),
             apmIndicesExist };
         final String expectedJson = """
@@ -818,7 +817,6 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     ],
                     "version": "%s",
                     "min_index_version":%s,
-                    "min_read_only_index_version":%s,
                     "max_index_version":%s
                   }
                 },

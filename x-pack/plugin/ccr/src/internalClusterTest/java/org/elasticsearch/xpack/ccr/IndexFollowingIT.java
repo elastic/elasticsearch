@@ -150,7 +150,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             .setMasterNodeTimeout(TimeValue.MAX_VALUE)
             .setPersistentSettings(
                 Settings.builder()
-                    .put(CcrSettings.RECOVERY_CHUNK_SIZE.getKey(), new ByteSizeValue(randomIntBetween(1, 1000), ByteSizeUnit.KB))
+                    .put(CcrSettings.RECOVERY_CHUNK_SIZE.getKey(), ByteSizeValue.of(randomIntBetween(1, 1000), ByteSizeUnit.KB))
             )
             .get();
 
@@ -331,7 +331,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertFalse(response.isIndexFollowingStarted());
 
         // Check that the index exists, would throw index not found exception if the index is missing
-        followerClient().admin().indices().prepareGetIndex().addIndices("index2").get();
+        followerClient().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices("index2").get();
         ensureFollowerGreen(true, "index2");
 
         final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();
@@ -371,7 +371,12 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
 
         assertBusy(() -> assertHitCount(followerClient().prepareSearch("index2"), firstBatchNumDocs));
-        MappingMetadata mappingMetadata = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings().get("index2");
+        MappingMetadata mappingMetadata = followerClient().admin()
+            .indices()
+            .prepareGetMappings(TEST_REQUEST_TIMEOUT, "index2")
+            .get()
+            .getMappings()
+            .get("index2");
         assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetadata.sourceAsMap()), equalTo("integer"));
         assertThat(XContentMapValues.extractValue("properties.k", mappingMetadata.sourceAsMap()), nullValue());
 
@@ -382,7 +387,12 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
 
         assertBusy(() -> assertHitCount(followerClient().prepareSearch("index2"), firstBatchNumDocs + secondBatchNumDocs));
-        mappingMetadata = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings().get("index2");
+        mappingMetadata = followerClient().admin()
+            .indices()
+            .prepareGetMappings(TEST_REQUEST_TIMEOUT, "index2")
+            .get()
+            .getMappings()
+            .get("index2");
         assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetadata.sourceAsMap()), equalTo("integer"));
         assertThat(XContentMapValues.extractValue("properties.k.type", mappingMetadata.sourceAsMap()), equalTo("long"));
         pauseFollow("index2");
@@ -410,7 +420,12 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertBusy(() -> assertHitCount(followerClient().prepareSearch("index2"), 1));
         pauseFollow("index2");
 
-        MappingMetadata mappingMetadata = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings().get("index2");
+        MappingMetadata mappingMetadata = followerClient().admin()
+            .indices()
+            .prepareGetMappings(TEST_REQUEST_TIMEOUT, "index2")
+            .get()
+            .getMappings()
+            .get("index2");
         assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetadata.sourceAsMap()), equalTo("long"));
         assertThat(XContentMapValues.extractValue("properties.k", mappingMetadata.sourceAsMap()), nullValue());
     }
@@ -485,7 +500,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertAcked(followerClient().admin().indices().aliases(request).actionGet());
         final GetAliasesResponse response = followerClient().admin()
             .indices()
-            .getAliases(new GetAliasesRequest("follower_alias"))
+            .getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT, "follower_alias"))
             .actionGet();
         assertThat(response.getAliases().keySet().size(), equalTo(1));
         assertThat(response.getAliases().keySet().iterator().next(), equalTo("follower"));
@@ -605,8 +620,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
     public void testFollowNonExistentIndex() throws Exception {
         String indexSettings = getIndexSettings(1, 0);
-        assertAcked(leaderClient().admin().indices().prepareCreate("test-leader").setSource(indexSettings, XContentType.JSON).get());
         assertAcked(
+            leaderClient().admin().indices().prepareCreate("test-leader").setSource(indexSettings, XContentType.JSON),
             followerClient().admin()
                 .indices()
                 .prepareCreate("test-follower")
@@ -652,7 +667,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
 
         PutFollowAction.Request followRequest = putFollow("index1", "index2");
-        followRequest.getParameters().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 1024), ByteSizeUnit.BYTES));
+        followRequest.getParameters().setMaxReadRequestSize(ByteSizeValue.of(randomIntBetween(1, 1024), ByteSizeUnit.BYTES));
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();
@@ -1188,7 +1203,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             assertThat(getSettingsResponse.getSetting("follower", "index.analysis.analyzer.my_analyzer.type"), equalTo("custom"));
             assertThat(getSettingsResponse.getSetting("follower", "index.analysis.analyzer.my_analyzer.tokenizer"), equalTo("keyword"));
 
-            GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
+            GetMappingsRequest getMappingsRequest = new GetMappingsRequest(TEST_REQUEST_TIMEOUT);
             getMappingsRequest.indices("follower");
             GetMappingsResponse getMappingsResponse = followerClient().admin().indices().getMappings(getMappingsRequest).actionGet();
             MappingMetadata mappingMetadata = getMappingsResponse.getMappings().get("follower");

@@ -157,7 +157,13 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("socket_bind", forPlugins(NetworkAccessCheckActions::socketBind)),
         entry("socket_connect", forPlugins(NetworkAccessCheckActions::socketConnect)),
         entry("server_socket_bind", forPlugins(NetworkAccessCheckActions::serverSocketBind)),
-        entry("server_socket_accept", forPlugins(NetworkAccessCheckActions::serverSocketAccept))
+        entry("server_socket_accept", forPlugins(NetworkAccessCheckActions::serverSocketAccept)),
+
+        entry("url_open_connection_proxy", forPlugins(NetworkAccessCheckActions::urlOpenConnectionWithProxy)),
+        entry("http_client_builder_build", forPlugins(NetworkAccessCheckActions::httpClientBuilderBuild)),
+        entry("http_client_send", forPlugins(NetworkAccessCheckActions::httpClientSend)),
+        entry("http_client_send_async", forPlugins(NetworkAccessCheckActions::httpClientSendAsync)),
+        entry("create_ldap_cert_store", forPlugins(NetworkAccessCheckActions::createLDAPCertStore))
     )
         .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
         .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));

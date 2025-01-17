@@ -257,7 +257,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
 
                     configurationMap.put(
                         "model_id",
-                        new SettingsConfiguration.Builder().setDescription("")
+                        new SettingsConfiguration.Builder(EnumSet.of(TaskType.COMPLETION)).setDescription("")
                             .setLabel("Model ID")
                             .setRequired(true)
                             .setSensitive(true)

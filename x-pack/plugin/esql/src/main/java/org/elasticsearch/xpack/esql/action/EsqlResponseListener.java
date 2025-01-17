@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlMediaTypeParser;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
@@ -188,29 +189,26 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
         if (LOGGER.isDebugEnabled() == false) {
             return listener;
         }
+        Consumer<EsqlQueryResponse> logger = response -> LOGGER.debug(
+            "ESQL query execution {}.\nQuery string or async ID: [{}]\nExecution time: {}ms",
+            response == null ? "failed" : "finished",
+            esqlQueryOrId,
+            getTook(response, TimeUnit.MILLISECONDS)
+        );
         return ActionListener.wrap(r -> {
             listener.onResponse(r);
-            // At this point, the StopWatch should already have been stopped, so we log a consistent time.
-            LOGGER.debug(
-                "Finished execution of ESQL query.\nQuery string or async ID: [{}]\nExecution time: [{}]ms",
-                esqlQueryOrId,
-                getTook(r, TimeUnit.MILLISECONDS)
-            );
+            logger.accept(r);
         }, ex -> {
             // In case of failure, stop the time manually before sending out the response.
-            long timeMillis = getTook(null, TimeUnit.MILLISECONDS);
-            LOGGER.debug(
-                "Failed execution of ESQL query.\nQuery string or async ID: [{}]\nExecution time: [{}]ms",
-                esqlQueryOrId,
-                timeMillis
-            );
+            logger.accept(null);
             listener.onFailure(ex);
         });
     }
 
     static void logOnFailure(Throwable throwable) {
         RestStatus status = ExceptionsHelper.status(throwable);
-        LOGGER.log(status.getStatus() >= 500 ? Level.WARN : Level.DEBUG, () -> "Request failed with status [" + status + "]: ", throwable);
+        var level = status.getStatus() >= 500 ? Level.WARN : Level.DEBUG;
+        LOGGER.log(level, () -> "ESQL request failed with status [" + status + "]: ", throwable);
     }
 
     /*

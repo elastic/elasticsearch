@@ -644,7 +644,7 @@ public class EsqlSession {
         fieldNames.addAll(subfields(fieldNames));
         fieldNames.addAll(enrichPolicyMatchFields);
         fieldNames.addAll(subfields(enrichPolicyMatchFields));
-        // We add the "_field" because it's light, and there must always be some field matching the indices.
+        // We add the "_index" field because it's light, and there must always be some field matching the indices.
         // Originally, this was used only when no fields were found, but ENRICH/LOOKUP fields can't currently
         // be distinguished from fields of the original index, so we always add it as a safety measure.
         fieldNames.addAll(IndexResolver.INDEX_METADATA_FIELD);

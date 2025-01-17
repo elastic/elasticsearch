@@ -229,6 +229,9 @@ security roles of the user who created or updated them.
 All cluster read-only operations, like cluster health and state, hot threads,
 node info, node and cluster stats, and pending cluster tasks.
 
+`monitor_connector`::
+All read-only operations on <<connector-apis, connectors>>.
+
 `monitor_data_stream_global_retention`::
 This privilege has no effect.deprecated[8.16]
 

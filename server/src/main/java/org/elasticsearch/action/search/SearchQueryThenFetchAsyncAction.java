@@ -556,7 +556,11 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
         return shardIterators[shardIndex].getOriginalIndices();
     }
 
-    private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
+    private static ShardSearchRequest rewriteShardSearchRequest(
+        BottomSortValuesCollector bottomSortCollector,
+        int trackTotalHitsUpTo,
+        ShardSearchRequest request
+    ) {
         if (bottomSortCollector == null) {
             return request;
         }
@@ -727,6 +731,8 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
         searchTransportService.sendExecuteQuery(
             connection,
             rewriteShardSearchRequest(
+                bottomSortCollector,
+                trackTotalHitsUpTo,
                 buildShardSearchRequest(
                     shardIt.shardId(),
                     shardIt.getClusterAlias(),
@@ -1074,22 +1080,23 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
             @Override
             protected void doRun() {
                 var request = state.searchRequest;
-                var pitBuilder = request.searchRequest.pointInTimeBuilder();
+                var searchRequest = request.searchRequest;
+                var pitBuilder = searchRequest.pointInTimeBuilder();
                 var shardToQuery = request.shards.get(dataNodeLocalIdx);
                 state.dependencies.searchService.executeQueryPhase(
                     buildShardSearchRequest(
                         shardToQuery.shardId,
-                        request.searchRequest.getLocalClusterAlias(),
+                        searchRequest.getLocalClusterAlias(),
                         shardToQuery.shardIndex,
                         shardToQuery.contextId,
                         shardToQuery.originalIndices,
                         request.aliasFilters.get(shardToQuery.shardId.getIndex().getUUID()),
                         pitBuilder == null ? null : pitBuilder.getKeepAlive(),
                         shardToQuery.boost,
-                        request.searchRequest,
+                        searchRequest,
                         request.totalShards,
                         request.absoluteStartMillis,
-                        false
+                        state.hasResponse.getAcquire()
                     ),
                     state.task,
                     new ActionListener<>() {
@@ -1097,6 +1104,14 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
                         public void onResponse(SearchPhaseResult searchPhaseResult) {
                             try {
                                 searchPhaseResult.setShardIndex(dataNodeLocalIdx);
+                                final SearchShardTarget target = new SearchShardTarget(
+                                    null,
+                                    shardToQuery.shardId,
+                                    request.searchRequest.getLocalClusterAlias()
+                                );
+                                searchPhaseResult.setSearchShardTarget(target);
+                                // no need for any cache effects when we're already flipped to ture => plain read + set-release
+                                state.hasResponse.compareAndExchangeRelease(false, true);
                                 state.queryPhaseResultConsumer.consumeResult(searchPhaseResult, state.onDone);
                             } catch (Throwable e) {
                                 throw new AssertionError(e);
@@ -1170,6 +1185,9 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
         private final ConcurrentHashMap<Integer, Exception> failures = new ConcurrentHashMap<>();
         private final Dependencies dependencies;
         private final Runnable onDone;
+        private final AtomicBoolean hasResponse = new AtomicBoolean(false);
+        private final int trackTotalHitsUpTo;
+        private volatile BottomSortValuesCollector bottomSortCollector;
 
         private QueryPerNodeState(
             AtomicInteger currentShardIndex,
@@ -1182,6 +1200,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
             this.currentShardIndex = currentShardIndex;
             this.queryPhaseResultConsumer = queryPhaseResultConsumer;
             this.searchRequest = searchRequest;
+            this.trackTotalHitsUpTo = searchRequest.searchRequest.resolveTrackTotalHitsUpTo();
             this.task = task;
             final int shardCount = queryPhaseResultConsumer.getNumShards();
             final CountDown countDown = new CountDown(shardCount);

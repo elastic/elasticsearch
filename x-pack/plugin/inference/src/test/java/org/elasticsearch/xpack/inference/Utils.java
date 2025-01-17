@@ -148,17 +148,22 @@ public final class Utils {
         latch.await();
     }
 
-    public static Model getInvalidModel(String inferenceEntityId, String serviceName) {
+    public static Model getInvalidModel(String inferenceEntityId, String serviceName, TaskType taskType) {
         var mockConfigs = mock(ModelConfigurations.class);
         when(mockConfigs.getInferenceEntityId()).thenReturn(inferenceEntityId);
         when(mockConfigs.getService()).thenReturn(serviceName);
-        when(mockConfigs.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+        when(mockConfigs.getTaskType()).thenReturn(taskType);
 
         var mockModel = mock(Model.class);
+        when(mockModel.getInferenceEntityId()).thenReturn(inferenceEntityId);
         when(mockModel.getConfigurations()).thenReturn(mockConfigs);
-        when(mockModel.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+        when(mockModel.getTaskType()).thenReturn(taskType);
 
         return mockModel;
+    }
+
+    public static Model getInvalidModel(String inferenceEntityId, String serviceName) {
+        return getInvalidModel(inferenceEntityId, serviceName, TaskType.TEXT_EMBEDDING);
     }
 
     public static SimilarityMeasure randomSimilarityMeasure() {

@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -139,39 +140,37 @@ public class IndexMetadataVerifier {
         );
     }
 
-    private static boolean isFullySupportedVersion(IndexMetadata indexMetadata, IndexVersion minimumIndexCompatibilityVersion) {
+    public static boolean isFullySupportedVersion(IndexMetadata indexMetadata, IndexVersion minimumIndexCompatibilityVersion) {
         return indexMetadata.getCompatibilityVersion().onOrAfter(minimumIndexCompatibilityVersion);
     }
 
     /**
-     * Returns {@code true} if the index version is compatible in read-only mode. As of today, only searchable snapshots and archive indices
-     * in version N-2 with a write block are read-only compatible. This method throws an {@link IllegalStateException} if the index is
-     * either a searchable snapshot or an archive index with a read-only compatible version but is missing the write block.
+     * Returns {@code true} if the index version is compatible with read-only mode. A regular index is read-only compatible if it was
+     * created in version N-2 and if it was marked as read-only on version N-1, a process which involves adding a write block and a special
+     * index setting indicating that the shard was "verified". Searchable snapshots and Archives indices created in version N-2 are also
+     * read-only compatible by nature as long as they have a write block. Other type of indices like CCR are not read-only compatible.
      *
-     * @param indexMetadata                         the index metadata
-     * @param minimumIndexCompatibilityVersion      the min. index compatible version for reading and writing indices (used in assertion)
-     * @param minReadOnlyIndexCompatibilityVersion  the min. index compatible version for only reading indices
+     * @param indexMetadata              the index metadata
+     * @param minimumCompatible          the min. index compatible version for reading and writing indices (used in assertion)
+     * @param minimumReadOnlyCompatible  the min. index compatible version for only reading indices
      *
      * @return {@code true} if the index version is compatible in read-only mode, {@code false} otherwise.
-     * @throws IllegalStateException if the index is read-only compatible but has no write block in place.
+     * @throws IllegalStateException if the index is read-only compatible but has no write block or no verification index setting in place.
      */
     public static boolean isReadOnlySupportedVersion(
         IndexMetadata indexMetadata,
-        IndexVersion minimumIndexCompatibilityVersion,
-        IndexVersion minReadOnlyIndexCompatibilityVersion
+        IndexVersion minimumCompatible,
+        IndexVersion minimumReadOnlyCompatible
     ) {
-        boolean isReadOnlySupportedVersion = indexMetadata.getCompatibilityVersion().onOrAfter(minReadOnlyIndexCompatibilityVersion);
-        assert isFullySupportedVersion(indexMetadata, minimumIndexCompatibilityVersion) == false;
-
-        if (isReadOnlySupportedVersion
-            && (indexMetadata.isSearchableSnapshot() || indexMetadata.getCreationVersion().isLegacyIndexVersion())) {
-            boolean isReadOnly = IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings());
+        if (isReadOnlyCompatible(indexMetadata, minimumCompatible, minimumReadOnlyCompatible)) {
+            assert isFullySupportedVersion(indexMetadata, minimumCompatible) == false : indexMetadata;
+            final boolean isReadOnly = hasIndexWritesBlock(indexMetadata);
             if (isReadOnly == false) {
                 throw new IllegalStateException(
                     "The index "
                         + indexMetadata.getIndex()
                         + " created in version ["
-                        + indexMetadata.getCreationVersion()
+                        + indexMetadata.getCreationVersion().toReleaseVersion()
                         + "] with current compatibility version ["
                         + indexMetadata.getCompatibilityVersion().toReleaseVersion()
                         + "] must be marked as read-only using the setting ["
@@ -182,6 +181,45 @@ public class IndexMetadataVerifier {
                 );
             }
             return true;
+        }
+        return false;
+    }
+
+    private static boolean isReadOnlyCompatible(
+        IndexMetadata indexMetadata,
+        IndexVersion minimumCompatible,
+        IndexVersion minimumReadOnlyCompatible
+    ) {
+        var compatibilityVersion = indexMetadata.getCompatibilityVersion();
+        if (compatibilityVersion.onOrAfter(minimumReadOnlyCompatible)) {
+            // searchable snapshots are read-only compatible
+            if (indexMetadata.isSearchableSnapshot()) {
+                return true;
+            }
+            // archives are read-only compatible
+            if (indexMetadata.getCreationVersion().isLegacyIndexVersion()) {
+                return true;
+            }
+            // indices (other than CCR and old-style frozen indices) are read-only compatible
+            return compatibilityVersion.before(minimumCompatible)
+                && indexMetadata.getSettings().getAsBoolean("index.frozen", false) == false
+                && indexMetadata.getSettings().getAsBoolean("index.xpack.ccr.following_index", false) == false;
+        }
+        return false;
+    }
+
+    private static boolean hasIndexWritesBlock(IndexMetadata indexMetadata) {
+        if (IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings())) {
+            return indexMetadata.isSearchableSnapshot()
+                || indexMetadata.getCreationVersion().isLegacyIndexVersion()
+                || MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexMetadata.getSettings());
+        }
+        return false;
+    }
+
+    public static boolean isReadOnlyVerified(IndexMetadata indexMetadata) {
+        if (isReadOnlyCompatible(indexMetadata, IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.MINIMUM_READONLY_COMPATIBLE)) {
+            return hasIndexWritesBlock(indexMetadata);
         }
         return false;
     }

@@ -925,7 +925,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
-            var model = OpenAiChatCompletionModelTests.createChatCompletionModel(
+            var model = OpenAiChatCompletionModelTests.createCompletionModel(
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),

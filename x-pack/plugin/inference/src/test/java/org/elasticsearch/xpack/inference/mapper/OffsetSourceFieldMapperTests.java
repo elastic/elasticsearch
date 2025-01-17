@@ -117,8 +117,9 @@ public class OffsetSourceFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    public void testSyntheticSourceKeepArrays() {
+    public boolean supportsNestedArrayValues() {
         // This mapper doesn't support multiple values (array of objects).
+        return false;
     }
 
     public void testDefaults() throws Exception {

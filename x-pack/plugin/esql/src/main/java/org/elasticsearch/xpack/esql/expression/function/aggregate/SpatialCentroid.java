@@ -71,8 +71,8 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
     }
 
     @Override
-    public SpatialCentroid withDocValues() {
-        return new SpatialCentroid(source(), field(), filter(), FieldExtractPreference.DOC_VALUES);
+    public SpatialCentroid withFieldExtractPreference(FieldExtractPreference preference) {
+        return new SpatialCentroid(source(), field(), filter(), preference);
     }
 
     @Override

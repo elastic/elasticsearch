@@ -22,7 +22,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.inference.external.http.sender.OpenAiCompletionRequestManager.USER_ROLE;
 
 /**
- * This class uses the unified chat completion method.
+ * This class uses the unified chat completion method to perform validation.
  */
 public class SimpleChatCompletionServiceIntegrationValidator implements ServiceIntegrationValidator {
     private static final List<String> TEST_INPUT = List.of("how big");

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.test.index;
 
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 

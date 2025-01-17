@@ -3,7 +3,7 @@
 === Binary operators
 
 [[esql-binary-operators-equality]]
-==== Equality
+==== Equality `==`
 [.text-center]
 image::esql/functions/signature/equals.svg[Embedded,opts=inline]
 
@@ -16,6 +16,17 @@ NOTE: This is pushed to the underlying search index if one side of the compariso
 Supported types:
 
 include::types/equals.asciidoc[]
+
+==== Case insensitive equality `=~`
+[.text-center]
+//image::esql/functions/signature/case_insensitive_equals.svg[Embedded,opts=inline]
+
+*lhs* `=~` *rhs*
+// placeholder pending svg
+
+Supported types:
+
+include::types/case_insensitive_equals.asciidoc[]
 
 ==== Inequality `!=`
 [.text-center]

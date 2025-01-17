@@ -82,6 +82,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -4572,6 +4573,32 @@ public class IndexShardTests extends IndexShardTestCase {
         done.set(true);
         thread.join();
         closeShard(shard, false);
+    }
+
+    public void testResetEngineToNoOpEngine() throws Exception {
+        var newEngineCreated = new CountDownLatch(2);
+        var indexShard = newStartedShard(true, Settings.EMPTY, config -> {
+            try {
+                return new NoOpEngine(config);
+            } finally {
+                newEngineCreated.countDown();
+            }
+        });
+        var newEngineNotification = new CountDownLatch(1);
+        indexShard.waitForEngineOrClosedShard(ActionListener.running(newEngineNotification::countDown));
+
+        var onAcquired = new PlainActionFuture<Releasable>();
+        indexShard.acquireAllPrimaryOperationsPermits(onAcquired, TimeValue.timeValueMinutes(1L));
+        try (var permit = safeGet(onAcquired)) {
+            indexShard.resetEngine();
+        }
+        safeAwait(newEngineCreated);
+        safeAwait(newEngineNotification);
+
+        assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));
+        assertTrue(indexShard.isActive());
+
+        closeShard(indexShard, false);
     }
 
     /**

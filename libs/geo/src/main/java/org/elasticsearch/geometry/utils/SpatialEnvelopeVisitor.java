@@ -83,10 +83,15 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
         return Optional.empty();
     }
 
+    public enum WrapLongitude {
+        NO_WRAP,
+        WRAP
+    }
+
     /**
      * Determine the BBOX assuming the CRS is geographic (eg WGS84) and optionally wrapping the longitude around the dateline.
      */
-    public static Optional<Rectangle> visitGeo(Geometry geometry, boolean wrapLongitude) {
+    public static Optional<Rectangle> visitGeo(Geometry geometry, WrapLongitude wrapLongitude) {
         var visitor = new SpatialEnvelopeVisitor(new GeoPointVisitor(wrapLongitude));
         if (geometry.visit(visitor)) {
             return Optional.of(visitor.getResult());
@@ -111,6 +116,9 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
         boolean isValid();
 
         Rectangle getResult();
+
+        /** To allow for memory optimizations through object reuse, the visitor can be reset to its initial state. */
+        void reset();
     }
 
     /**
@@ -119,16 +127,12 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
      */
     public static class CartesianPointVisitor implements PointVisitor {
         private double minX = Double.POSITIVE_INFINITY;
-        private double minY = Double.POSITIVE_INFINITY;
         private double maxX = Double.NEGATIVE_INFINITY;
         private double maxY = Double.NEGATIVE_INFINITY;
+        private double minY = Double.POSITIVE_INFINITY;
 
         public double getMinX() {
             return minX;
-        }
-
-        public double getMinY() {
-            return minY;
         }
 
         public double getMaxX() {
@@ -139,12 +143,16 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
             return maxY;
         }
 
+        public double getMinY() {
+            return minY;
+        }
+
         @Override
         public void visitPoint(double x, double y) {
             minX = Math.min(minX, x);
-            minY = Math.min(minY, y);
             maxX = Math.max(maxX, x);
             maxY = Math.max(maxY, y);
+            minY = Math.min(minY, y);
         }
 
         @Override
@@ -155,9 +163,9 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
                 );
             }
             this.minX = Math.min(this.minX, minX);
-            this.minY = Math.min(this.minY, minY);
             this.maxX = Math.max(this.maxX, maxX);
             this.maxY = Math.max(this.maxY, maxY);
+            this.minY = Math.min(this.minY, minY);
         }
 
         @Override
@@ -168,6 +176,14 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
         @Override
         public Rectangle getResult() {
             return new Rectangle(minX, maxX, maxY, minY);
+        }
+
+        @Override
+        public void reset() {
+            minX = Double.POSITIVE_INFINITY;
+            maxX = Double.NEGATIVE_INFINITY;
+            maxY = Double.NEGATIVE_INFINITY;
+            minY = Double.POSITIVE_INFINITY;
         }
     }
 
@@ -181,103 +197,117 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
      * </ul>
      */
     public static class GeoPointVisitor implements PointVisitor {
-        private double minY = Double.POSITIVE_INFINITY;
-        private double maxY = Double.NEGATIVE_INFINITY;
-        private double minNegX = Double.POSITIVE_INFINITY;
-        private double maxNegX = Double.NEGATIVE_INFINITY;
-        private double minPosX = Double.POSITIVE_INFINITY;
-        private double maxPosX = Double.NEGATIVE_INFINITY;
+        protected double top = Double.NEGATIVE_INFINITY;
+        protected double bottom = Double.POSITIVE_INFINITY;
+        protected double negLeft = Double.POSITIVE_INFINITY;
+        protected double negRight = Double.NEGATIVE_INFINITY;
+        protected double posLeft = Double.POSITIVE_INFINITY;
+        protected double posRight = Double.NEGATIVE_INFINITY;
 
-        public double getMinY() {
-            return minY;
-        }
+        private final WrapLongitude wrapLongitude;
 
-        public double getMaxY() {
-            return maxY;
-        }
-
-        public double getMinNegX() {
-            return minNegX;
-        }
-
-        public double getMaxNegX() {
-            return maxNegX;
-        }
-
-        public double getMinPosX() {
-            return minPosX;
-        }
-
-        public double getMaxPosX() {
-            return maxPosX;
-        }
-
-        private final boolean wrapLongitude;
-
-        public GeoPointVisitor(boolean wrapLongitude) {
+        public GeoPointVisitor(WrapLongitude wrapLongitude) {
             this.wrapLongitude = wrapLongitude;
+        }
+
+        public double getTop() {
+            return top;
+        }
+
+        public double getBottom() {
+            return bottom;
+        }
+
+        public double getNegLeft() {
+            return negLeft;
+        }
+
+        public double getNegRight() {
+            return negRight;
+        }
+
+        public double getPosLeft() {
+            return posLeft;
+        }
+
+        public double getPosRight() {
+            return posRight;
         }
 
         @Override
         public void visitPoint(double x, double y) {
-            minY = Math.min(minY, y);
-            maxY = Math.max(maxY, y);
+            bottom = Math.min(bottom, y);
+            top = Math.max(top, y);
             visitLongitude(x);
         }
 
         @Override
         public void visitRectangle(double minX, double maxX, double maxY, double minY) {
-            this.minY = Math.min(this.minY, minY);
-            this.maxY = Math.max(this.maxY, maxY);
+            // TODO: Fix bug with rectangle crossing the dateline (see Extent.addRectangle for correct behaviour)
+            this.bottom = Math.min(this.bottom, minY);
+            this.top = Math.max(this.top, maxY);
             visitLongitude(minX);
             visitLongitude(maxX);
         }
 
         private void visitLongitude(double x) {
             if (x >= 0) {
-                minPosX = Math.min(minPosX, x);
-                maxPosX = Math.max(maxPosX, x);
+                posLeft = Math.min(posLeft, x);
+                posRight = Math.max(posRight, x);
             } else {
-                minNegX = Math.min(minNegX, x);
-                maxNegX = Math.max(maxNegX, x);
+                negLeft = Math.min(negLeft, x);
+                negRight = Math.max(negRight, x);
             }
         }
 
         @Override
         public boolean isValid() {
-            return minY != Double.POSITIVE_INFINITY;
+            return bottom != Double.POSITIVE_INFINITY;
         }
 
         @Override
         public Rectangle getResult() {
-            return getResult(minNegX, minPosX, maxNegX, maxPosX, maxY, minY, wrapLongitude);
+            return getResult(top, bottom, negLeft, negRight, posLeft, posRight, wrapLongitude);
         }
 
-        private static Rectangle getResult(
-            double minNegX,
-            double minPosX,
-            double maxNegX,
-            double maxPosX,
-            double maxY,
-            double minY,
-            boolean wrapLongitude
+        @Override
+        public void reset() {
+            bottom = Double.POSITIVE_INFINITY;
+            top = Double.NEGATIVE_INFINITY;
+            negLeft = Double.POSITIVE_INFINITY;
+            negRight = Double.NEGATIVE_INFINITY;
+            posLeft = Double.POSITIVE_INFINITY;
+            posRight = Double.NEGATIVE_INFINITY;
+        }
+
+        public static Rectangle getResult(
+            double top,
+            double bottom,
+            double negLeft,
+            double negRight,
+            double posLeft,
+            double posRight,
+            WrapLongitude wrapLongitude
         ) {
-            assert Double.isFinite(maxY);
-            if (Double.isInfinite(minPosX)) {
-                return new Rectangle(minNegX, maxNegX, maxY, minY);
-            } else if (Double.isInfinite(minNegX)) {
-                return new Rectangle(minPosX, maxPosX, maxY, minY);
-            } else if (wrapLongitude) {
-                double unwrappedWidth = maxPosX - minNegX;
-                double wrappedWidth = (180 - minPosX) - (-180 - maxNegX);
-                if (unwrappedWidth <= wrappedWidth) {
-                    return new Rectangle(minNegX, maxPosX, maxY, minY);
-                } else {
-                    return new Rectangle(minPosX, maxNegX, maxY, minY);
-                }
+            assert Double.isFinite(top);
+            if (posRight == Double.NEGATIVE_INFINITY) {
+                return new Rectangle(negLeft, negRight, top, bottom);
+            } else if (negLeft == Double.POSITIVE_INFINITY) {
+                return new Rectangle(posLeft, posRight, top, bottom);
             } else {
-                return new Rectangle(minNegX, maxPosX, maxY, minY);
+                return switch (wrapLongitude) {
+                    case NO_WRAP -> new Rectangle(negLeft, posRight, top, bottom);
+                    case WRAP -> maybeWrap(top, bottom, negLeft, negRight, posLeft, posRight);
+                };
             }
+        }
+
+        private static Rectangle maybeWrap(double top, double bottom, double negLeft, double negRight, double posLeft, double posRight) {
+            double unwrappedWidth = posRight - negLeft;
+            double wrappedWidth = 360 + negRight - posLeft;
+            return unwrappedWidth <= wrappedWidth
+                ? new Rectangle(negLeft, posRight, top, bottom)
+                : new Rectangle(posLeft, negRight, top, bottom);
         }
     }
 

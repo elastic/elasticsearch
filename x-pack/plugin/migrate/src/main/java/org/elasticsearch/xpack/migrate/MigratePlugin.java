@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -32,8 +33,19 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xpack.migrate.action.CancelReindexDataStreamAction;
+import org.elasticsearch.xpack.migrate.action.CancelReindexDataStreamTransportAction;
+import org.elasticsearch.xpack.migrate.action.CreateIndexFromSourceAction;
+import org.elasticsearch.xpack.migrate.action.CreateIndexFromSourceTransportAction;
+import org.elasticsearch.xpack.migrate.action.GetMigrationReindexStatusAction;
+import org.elasticsearch.xpack.migrate.action.GetMigrationReindexStatusTransportAction;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction;
+import org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexAction;
+import org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexTransportAction;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamTransportAction;
+import org.elasticsearch.xpack.migrate.rest.RestCancelReindexDataStreamAction;
+import org.elasticsearch.xpack.migrate.rest.RestCreateIndexFromSourceAction;
+import org.elasticsearch.xpack.migrate.rest.RestGetMigrationReindexStatusAction;
 import org.elasticsearch.xpack.migrate.rest.RestMigrationReindexAction;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamPersistentTaskExecutor;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamPersistentTaskState;
@@ -47,6 +59,8 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
+import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexTransportAction.REINDEX_MAX_REQUESTS_PER_SECOND_SETTING;
+import static org.elasticsearch.xpack.migrate.task.ReindexDataStreamPersistentTaskExecutor.MAX_CONCURRENT_INDICES_REINDEXED_PER_DATA_STREAM_SETTING;
 
 public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
@@ -65,6 +79,9 @@ public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTas
         List<RestHandler> handlers = new ArrayList<>();
         if (REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled()) {
             handlers.add(new RestMigrationReindexAction());
+            handlers.add(new RestGetMigrationReindexStatusAction());
+            handlers.add(new RestCancelReindexDataStreamAction());
+            handlers.add(new RestCreateIndexFromSourceAction());
         }
         return handlers;
     }
@@ -74,6 +91,10 @@ public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTas
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
         if (REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled()) {
             actions.add(new ActionHandler<>(ReindexDataStreamAction.INSTANCE, ReindexDataStreamTransportAction.class));
+            actions.add(new ActionHandler<>(GetMigrationReindexStatusAction.INSTANCE, GetMigrationReindexStatusTransportAction.class));
+            actions.add(new ActionHandler<>(CancelReindexDataStreamAction.INSTANCE, CancelReindexDataStreamTransportAction.class));
+            actions.add(new ActionHandler<>(ReindexDataStreamIndexAction.INSTANCE, ReindexDataStreamIndexTransportAction.class));
+            actions.add(new ActionHandler<>(CreateIndexFromSourceAction.INSTANCE, CreateIndexFromSourceTransportAction.class));
         }
         return actions;
     }
@@ -134,5 +155,13 @@ public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTas
         } else {
             return List.of();
         }
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        List<Setting<?>> pluginSettings = new ArrayList<>();
+        pluginSettings.add(MAX_CONCURRENT_INDICES_REINDEXED_PER_DATA_STREAM_SETTING);
+        pluginSettings.add(REINDEX_MAX_REQUESTS_PER_SECOND_SETTING);
+        return pluginSettings;
     }
 }

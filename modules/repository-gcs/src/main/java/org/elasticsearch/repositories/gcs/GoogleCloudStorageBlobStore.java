@@ -29,7 +29,6 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
@@ -84,7 +83,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         final String key = "es.repository_gcs.large_blob_threshold_byte_size";
         final String largeBlobThresholdByteSizeProperty = System.getProperty(key);
         if (largeBlobThresholdByteSizeProperty == null) {
-            LARGE_BLOB_THRESHOLD_BYTE_SIZE = Math.toIntExact(new ByteSizeValue(5, ByteSizeUnit.MB).getBytes());
+            LARGE_BLOB_THRESHOLD_BYTE_SIZE = Math.toIntExact(ByteSizeValue.of(5, ByteSizeUnit.MB).getBytes());
         } else {
             final int largeBlobThresholdByteSize;
             try {
@@ -491,10 +490,9 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     /**
      * Deletes the given path and all its children.
      *
-     * @param purpose The purpose of the delete operation
      * @param pathStr Name of path to delete
      */
-    DeleteResult deleteDirectory(OperationPurpose purpose, String pathStr) throws IOException {
+    DeleteResult deleteDirectory(String pathStr) throws IOException {
         return SocketAccess.doPrivilegedIOException(() -> {
             DeleteResult deleteResult = DeleteResult.ZERO;
             Page<Blob> page = client().list(bucketName, BlobListOption.prefix(pathStr));
@@ -502,7 +500,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 final AtomicLong blobsDeleted = new AtomicLong(0L);
                 final AtomicLong bytesDeleted = new AtomicLong(0L);
                 final Iterator<Blob> blobs = page.getValues().iterator();
-                deleteBlobsIgnoringIfNotExists(purpose, new Iterator<>() {
+                deleteBlobs(new Iterator<>() {
                     @Override
                     public boolean hasNext() {
                         return blobs.hasNext();
@@ -526,11 +524,9 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     /**
      * Deletes multiple blobs from the specific bucket using a batch request
      *
-     * @param purpose the purpose of the delete operation
      * @param blobNames names of the blobs to delete
      */
-    @Override
-    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+    void deleteBlobs(Iterator<String> blobNames) throws IOException {
         if (blobNames.hasNext() == false) {
             return;
         }

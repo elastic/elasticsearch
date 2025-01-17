@@ -59,6 +59,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadataVerifier.isReadOnlyVerified;
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
@@ -315,7 +316,7 @@ public final class StoreRecovery {
                 RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
                 assert recoveryType == RecoverySource.Type.SNAPSHOT : "expected snapshot recovery type: " + recoveryType;
                 SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) indexShard.recoveryState().getRecoverySource();
-                restore(indexShard, repository, recoverySource, recoveryListener(indexShard, listener).map(ignored -> true));
+                recoverFromRepository(indexShard, repository, recoverySource, recoveryListener(indexShard, listener).map(ignored -> true));
             } else {
                 listener.onResponse(false);
             }
@@ -459,7 +460,7 @@ public final class StoreRecovery {
                 }
                 if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
                     assert indexShouldExists;
-                    bootstrap(indexShard, store);
+                    bootstrap(indexShard);
                     writeEmptyRetentionLeasesFile(indexShard);
                 } else if (indexShouldExists) {
                     if (recoveryState.getRecoverySource().shouldBootstrapNewHistoryUUID()) {
@@ -523,12 +524,13 @@ public final class StoreRecovery {
     /**
      * Restores shard from {@link SnapshotRecoverySource} associated with this shard in routing table
      */
-    private void restore(
+    private void recoverFromRepository(
         IndexShard indexShard,
         Repository repository,
         SnapshotRecoverySource restoreSource,
         ActionListener<Void> outerListener
     ) {
+        assert indexShard.shardRouting.primary() : "only primary shards can recover from snapshot";
         logger.debug("restoring from {} ...", indexShard.recoveryState().getRecoverySource());
 
         record ShardAndIndexIds(IndexId indexId, ShardId shardId) {}
@@ -538,13 +540,13 @@ public final class StoreRecovery {
             .newForked(indexShard::preRecovery)
 
             .<ShardAndIndexIds>andThen(shardAndIndexIdsListener -> {
-                final RecoveryState.Translog translogState = indexShard.recoveryState().getTranslog();
                 if (restoreSource == null) {
                     throw new IndexShardRestoreFailedException(shardId, "empty restore source");
                 }
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}] restoring shard [{}]", restoreSource.snapshot(), shardId);
                 }
+                final RecoveryState.Translog translogState = indexShard.recoveryState().getTranslog();
                 translogState.totalOperations(0);
                 translogState.totalOperationsOnStart(0);
                 indexShard.prepareForIndexRecovery();
@@ -588,9 +590,7 @@ public final class StoreRecovery {
 
             .<Void>andThen(l -> {
                 indexShard.getIndexEventListener().afterFilesRestoredFromRepository(indexShard);
-                final Store store = indexShard.store();
-                bootstrap(indexShard, store);
-                assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+                bootstrap(indexShard);
                 writeEmptyRetentionLeasesFile(indexShard);
                 indexShard.openEngineAndRecoverFromTranslog(l);
             })
@@ -610,19 +610,39 @@ public final class StoreRecovery {
             }));
     }
 
+    /**
+     * @deprecated use {@link #bootstrap(IndexShard)} instead
+     */
+    @Deprecated(forRemoval = true)
     public static void bootstrap(final IndexShard indexShard, final Store store) throws IOException {
-        if (indexShard.indexSettings.getIndexMetadata().isSearchableSnapshot() == false) {
-            // not bootstrapping new history for searchable snapshots (which are read-only) allows sequence-number based peer recoveries
+        assert indexShard.store() == store;
+        bootstrap(indexShard);
+    }
+
+    private static void bootstrap(final IndexShard indexShard) throws IOException {
+        assert indexShard.routingEntry().primary();
+        final var store = indexShard.store();
+        store.incRef();
+        try {
+            final var translogLocation = indexShard.shardPath().resolveTranslog();
+            if (indexShard.hasTranslog() == false) {
+                if (isReadOnlyVerified(indexShard.indexSettings().getIndexMetadata())) {
+                    Translog.deleteAll(translogLocation);
+                }
+                return;
+            }
             store.bootstrapNewHistory();
+            final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+            final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+            final String translogUUID = Translog.createEmptyTranslog(
+                translogLocation,
+                localCheckpoint,
+                indexShard.shardId(),
+                indexShard.getPendingPrimaryTerm()
+            );
+            store.associateIndexWithNewTranslog(translogUUID);
+        } finally {
+            store.decRef();
         }
-        final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
-        final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-        final String translogUUID = Translog.createEmptyTranslog(
-            indexShard.shardPath().resolveTranslog(),
-            localCheckpoint,
-            indexShard.shardId(),
-            indexShard.getPendingPrimaryTerm()
-        );
-        store.associateIndexWithNewTranslog(translogUUID);
     }
 }

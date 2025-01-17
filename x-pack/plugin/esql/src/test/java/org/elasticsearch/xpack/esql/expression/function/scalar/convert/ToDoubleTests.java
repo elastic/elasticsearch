@@ -126,7 +126,7 @@ public class ToDoubleTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("Integer"),
+            evaluatorName.apply("Int"),
             List.of(new TestCaseSupplier.TypedDataSupplier("counter", () -> randomInt(1000), DataType.COUNTER_INTEGER)),
             DataType.DOUBLE,
             l -> ((Integer) l).doubleValue(),
@@ -141,11 +141,7 @@ public class ToDoubleTests extends AbstractScalarFunctionTestCase {
             List.of()
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(
-            true,
-            suppliers,
-            (v, p) -> "boolean or counter_double or counter_integer or counter_long or datetime or numeric or string"
-        );
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

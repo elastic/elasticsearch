@@ -6,6 +6,12 @@
 <titleabbrev>Infer trained model</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-trained-model[{ml-cap} trained model APIs].
+--
+
 Evaluates a trained model. The model may be any supervised model either trained
 by {dfanalytics} or imported.
 

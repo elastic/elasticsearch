@@ -230,17 +230,13 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("Integer"),
+            evaluatorName.apply("Int"),
             List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomInt, DataType.COUNTER_INTEGER)),
             DataType.LONG,
             l -> ((Integer) l).longValue(),
             List.of()
         );
-        return parameterSuppliersFromTypedDataWithDefaultChecks(
-            true,
-            suppliers,
-            (v, p) -> "boolean or counter_integer or counter_long or date_nanos or datetime or numeric or string"
-        );
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

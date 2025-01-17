@@ -94,7 +94,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     NGramTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, settings, name);
+        super(name);
         int maxAllowedNgramDiff = indexSettings.getMaxNgramDiff();
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);

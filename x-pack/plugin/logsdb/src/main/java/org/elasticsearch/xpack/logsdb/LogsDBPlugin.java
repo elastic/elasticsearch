@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -43,7 +44,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
     public LogsDBPlugin(Settings settings) {
         this.settings = settings;
         this.licenseService = new SyntheticSourceLicenseService(settings);
-        this.logsdbIndexModeSettingsProvider = new LogsdbIndexModeSettingsProvider(settings);
+        this.logsdbIndexModeSettingsProvider = new LogsdbIndexModeSettingsProvider(licenseService, settings);
     }
 
     @Override
@@ -67,16 +68,15 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-        if (DiscoveryNode.isStateless(settings)) {
-            return List.of(logsdbIndexModeSettingsProvider);
-        }
-        var syntheticSettingProvider = new SyntheticSourceIndexSettingsProvider(
-            licenseService,
+        logsdbIndexModeSettingsProvider.init(
             parameters.mapperServiceFactory(),
-            logsdbIndexModeSettingsProvider,
-            () -> parameters.clusterService().state().nodes().getMinSupportedIndexVersion()
+            () -> IndexVersion.min(
+                IndexVersion.current(),
+                parameters.clusterService().state().nodes().getMaxDataNodeCompatibleIndexVersion()
+            ),
+            DiscoveryNode.isStateless(settings) == false
         );
-        return List.of(syntheticSettingProvider, logsdbIndexModeSettingsProvider);
+        return List.of(logsdbIndexModeSettingsProvider);
     }
 
     @Override

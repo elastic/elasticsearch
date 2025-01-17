@@ -5,6 +5,12 @@
 <titleabbrev>Get application privileges</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Retrieves <<application-privileges,application privileges>>.
 
 [[security-api-get-privileges-request]]

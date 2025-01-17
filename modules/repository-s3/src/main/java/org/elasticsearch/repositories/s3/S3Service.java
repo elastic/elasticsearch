@@ -483,7 +483,7 @@ class S3Service implements Closeable {
         public void refresh() {
             withRetryableCredentialsProvider(awsCredentialsProvider -> {
                 if (awsCredentialsProvider != null) {
-                    awsCredentialsProvider.refresh();
+                    SocketAccess.doPrivilegedVoid(awsCredentialsProvider::refresh);
                 }
                 return null;
             });

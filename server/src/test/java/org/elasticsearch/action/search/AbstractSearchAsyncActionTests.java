@@ -112,11 +112,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             }
 
             @Override
-            public void sendReleaseSearchContext(
-                ShardSearchContextId contextId,
-                Transport.Connection connection,
-                OriginalIndices originalIndices
-            ) {
+            public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection) {
                 releasedContexts.add(contextId);
             }
 
@@ -211,12 +207,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         List<Tuple<String, String>> nodeLookups = new ArrayList<>();
         ArraySearchPhaseResults<SearchPhaseResult> phaseResults = phaseResults(requestIds, nodeLookups, 0);
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
-        action.onPhaseFailure(new SearchPhase("test") {
-            @Override
-            public void run() {
-
-            }
-        }, "message", null);
+        action.onPhaseFailure("test", "message", null);
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals("message", searchPhaseExecutionException.getMessage());

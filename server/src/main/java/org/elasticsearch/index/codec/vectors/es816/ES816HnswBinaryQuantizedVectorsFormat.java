@@ -25,10 +25,8 @@ import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
-import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.hnsw.HnswGraph;
 
 import java.io.IOException;
@@ -52,20 +50,17 @@ public class ES816HnswBinaryQuantizedVectorsFormat extends KnnVectorsFormat {
      * Controls how many of the nearest neighbor candidates are connected to the new node. Defaults to
      * {@link Lucene99HnswVectorsFormat#DEFAULT_MAX_CONN}. See {@link HnswGraph} for more details.
      */
-    private final int maxConn;
+    protected final int maxConn;
 
     /**
      * The number of candidate neighbors to track while searching the graph for each newly inserted
      * node. Defaults to {@link Lucene99HnswVectorsFormat#DEFAULT_BEAM_WIDTH}. See {@link HnswGraph}
      * for details.
      */
-    private final int beamWidth;
+    protected final int beamWidth;
 
     /** The format for storing, reading, merging vectors on disk */
     private static final FlatVectorsFormat flatVectorsFormat = new ES816BinaryQuantizedVectorsFormat();
-
-    private final int numMergeWorkers;
-    private final TaskExecutor mergeExec;
 
     /** Constructs a format using default graph construction parameters */
     public ES816HnswBinaryQuantizedVectorsFormat() {
@@ -109,17 +104,11 @@ public class ES816HnswBinaryQuantizedVectorsFormat extends KnnVectorsFormat {
         if (numMergeWorkers == 1 && mergeExec != null) {
             throw new IllegalArgumentException("No executor service is needed as we'll use single thread to merge");
         }
-        this.numMergeWorkers = numMergeWorkers;
-        if (mergeExec != null) {
-            this.mergeExec = new TaskExecutor(mergeExec);
-        } else {
-            this.mergeExec = null;
-        }
     }
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new Lucene99HnswVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state), numMergeWorkers, mergeExec);
+        throw new UnsupportedOperationException();
     }
 
     @Override

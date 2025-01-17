@@ -21,7 +21,7 @@ public class ParsingException extends EsqlClientException {
         this.charPositionInLine = charPositionInLine + 1;
     }
 
-    ParsingException(String message, Object... args) {
+    public ParsingException(String message, Object... args) {
         this(Source.EMPTY, message, args);
     }
 

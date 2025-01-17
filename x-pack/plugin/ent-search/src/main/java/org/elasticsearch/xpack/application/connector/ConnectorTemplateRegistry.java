@@ -45,11 +45,9 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     public static final String ACCESS_CONTROL_INDEX_NAME_PATTERN = ".search-acl-filter-*";
     public static final String ACCESS_CONTROL_TEMPLATE_NAME = "search-acl-filter";
 
+    public static final String MANAGED_CONNECTOR_INDEX_PREFIX = "content-";
+
     // Pipeline constants
-
-    public static final String ENT_SEARCH_GENERIC_PIPELINE_NAME = "ent-search-generic-ingestion";
-    public static final String ENT_SEARCH_GENERIC_PIPELINE_FILE = "generic_ingestion_pipeline";
-
     public static final String SEARCH_DEFAULT_PIPELINE_NAME = "search-default-ingestion";
     public static final String SEARCH_DEFAULT_PIPELINE_FILE = "search_default_pipeline";
 
@@ -109,12 +107,6 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected List<IngestPipelineConfig> getIngestPipelines() {
         return List.of(
-            new JsonIngestPipelineConfig(
-                ENT_SEARCH_GENERIC_PIPELINE_NAME,
-                ROOT_RESOURCE_PATH + ENT_SEARCH_GENERIC_PIPELINE_FILE + ".json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE
-            ),
             new JsonIngestPipelineConfig(
                 SEARCH_DEFAULT_PIPELINE_NAME,
                 ROOT_RESOURCE_PATH + SEARCH_DEFAULT_PIPELINE_FILE + ".json",

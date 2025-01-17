@@ -39,6 +39,8 @@ setup:
       indices.create:
         index: test-sparse-index
         body:
+          settings:
+            index.mapping.semantic_text.use_legacy_format: false
           mappings:
             properties:
               body:
@@ -49,6 +51,8 @@ setup:
       indices.create:
         index: test-dense-index
         body:
+          settings:
+            index.mapping.semantic_text.use_legacy_format: false
           mappings:
             properties:
               body:

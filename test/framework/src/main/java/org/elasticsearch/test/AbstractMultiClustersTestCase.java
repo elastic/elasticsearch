@@ -9,8 +9,6 @@
 
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
@@ -110,11 +108,6 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
             MockTransportService.TestPlugin.class,
             getTestTransportPlugin()
         );
-        // We are going to initialize multiple clusters concurrently, but there is a race condition around the lazy initialization of test
-        // groups in GroupEvaluator across multiple threads. See https://github.com/randomizedtesting/randomizedtesting/issues/311.
-        // Calling isNightly before parallelizing is enough to work around that issue.
-        @SuppressWarnings("unused")
-        boolean nightly = RandomizedTest.isNightly();
         runInParallel(clusterAliases.size(), i -> {
             String clusterAlias = clusterAliases.get(i);
             final String clusterName = clusterAlias.equals(LOCAL_CLUSTER) ? "main-cluster" : clusterAlias;

@@ -60,6 +60,19 @@ COUNT():long | VALUES(str):keyword | category:keyword
            1 | [a, b, c]           | .*?disconnected.*?
 ;
 
+limit before stats
+required_capability: categorize_v5
+
+FROM sample_data | SORT message | LIMIT 4
+  | STATS count=COUNT() BY category=CATEGORIZE(message)
+  | SORT category
+;
+
+count:long | category:keyword
+         3 | .*?Connected.+?to.*?
+         1 | .*?Connection.+?error.*?
+;
+
 skips stopwords
 required_capability: categorize_v5
 
@@ -374,6 +387,29 @@ COUNT():long | category:keyword
            7 | null
 ;
 
+on const null
+required_capability: categorize_v5
+
+FROM sample_data
+  | STATS COUNT(), SUM(event_duration) BY category=CATEGORIZE(null)
+  | SORT category
+;
+
+COUNT():long | SUM(event_duration):long | category:keyword
+           7 |                 23231327 |  null
+;
+
+on null row
+required_capability: categorize_v5
+
+ROW message = null, str = ["a", "b", "c"]
+| STATS COUNT(), VALUES(str) BY category=CATEGORIZE(message)
+;
+
+COUNT():long | VALUES(str):keyword | category:keyword
+           1 | [a, b, c]           | null
+;
+
 filtering out all data
 required_capability: categorize_v5
 
@@ -591,4 +627,160 @@ COUNT():long | x:keyword
            3 | [.*?Connected.+?to.*?,.*?Connected.+?to.*?]
            3 | [.*?Connection.+?error.*?,.*?Connection.+?error.*?]
            1 | [.*?Disconnected.*?,.*?Disconnected.*?]
+;
+
+multiple groupings with categorize and ip
+required_capability: categorize_multiple_groupings
+
+FROM sample_data
+  | STATS count=COUNT() BY category=CATEGORIZE(message), client_ip
+  | SORT category, client_ip
+;
+
+count:long | category:keyword         | client_ip:ip
+         1 | .*?Connected.+?to.*?     | 172.21.2.113
+         1 | .*?Connected.+?to.*?     | 172.21.2.162
+         1 | .*?Connected.+?to.*?     | 172.21.3.15
+         3 | .*?Connection.+?error.*? | 172.21.3.15
+         1 | .*?Disconnected.*?       | 172.21.0.5
+;
+
+multiple groupings with categorize and bucketed timestamp
+required_capability: categorize_multiple_groupings
+
+FROM sample_data
+  | STATS count=COUNT() BY category=CATEGORIZE(message), timestamp=BUCKET(@timestamp, 1 HOUR)
+  | SORT category, timestamp
+;
+
+count:long | category:keyword         | timestamp:datetime
+         2 | .*?Connected.+?to.*?     | 2023-10-23T12:00:00.000Z
+         1 | .*?Connected.+?to.*?     | 2023-10-23T13:00:00.000Z
+         3 | .*?Connection.+?error.*? | 2023-10-23T13:00:00.000Z
+         1 | .*?Disconnected.*?       | 2023-10-23T13:00:00.000Z
+;
+
+
+multiple groupings with categorize and limit before stats
+required_capability: categorize_multiple_groupings
+
+FROM sample_data | SORT message | LIMIT 5
+  | STATS count=COUNT() BY category=CATEGORIZE(message), client_ip
+  | SORT category, client_ip
+;
+
+count:long | category:keyword         | client_ip:ip
+         1 | .*?Connected.+?to.*?     | 172.21.2.113
+         1 | .*?Connected.+?to.*?     | 172.21.2.162
+         1 | .*?Connected.+?to.*?     | 172.21.3.15
+         2 | .*?Connection.+?error.*? | 172.21.3.15
+;
+
+multiple groupings with categorize and nulls
+required_capability: categorize_multiple_groupings
+
+FROM employees
+  | STATS SUM(languages) BY category=CATEGORIZE(job_positions), gender
+  | SORT category DESC, gender ASC
+  | LIMIT 5
+;
+
+SUM(languages):long | category:keyword  | gender:keyword
+                 11 | null              | F
+                 16 | null              | M
+                 14 | .*?Tech.+?Lead.*? | F
+                 23 | .*?Tech.+?Lead.*? | M
+                  9 | .*?Tech.+?Lead.*? | null
+;
+
+multiple groupings with categorize and a field that's always null
+required_capability: categorize_multiple_groupings
+
+FROM sample_data
+  | EVAL nullfield = null
+  | STATS count=COUNT() BY category=CATEGORIZE(nullfield), client_ip
+  | SORT client_ip
+;
+
+count:long | category:keyword | client_ip:ip
+         1 | null             | 172.21.0.5
+         1 | null             | 172.21.2.113
+         1 | null             | 172.21.2.162
+         4 | null             | 172.21.3.15
+;
+
+multiple groupings with categorize and the same text field
+required_capability: categorize_multiple_groupings
+
+FROM sample_data
+  | STATS count=COUNT() BY category=CATEGORIZE(message), message
+  | SORT message
+;
+
+count:long | category:keyword         | message:keyword
+         1 | .*?Connected.+?to.*?     | Connected to 10.1.0.1
+         1 | .*?Connected.+?to.*?     | Connected to 10.1.0.2
+         1 | .*?Connected.+?to.*?     | Connected to 10.1.0.3
+         3 | .*?Connection.+?error.*? | Connection error
+         1 | .*?Disconnected.*?       | Disconnected
+;
+
+multiple additional complex groupings with categorize
+required_capability: categorize_multiple_groupings
+
+FROM sample_data
+  | STATS count=COUNT(), duration=SUM(event_duration) BY category=CATEGORIZE(message), SUBSTRING(message, 1, 7), ip_part=TO_LONG(SUBSTRING(TO_STRING(client_ip), 8, 1)), hour=BUCKET(@timestamp, 1 HOUR)
+  | SORT ip_part, category
+;
+
+count:long | duration:long | category:keyword         | SUBSTRING(message, 1, 7):keyword | ip_part:long | hour:datetime
+         1 | 1232382       | .*?Disconnected.*?       | Disconn                          | 0            | 2023-10-23T13:00:00.000Z
+         2 | 6215122       | .*?Connected.+?to.*?     | Connect                          | 2            | 2023-10-23T12:00:00.000Z
+         1 | 1756467       | .*?Connected.+?to.*?     | Connect                          | 3            | 2023-10-23T13:00:00.000Z
+         3 | 14027356      | .*?Connection.+?error.*? | Connect                          | 3            | 2023-10-23T13:00:00.000Z
+;
+
+multiple groupings with categorize and some constants including null
+required_capability: categorize_multiple_groupings
+
+FROM sample_data
+  | STATS count=MV_COUNT(VALUES(message)) BY category=CATEGORIZE(message), null, constant="constant"
+  | SORT category
+;
+
+count:integer | category:keyword         | null:null | constant:keyword
+            3 | .*?Connected.+?to.*?     | null      | constant
+            1 | .*?Connection.+?error.*? | null      | constant
+            1 | .*?Disconnected.*?       | null      | constant
+;
+
+multiple groupings with categorize and aggregation filters
+required_capability: categorize_multiple_groupings
+
+FROM employees
+  | STATS lang_low=AVG(languages) WHERE salary<=50000, lang_high=AVG(languages) WHERE salary>50000 BY category=CATEGORIZE(job_positions), gender
+  | SORT category, gender
+  | LIMIT 5
+;
+
+lang_low:double | lang_high:double | category:keyword  | gender:keyword
+            2.0 |              5.0 | .*?Accountant.*?  | F
+            3.0 |              2.5 | .*?Accountant.*?  | M
+            5.0 |              2.0 | .*?Accountant.*?  | null
+            3.0 |             3.25 | .*?Architect.*?   | F
+           3.75 |             null | .*?Architect.*?   | M
+;
+
+multiple groupings with categorize on null row
+required_capability: categorize_multiple_groupings
+
+ROW message = null, str = ["a", "b", "c"]
+  | STATS COUNT(), VALUES(str) BY category=CATEGORIZE(message), str
+  | SORT str
+;
+
+COUNT():long | VALUES(str):keyword | category:keyword | str:keyword
+           1 | [a, b, c]           | null             | a
+           1 | [a, b, c]           | null             | b
+           1 | [a, b, c]           | null             | c
 ;

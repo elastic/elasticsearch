@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -112,6 +113,15 @@ public class MetadataIndexStateService {
         false,
         Setting.Property.IndexScope,
         Setting.Property.PrivateIndex
+    );
+
+    public static final Setting<Boolean> VERIFIED_READ_ONLY_SETTING = Setting.boolSetting(
+        "index.verified_read_only",
+        false,
+        Setting.Property.IndexScope,
+        Setting.Property.NotCopyableOnResize,
+        // Allow the setting to be updated in snapshot builds
+        Build.current().isSnapshot() ? Setting.Property.OperatorDynamic : Setting.Property.PrivateIndex
     );
 
     private final ClusterService clusterService;
@@ -885,7 +895,7 @@ public class MetadataIndexStateService {
                 final IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.CLOSE);
                 metadata.put(
                     updatedMetadata.timestampRange(IndexLongFieldRange.NO_SHARDS)
-                        .eventIngestedRange(IndexLongFieldRange.NO_SHARDS, currentState.getMinTransportVersion())
+                        .eventIngestedRange(IndexLongFieldRange.NO_SHARDS)
                         .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                         .settings(Settings.builder().put(indexMetadata.getSettings()).put(VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true))
                 );
@@ -1120,6 +1130,7 @@ public class MetadataIndexStateService {
             final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
             final IndexVersion minIndexCompatibilityVersion = currentState.getNodes().getMinSupportedIndexVersion();
+            final IndexVersion minReadOnlyIndexCompatibilityVersion = currentState.getNodes().getMinReadOnlySupportedIndexVersion();
 
             for (IndexMetadata indexMetadata : indicesToOpen) {
                 final Index index = indexMetadata.getIndex();
@@ -1132,12 +1143,16 @@ public class MetadataIndexStateService {
                         .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                         .settings(updatedSettings)
                         .timestampRange(IndexLongFieldRange.NO_SHARDS)
-                        .eventIngestedRange(IndexLongFieldRange.NO_SHARDS, currentState.getMinTransportVersion())
+                        .eventIngestedRange(IndexLongFieldRange.NO_SHARDS)
                         .build();
 
                     // The index might be closed because we couldn't import it due to an old incompatible
                     // version, so we need to verify its compatibility.
-                    newIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(newIndexMetadata, minIndexCompatibilityVersion);
+                    newIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(
+                        newIndexMetadata,
+                        minIndexCompatibilityVersion,
+                        minReadOnlyIndexCompatibilityVersion
+                    );
                     try {
                         indicesService.verifyIndexMetadata(newIndexMetadata, newIndexMetadata);
                     } catch (Exception e) {

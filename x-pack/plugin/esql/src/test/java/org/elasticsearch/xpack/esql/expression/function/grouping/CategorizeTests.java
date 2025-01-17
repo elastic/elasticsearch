@@ -51,11 +51,16 @@ public class CategorizeTests extends AbstractScalarFunctionTestCase {
                 )
             );
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "string");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Categorize(source, args.get(0));
+    }
+
+    @Override
+    public void testFold() {
+        // Cannot be folded
     }
 }

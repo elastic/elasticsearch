@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -204,8 +205,8 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
     }
 
     @Override
-    public Boolean fold() {
-        return (Boolean) EvaluatorMapper.super.fold();
+    public Boolean fold(FoldContext ctx) {
+        return (Boolean) EvaluatorMapper.super.fold(source(), ctx);
     }
 
     @Override
@@ -243,7 +244,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         // Unsigned long is only interoperable with other unsigned longs
         if ((rightType == UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataType.NULL)))
             || (leftType == UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataType.NULL)))) {
-            return new TypeResolution(formatIncompatibleTypesMessage());
+            return new TypeResolution(formatIncompatibleTypesMessage(left().dataType(), right().dataType(), sourceText()));
         }
 
         if ((leftType.isNumeric() && rightType.isNumeric())
@@ -254,35 +255,35 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
             || DataType.isNull(rightType)) {
             return TypeResolution.TYPE_RESOLVED;
         }
-        return new TypeResolution(formatIncompatibleTypesMessage());
+        return new TypeResolution(formatIncompatibleTypesMessage(left().dataType(), right().dataType(), sourceText()));
     }
 
-    public String formatIncompatibleTypesMessage() {
-        if (left().dataType().equals(UNSIGNED_LONG)) {
+    public static String formatIncompatibleTypesMessage(DataType leftType, DataType rightType, String sourceText) {
+        if (leftType.equals(UNSIGNED_LONG)) {
             return format(
                 null,
                 "first argument of [{}] is [unsigned_long] and second is [{}]. "
                     + "[unsigned_long] can only be operated on together with another [unsigned_long]",
-                sourceText(),
-                right().dataType().typeName()
+                sourceText,
+                rightType.typeName()
             );
         }
-        if (right().dataType().equals(UNSIGNED_LONG)) {
+        if (rightType.equals(UNSIGNED_LONG)) {
             return format(
                 null,
                 "first argument of [{}] is [{}] and second is [unsigned_long]. "
                     + "[unsigned_long] can only be operated on together with another [unsigned_long]",
-                sourceText(),
-                left().dataType().typeName()
+                sourceText,
+                leftType.typeName()
             );
         }
         return format(
             null,
             "first argument of [{}] is [{}] so second argument must also be [{}] but was [{}]",
-            sourceText(),
-            left().dataType().isNumeric() ? "numeric" : left().dataType().typeName(),
-            left().dataType().isNumeric() ? "numeric" : left().dataType().typeName(),
-            right().dataType().typeName()
+            sourceText,
+            leftType.isNumeric() ? "numeric" : leftType.typeName(),
+            leftType.isNumeric() ? "numeric" : leftType.typeName(),
+            rightType.typeName()
         );
     }
 

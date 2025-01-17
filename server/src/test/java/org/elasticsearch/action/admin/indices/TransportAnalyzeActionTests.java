@@ -87,7 +87,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 final CharacterRunAutomaton stopset;
 
                 MockFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-                    super(name, settings);
+                    super(name);
                     if (settings.hasValue("stopword")) {
                         this.stopset = new CharacterRunAutomaton(Automata.makeString(settings.get("stopword")));
                     } else {

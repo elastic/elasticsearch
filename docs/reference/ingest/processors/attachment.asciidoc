@@ -19,15 +19,15 @@ representation. The processor will skip the base64 decoding then.
 .Attachment options
 [options="header"]
 |======
-| Name                   | Required  | Default          | Description
-| `field`                | yes       | -                | The field to get the base64 encoded field from
-| `target_field`         | no        | attachment       | The field that will hold the attachment information
-| `indexed_chars`        | no        | 100000           | The number of chars being used for extraction to prevent huge fields. Use `-1` for no limit.
-| `indexed_chars_field`  | no        | `null`           | Field name from which you can overwrite the number of chars being used for extraction. See `indexed_chars`.
-| `properties`           | no        | all properties   | Array of properties to select to be stored. Can be `content`, `title`, `name`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language`
-| `ignore_missing`       | no        | `false`          | If `true` and `field` does not exist, the processor quietly exits without modifying the document
-| `remove_binary`        | no        | `false`          | If `true`, the binary `field` will be removed from the document
-| `resource_name`        | no        |                  | Field containing the name of the resource to decode. If specified, the processor passes this resource name to the underlying Tika library to enable https://tika.apache.org/1.24.1/detection.html#Resource_Name_Based_Detection[Resource Name Based Detection].
+| Name                   | Required   | Default         | Description
+| `field`                | yes        | -               | The field to get the base64 encoded field from
+| `target_field`         | no         | attachment      | The field that will hold the attachment information
+| `indexed_chars`        | no         | 100000          | The number of chars being used for extraction to prevent huge fields. Use `-1` for no limit.
+| `indexed_chars_field`  | no         | `null`          | Field name from which you can overwrite the number of chars being used for extraction. See `indexed_chars`.
+| `properties`           | no         | all properties  | Array of properties to select to be stored. Can be `content`, `title`, `name`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language`
+| `ignore_missing`       | no         | `false`         | If `true` and `field` does not exist, the processor quietly exits without modifying the document
+| `remove_binary`        | encouraged | `false`         | If `true`, the binary `field` will be removed from the document. This option is not required, but setting it explicitly is encouraged, and omitting it will result in a warning.
+| `resource_name`        | no         |                 | Field containing the name of the resource to decode. If specified, the processor passes this resource name to the underlying Tika library to enable https://tika.apache.org/1.24.1/detection.html#Resource_Name_Based_Detection[Resource Name Based Detection].
 |======
 
 [discrete]
@@ -58,7 +58,7 @@ PUT _ingest/pipeline/attachment
     {
       "attachment" : {
         "field" : "data",
-        "remove_binary": false
+        "remove_binary": true
       }
     }
   ]
@@ -82,7 +82,6 @@ The document's `attachment` object contains extracted properties for the file:
   "_seq_no": 22,
   "_primary_term": 1,
   "_source": {
-    "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
     "attachment": {
       "content_type": "application/rtf",
       "language": "ro",
@@ -93,9 +92,6 @@ The document's `attachment` object contains extracted properties for the file:
 }
 ----
 // TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
-
-NOTE: Keeping the binary as a field within the document might consume a lot of resources. It is highly recommended
-      to remove that field from the document. Set `remove_binary` to `true` to automatically remove the field.
 
 [[attachment-fields]]
 ==== Exported fields
@@ -143,7 +139,7 @@ PUT _ingest/pipeline/attachment
       "attachment" : {
         "field" : "data",
         "properties": [ "content", "title" ],
-        "remove_binary": false
+        "remove_binary": true
       }
     }
   ]
@@ -153,6 +149,59 @@ PUT _ingest/pipeline/attachment
 NOTE: Extracting contents from binary data is a resource intensive operation and
       consumes a lot of resources. It is highly recommended to run pipelines
       using this processor in a dedicated ingest node.
+
+[[attachment-keep-binary]]
+==== Keeping the attachment binary
+
+Keeping the binary as a field within the document might consume a lot of resources. It is highly recommended to remove
+that field from the document, by setting `remove_binary` to `true` to automatically remove the field, as in the other
+examples shown on this page. If you _do_ want to keep the binary field, explicitly set `remove_binary` to `false` to
+avoid the warning you get from omitting it:
+
+[source,console]
+----
+PUT _ingest/pipeline/attachment
+{
+  "description" : "Extract attachment information including original binary",
+  "processors" : [
+    {
+      "attachment" : {
+        "field" : "data",
+        "remove_binary": false
+      }
+    }
+  ]
+}
+PUT my-index-000001/_doc/my_id?pipeline=attachment
+{
+  "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0="
+}
+GET my-index-000001/_doc/my_id
+----
+
+The document's `_source` object includes the original binary field:
+
+[source,console-result]
+----
+{
+  "found": true,
+  "_index": "my-index-000001",
+  "_id": "my_id",
+  "_version": 1,
+  "_seq_no": 22,
+  "_primary_term": 1,
+  "_source": {
+    "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
+    "attachment": {
+      "content_type": "application/rtf",
+      "language": "ro",
+      "content": "Lorem ipsum dolor sit amet",
+      "content_length": 28
+    }
+  }
+}
+----
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 [[attachment-cbor]]
 ==== Use the attachment processor with CBOR
@@ -170,7 +219,7 @@ PUT _ingest/pipeline/cbor-attachment
     {
       "attachment" : {
         "field" : "data",
-        "remove_binary": false
+        "remove_binary": true
       }
     }
   ]
@@ -226,7 +275,7 @@ PUT _ingest/pipeline/attachment
         "field" : "data",
         "indexed_chars" : 11,
         "indexed_chars_field" : "max_size",
-        "remove_binary": false
+        "remove_binary": true
       }
     }
   ]
@@ -250,7 +299,6 @@ Returns this:
   "_seq_no": 35,
   "_primary_term": 1,
   "_source": {
-    "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
     "attachment": {
       "content_type": "application/rtf",
       "language": "is",
@@ -274,7 +322,7 @@ PUT _ingest/pipeline/attachment
         "field" : "data",
         "indexed_chars" : 11,
         "indexed_chars_field" : "max_size",
-        "remove_binary": false
+        "remove_binary": true
       }
     }
   ]
@@ -299,7 +347,6 @@ Returns this:
   "_seq_no": 40,
   "_primary_term": 1,
   "_source": {
-    "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
     "max_size": 5,
     "attachment": {
       "content_type": "application/rtf",
@@ -358,7 +405,7 @@ PUT _ingest/pipeline/attachment
           "attachment": {
             "target_field": "_ingest._value.attachment",
             "field": "_ingest._value.data",
-            "remove_binary": false
+            "remove_binary": true
           }
         }
       }
@@ -396,7 +443,6 @@ Returns this:
     "attachments" : [
       {
         "filename" : "ipsum.txt",
-        "data" : "dGhpcyBpcwpqdXN0IHNvbWUgdGV4dAo=",
         "attachment" : {
           "content_type" : "text/plain; charset=ISO-8859-1",
           "language" : "en",
@@ -406,7 +452,6 @@ Returns this:
       },
       {
         "filename" : "test.txt",
-        "data" : "VGhpcyBpcyBhIHRlc3QK",
         "attachment" : {
           "content_type" : "text/plain; charset=ISO-8859-1",
           "language" : "en",

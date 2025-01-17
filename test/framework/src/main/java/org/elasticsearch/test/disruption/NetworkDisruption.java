@@ -451,8 +451,8 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
      */
     public static class NetworkDelay extends NetworkLinkDisruptionType {
 
-        public static TimeValue DEFAULT_DELAY_MIN = TimeValue.timeValueSeconds(10);
-        public static TimeValue DEFAULT_DELAY_MAX = TimeValue.timeValueSeconds(90);
+        public static final TimeValue DEFAULT_DELAY_MIN = TimeValue.timeValueSeconds(10);
+        public static final TimeValue DEFAULT_DELAY_MAX = TimeValue.timeValueSeconds(90);
 
         private final TimeValue delay;
 

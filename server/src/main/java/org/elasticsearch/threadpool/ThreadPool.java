@@ -29,6 +29,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
@@ -115,6 +116,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     public static final String THREAD_POOL_METRIC_NAME_CURRENT = ".threads.count.current";
     public static final String THREAD_POOL_METRIC_NAME_QUEUE = ".threads.queue.size";
     public static final String THREAD_POOL_METRIC_NAME_ACTIVE = ".threads.active.current";
+    public static final String THREAD_POOL_METRIC_NAME_UTILISATION = ".threads.utilisation.current";
     public static final String THREAD_POOL_METRIC_NAME_LARGEST = ".threads.largest.current";
     public static final String THREAD_POOL_METRIC_NAME_REJECTED = ".threads.rejected.total";
 
@@ -318,6 +320,17 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
                     "number of active threads for " + name,
                     "count",
                     () -> new LongWithAttributes(threadPoolExecutor.getActiveCount(), at)
+                )
+            );
+            instruments.add(
+                meterRegistry.registerDoubleGauge(
+                    prefix + THREAD_POOL_METRIC_NAME_UTILISATION,
+                    "percentage of maximum threads active for " + name,
+                    "percent",
+                    () -> new DoubleWithAttributes(
+                        (double) threadPoolExecutor.getActiveCount() / threadPoolExecutor.getMaximumPoolSize(),
+                        at
+                    )
                 )
             );
             instruments.add(

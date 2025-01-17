@@ -20,12 +20,21 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.threadpool.internal.BuiltInExecutorBuilders;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DO_NOT_TRACK;
@@ -471,6 +480,79 @@ public class ThreadPoolTests extends ESTestCase {
             latch.countDown();
             assertTrue(terminate(threadPool));
         }
+    }
+
+    public void testThreadPoolMetrics() {
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        final BuiltInExecutorBuilders builtInExecutorBuilders = new DefaultBuiltInExecutorBuilders();
+
+        final ThreadPool threadPool = new ThreadPool(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(),
+            meterRegistry,
+            builtInExecutorBuilders
+        );
+        try {
+            final ThreadPool.Info genericInfo = threadPool.info(ThreadPool.Names.GENERIC);
+
+            meterRegistry.getRecorder().collect();
+            assertGenericLongGaugeValue(meterRegistry, ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE, 0);
+            assertGenericLongGaugeValue(meterRegistry, ThreadPool.THREAD_POOL_METRIC_NAME_CURRENT, 0);
+            assertGenericLongGaugeValue(meterRegistry, ThreadPool.THREAD_POOL_METRIC_NAME_LARGEST, 0);
+            assertGenericLongGaugeValue(meterRegistry, ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE, 0);
+            assertGenericLongAsyncCounterValue(meterRegistry, ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED, 0);
+            assertGenericDoubleGaugeValue(meterRegistry, ThreadPool.THREAD_POOL_METRIC_NAME_UTILISATION, 0.0d);
+
+            final CyclicBarrier barrier = new CyclicBarrier(2);
+            Future<?> future = threadPool.generic().submit(() -> {
+                safeAwait(barrier);
+                safeAwait(barrier);
+            });
+            safeAwait(barrier);
+
+            meterRegistry.getRecorder().collect();
+            assertGenericLongGaugeValue(meterRegistry, ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE, 1);
+            assertGenericLongGaugeValue(meterRegistry, ThreadPool.THREAD_POOL_METRIC_NAME_CURRENT, 1);
+            assertGenericLongGaugeValue(meterRegistry, ThreadPool.THREAD_POOL_METRIC_NAME_LARGEST, 1);
+            assertGenericLongGaugeValue(meterRegistry, ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE, 0);
+            assertGenericLongAsyncCounterValue(meterRegistry, ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED, 0);
+            assertGenericDoubleGaugeValue(meterRegistry, ThreadPool.THREAD_POOL_METRIC_NAME_UTILISATION, (double) 1 / genericInfo.getMax());
+
+            // Let the task complete
+            safeAwait(barrier);
+            safeGet(future);
+
+            meterRegistry.getRecorder().collect();
+            assertGenericLongAsyncCounterValue(meterRegistry, ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED, 1);
+            assertGenericLongGaugeValue(meterRegistry, ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE, 0);
+            assertGenericDoubleGaugeValue(meterRegistry, ThreadPool.THREAD_POOL_METRIC_NAME_UTILISATION, 0.0);
+        } finally {
+            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    private void assertGenericDoubleGaugeValue(RecordingMeterRegistry meterRegistry, String name, double expectedValue) {
+        assertLatestGenericMeasurementEquals(meterRegistry, InstrumentType.DOUBLE_GAUGE, name, Measurement::getDouble, expectedValue);
+    }
+
+    private void assertGenericLongGaugeValue(RecordingMeterRegistry meterRegistry, String name, long expectedValue) {
+        assertLatestGenericMeasurementEquals(meterRegistry, InstrumentType.LONG_GAUGE, name, Measurement::getLong, expectedValue);
+    }
+
+    private void assertGenericLongAsyncCounterValue(RecordingMeterRegistry meterRegistry, String name, long expectedValue) {
+        assertLatestGenericMeasurementEquals(meterRegistry, InstrumentType.LONG_ASYNC_COUNTER, name, Measurement::getLong, expectedValue);
+    }
+
+    private <T> void assertLatestGenericMeasurementEquals(
+        RecordingMeterRegistry meterRegistry,
+        InstrumentType instrumentType,
+        String name,
+        Function<Measurement, T> valueExtractor,
+        T expectedValue
+    ) {
+        List<Measurement> measurements = meterRegistry.getRecorder()
+            .getMeasurements(instrumentType, ThreadPool.THREAD_POOL_METRIC_PREFIX + ThreadPool.Names.GENERIC + name);
+        assertFalse(name + " has measurements", measurements.isEmpty());
+        assertEquals(name + " == " + expectedValue, expectedValue, valueExtractor.apply(measurements.getLast()));
     }
 
     private static AbstractRunnable forceExecution(AbstractRunnable delegate) {

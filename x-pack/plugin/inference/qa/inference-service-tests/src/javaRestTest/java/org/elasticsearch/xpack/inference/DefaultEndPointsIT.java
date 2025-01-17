@@ -16,9 +16,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.hamcrest.Matchers;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,16 +30,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
 public class DefaultEndPointsIT extends InferenceBaseRestTest {
-
-    @BeforeClass
-    public static void startModelServer() {
-        mlModelServer.start();
-    }
-
-    @AfterClass
-    public static void stopModelServer() {
-        mlModelServer.stop();
-    }
 
     private TestThreadPool threadPool;
 

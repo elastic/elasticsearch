@@ -13,12 +13,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -259,5 +261,21 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         }
 
         protected abstract T compare(BytesRef left, BytesRef right) throws IOException;
+    }
+
+    /**
+     * Push-down to Lucene is only possible if one field is an indexed spatial field, and the other is a constant spatial or string column.
+     */
+    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+        // The use of foldable here instead of SpatialEvaluatorFieldKey.isConstant is intentional to match the behavior of the
+        // Lucene pushdown code in EsqlTranslationHandler::SpatialRelatesTranslator
+        // We could enhance both places to support ReferenceAttributes that refer to constants, but that is a larger change
+        return isPushableSpatialAttribute(left(), pushdownPredicates) && right().foldable()
+            || isPushableSpatialAttribute(right(), pushdownPredicates) && left().foldable();
+
+    }
+
+    private static boolean isPushableSpatialAttribute(Expression exp, LucenePushdownPredicates p) {
+        return exp instanceof FieldAttribute fa && DataType.isSpatial(fa.dataType()) && fa.getExactInfo().hasExact() && p.isIndexed(fa);
     }
 }

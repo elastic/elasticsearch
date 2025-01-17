@@ -60,12 +60,22 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
         final String usersPasswdHashed = new String(
             getFastStoredHashAlgoForTests().hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
         );
-        return "admin:" + usersPasswdHashed + "\n" + "client:" + usersPasswdHashed + "\n" + "user:" + usersPasswdHashed + "\n";
+        return super.configUsers()
+            + "\n"
+            + "admin:"
+            + usersPasswdHashed
+            + "\n"
+            + "client:"
+            + usersPasswdHashed
+            + "\n"
+            + "user:"
+            + usersPasswdHashed
+            + "\n";
     }
 
     @Override
     protected String configUsersRoles() {
-        return """
+        return super.configUsersRoles() + "\n" + """
             admin:admin
             transport_client:client
             user:user

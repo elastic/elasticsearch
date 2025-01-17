@@ -1086,7 +1086,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO, snapshot)
             .setIndices(indexWithoutDataStream)
             .setWaitForCompletion(true)
-            .setRestoreGlobalState(false)
+            .setRestoreGlobalState(true)
             .get()
             .getRestoreInfo();
         assertThat(restoreInfo.failedShards(), is(0));

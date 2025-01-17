@@ -372,7 +372,11 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             Object result = nullOptimized.fold(FoldContext.small());
             // Decode unsigned longs into BigIntegers
             if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
-                result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+                if (result instanceof List<?> l) {
+                    result = l.stream().map(v -> NumericUtils.unsignedLongAsBigInteger((Long) v)).toList();
+                } else {
+                    result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+                }
             }
             assertThat(result, testCase.getMatcher());
             if (testCase.getExpectedBuildEvaluatorWarnings() != null) {

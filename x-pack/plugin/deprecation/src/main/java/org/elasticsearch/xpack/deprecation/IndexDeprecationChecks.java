@@ -131,6 +131,28 @@ public class IndexDeprecationChecks {
         return null;
     }
 
+    static DeprecationIssue nodeAttributeDataSettingCheck(IndexMetadata indexMetadata, ClusterState clusterState) {
+        String nodeAttrDataValue = indexMetadata.getSettings().get("index.routing.allocation.require.data");
+        if (nodeAttrDataValue == null) {
+            return null;
+        }
+        String indexName = indexMetadata.getIndex().getName();
+        return new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "index ["
+                + indexName
+                + "] has configured 'index.routing.allocation.require.data: "
+                + nodeAttrDataValue
+                + "'. This setting is not recommended to be used for setting tiers.",
+            "https://ela.st/es-deprecation-7-node-attr-data-setting",
+            "One or more of your indices is configured with index.routing.allocation.require.data settings."
+                + " This is typically used to create a hot/warm or tiered architecture, based on legacy guidelines."
+                + " Data tiers are a recommended replacement for tiered architecture clusters.",
+            true,
+            null
+        );
+    }
+
     private static void fieldLevelMappingIssue(IndexMetadata indexMetadata, BiConsumer<MappingMetadata, Map<String, Object>> checker) {
         if (indexMetadata.mapping() != null) {
             Map<String, Object> sourceAsMap = indexMetadata.mapping().sourceAsMap();

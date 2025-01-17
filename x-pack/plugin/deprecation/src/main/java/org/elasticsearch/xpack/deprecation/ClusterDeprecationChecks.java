@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
  */
 public class ClusterDeprecationChecks {
 
-    static DeprecationIssue legacyRoutingInLegacyTemplatesCheck(ClusterState clusterState) {
+    static DeprecationIssue legacyTierRoutingInLegacyTemplatesCheck(ClusterState clusterState) {
         if (clusterState.metadata().templates().isEmpty()) {
             return null;
         }
@@ -57,7 +57,7 @@ public class ClusterDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue legacyRoutingInTemplatesCheck(ClusterState clusterState) {
+    static DeprecationIssue legacyTierRoutingInTemplatesCheck(ClusterState clusterState) {
         if (clusterState.metadata().templatesV2().isEmpty()) {
             return null;
         }
@@ -72,10 +72,10 @@ public class ClusterDeprecationChecks {
                 templateNames.add(templateName);
             }
         }
-        return createLegacyRoutingDeprecationIssue(templateNames, "index templates ");
+        return createTierLegacyRoutingDeprecationIssue(templateNames, "index templates ");
     }
 
-    static DeprecationIssue legacyRoutingInIlmPoliciesCheck(ClusterState clusterState) {
+    static DeprecationIssue legacyTierRoutingInIlmPoliciesCheck(ClusterState clusterState) {
         IndexLifecycleMetadata metadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
         if (metadata == null || metadata.getPolicyMetadatas().isEmpty()) {
             return null;
@@ -92,10 +92,10 @@ public class ClusterDeprecationChecks {
                 }
             }
         }
-        return createLegacyRoutingDeprecationIssue(policyNames, "ILM policies ");
+        return createTierLegacyRoutingDeprecationIssue(policyNames, "ILM policies ");
     }
 
-    private static DeprecationIssue createLegacyRoutingDeprecationIssue(List<String> names, String messagePrefix) {
+    private static DeprecationIssue createTierLegacyRoutingDeprecationIssue(List<String> names, String messagePrefix) {
         if (names.isEmpty()) {
             return null;
         }

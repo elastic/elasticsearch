@@ -36,9 +36,9 @@ public class DeprecationChecks {
     private DeprecationChecks() {}
 
     static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS = List.of(
-        ClusterDeprecationChecks::legacyRoutingInIlmPoliciesCheck,
-        ClusterDeprecationChecks::legacyRoutingInLegacyTemplatesCheck,
-        ClusterDeprecationChecks::legacyRoutingInTemplatesCheck
+        ClusterDeprecationChecks::legacyTierRoutingInIlmPoliciesCheck,
+        ClusterDeprecationChecks::legacyTierRoutingInLegacyTemplatesCheck,
+        ClusterDeprecationChecks::legacyTierRoutingInTemplatesCheck
     );
 
     static final List<
@@ -103,7 +103,7 @@ public class DeprecationChecks {
         IndexDeprecationChecks::frozenIndexSettingCheck,
         IndexDeprecationChecks::deprecatedCamelCasePattern,
         IndexDeprecationChecks::checkSourceModeInMapping,
-        IndexDeprecationChecks::nodeAttributeDataSettingCheck
+        IndexDeprecationChecks::legacyTierRoutingCheck
     );
 
     static List<BiFunction<DataStream, ClusterState, DeprecationIssue>> DATA_STREAM_CHECKS = List.of(

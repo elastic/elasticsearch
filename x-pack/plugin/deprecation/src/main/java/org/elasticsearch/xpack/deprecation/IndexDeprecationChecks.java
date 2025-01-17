@@ -131,7 +131,7 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue nodeAttributeDataSettingCheck(IndexMetadata indexMetadata, ClusterState clusterState) {
+    static DeprecationIssue legacyTierRoutingCheck(IndexMetadata indexMetadata, ClusterState clusterState) {
         String nodeAttrDataValue = indexMetadata.getSettings().get("index.routing.allocation.require.data");
         if (nodeAttrDataValue == null) {
             return null;
@@ -148,7 +148,7 @@ public class IndexDeprecationChecks {
             "One or more of your indices is configured with index.routing.allocation.require.data settings."
                 + " This is typically used to create a hot/warm or tiered architecture, based on legacy guidelines."
                 + " Data tiers are a recommended replacement for tiered architecture clusters.",
-            true,
+            false,
             null
         );
     }

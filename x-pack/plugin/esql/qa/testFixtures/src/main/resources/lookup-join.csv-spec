@@ -286,6 +286,19 @@ emp_no:integer | language_code:integer | language_name:keyword | country:text
 10001          | 1                     | English               | null
 ;
 
+nonUniqueRightKeyLateLimitWithEmptyRelation
+required_capability: join_lookup_v11
+
+ROW language_code = 1
+| WHERE language_code != 1
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| LIMIT 1
+| KEEP language_code, language_name
+;
+
+language_code:integer | language_name:keyword
+;
+
 ###############################################
 # Filtering tests with languages_lookup index
 ###############################################

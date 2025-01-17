@@ -68,10 +68,10 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             }
         } else if (limit.child() instanceof Join join) {
             if (join.config().type() == JoinTypes.LEFT) {
-                // NOTE! This is only correct because our LEFT JOINs preserve the number of rows from the left hand side.
-                // This deviates from SQL semantics. In SQL, multiple matches on the right hand side lead to multiple rows in the output.
-                // For us, multiple matches on the right hand side are collected into multi-values.
-                return join.replaceChildren(limit.replaceChild(join.left()), join.right());
+                // Left joins increase the number of rows if any join key has multiple matches from the right hand side.
+                // Therefore, we cannot simply push down the limit - but we can add another limit before the join.
+                return limit.replaceChild(
+                    join.replaceChildren(limit.replaceChild(join.left()), join.right()));
             }
         }
         return limit;

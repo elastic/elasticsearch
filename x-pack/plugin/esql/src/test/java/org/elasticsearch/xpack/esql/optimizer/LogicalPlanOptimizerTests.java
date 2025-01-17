@@ -6292,7 +6292,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(finalJoinRightRelation.output().size(), equalTo(2));
         assertThat(finalJoinRightRelation.output().get(0).name(), equalTo("language_code"));
         assertThat(finalJoinRightRelation.output().get(1).name(), equalTo("language_name"));
-        
+
         var initialJoin = as(finalJoin.left(), Join.class);
         var initialJoinRightRelation = as(initialJoin.right(), EsRelation.class);
 

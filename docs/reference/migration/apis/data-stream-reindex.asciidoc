@@ -74,3 +74,23 @@ stream.
 data stream. Each backing index will be reindexed, then swapped into the data stream, then the old index will be deleted.
 Currently, the only allowed value for this parameter is `upgrade`.
 
+[[reindex-data-stream-api-settings]]
+==== Settings
+
+You can use the following settings to control the behavior of the reindex data stream API:
+
+[[migrate_max_concurrent_indices_reindexed_per_data_stream-setting]]
+// tag::migrate_max_concurrent_indices_reindexed_per_data_stream-setting-tag[]
+`migrate.max_concurrent_indices_reindexed_per_data_stream`
+(<<dynamic-cluster-setting,Dynamic>>)
+The number of backing indices within a given data stream which will be reindexed concurrently. Defaults to `1`.
+// end::migrate_max_concurrent_indices_reindexed_per_data_stream-tag[]
+
+[[migrate_data_stream_reindex_max_request_per_second-setting]]
+// tag::migrate_data_stream_reindex_max_request_per_second-setting-tag[]
+`migrate.data_stream_reindex_max_request_per_second`
+(<<dynamic-cluster-setting,Dynamic>>)
+The number of requests per second used by the <<docs-reindex, reindex>> operation performed on every backing index.
+This can be any decimal number greater than `0`, though it defaults to `10`. The value can also be `-1`, which will
+cause there to be no throttling. Consult the reindex documentation for more information.
+// end::migrate_data_stream_reindex_max_request_per_second-tag[]

@@ -28,6 +28,8 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX;
+
 /**
  * Index-specific deprecation checks
  */
@@ -132,7 +134,7 @@ public class IndexDeprecationChecks {
     }
 
     static DeprecationIssue legacyTierRoutingCheck(IndexMetadata indexMetadata, ClusterState clusterState) {
-        String nodeAttrDataValue = indexMetadata.getSettings().get("index.routing.allocation.require.data");
+        String nodeAttrDataValue = indexMetadata.getSettings().get(INDEX_ROUTING_INCLUDE_GROUP_PREFIX + ".data");
         if (nodeAttrDataValue == null) {
             return null;
         }

@@ -1,7 +1,4 @@
 setup:
-  - requires:
-      cluster_features: "mapper.vectors.int4_quantization"
-      reason: 'kNN float to half-byte quantization is required'
   - do:
       indices.create:
         index: hnsw_byte_quantized

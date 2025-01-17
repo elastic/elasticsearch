@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -54,8 +53,6 @@ import java.util.function.Consumer;
 public final class LazyRolloverAction extends ActionType<RolloverResponse> {
 
     private static final Logger logger = LogManager.getLogger(LazyRolloverAction.class);
-
-    public static final NodeFeature DATA_STREAM_LAZY_ROLLOVER = new NodeFeature("data_stream.rollover.lazy", true);
 
     public static final LazyRolloverAction INSTANCE = new LazyRolloverAction();
     public static final String NAME = "indices:admin/data_stream/lazy_rollover";

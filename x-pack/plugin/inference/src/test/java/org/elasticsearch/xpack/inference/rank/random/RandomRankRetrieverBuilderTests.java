@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.rank.random;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
@@ -51,10 +52,7 @@ public class RandomRankRetrieverBuilderTests extends AbstractXContentTestCase<Ra
     protected RandomRankRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
         return (RandomRankRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
-            new RetrieverParserContext(
-                new SearchUsage(),
-                nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED || nf == RandomRankRetrieverBuilder.RANDOM_RERANKER_RETRIEVER_SUPPORTED
-            )
+            new RetrieverParserContext(new SearchUsage(), Predicates.never())
         );
     }
 

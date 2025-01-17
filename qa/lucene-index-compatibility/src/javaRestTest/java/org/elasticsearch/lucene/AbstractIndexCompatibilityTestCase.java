@@ -13,8 +13,8 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.XContentTestUtils;
@@ -42,7 +42,9 @@ import static org.elasticsearch.test.cluster.util.Version.fromString;
 import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase {
@@ -156,8 +158,16 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
         return new Version((byte) ((id / 1000000) % 100), (byte) ((id / 10000) % 100), (byte) ((id / 100) % 100));
     }
 
+    protected static int getNumberOfReplicas(String indexName) throws Exception {
+        var indexSettings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(indexName).get(indexName)).get("settings");
+        var numberOfReplicas = Integer.parseInt((String) indexSettings.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS));
+        assertThat(numberOfReplicas, allOf(greaterThanOrEqualTo(0), lessThanOrEqualTo(NODES - 1)));
+        return numberOfReplicas;
+    }
+
     protected static void indexDocs(String indexName, int numDocs) throws Exception {
         var request = new Request("POST", "/_bulk");
+        request.addParameter("refresh", "true");
         var docs = new StringBuilder();
         IntStream.range(0, numDocs).forEach(n -> docs.append(Strings.format("""
             {"index":{"_index":"%s"}}
@@ -185,19 +195,30 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
     }
 
     protected static void restoreIndex(String repository, String snapshot, String indexName, String renamedIndexName) throws Exception {
+        restoreIndex(repository, snapshot, indexName, renamedIndexName, Settings.EMPTY);
+    }
+
+    protected static void restoreIndex(
+        String repository,
+        String snapshot,
+        String indexName,
+        String renamedIndexName,
+        Settings indexSettings
+    ) throws Exception {
         var request = new Request("POST", "/_snapshot/" + repository + "/" + snapshot + "/_restore");
         request.addParameter("wait_for_completion", "true");
-        request.setJsonEntity(org.elasticsearch.common.Strings.format("""
+        request.setJsonEntity(Strings.format("""
             {
               "indices": "%s",
               "include_global_state": false,
               "rename_pattern": "(.+)",
               "rename_replacement": "%s",
-              "include_aliases": false
-            }""", indexName, renamedIndexName));
+              "include_aliases": false,
+              "index_settings": %s
+            }""", indexName, renamedIndexName, Strings.toString(indexSettings)));
         var responseBody = createFromResponse(client().performRequest(request));
-        assertThat(responseBody.evaluate("snapshot.shards.total"), equalTo((int) responseBody.evaluate("snapshot.shards.failed")));
-        assertThat(responseBody.evaluate("snapshot.shards.successful"), equalTo(0));
+        assertThat(responseBody.evaluate("snapshot.shards.total"), equalTo((int) responseBody.evaluate("snapshot.shards.successful")));
+        assertThat(responseBody.evaluate("snapshot.shards.failed"), equalTo(0));
     }
 
     protected static void updateRandomIndexSettings(String indexName) throws IOException {
@@ -215,20 +236,19 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
         updateIndexSettings(indexName, settings);
     }
 
-    protected static void updateRandomMappings(String indexName) throws IOException {
+    protected static void updateRandomMappings(String indexName) throws Exception {
         final var runtime = new HashMap<>();
         runtime.put("field_" + randomInt(2), Map.of("type", "keyword"));
         final var properties = new HashMap<>();
         properties.put(randomIdentifier(), Map.of("type", "long"));
-        var body = XContentTestUtils.convertToXContent(Map.of("runtime", runtime, "properties", properties), XContentType.JSON);
+        updateMappings(indexName, Map.of("runtime", runtime, "properties", properties));
+    }
+
+    protected static void updateMappings(String indexName, Map<String, ?> mappings) throws Exception {
+        var body = XContentTestUtils.convertToXContent(mappings, XContentType.JSON);
         var request = new Request("PUT", indexName + "/_mappings");
         request.setEntity(
-            new InputStreamEntity(
-                body.streamInput(),
-                body.length(),
-
-                ContentType.create(XContentType.JSON.mediaTypeWithoutParameters())
-            )
+            new InputStreamEntity(body.streamInput(), body.length(), ContentType.create(XContentType.JSON.mediaTypeWithoutParameters()))
         );
         assertOK(client().performRequest(request));
     }
@@ -237,5 +257,15 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
         var responseBody = createFromResponse(client().performRequest(new Request("GET", "_cluster/state/metadata/" + indexName)));
         var state = responseBody.evaluate("metadata.indices." + indexName + ".state");
         return IndexMetadata.State.fromString((String) state) == IndexMetadata.State.CLOSE;
+    }
+
+    protected static void addIndexWriteBlock(String indexName) throws Exception {
+        assertAcknowledged(client().performRequest(new Request("PUT", Strings.format("/%s/_block/write", indexName))));
+    }
+
+    protected static void forceMerge(String indexName, int maxNumSegments) throws Exception {
+        var request = new Request("POST", '/' + indexName + "/_forcemerge");
+        request.addParameter("max_num_segments", String.valueOf(maxNumSegments));
+        assertOK(client().performRequest(request));
     }
 }

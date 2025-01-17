@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.hamcrest.Matcher;
 
 import java.util.List;

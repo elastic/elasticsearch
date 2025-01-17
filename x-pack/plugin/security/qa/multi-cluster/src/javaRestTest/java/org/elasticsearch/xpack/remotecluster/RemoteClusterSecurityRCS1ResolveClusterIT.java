@@ -103,7 +103,6 @@ public class RemoteClusterSecurityRCS1ResolveClusterIT extends AbstractRemoteClu
             assertOK(response2);
 
             Map<String, Object> responseMap2 = responseAsMap(response2);
-            System.err.println(">>> responseMap2: " + responseMap2);
             Map<String, ?> remoteClusterResponse2 = (Map<String, ?>) responseMap2.get("my_remote_cluster");
             assertThat((Boolean) remoteClusterResponse2.get("connected"), equalTo(false));
             assertThat((String) remoteClusterResponse.get("error"), containsString("unauthorized for user [remote_search_user]"));
@@ -262,6 +261,9 @@ public class RemoteClusterSecurityRCS1ResolveClusterIT extends AbstractRemoteClu
             assertNull(remoteClusterResponse.get("error"));
             assertNotNull(remoteClusterResponse.get("version"));
         }
+        // TODO: The security pathways are not using the new
+        // RemoteClusterService.groupIndices(IndicesOptions indicesOptions, String[] indices, boolean returnLocalAll) method
+        // so this use case still behaves badly - fix in follow on PR
         // {
         // // TEST CASE 12: Resolution against wildcarded remote cluster expression that matches no remotes
         // final Request remoteOnly1 = new Request("GET", "_resolve/cluster/no_such_remote*:*");

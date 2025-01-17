@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -629,7 +630,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         List<String> names = new ArrayList<>(ctx.entryExpression().size());
         List<EsqlBaseParser.EntryExpressionContext> kvCtx = ctx.entryExpression();
         for (EsqlBaseParser.EntryExpressionContext entry : kvCtx) {
-            String key = visitString(entry.string()).fold().toString().toLowerCase(Locale.ROOT); // make key case-insensitive
+            EsqlBaseParser.StringContext stringCtx = entry.string();
+            String key = unquote(stringCtx.QUOTED_STRING().getText()); // key is case-sensitive
             if (key.isBlank()) {
                 throw new ParsingException(
                     source(ctx),
@@ -646,7 +648,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 if (l.dataType() == NULL) {
                     throw new ParsingException(source(ctx), "Invalid named function argument [{}], NULL is not supported", entryText);
                 }
-                namedArgs.add(new Literal(source(entry.string()), key, KEYWORD));
+                namedArgs.add(new Literal(source(stringCtx), key, KEYWORD));
                 namedArgs.add(l);
                 names.add(key);
             } else {
@@ -730,12 +732,20 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         RegexMatch<?> result = switch (type) {
             case EsqlBaseParser.LIKE -> {
                 try {
-                    yield new WildcardLike(source, left, new WildcardPattern(pattern.fold().toString()));
+                    yield new WildcardLike(
+                        source,
+                        left,
+                        new WildcardPattern(pattern.fold(FoldContext.small() /* TODO remove me */).toString())
+                    );
                 } catch (InvalidArgumentException e) {
                     throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", pattern, e.getMessage());
                 }
             }
-            case EsqlBaseParser.RLIKE -> new RLike(source, left, new RLikePattern(pattern.fold().toString()));
+            case EsqlBaseParser.RLIKE -> new RLike(
+                source,
+                left,
+                new RLikePattern(pattern.fold(FoldContext.small() /* TODO remove me */).toString())
+            );
             default -> throw new ParsingException("Invalid predicate type for [{}]", source.text());
         };
         return ctx.NOT() == null ? result : new Not(source, result);

@@ -115,7 +115,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         var settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
-                SemanticInferenceMetadataFieldMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat)
+                SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat)
             )
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
             .build();
@@ -920,7 +920,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         mappingBuilder.endObject();
     }
 
-    private static void addSemanticTextInferenceResults(
+    public static void addSemanticTextInferenceResults(
         boolean useLegacyFormat,
         XContentBuilder sourceBuilder,
         List<SemanticTextField> semanticTextInferenceResults

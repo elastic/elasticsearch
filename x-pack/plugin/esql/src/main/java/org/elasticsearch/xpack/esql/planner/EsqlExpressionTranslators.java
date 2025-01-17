@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
@@ -144,7 +145,7 @@ public final class EsqlExpressionTranslators {
         static Query translate(InsensitiveEquals bc) {
             TypedAttribute attribute = checkIsPushableAttribute(bc.left());
             Source source = bc.source();
-            BytesRef value = BytesRefs.toBytesRef(valueOf(bc.right()));
+            BytesRef value = BytesRefs.toBytesRef(valueOf(FoldContext.small() /* TODO remove me */, bc.right()));
             String name = pushableAttributeName(attribute);
             return new TermQuery(source, name, value.utf8ToString(), true);
         }
@@ -188,7 +189,7 @@ public final class EsqlExpressionTranslators {
             TypedAttribute attribute = checkIsPushableAttribute(bc.left());
             Source source = bc.source();
             String name = handler.nameOf(attribute);
-            Object result = bc.right().fold();
+            Object result = bc.right().fold(FoldContext.small() /* TODO remove me */);
             Object value = result;
             String format = null;
             boolean isDateLiteralComparison = false;
@@ -269,7 +270,7 @@ public final class EsqlExpressionTranslators {
                 return null;
             }
             Source source = bc.source();
-            Object value = valueOf(bc.right());
+            Object value = valueOf(FoldContext.small() /* TODO remove me */, bc.right());
 
             // Comparisons with multi-values always return null in ESQL.
             if (value instanceof List<?>) {
@@ -369,7 +370,7 @@ public final class EsqlExpressionTranslators {
             if (f instanceof CIDRMatch cm) {
                 if (cm.ipField() instanceof FieldAttribute fa && Expressions.foldable(cm.matches())) {
                     String targetFieldName = handler.nameOf(fa.exactAttribute());
-                    Set<Object> set = new LinkedHashSet<>(Expressions.fold(cm.matches()));
+                    Set<Object> set = new LinkedHashSet<>(Expressions.fold(FoldContext.small() /* TODO remove me */, cm.matches()));
 
                     Query query = new TermsQuery(f.source(), targetFieldName, set);
                     // CIDR_MATCH applies only to single values.
@@ -420,7 +421,7 @@ public final class EsqlExpressionTranslators {
             String name = handler.nameOf(attribute);
 
             try {
-                Geometry shape = SpatialRelatesUtils.makeGeometryFromLiteral(constantExpression);
+                Geometry shape = SpatialRelatesUtils.makeGeometryFromLiteral(FoldContext.small() /* TODO remove me */, constantExpression);
                 return new SpatialRelatesQuery(bc.source(), name, bc.queryRelation(), shape, attribute.dataType());
             } catch (IllegalArgumentException e) {
                 throw new QlIllegalArgumentException(e.getMessage(), e);
@@ -461,7 +462,7 @@ public final class EsqlExpressionTranslators {
                             queries.add(query);
                         }
                     } else {
-                        terms.add(valueOf(rhs));
+                        terms.add(valueOf(FoldContext.small() /* TODO remove me */, rhs));
                     }
                 }
             }
@@ -487,8 +488,8 @@ public final class EsqlExpressionTranslators {
         }
 
         private static RangeQuery translate(Range r, TranslatorHandler handler) {
-            Object lower = valueOf(r.lower());
-            Object upper = valueOf(r.upper());
+            Object lower = valueOf(FoldContext.small() /* TODO remove me */, r.lower());
+            Object upper = valueOf(FoldContext.small() /* TODO remove me */, r.upper());
             String format = null;
 
             DataType dataType = r.value().dataType();

@@ -137,7 +137,10 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
     }
 
     private void assertEnrichIndicesExist(Set<String> activeIndices) {
-        GetIndexResponse indices = client().admin().indices().getIndex(new GetIndexRequest().indices(".enrich-*")).actionGet();
+        GetIndexResponse indices = client().admin()
+            .indices()
+            .getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(".enrich-*"))
+            .actionGet();
         assertThat(indices.indices().length, is(equalTo(activeIndices.size())));
         for (String index : indices.indices()) {
             assertThat(activeIndices.contains(index), is(true));

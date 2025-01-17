@@ -9,18 +9,13 @@
 
 package org.elasticsearch.lucene;
 
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.util.Version;
 
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.allOf;
+import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRestartIndexCompatibilityTestCase {
@@ -34,7 +29,90 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
     }
 
     /**
-     * Creates an index and a snapshot on N-2, then restores the snapshot on N.
+     * Creates an index on N-2, upgrades to N -1 and marks as read-only, then upgrades to N.
+     */
+    public void testIndexUpgrade() throws Exception {
+        final String index = suffix("index");
+        final int numDocs = 2431;
+
+        if (isFullyUpgradedTo(VERSION_MINUS_2)) {
+            logger.debug("--> creating index [{}]", index);
+            createIndex(
+                client(),
+                index,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .build()
+            );
+
+            logger.debug("--> indexing [{}] docs in [{}]", numDocs, index);
+            indexDocs(index, numDocs);
+            return;
+        }
+
+        if (isFullyUpgradedTo(VERSION_MINUS_1)) {
+            ensureGreen(index);
+
+            assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
+            assertDocCount(client(), index, numDocs);
+
+            logger.debug("--> flushing [{}]", index);
+            flush(index, true);
+
+            logger.debug("--> applying write block on [{}]", index);
+            addIndexWriteBlock(index);
+
+            logger.debug("--> applying verified read-only setting on [{}]", index);
+            updateIndexSettings(index, Settings.builder().put(VERIFIED_READ_ONLY_SETTING.getKey(), true));
+            return;
+        }
+
+        if (isFullyUpgradedTo(VERSION_CURRENT)) {
+            ensureGreen(index);
+
+            assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
+            assertDocCount(client(), index, numDocs);
+
+            var indexSettings = getIndexSettingsAsMap(index);
+            assertThat(indexSettings.get(IndexMetadata.APIBlock.WRITE.settingName()), equalTo(Boolean.TRUE.toString()));
+            assertThat(indexSettings.get(VERIFIED_READ_ONLY_SETTING.getKey()), equalTo(Boolean.TRUE.toString()));
+
+            var numberOfReplicas = getNumberOfReplicas(index);
+            if (0 < numberOfReplicas) {
+                logger.debug("--> resetting number of replicas [{}] to [0]", numberOfReplicas);
+                updateIndexSettings(index, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+            }
+
+            updateRandomIndexSettings(index);
+            updateRandomMappings(index);
+
+            logger.debug("--> adding replica to test peer-recovery");
+            updateIndexSettings(index, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+            ensureGreen(index);
+
+            logger.debug("--> closing restored index [{}]", index);
+            closeIndex(index);
+            ensureGreen(index);
+
+            logger.debug("--> adding replica to test peer-recovery for closed shards");
+            updateIndexSettings(index, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2));
+            ensureGreen(index);
+
+            logger.debug("--> re-opening restored index [{}]", index);
+            openIndex(index);
+            ensureGreen(index);
+
+            assertDocCount(client(), index, numDocs);
+
+            logger.debug("--> deleting index [{}]", index);
+            deleteIndex(index);
+        }
+    }
+
+    /**
+     * Creates an index on N-2, marks as read-only on N-1 and creates a snapshot, then restores the snapshot on N.
      */
     public void testRestoreIndex() throws Exception {
         final String repository = suffix("repository");
@@ -59,9 +137,6 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
 
             logger.debug("--> indexing [{}] docs in [{}]", numDocs, index);
             indexDocs(index, numDocs);
-
-            logger.debug("--> creating snapshot [{}]", snapshot);
-            createSnapshot(client(), repository, snapshot, true);
             return;
         }
 
@@ -71,6 +146,18 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), index, numDocs);
 
+            logger.debug("--> flushing [{}]", index);
+            flush(index, true);
+
+            logger.debug("--> applying write block on [{}]", index);
+            addIndexWriteBlock(index);
+
+            logger.debug("--> applying verified read-only setting on [{}]", index);
+            updateIndexSettings(index, Settings.builder().put(VERIFIED_READ_ONLY_SETTING.getKey(), true));
+
+            logger.debug("--> creating snapshot [{}]", snapshot);
+            createSnapshot(client(), repository, snapshot, true);
+
             logger.debug("--> deleting index [{}]", index);
             deleteIndex(index);
             return;
@@ -79,32 +166,109 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
         if (isFullyUpgradedTo(VERSION_CURRENT)) {
             var restoredIndex = suffix("index-restored");
             logger.debug("--> restoring index [{}] as [{}]", index, restoredIndex);
+            restoreIndex(repository, snapshot, index, restoredIndex);
+            ensureGreen(restoredIndex);
 
-            // Restoring the index will fail as Elasticsearch does not support reading N-2 yet
-            var request = new Request("POST", "/_snapshot/" + repository + "/" + snapshot + "/_restore");
-            request.addParameter("wait_for_completion", "true");
-            request.setJsonEntity(Strings.format("""
-                {
-                  "indices": "%s",
-                  "include_global_state": false,
-                  "rename_pattern": "(.+)",
-                  "rename_replacement": "%s",
-                  "include_aliases": false
-                }""", index, restoredIndex));
+            assertThat(indexVersion(restoredIndex), equalTo(VERSION_MINUS_2));
+            assertDocCount(client(), restoredIndex, numDocs);
 
-            var responseException = expectThrows(ResponseException.class, () -> client().performRequest(request));
-            assertEquals(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), responseException.getResponse().getStatusLine().getStatusCode());
-            assertThat(
-                responseException.getMessage(),
-                allOf(
-                    containsString("cannot restore index [[" + index),
-                    containsString("because it cannot be upgraded"),
-                    containsString("has current compatibility version [" + VERSION_MINUS_2 + '-' + VERSION_MINUS_1.getMajor() + ".0.0]"),
-                    containsString("but the minimum compatible version is [" + VERSION_MINUS_1.getMajor() + ".0.0]."),
-                    containsString("It should be re-indexed in Elasticsearch " + VERSION_MINUS_1.getMajor() + ".x"),
-                    containsString("before upgrading to " + VERSION_CURRENT)
-                )
+            updateRandomIndexSettings(restoredIndex);
+            updateRandomMappings(restoredIndex);
+
+            logger.debug("--> adding replica to test peer-recovery");
+            updateIndexSettings(restoredIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+            ensureGreen(restoredIndex);
+
+            logger.debug("--> closing restored index [{}]", restoredIndex);
+            closeIndex(restoredIndex);
+            ensureGreen(restoredIndex);
+
+            logger.debug("--> adding replica to test peer-recovery for closed shards");
+            updateIndexSettings(restoredIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2));
+            ensureGreen(restoredIndex);
+
+            logger.debug("--> re-opening restored index [{}]", restoredIndex);
+            openIndex(restoredIndex);
+            ensureGreen(restoredIndex);
+
+            assertDocCount(client(), restoredIndex, numDocs);
+
+            logger.debug("--> deleting restored index [{}]", restoredIndex);
+            deleteIndex(restoredIndex);
+        }
+    }
+
+    /**
+     * Creates an index on N-2, marks as read-only on N-1 and creates a snapshot and then closes the index, then restores the snapshot on N.
+     */
+    public void testRestoreIndexOverClosedIndex() throws Exception {
+        final String repository = suffix("repository");
+        final String snapshot = suffix("snapshot");
+        final String index = suffix("index");
+        final int numDocs = 2134;
+
+        if (isFullyUpgradedTo(VERSION_MINUS_2)) {
+            logger.debug("--> registering repository [{}]", repository);
+            registerRepository(client(), repository, FsRepository.TYPE, true, repositorySettings());
+
+            logger.debug("--> creating index [{}]", index);
+            createIndex(
+                client(),
+                index,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .build()
             );
+
+            logger.debug("--> indexing [{}] docs in [{}]", numDocs, index);
+            indexDocs(index, numDocs);
+            return;
+        }
+
+        if (isFullyUpgradedTo(VERSION_MINUS_1)) {
+            ensureGreen(index);
+
+            assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
+            assertDocCount(client(), index, numDocs);
+
+            logger.debug("--> flushing [{}]", index);
+            flush(index, true);
+
+            logger.debug("--> applying write block on [{}]", index);
+            addIndexWriteBlock(index);
+
+            logger.debug("--> applying verified read-only setting on [{}]", index);
+            updateIndexSettings(index, Settings.builder().put(VERIFIED_READ_ONLY_SETTING.getKey(), true));
+
+            logger.debug("--> creating snapshot [{}]", snapshot);
+            createSnapshot(client(), repository, snapshot, true);
+
+            logger.debug("--> force-merge index [{}] to 1 segment", index);
+            forceMerge(index, 1);
+
+            logger.debug("--> closing index [{}]", index);
+            closeIndex(index);
+            ensureGreen(index);
+            return;
+        }
+
+        if (isFullyUpgradedTo(VERSION_CURRENT)) {
+            var indexSettings = getIndexSettingsAsMap(index);
+            assertThat(indexSettings.get(IndexMetadata.APIBlock.WRITE.settingName()), equalTo(Boolean.TRUE.toString()));
+            assertThat(indexSettings.get(VERIFIED_READ_ONLY_SETTING.getKey()), equalTo(Boolean.TRUE.toString()));
+            assertThat(isIndexClosed(index), equalTo(true));
+
+            logger.debug("--> restoring index [{}] over existing closed index", index);
+            restoreIndex(repository, snapshot, index, index);
+            ensureGreen(index);
+
+            assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
+            assertDocCount(client(), index, numDocs);
+
+            logger.debug("--> deleting index [{}]", index);
+            deleteIndex(index);
         }
     }
 }

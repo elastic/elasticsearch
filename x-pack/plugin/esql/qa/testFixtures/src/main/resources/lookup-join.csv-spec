@@ -450,13 +450,14 @@ required_capability: join_lookup_v11
 ROW language_code = [4, 5, 6, 7]
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
 | KEEP language_code, language_name, country
+| SORT language_code, language_name, country
 ;
 
 language_code:integer | language_name:keyword | country:text
-[4, 5, 6, 7]          | Quenya                | null
-[4, 5, 6, 7]          | null                  | Atlantis
 [4, 5, 6, 7]          | Mv-Lang               | Mv-Land
 [4, 5, 6, 7]          | Mv-Lang2              | Mv-Land2
+[4, 5, 6, 7]          | Quenya                | null
+[4, 5, 6, 7]          | null                  | Atlantis
 ;
 
 mvJoinKeyFromRowExpanded

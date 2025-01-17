@@ -9,12 +9,12 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 
 public final class EmptyTDigestState extends TDigestState {
     public EmptyTDigestState() {
         // Use the sorting implementation to minimize memory allocation.
-        super(WrapperTDigestArrays.INSTANCE, Type.SORTING, 1.0D);
+        super(new NoopCircuitBreaker("empty-tdigest-state-noop-breaker"), Type.SORTING, 1.0D);
     }
 
     @Override

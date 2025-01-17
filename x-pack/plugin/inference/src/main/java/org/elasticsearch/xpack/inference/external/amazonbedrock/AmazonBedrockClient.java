@@ -7,20 +7,25 @@
 
 package org.elasticsearch.xpack.inference.external.amazonbedrock;
 
-import com.amazonaws.services.bedrockruntime.model.ConverseRequest;
-import com.amazonaws.services.bedrockruntime.model.ConverseResult;
-import com.amazonaws.services.bedrockruntime.model.InvokeModelRequest;
-import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseRequest;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
+import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelRequest;
+import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 
 import java.time.Instant;
+import java.util.concurrent.Flow;
 
 public interface AmazonBedrockClient {
-    void converse(ConverseRequest converseRequest, ActionListener<ConverseResult> responseListener) throws ElasticsearchException;
+    void converse(ConverseRequest converseRequest, ActionListener<ConverseResponse> responseListener) throws ElasticsearchException;
 
-    void invokeModel(InvokeModelRequest invokeModelRequest, ActionListener<InvokeModelResult> responseListener)
+    Flow.Publisher<? extends ChunkedToXContent> converseStream(ConverseStreamRequest converseStreamRequest) throws ElasticsearchException;
+
+    void invokeModel(InvokeModelRequest invokeModelRequest, ActionListener<InvokeModelResponse> responseListener)
         throws ElasticsearchException;
 
     boolean isExpired(Instant currentTimestampMs);

@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
@@ -824,7 +825,12 @@ class RepositoryIntegrityVerifier {
         AtomicLong progressCounter,
         Releasable onCompletion
     ) {
-        ThrottledIterator.run(iterator, itemConsumer, maxConcurrency, progressCounter::incrementAndGet, onCompletion::close);
+        ThrottledIterator.run(
+            iterator,
+            (ref, item) -> itemConsumer.accept(Releasables.wrap(progressCounter::incrementAndGet, ref), item),
+            maxConcurrency,
+            onCompletion::close
+        );
     }
 
     private RepositoryVerifyIntegrityResponseChunk.Builder anomaly(String anomaly) {

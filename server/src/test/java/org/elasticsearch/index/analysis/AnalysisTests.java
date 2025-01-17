@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class AnalysisTests extends ESTestCase {
@@ -103,5 +104,93 @@ public class AnalysisTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
         List<String> wordList = Analysis.getWordList(env, nodeSettings, "foo.bar");
         assertEquals(Arrays.asList("hello", "world"), wordList);
+    }
+
+    public void testParseDuplicates() throws IOException {
+        Path tempDir = createTempDir();
+        Path dict = tempDir.resolve("foo.dict");
+        Settings nodeSettings = Settings.builder()
+            .put("foo.path", tempDir.resolve(dict))
+            .put("bar.list", "")
+            .put("soup.lenient", "true")
+            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
+            .build();
+        try (BufferedWriter writer = Files.newBufferedWriter(dict, StandardCharsets.UTF_8)) {
+            writer.write("# This is a test of the emergency broadcast system");
+            writer.write('\n');
+            writer.write("最終契約,最終契約,最終契約,カスタム名 詞");
+            writer.write('\n');
+            writer.write("最終契約,最終契約,最終契約,カスタム名 詞");
+            writer.write('\n');
+            writer.write("# This is a test of the emergency broadcast system");
+            writer.write('\n');
+            writer.write("最終契約,最終契約,最終契約,カスタム名 詞,extra stuff that gets discarded");
+            writer.write('\n');
+        }
+        Environment env = TestEnvironment.newEnvironment(nodeSettings);
+        List<String> wordList = Analysis.getWordList(env, nodeSettings, "foo.path", "bar.list", "soup.lenient", true, true);
+        assertEquals(List.of("最終契約,最終契約,最終契約,カスタム名 詞"), wordList);
+    }
+
+    public void testFailOnDuplicates() throws IOException {
+        Path tempDir = createTempDir();
+        Path dict = tempDir.resolve("foo.dict");
+        Settings nodeSettings = Settings.builder()
+            .put("foo.path", tempDir.resolve(dict))
+            .put("bar.list", "")
+            .put("soup.lenient", "false")
+            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
+            .build();
+        try (BufferedWriter writer = Files.newBufferedWriter(dict, StandardCharsets.UTF_8)) {
+            writer.write("# This is a test of the emergency broadcast system");
+            writer.write('\n');
+            writer.write("最終契約,最終契約,最終契約,カスタム名 詞");
+            writer.write('\n');
+            writer.write("最終契,最終契,最終契約,カスタム名 詞");
+            writer.write('\n');
+            writer.write("# This is a test of the emergency broadcast system");
+            writer.write('\n');
+            writer.write("最終契約,最終契約,最終契約,カスタム名 詞,extra");
+            writer.write('\n');
+        }
+        Environment env = TestEnvironment.newEnvironment(nodeSettings);
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> Analysis.getWordList(env, nodeSettings, "foo.path", "bar.list", "soup.lenient", false, true)
+        );
+        assertThat(exc.getMessage(), containsString("[最終契約] in user dictionary at line [5]"));
+    }
+
+    public void testParseDuplicatesWComments() throws IOException {
+        Path tempDir = createTempDir();
+        Path dict = tempDir.resolve("foo.dict");
+        Settings nodeSettings = Settings.builder()
+            .put("foo.path", tempDir.resolve(dict))
+            .put("bar.list", "")
+            .put("soup.lenient", "true")
+            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
+            .build();
+        try (BufferedWriter writer = Files.newBufferedWriter(dict, StandardCharsets.UTF_8)) {
+            writer.write("# This is a test of the emergency broadcast system");
+            writer.write('\n');
+            writer.write("最終契約,最終契約,最終契約,カスタム名 詞");
+            writer.write('\n');
+            writer.write("最終契約,最終契約,最終契約,カスタム名 詞");
+            writer.write('\n');
+            writer.write("# This is a test of the emergency broadcast system");
+            writer.write('\n');
+            writer.write("最終契約,最終契約,最終契約,カスタム名 詞,extra");
+            writer.write('\n');
+        }
+        Environment env = TestEnvironment.newEnvironment(nodeSettings);
+        List<String> wordList = Analysis.getWordList(env, nodeSettings, "foo.path", "bar.list", "soup.lenient", false, true);
+        assertEquals(
+            List.of(
+                "# This is a test of the emergency broadcast system",
+                "最終契約,最終契約,最終契約,カスタム名 詞",
+                "# This is a test of the emergency broadcast system"
+            ),
+            wordList
+        );
     }
 }

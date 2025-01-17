@@ -11,9 +11,12 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -23,7 +26,9 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -66,6 +71,7 @@ public class QueryRewriteContext {
     protected Predicate<String> allowedFields;
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
+    private QueryRewriteInterceptor queryRewriteInterceptor;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -82,7 +88,8 @@ public class QueryRewriteContext {
         final BooleanSupplier allowExpensiveQueries,
         final ScriptCompiler scriptService,
         final ResolvedIndices resolvedIndices,
-        final PointInTimeBuilder pit
+        final PointInTimeBuilder pit,
+        final QueryRewriteInterceptor queryRewriteInterceptor
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -101,6 +108,7 @@ public class QueryRewriteContext {
         this.scriptService = scriptService;
         this.resolvedIndices = resolvedIndices;
         this.pit = pit;
+        this.queryRewriteInterceptor = queryRewriteInterceptor;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -119,6 +127,7 @@ public class QueryRewriteContext {
             null,
             null,
             null,
+            null,
             null
         );
     }
@@ -128,7 +137,8 @@ public class QueryRewriteContext {
         final Client client,
         final LongSupplier nowInMillis,
         final ResolvedIndices resolvedIndices,
-        final PointInTimeBuilder pit
+        final PointInTimeBuilder pit,
+        final QueryRewriteInterceptor queryRewriteInterceptor
     ) {
         this(
             parserConfiguration,
@@ -145,7 +155,8 @@ public class QueryRewriteContext {
             null,
             null,
             resolvedIndices,
-            pit
+            pit,
+            queryRewriteInterceptor
         );
     }
 
@@ -235,7 +246,7 @@ public class QueryRewriteContext {
             TextFieldMapper.Builder builder = new TextFieldMapper.Builder(
                 name,
                 getIndexAnalyzers(),
-                getIndexSettings() != null && getIndexSettings().getMode().isSyntheticSourceEnabled()
+                getIndexSettings() != null && SourceFieldMapper.isSynthetic(getIndexSettings())
             );
             return builder.build(MapperBuilderContext.root(false, false)).fieldType();
         } else {
@@ -406,4 +417,31 @@ public class QueryRewriteContext {
     public PointInTimeBuilder getPointInTimeBuilder() {
         return pit;
     }
+
+    /**
+     * Retrieve the first tier preference from the index setting. If the setting is not
+     * present, then return null.
+     */
+    @Nullable
+    public String getTierPreference() {
+        Settings settings = getIndexSettings().getSettings();
+        String value = DataTier.TIER_PREFERENCE_SETTING.get(settings);
+
+        if (Strings.hasText(value) == false) {
+            return null;
+        }
+
+        // Tier preference can be a comma-delimited list of tiers, ordered by preference
+        // It was decided we should only test the first of these potentially multiple preferences.
+        return value.split(",")[0].trim();
+    }
+
+    public QueryRewriteInterceptor getQueryRewriteInterceptor() {
+        return queryRewriteInterceptor;
+    }
+
+    public void setQueryRewriteInterceptor(QueryRewriteInterceptor queryRewriteInterceptor) {
+        this.queryRewriteInterceptor = queryRewriteInterceptor;
+    }
+
 }

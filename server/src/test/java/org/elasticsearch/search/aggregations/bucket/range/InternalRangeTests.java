@@ -76,7 +76,7 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange<Inte
             int docCount = randomIntBetween(0, 1000);
             double from = range.v1();
             double to = range.v2();
-            buckets.add(new InternalRange.Bucket("range_" + i, from, to, docCount, aggregations, keyed, format));
+            buckets.add(new InternalRange.Bucket("range_" + i, from, to, docCount, aggregations, format));
         }
         return new InternalRange<>(name, buckets, format, keyed, metadata);
     }
@@ -100,9 +100,7 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange<Inte
                 buckets = new ArrayList<>(buckets);
                 double from = randomDouble();
                 double to = from + randomDouble();
-                buckets.add(
-                    new InternalRange.Bucket("range_a", from, to, randomNonNegativeLong(), InternalAggregations.EMPTY, false, format)
-                );
+                buckets.add(new InternalRange.Bucket("range_a", from, to, randomNonNegativeLong(), InternalAggregations.EMPTY, format));
             }
             case 3 -> {
                 if (metadata == null) {

@@ -14,13 +14,24 @@ public class QueryAndDocsInputs extends InferenceInputs {
 
     public static QueryAndDocsInputs of(InferenceInputs inferenceInputs) {
         if (inferenceInputs instanceof QueryAndDocsInputs == false) {
-            throw createUnsupportedTypeException(inferenceInputs);
+            throw createUnsupportedTypeException(inferenceInputs, QueryAndDocsInputs.class);
         }
 
         return (QueryAndDocsInputs) inferenceInputs;
     }
 
     private final String query;
+    private final List<String> chunks;
+
+    public QueryAndDocsInputs(String query, List<String> chunks) {
+        this(query, chunks, false);
+    }
+
+    public QueryAndDocsInputs(String query, List<String> chunks, boolean stream) {
+        super(stream);
+        this.query = Objects.requireNonNull(query);
+        this.chunks = Objects.requireNonNull(chunks);
+    }
 
     public String getQuery() {
         return query;
@@ -30,12 +41,7 @@ public class QueryAndDocsInputs extends InferenceInputs {
         return chunks;
     }
 
-    List<String> chunks;
-
-    public QueryAndDocsInputs(String query, List<String> chunks) {
-        super();
-        this.query = Objects.requireNonNull(query);
-        this.chunks = Objects.requireNonNull(chunks);
+    public int inputSize() {
+        return chunks.size();
     }
-
 }

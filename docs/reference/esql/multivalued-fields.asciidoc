@@ -26,6 +26,7 @@ Multivalued fields come back as a JSON array:
 [source,console-result]
 ----
 {
+  "took": 28,
   "columns": [
     { "name": "a", "type": "long"},
     { "name": "b", "type": "long"}
@@ -36,6 +37,8 @@ Multivalued fields come back as a JSON array:
   ]
 }
 ----
+// TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
+
 
 The relative order of values in a multivalued field is undefined. They'll frequently be in
 ascending order but don't rely on that.
@@ -74,6 +77,7 @@ And {esql} sees that removal:
 [source,console-result]
 ----
 {
+  "took": 28,
   "columns": [
     { "name": "a", "type": "long"},
     { "name": "b", "type": "keyword"}
@@ -84,6 +88,8 @@ And {esql} sees that removal:
   ]
 }
 ----
+// TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
+
 
 But other types, like `long` don't remove duplicates.
 
@@ -115,6 +121,7 @@ And {esql} also sees that:
 [source,console-result]
 ----
 {
+  "took": 28,
   "columns": [
     { "name": "a", "type": "long"},
     { "name": "b", "type": "long"}
@@ -125,6 +132,8 @@ And {esql} also sees that:
   ]
 }
 ----
+// TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
+
 
 This is all at the storage layer. If you store duplicate `long`s and then
 convert them to strings the duplicates will stay:
@@ -155,6 +164,7 @@ POST /_query
 [source,console-result]
 ----
 {
+  "took": 28,
   "columns": [
     { "name": "a", "type": "long"},
     { "name": "b", "type": "keyword"}
@@ -165,6 +175,38 @@ POST /_query
   ]
 }
 ----
+// TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
+
+[discrete]
+[[esql-multivalued-nulls]]
+==== `null` in a list
+
+`null` values in a list are not preserved at the storage layer:
+
+[source,console,id=esql-multivalued-fields-multivalued-nulls]
+----
+POST /mv/_doc?refresh
+{ "a": [2, null, 1] }
+
+POST /_query
+{
+  "query": "FROM mv | LIMIT 1"
+}
+----
+
+[source,console-result]
+----
+{
+  "took": 28,
+  "columns": [
+    { "name": "a", "type": "long"},
+  ],
+  "values": [
+    [[1, 2]],
+  ]
+}
+----
+// TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
 
 [discrete]
 [[esql-multivalued-fields-functions]]
@@ -198,6 +240,7 @@ POST /_query
 [source,console-result]
 ----
 {
+  "took": 28,
   "columns": [
     { "name": "a",   "type": "long"},
     { "name": "b",   "type": "long"},
@@ -210,6 +253,7 @@ POST /_query
   ]
 }
 ----
+// TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
 
 Work around this limitation by converting the field to single value with one of:
 
@@ -233,6 +277,7 @@ POST /_query
 [source,console-result]
 ----
 {
+  "took": 28,
   "columns": [
     { "name": "a",   "type": "long"},
     { "name": "b",   "type": "long"},
@@ -245,4 +290,4 @@ POST /_query
   ]
 }
 ----
-
+// TESTRESPONSE[s/"took": 28/"took": "$body.took"/]

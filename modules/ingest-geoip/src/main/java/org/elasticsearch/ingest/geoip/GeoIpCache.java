@@ -26,7 +26,7 @@ import java.util.function.LongSupplier;
  * cost of deserialization for each lookup (cached or not). This comes at slight expense of higher memory usage, but significant
  * reduction of CPU usage.
  */
-final class GeoIpCache {
+public final class GeoIpCache {
 
     /**
      * Internal-only sentinel object for recording that a result from the geoip database was null (i.e. there was no result). By caching
@@ -60,7 +60,7 @@ final class GeoIpCache {
     }
 
     @SuppressWarnings("unchecked")
-    <T> T putIfAbsent(String ip, String databasePath, Function<String, T> retrieveFunction) {
+    <RESPONSE> RESPONSE putIfAbsent(String ip, String databasePath, Function<String, RESPONSE> retrieveFunction) {
         // can't use cache.computeIfAbsent due to the elevated permissions for the jackson (run via the cache loader)
         CacheKey cacheKey = new CacheKey(ip, databasePath);
         long cacheStart = relativeNanoTimeProvider.getAsLong();
@@ -87,7 +87,7 @@ final class GeoIpCache {
         if (response == NO_RESULT) {
             return null; // the no-result sentinel is an internal detail, don't expose it
         } else {
-            return (T) response;
+            return (RESPONSE) response;
         }
     }
 

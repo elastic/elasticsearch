@@ -17,10 +17,10 @@ import java.util.Arrays;
 /**
  * A {@link LocalSupplier} that contains already filled {@link Block}s.
  */
-class ImmediateLocalSupplier implements LocalSupplier {
+public class ImmediateLocalSupplier implements LocalSupplier {
     private final Block[] blocks;
 
-    ImmediateLocalSupplier(Block[] blocks) {
+    public ImmediateLocalSupplier(Block[] blocks) {
         this.blocks = blocks;
     }
 

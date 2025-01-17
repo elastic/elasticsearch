@@ -44,5 +44,6 @@
   "examples" : [
     "ROW wkt = [\"POINT(4297.11 -1475.53)\", \"POINT(7580.93 2272.77)\"]\n| MV_EXPAND wkt\n| EVAL pt = TO_CARTESIANPOINT(wkt)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

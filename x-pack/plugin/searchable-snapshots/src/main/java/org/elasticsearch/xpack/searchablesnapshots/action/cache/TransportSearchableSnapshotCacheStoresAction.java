@@ -39,7 +39,8 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     TransportSearchableSnapshotCacheStoresAction.Request,
     TransportSearchableSnapshotCacheStoresAction.NodesCacheFilesMetadata,
     TransportSearchableSnapshotCacheStoresAction.NodeRequest,
-    TransportSearchableSnapshotCacheStoresAction.NodeCacheFilesMetadata> {
+    TransportSearchableSnapshotCacheStoresAction.NodeCacheFilesMetadata,
+    Void> {
 
     public static final String ACTION_NAME = "internal:admin/xpack/searchable_snapshots/cache/store";
 
@@ -94,7 +95,7 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
         return new NodeCacheFilesMetadata(clusterService.localNode(), cacheService.getCachedSize(request.shardId, request.snapshotId));
     }
 
-    public static final class Request extends BaseNodesRequest<Request> {
+    public static final class Request extends BaseNodesRequest {
 
         private final SnapshotId snapshotId;
         private final ShardId shardId;

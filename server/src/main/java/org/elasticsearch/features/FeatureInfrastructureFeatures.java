@@ -13,15 +13,11 @@ import java.util.Set;
 
 /**
  * This class specifies features for the features functionality itself.
- * <p>
- * This adds a feature {@code features_supported} indicating that a node supports node features.
- * Nodes that do not support features won't have this feature in its feature set,
- * so this can be checked without needing to look at the node version.
  */
 public class FeatureInfrastructureFeatures implements FeatureSpecification {
 
     @Override
-    public Set<NodeFeature> getFeatures() {
-        return Set.of(FeatureService.FEATURES_SUPPORTED);
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(FeatureService.TEST_FEATURES_ENABLED);
     }
 }

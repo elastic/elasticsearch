@@ -14,6 +14,7 @@ import org.elasticsearch.common.Explicit;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -186,6 +187,7 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
             name,
             name,
             Explicit.EXPLICIT_TRUE,
+            Optional.empty(),
             ObjectMapper.Dynamic.FALSE,
             Map.of(),
             Explicit.EXPLICIT_FALSE,

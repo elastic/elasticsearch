@@ -19,11 +19,14 @@ import org.elasticsearch.xpack.inference.external.request.elastic.ElasticInferen
 import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceSparseEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 
 public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends ElasticInferenceServiceRequestManager {
 
@@ -35,20 +38,24 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
 
     private final Truncator truncator;
 
+    private final TraceContext traceContext;
+
     private static ResponseHandler createSparseEmbeddingsHandler() {
         return new ElasticInferenceServiceResponseHandler(
-            "Elastic Inference Service sparse embeddings",
+            String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),
             ElasticInferenceServiceSparseEmbeddingsResponseEntity::fromResponse
         );
     }
 
     public ElasticInferenceServiceSparseEmbeddingsRequestManager(
         ElasticInferenceServiceSparseEmbeddingsModel model,
-        ServiceComponents serviceComponents
+        ServiceComponents serviceComponents,
+        TraceContext traceContext
     ) {
         super(serviceComponents.threadPool(), model);
         this.model = model;
         this.truncator = serviceComponents.truncator();
+        this.traceContext = traceContext;
     }
 
     @Override
@@ -64,7 +71,8 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
         ElasticInferenceServiceSparseEmbeddingsRequest request = new ElasticInferenceServiceSparseEmbeddingsRequest(
             truncator,
             truncatedInput,
-            model
+            model,
+            traceContext
         );
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

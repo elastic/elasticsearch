@@ -11,10 +11,9 @@ package org.elasticsearch.action.admin.indices.open;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.rest.TestResponseParsers;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
-
-import static org.elasticsearch.action.support.master.ShardsAcknowledgedResponse.declareAcknowledgedAndShardsAcknowledgedFields;
 
 public class OpenIndexResponseTests extends AbstractXContentSerializingTestCase<OpenIndexResponse> {
 
@@ -25,7 +24,7 @@ public class OpenIndexResponseTests extends AbstractXContentSerializingTestCase<
     );
 
     static {
-        declareAcknowledgedAndShardsAcknowledgedFields(PARSER);
+        TestResponseParsers.declareAcknowledgedAndShardsAcknowledgedFields(PARSER);
     }
 
     @Override

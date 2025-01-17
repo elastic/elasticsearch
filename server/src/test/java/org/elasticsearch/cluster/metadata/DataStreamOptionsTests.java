@@ -24,16 +24,25 @@ public class DataStreamOptionsTests extends AbstractXContentSerializingTestCase<
 
     @Override
     protected DataStreamOptions createTestInstance() {
-        return new DataStreamOptions(randomBoolean() ? null : DataStreamFailureStoreTests.randomFailureStore());
+        return randomDataStreamOptions();
+    }
+
+    public static DataStreamOptions randomDataStreamOptions() {
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> DataStreamOptions.EMPTY;
+            case 1 -> DataStreamOptions.FAILURE_STORE_DISABLED;
+            case 2 -> DataStreamOptions.FAILURE_STORE_ENABLED;
+            default -> throw new IllegalArgumentException("Illegal randomisation branch");
+        };
     }
 
     @Override
     protected DataStreamOptions mutateInstance(DataStreamOptions instance) throws IOException {
-        var failureStore = instance.getFailureStore();
+        var failureStore = instance.failureStore();
         if (failureStore == null) {
             failureStore = DataStreamFailureStoreTests.randomFailureStore();
         } else {
-            failureStore = randomBoolean() ? null : new DataStreamFailureStore(failureStore.enabled() == false);
+            failureStore = randomBoolean() ? null : randomValueOtherThan(failureStore, DataStreamFailureStoreTests::randomFailureStore);
         }
         return new DataStreamOptions(failureStore);
     }

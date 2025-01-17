@@ -16,7 +16,7 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 /**
  * A bucket in the histogram where documents fall in
  */
-public abstract class AbstractHistogramBucket extends InternalMultiBucketAggregation.InternalBucket {
+public abstract class AbstractHistogramBucket extends InternalMultiBucketAggregation.InternalBucketWritable {
 
     protected final long docCount;
     protected final InternalAggregations aggregations;

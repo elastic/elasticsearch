@@ -157,7 +157,7 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(policy.getId());
         builder.field(SnapshotLifecyclePolicyMetadata.VERSION.getPreferredName(), version);
-        builder.timeField(
+        builder.timestampFieldsFromUnixEpochMillis(
             SnapshotLifecyclePolicyMetadata.MODIFIED_DATE_MILLIS.getPreferredName(),
             SnapshotLifecyclePolicyMetadata.MODIFIED_DATE.getPreferredName(),
             modifiedDate
@@ -169,7 +169,7 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
         if (lastFailure != null) {
             builder.field(SnapshotLifecyclePolicyMetadata.LAST_FAILURE.getPreferredName(), lastFailure);
         }
-        builder.timeField(
+        builder.timestampFieldsFromUnixEpochMillis(
             SnapshotLifecyclePolicyMetadata.NEXT_EXECUTION_MILLIS.getPreferredName(),
             SnapshotLifecyclePolicyMetadata.NEXT_EXECUTION.getPreferredName(),
             policy.calculateNextExecution(modifiedDate, Clock.systemUTC())
@@ -249,7 +249,7 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
             builder.field(NAME.getPreferredName(), snapshotId.getName());
             builder.field(UUID.getPreferredName(), snapshotId.getUUID());
             builder.field(STATE.getPreferredName(), state);
-            builder.timeField(START_TIME.getPreferredName(), "start_time", startTime);
+            builder.timestampFieldsFromUnixEpochMillis(START_TIME.getPreferredName(), "start_time", startTime);
             if (failure != null) {
                 builder.field(FAILURE.getPreferredName(), failure);
             }

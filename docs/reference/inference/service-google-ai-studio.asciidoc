@@ -1,6 +1,12 @@
 [[infer-service-google-ai-studio]]
 === Google AI Studio {infer} service
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[{infer-cap} APIs].
+--
+
 Creates an {infer} endpoint to perform an {infer} task with the `googleaistudio` service.
 
 
@@ -32,6 +38,26 @@ Available task types:
 [discrete]
 [[infer-service-google-ai-studio-api-request-body]]
 ==== {api-request-body-title}
+
+`chunking_settings`::
+(Optional, object)
+include::inference-shared.asciidoc[tag=chunking-settings]
+
+`max_chunking_size`:::
+(Optional, integer)
+include::inference-shared.asciidoc[tag=chunking-settings-max-chunking-size]
+
+`overlap`:::
+(Optional, integer)
+include::inference-shared.asciidoc[tag=chunking-settings-overlap]
+
+`sentence_overlap`:::
+(Optional, integer)
+include::inference-shared.asciidoc[tag=chunking-settings-sentence-overlap]
+
+`strategy`:::
+(Optional, string)
+include::inference-shared.asciidoc[tag=chunking-settings-strategy]
 
 `service`::
 (Required, string)

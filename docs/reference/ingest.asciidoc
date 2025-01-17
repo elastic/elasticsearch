@@ -450,7 +450,7 @@ configuration. See {fleet-guide}/install-standalone-elastic-agent.html[Install s
 [[pipelines-in-enterprise-search]]
 === Pipelines for search indices
 
-When you create Elasticsearch indices for search use cases, for example, using the {enterprise-search-ref}/crawler.html[web crawler^] or {enterprise-search-ref}/connectors.html[connectors^], these indices are automatically set up with specific ingest pipelines.
+When you create Elasticsearch indices for search use cases, for example, using the {enterprise-search-ref}/crawler.html[web crawler^] or <<es-connectors,connectors>>, these indices are automatically set up with specific ingest pipelines.
 These processors help optimize your content for search.
 See <<ingest-pipeline-search>> for more information.
 

@@ -16,16 +16,16 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Replace}.
  * This class is generated. Do not edit it.
  */
 public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator str;
 
@@ -35,13 +35,15 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public ReplaceConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       Pattern regex, EvalOperator.ExpressionEvaluator newStr, DriverContext driverContext) {
+    this.source = source;
     this.str = str;
     this.regex = regex;
     this.newStr = newStr;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -72,7 +74,7 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
         }
         if (strBlock.getValueCount(p) != 1) {
           if (strBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -83,7 +85,7 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
         }
         if (newStrBlock.getValueCount(p) != 1) {
           if (newStrBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -91,7 +93,7 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
         try {
           result.appendBytesRef(Replace.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), this.regex, newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch)));
         } catch (PatternSyntaxException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -108,7 +110,7 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
         try {
           result.appendBytesRef(Replace.process(strVector.getBytesRef(p, strScratch), this.regex, newStrVector.getBytesRef(p, newStrScratch)));
         } catch (PatternSyntaxException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -124,6 +126,18 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, newStr);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

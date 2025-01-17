@@ -21,16 +21,17 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.test.ESTestCase;
-
-public abstract class BigCountTests extends ESTestCase {
+public abstract class BigCountTests extends TDigestTestCase {
 
     public void testBigMerge() {
-        TDigest digest = createDigest();
-        for (int i = 0; i < 5; i++) {
-            digest.add(getDigest());
-            double actual = digest.quantile(0.5);
-            assertEquals("Count = " + digest.size(), 3000, actual, 0.001);
+        try (TDigest digest = createDigest()) {
+            for (int i = 0; i < 5; i++) {
+                try (TDigest digestToMerge = getDigest()) {
+                    digest.add(digestToMerge);
+                }
+                double actual = digest.quantile(0.5);
+                assertEquals("Count = " + digest.size(), 3000, actual, 0.001);
+            }
         }
     }
 

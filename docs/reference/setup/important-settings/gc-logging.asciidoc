@@ -1,4 +1,3 @@
-[[gc-logging]]
 [discrete]
 ==== GC logging settings
 
@@ -20,9 +19,8 @@ To see further options not contained in the original JEP, see
 https://docs.oracle.com/en/java/javase/13/docs/specs/man/java.html#enable-logging-with-the-jvm-unified-logging-framework[Enable
 Logging with the JVM Unified Logging Framework].
 
-[[gc-logging-examples]]
 [discrete]
-==== Examples
+===== Examples
 
 Change the default GC log output location to `/opt/my-app/gc.log` by
   creating `$ES_HOME/config/jvm.options.d/gc.options` with some sample

@@ -19,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -29,9 +28,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
-import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 /**
  * A response for a get index action.
@@ -200,14 +196,7 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
                 if (indexMappings == null) {
                     builder.startObject("mappings").endObject();
                 } else {
-                    if (builder.getRestApiVersion() == RestApiVersion.V_7
-                        && params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
-                        builder.startObject("mappings");
-                        builder.field(MapperService.SINGLE_MAPPING_NAME, indexMappings.sourceAsMap());
-                        builder.endObject();
-                    } else {
-                        builder.field("mappings", indexMappings.sourceAsMap());
-                    }
+                    builder.field("mappings", indexMappings.sourceAsMap());
                 }
 
                 builder.startObject("settings");

@@ -45,5 +45,6 @@
     "FROM employees\n| STATS SUM(languages)",
     "FROM employees\n| STATS total_salary_changes = SUM(MV_MAX(salary_change))"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

@@ -28,7 +28,7 @@ public interface HttpRequest extends HttpPreRequest {
         HTTP_1_1
     }
 
-    BytesReference content();
+    HttpBody body();
 
     List<String> strictCookies();
 
@@ -47,15 +47,9 @@ public interface HttpRequest extends HttpPreRequest {
     Exception getInboundException();
 
     /**
-     * Release any resources associated with this request. Implementations should be idempotent. The behavior of {@link #content()}
+     * Release any resources associated with this request. Implementations should be idempotent. The behavior of {@link #body()}
      * after this method has been invoked is undefined and implementation specific.
      */
     void release();
 
-    /**
-     * If this instances uses any pooled resources, creates a copy of this instance that does not use any pooled resources and releases
-     * any resources associated with this instance. If the instance does not use any shared resources, returns itself.
-     * @return a safe unpooled http request
-     */
-    HttpRequest releaseAndCopy();
 }

@@ -7,7 +7,18 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 public enum Nullability {
-    TRUE,    // Whether the expression can become null
-    FALSE,   // The expression can never become null
-    UNKNOWN // Cannot determine if the expression supports possible null folding
+    /**
+     * Whether the expression can become null
+     */
+    TRUE,
+
+    /**
+     * The expression can never become null
+     */
+    FALSE,
+
+    /**
+     * Cannot determine if the expression supports possible null folding
+     */
+    UNKNOWN
 }

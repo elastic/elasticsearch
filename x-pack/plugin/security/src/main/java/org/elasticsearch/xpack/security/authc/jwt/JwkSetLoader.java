@@ -146,7 +146,7 @@ public class JwkSetLoader implements Releasable {
         assert newContentAndJwksAlgs != null;
         assert contentAndJwksAlgs != null;
         if ((Arrays.equals(contentAndJwksAlgs.sha256, newContentAndJwksAlgs.sha256)) == false) {
-            logger.debug(
+            logger.info(
                 "Reloaded JWK set from sha256=[{}] to sha256=[{}]",
                 MessageDigests.toHexString(contentAndJwksAlgs.sha256),
                 MessageDigests.toHexString(newContentAndJwksAlgs.sha256)

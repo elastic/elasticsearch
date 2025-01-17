@@ -18,18 +18,12 @@ module org.elasticsearch.nativeaccess {
 
     exports org.elasticsearch.nativeaccess
         to
-            org.elasticsearch.nativeaccess.jna,
             org.elasticsearch.server,
             org.elasticsearch.blobcache,
             org.elasticsearch.simdvec,
             org.elasticsearch.systemd;
-    // allows jna to implement a library provider, and ProviderLocator to load it
-    exports org.elasticsearch.nativeaccess.lib to org.elasticsearch.nativeaccess.jna, org.elasticsearch.base;
 
     uses NativeLibraryProvider;
-
-    // allows qualified exports from this module to modules not in the boot layer, ie jna
-    exports org.elasticsearch.nativeaccess.exports to org.elasticsearch.base;
 
     provides ModuleQualifiedExportsService with NativeAccessModuleExportsService;
 

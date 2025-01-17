@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.telemetry.TraceContext;
+import org.elasticsearch.xpack.inference.telemetry.TraceContextHandler;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -25,21 +27,22 @@ import java.util.Objects;
 public class ElasticInferenceServiceSparseEmbeddingsRequest implements ElasticInferenceServiceRequest {
 
     private final URI uri;
-
     private final ElasticInferenceServiceSparseEmbeddingsModel model;
-
     private final Truncator.TruncationResult truncationResult;
     private final Truncator truncator;
+    private final TraceContextHandler traceContextHandler;
 
     public ElasticInferenceServiceSparseEmbeddingsRequest(
         Truncator truncator,
         Truncator.TruncationResult truncationResult,
-        ElasticInferenceServiceSparseEmbeddingsModel model
+        ElasticInferenceServiceSparseEmbeddingsModel model,
+        TraceContext traceContext
     ) {
         this.truncator = truncator;
         this.truncationResult = truncationResult;
         this.model = Objects.requireNonNull(model);
         this.uri = model.uri();
+        this.traceContextHandler = new TraceContextHandler(traceContext);
     }
 
     @Override
@@ -50,9 +53,14 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest implements ElasticIn
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
 
+        traceContextHandler.propagateTraceContext(httpPost);
         httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
 
         return new HttpRequest(httpPost, getInferenceEntityId());
+    }
+
+    public TraceContext getTraceContext() {
+        return traceContextHandler.traceContext();
     }
 
     @Override
@@ -68,8 +76,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest implements ElasticIn
     @Override
     public Request truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
-
-        return new ElasticInferenceServiceSparseEmbeddingsRequest(truncator, truncatedInput, model);
+        return new ElasticInferenceServiceSparseEmbeddingsRequest(truncator, truncatedInput, model, traceContextHandler.traceContext());
     }
 
     @Override

@@ -31,13 +31,14 @@ import static org.elasticsearch.index.IndexVersions.UPGRADE_LUCENE_9_9_1;
 public class NoriTokenizerFactory extends AbstractTokenizerFactory {
     private static final String USER_DICT_PATH_OPTION = "user_dictionary";
     private static final String USER_DICT_RULES_OPTION = "user_dictionary_rules";
+    private static final String LENIENT = "lenient";
 
     private final UserDictionary userDictionary;
     private final KoreanTokenizer.DecompoundMode decompoundMode;
     private final boolean discardPunctuation;
 
     public NoriTokenizerFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, settings, name);
+        super(name);
         decompoundMode = getMode(settings);
         userDictionary = getUserDictionary(env, settings, indexSettings);
         discardPunctuation = settings.getAsBoolean("discard_punctuation", true);
@@ -54,7 +55,8 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
             settings,
             USER_DICT_PATH_OPTION,
             USER_DICT_RULES_OPTION,
-            true,
+            LENIENT,
+            false,  // typically don't want to remove comments as deduplication will provide better feedback
             isSupportDuplicateCheck(indexSettings)
         );
         if (ruleList == null || ruleList.isEmpty()) {

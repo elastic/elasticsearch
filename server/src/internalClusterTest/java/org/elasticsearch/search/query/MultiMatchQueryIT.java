@@ -57,6 +57,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
@@ -301,27 +302,20 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
             ),
             response -> assertFirstHit(response, hasId("theother"))
         );
-        assertResponse(
+        assertResponses(response -> {
+            assertHitCount(response, 1L);
+            assertFirstHit(response, hasId("theone"));
+        },
             prepareSearch("test").setQuery(
                 randomizeType(
                     multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category").operator(Operator.AND).type(type)
                 )
             ),
-            response -> {
-                assertHitCount(response, 1L);
-                assertFirstHit(response, hasId("theone"));
-            }
-        );
-        assertResponse(
             prepareSearch("test").setQuery(
                 randomizeType(
                     multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category").operator(Operator.AND).type(type)
                 )
-            ),
-            response -> {
-                assertHitCount(response, 1L);
-                assertFirstHit(response, hasId("theone"));
-            }
+            )
         );
     }
 
@@ -347,7 +341,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                     ).type(MatchQueryParser.Type.PHRASE)
                 )
             ),
-            response -> assertThat(response.getHits().getTotalHits().value, greaterThan(1L))
+            response -> assertThat(response.getHits().getTotalHits().value(), greaterThan(1L))
         );
 
         assertSearchHitsWithoutFailures(
@@ -428,8 +422,8 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                         matchResp -> {
                             assertThat(
                                 "field: " + field + " query: " + builder.toString(),
-                                multiMatchResp.getHits().getTotalHits().value,
-                                equalTo(matchResp.getHits().getTotalHits().value)
+                                multiMatchResp.getHits().getTotalHits().value(),
+                                equalTo(matchResp.getHits().getTotalHits().value())
                             );
                             SearchHits hits = multiMatchResp.getHits();
                             if (field.startsWith("missing")) {
@@ -451,7 +445,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         var response = prepareSearch("test").setSize(0).setQuery(matchAllQuery()).get();
         final int numDocs;
         try {
-            numDocs = (int) response.getHits().getTotalHits().value;
+            numDocs = (int) response.getHits().getTotalHits().value();
         } finally {
             response.decRef();
         }
@@ -629,7 +623,10 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
             response -> assertFirstHit(response, hasId("theother"))
         );
 
-        assertResponse(
+        assertResponses(response -> {
+            assertHitCount(response, 1L);
+            assertFirstHit(response, hasId("theone"));
+        },
             prepareSearch("test").setQuery(
                 randomizeType(
                     multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category").type(
@@ -637,12 +634,6 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                     ).operator(Operator.AND)
                 )
             ),
-            response -> {
-                assertHitCount(response, 1L);
-                assertFirstHit(response, hasId("theone"));
-            }
-        );
-        assertResponse(
             prepareSearch("test").setQuery(
                 randomizeType(
                     multiMatchQuery("captain america 15", "full_name", "first_name", "last_name", "category", "skill").type(
@@ -650,12 +641,6 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                     ).analyzer("category").lenient(true).operator(Operator.AND)
                 )
             ),
-            response -> {
-                assertHitCount(response, 1L);
-                assertFirstHit(response, hasId("theone"));
-            }
-        );
-        assertResponse(
             prepareSearch("test").setQuery(
                 randomizeType(
                     multiMatchQuery("captain america 15", "full_name", "first_name", "last_name", "category", "skill", "int-field").type(
@@ -663,25 +648,17 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                     ).analyzer("category").lenient(true).operator(Operator.AND)
                 )
             ),
-            response -> {
-                assertHitCount(response, 1L);
-                assertFirstHit(response, hasId("theone"));
-            }
-        );
-        assertResponse(
             prepareSearch("test").setQuery(
                 randomizeType(
                     multiMatchQuery("captain america 15", "skill", "full_name", "first_name", "last_name", "category", "int-field").type(
                         MultiMatchQueryBuilder.Type.CROSS_FIELDS
                     ).analyzer("category").lenient(true).operator(Operator.AND)
                 )
-            ),
-            response -> {
-                assertHitCount(response, 1L);
-                assertFirstHit(response, hasId("theone"));
-            }
+            )
         );
-        assertResponse(
+
+        assertResponses(
+            response -> assertFirstHit(response, hasId("theone")),
             prepareSearch("test").setQuery(
                 randomizeType(
                     multiMatchQuery("captain america 15", "first_name", "last_name", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
@@ -689,71 +666,42 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                         .analyzer("category")
                 )
             ),
-            response -> assertFirstHit(response, hasId("theone"))
-        );
-
-        assertResponse(
             prepareSearch("test").setQuery(
                 randomizeType(multiMatchQuery("15", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).analyzer("category"))
             ),
-            response -> assertFirstHit(response, hasId("theone"))
-        );
-
-        assertResponse(
             prepareSearch("test").setQuery(
                 randomizeType(multiMatchQuery("25 15", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).analyzer("category"))
             ),
-            response -> assertFirstHit(response, hasId("theone"))
-        );
-
-        assertResponse(
             prepareSearch("test").setQuery(
                 randomizeType(
                     multiMatchQuery("25 15", "int-field", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).analyzer("category")
                 )
             ),
-            response -> assertFirstHit(response, hasId("theone"))
-        );
-
-        assertResponse(
             prepareSearch("test").setQuery(
                 randomizeType(
                     multiMatchQuery("25 15", "first_name", "int-field", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .analyzer("category")
                 )
             ),
-            response -> assertFirstHit(response, hasId("theone"))
-        );
-
-        assertResponse(
             prepareSearch("test").setQuery(
                 randomizeType(
                     multiMatchQuery("25 15", "int-field", "skill", "first_name").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .analyzer("category")
                 )
             ),
-            response -> assertFirstHit(response, hasId("theone"))
-        );
-
-        assertResponse(
             prepareSearch("test").setQuery(
                 randomizeType(
                     multiMatchQuery("25 15", "int-field", "first_name", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .analyzer("category")
                 )
             ),
-            response -> assertFirstHit(response, hasId("theone"))
-        );
-
-        assertResponse(
             prepareSearch("test").setQuery(
                 randomizeType(
                     multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category").type(
                         MultiMatchQueryBuilder.Type.CROSS_FIELDS
                     ).analyzer("category").operator(Operator.OR)
                 )
-            ),
-            response -> assertFirstHit(response, hasId("theone"))
+            )
         );
 
         // test group based on analyzer -- all fields are grouped into a cross field search
@@ -770,20 +718,10 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 assertFirstHit(response, hasId("theone"));
             }
         );
-        // counter example
-        assertHitCount(
-            prepareSearch("test").setQuery(
-                randomizeType(
-                    multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category").type(
-                        randomBoolean() ? MultiMatchQueryBuilder.Type.CROSS_FIELDS : MultiMatchQueryBuilder.DEFAULT_TYPE
-                    ).operator(Operator.AND)
-                )
-            ),
-            0L
-        );
 
         // counter example
         assertHitCount(
+            0L,
             prepareSearch("test").setQuery(
                 randomizeType(
                     multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category").type(
@@ -791,7 +729,13 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                     ).operator(Operator.AND)
                 )
             ),
-            0L
+            prepareSearch("test").setQuery(
+                randomizeType(
+                    multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category").type(
+                        randomBoolean() ? MultiMatchQueryBuilder.Type.CROSS_FIELDS : MultiMatchQueryBuilder.DEFAULT_TYPE
+                    ).operator(Operator.AND)
+                )
+            )
         );
 
         // test if boosts work
@@ -828,68 +772,42 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
             }
         );
         // Test group based on numeric fields
-        assertResponse(
+        assertResponses(response -> {
+            assertHitCount(response, 1L);
+            assertFirstHit(response, hasId("theone"));
+        },
             prepareSearch("test").setQuery(randomizeType(multiMatchQuery("15", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))),
-            response -> {
-                assertHitCount(response, 1L);
-                assertFirstHit(response, hasId("theone"));
-            }
-        );
-        assertResponse(
             prepareSearch("test").setQuery(
                 randomizeType(multiMatchQuery("15", "skill", "first_name").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))
             ),
-            response -> {
-                assertHitCount(response, 1L);
-                assertFirstHit(response, hasId("theone"));
-            }
-        );
-        // Two numeric fields together caused trouble at one point!
-        assertResponse(
+            // Two numeric fields together caused trouble at one point!
             prepareSearch("test").setQuery(
                 randomizeType(multiMatchQuery("15", "int-field", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))
             ),
-            response -> {
-                assertHitCount(response, 1L);
-                assertFirstHit(response, hasId("theone"));
-            }
-        );
-        assertResponse(
             prepareSearch("test").setQuery(
                 randomizeType(multiMatchQuery("15", "int-field", "first_name", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))
-            ),
-            response -> {
-                assertHitCount(response, 1L);
-                assertFirstHit(response, hasId("theone"));
-            }
+            )
         );
-        assertResponse(
+        assertResponses(response -> {
+            /*
+             * Doesn't find the one because "alpha 15" isn't a number and we don't
+             * break on spaces.
+             */
+            assertHitCount(response, 1L);
+            assertFirstHit(response, hasId("ultimate1"));
+        },
             prepareSearch("test").setQuery(
                 randomizeType(
                     multiMatchQuery("alpha 15", "first_name", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).lenient(true)
                 )
             ),
-            response -> {
-                /*
-                 * Doesn't find the one because "alpha 15" isn't a number and we don't
-                 * break on spaces.
-                 */
-                assertHitCount(response, 1L);
-                assertFirstHit(response, hasId("ultimate1"));
-            }
-        );
-        // Lenient wasn't always properly lenient with two numeric fields
-        assertResponse(
+            // Lenient wasn't always properly lenient with two numeric fields
             prepareSearch("test").setQuery(
                 randomizeType(
                     multiMatchQuery("alpha 15", "int-field", "first_name", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .lenient(true)
                 )
-            ),
-            response -> {
-                assertHitCount(response, 1L);
-                assertFirstHit(response, hasId("ultimate1"));
-            }
+            )
         );
         // Check that cross fields works with date fields
         assertResponse(
@@ -944,7 +862,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         assertNoFailures(right);
         SearchHits leftHits = left.getHits();
         SearchHits rightHits = right.getHits();
-        assertThat(leftHits.getTotalHits().value, equalTo(rightHits.getTotalHits().value));
+        assertThat(leftHits.getTotalHits().value(), equalTo(rightHits.getTotalHits().value()));
         assertThat(leftHits.getHits().length, equalTo(rightHits.getHits().length));
         SearchHit[] hits = leftHits.getHits();
         SearchHit[] rHits = rightHits.getHits();

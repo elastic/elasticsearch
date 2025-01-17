@@ -1,5 +1,5 @@
 // tag::cloud[]
-**Use {kib}**
+**Option 1: Use {kib}**
 
 //tag::kibana-api-ex[]
 . Open {kib}'s main menu ("*☰*" near Elastic logo) and go to **Dev Tools > Console**.
@@ -16,9 +16,9 @@ GET /
 
 //end::kibana-api-ex[]
 
-**Use curl**
+**Option 2: Use `curl`**
 
-To communicate with {es} using curl or another client, you need your cluster's
+To communicate with {es} using `curl` or another client, you need your cluster's
 endpoint.
 
 . Open {kib}'s main menu and click **Manage this deployment**.
@@ -26,7 +26,7 @@ endpoint.
 . From your deployment menu, go to the **Elasticsearch** page. Click **Copy
 endpoint**.
 
-. To submit an example API request, run the following curl command in a new
+. To submit an example API request, run the following `curl` command in a new
 terminal session. Replace `<password>` with the password for the `elastic` user.
 Replace `<elasticsearch_endpoint>` with your endpoint.
 +

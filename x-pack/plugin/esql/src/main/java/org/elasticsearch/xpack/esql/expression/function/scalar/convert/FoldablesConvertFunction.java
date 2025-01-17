@@ -8,9 +8,10 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -26,7 +27,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.foldToTemp
  * Base class for functions that converts a constant into an interval type - DATE_PERIOD or TIME_DURATION.
  * The functions will be folded at the end of LogicalPlanOptimizer by the coordinator, it does not reach data node.
  */
-public abstract class FoldablesConvertFunction extends AbstractConvertFunction implements Validatable {
+public abstract class FoldablesConvertFunction extends AbstractConvertFunction implements PostOptimizationVerificationAware {
 
     protected FoldablesConvertFunction(Source source, Expression field) {
         super(source, field);
@@ -59,17 +60,18 @@ public abstract class FoldablesConvertFunction extends AbstractConvertFunction i
 
     @Override
     protected final Map<DataType, BuildFactory> factories() {
-        // TODO if a union type field is provided as an input, the correct error message is not shown, #112668 is a follow up
+        // This is used by ResolveUnionTypes, which is expected to be applied to ES fields only
+        // FoldablesConvertFunction takes only constants as inputs, so this is empty
         return Map.of();
     }
 
     @Override
-    public final Object fold() {
-        return foldToTemporalAmount(field(), sourceText(), dataType());
+    public final Object fold(FoldContext ctx) {
+        return foldToTemporalAmount(ctx, field(), sourceText(), dataType());
     }
 
     @Override
-    public final void validate(Failures failures) {
+    public final void postOptimizationVerification(Failures failures) {
         failures.add(isFoldable(field(), sourceText(), null));
     }
 }

@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
@@ -36,7 +35,6 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -68,34 +66,6 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         // normally done by ESTestCase, but need here because spawner depends on logging
         LogConfigurator.loadLog4jPlugins();
         MockLog.init();
-    }
-
-    static class ExpectedStreamMessage implements MockLog.LoggingExpectation {
-        final String expectedLogger;
-        final String expectedMessage;
-        final CountDownLatch matched;
-        volatile boolean saw;
-
-        ExpectedStreamMessage(String logger, String message, CountDownLatch matched) {
-            this.expectedLogger = logger;
-            this.expectedMessage = message;
-            this.matched = matched;
-        }
-
-        @Override
-        public void match(LogEvent event) {
-            if (event.getLoggerName().equals(expectedLogger)
-                && event.getLevel().equals(Level.WARN)
-                && event.getMessage().getFormattedMessage().equals(expectedMessage)) {
-                saw = true;
-                matched.countDown();
-            }
-        }
-
-        @Override
-        public void assertMatched() {
-            assertTrue("Expected to see message [" + expectedMessage + "] on logger [" + expectedLogger + "]", saw);
-        }
     }
 
     /**
@@ -209,32 +179,32 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         String stderrLoggerName = "test_plugin-controller-stderr";
         Loggers.setLevel(LogManager.getLogger(stdoutLoggerName), Level.TRACE);
         Loggers.setLevel(LogManager.getLogger(stderrLoggerName), Level.TRACE);
-        CountDownLatch messagesLoggedLatch = new CountDownLatch(2);
 
-        try (var mockLog = MockLog.capture(stdoutLoggerName, stderrLoggerName)) {
-            if (expectSpawn) {
-                mockLog.addExpectation(new ExpectedStreamMessage(stdoutLoggerName, "I am alive", messagesLoggedLatch));
-                mockLog.addExpectation(new ExpectedStreamMessage(stderrLoggerName, "I am an error", messagesLoggedLatch));
+        if (expectSpawn) {
+            final Process process;
+            try (var mockLog = MockLog.capture(stdoutLoggerName, stderrLoggerName)) {
+                mockLog.addExpectation(new MockLog.SeenEventExpectation("stdout", stdoutLoggerName, Level.WARN, "I am alive"));
+                mockLog.addExpectation(new MockLog.SeenEventExpectation("stderr", stderrLoggerName, Level.WARN, "I am an error"));
+
+                try (var spawner = new Spawner()) {
+                    spawner.spawnNativeControllers(environment);
+                    List<Process> processes = spawner.getProcesses();
+
+                    // as there should only be a reference in the list for the module that had the controller daemon, we expect one here
+                    assertThat(processes, hasSize(1));
+                    process = processes.get(0);
+                    // fail if we don't get the expected log messages soonish
+                    mockLog.awaitAllExpectationsMatched();
+                }
             }
 
-            Spawner spawner = new Spawner();
-            spawner.spawnNativeControllers(environment);
-
-            List<Process> processes = spawner.getProcesses();
-
-            if (expectSpawn) {
-                // as there should only be a reference in the list for the module that had the controller daemon, we expect one here
-                assertThat(processes, hasSize(1));
-                Process process = processes.get(0);
-                // fail if we don't get the expected log messages within one second; usually it will be even quicker
-                assertTrue(messagesLoggedLatch.await(1, TimeUnit.SECONDS));
-                spawner.close();
-                // fail if the process does not die within one second; usually it will be even quicker but it depends on OS scheduling
-                assertTrue(process.waitFor(1, TimeUnit.SECONDS));
-            } else {
-                assertThat(processes, is(empty()));
+            // fail if the process does not die within one second; usually it will be even quicker but it depends on OS scheduling
+            assertTrue(process.waitFor(1, TimeUnit.SECONDS));
+        } else {
+            try (var spawner = new Spawner()) {
+                spawner.spawnNativeControllers(environment);
+                assertThat(spawner.getProcesses(), is(empty()));
             }
-            mockLog.assertAllExpectationsMatched();
         }
     }
 

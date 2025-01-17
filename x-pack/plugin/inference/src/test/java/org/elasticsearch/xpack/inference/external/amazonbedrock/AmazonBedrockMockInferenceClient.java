@@ -7,127 +7,71 @@
 
 package org.elasticsearch.xpack.inference.external.amazonbedrock;
 
-import com.amazonaws.services.bedrockruntime.AmazonBedrockRuntimeAsync;
-import com.amazonaws.services.bedrockruntime.model.ConverseResult;
-import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
+import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseRequest;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
+import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelRequest;
+import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.CompletableFuture;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class AmazonBedrockMockInferenceClient extends AmazonBedrockInferenceClient {
-    private ConverseResult converseResult = null;
-    private InvokeModelResult invokeModelResult = null;
-    private ElasticsearchException exceptionToThrow = null;
+    private CompletableFuture<ConverseResponse> converseResponseFuture = CompletableFuture.completedFuture(null);
+    private CompletableFuture<InvokeModelResponse> invokeModelResponseFuture = CompletableFuture.completedFuture(null);
 
-    private Future<ConverseResult> converseResultFuture = new MockConverseResultFuture();
-    private Future<InvokeModelResult> invokeModelResultFuture = new MockInvokeResultFuture();
-
-    public static AmazonBedrockBaseClient create(AmazonBedrockModel model, @Nullable TimeValue timeout) {
+    public static AmazonBedrockMockInferenceClient create(AmazonBedrockModel model, @Nullable TimeValue timeout) {
         return new AmazonBedrockMockInferenceClient(model, timeout);
     }
 
     protected AmazonBedrockMockInferenceClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
-        super(model, timeout);
+        super(model, timeout, mockThreadPool());
+    }
+
+    private static ThreadPool mockThreadPool() {
+        ThreadPool threadPool = mock();
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        return threadPool;
     }
 
     public void setExceptionToThrow(ElasticsearchException exceptionToThrow) {
-        this.exceptionToThrow = exceptionToThrow;
+        if (exceptionToThrow != null) {
+            this.converseResponseFuture = new CompletableFuture<>();
+            this.converseResponseFuture.completeExceptionally(exceptionToThrow);
+            this.invokeModelResponseFuture = new CompletableFuture<>();
+            this.invokeModelResponseFuture.completeExceptionally(exceptionToThrow);
+        }
     }
 
-    public void setConverseResult(ConverseResult result) {
-        this.converseResult = result;
+    public void setConverseResponse(ConverseResponse result) {
+        this.converseResponseFuture = CompletableFuture.completedFuture(result);
     }
 
-    public void setInvokeModelResult(InvokeModelResult result) {
-        this.invokeModelResult = result;
+    public void setInvokeModelResponse(InvokeModelResponse result) {
+        this.invokeModelResponseFuture = CompletableFuture.completedFuture(result);
     }
 
     @Override
-    protected AmazonBedrockRuntimeAsync createAmazonBedrockClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
-        var runtimeClient = mock(AmazonBedrockRuntimeAsync.class);
-        doAnswer(invocation -> invokeModelResultFuture).when(runtimeClient).invokeModelAsync(any());
-        doAnswer(invocation -> converseResultFuture).when(runtimeClient).converseAsync(any());
+    protected BedrockRuntimeAsyncClient createAmazonBedrockClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
+        var runtimeClient = mock(BedrockRuntimeAsyncClient.class);
+        doAnswer(invocation -> invokeModelResponseFuture).when(runtimeClient).invokeModel(any(InvokeModelRequest.class));
+        doAnswer(invocation -> converseResponseFuture).when(runtimeClient).converse(any(ConverseRequest.class));
 
         return runtimeClient;
     }
 
     @Override
     void close() {}
-
-    private class MockConverseResultFuture implements Future<ConverseResult> {
-        @Override
-        public boolean cancel(boolean mayInterruptIfRunning) {
-            return false;
-        }
-
-        @Override
-        public boolean isCancelled() {
-            return false;
-        }
-
-        @Override
-        public boolean isDone() {
-            return false;
-        }
-
-        @Override
-        public ConverseResult get() throws InterruptedException, ExecutionException {
-            if (exceptionToThrow != null) {
-                throw exceptionToThrow;
-            }
-            return converseResult;
-        }
-
-        @Override
-        public ConverseResult get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-            if (exceptionToThrow != null) {
-                throw exceptionToThrow;
-            }
-            return converseResult;
-        }
-    }
-
-    private class MockInvokeResultFuture implements Future<InvokeModelResult> {
-        @Override
-        public boolean cancel(boolean mayInterruptIfRunning) {
-            return false;
-        }
-
-        @Override
-        public boolean isCancelled() {
-            return false;
-        }
-
-        @Override
-        public boolean isDone() {
-            return false;
-        }
-
-        @Override
-        public InvokeModelResult get() throws InterruptedException, ExecutionException {
-            if (exceptionToThrow != null) {
-                throw exceptionToThrow;
-            }
-            return invokeModelResult;
-        }
-
-        @Override
-        public InvokeModelResult get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-            if (exceptionToThrow != null) {
-                throw exceptionToThrow;
-            }
-            return invokeModelResult;
-        }
-    }
 }

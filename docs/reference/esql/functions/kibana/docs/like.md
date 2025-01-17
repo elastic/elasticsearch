@@ -15,6 +15,6 @@ The following wildcard characters are supported:
 
 ```
 FROM employees
-| WHERE first_name LIKE "?b*"
+| WHERE first_name LIKE """?b*"""
 | KEEP first_name, last_name
 ```

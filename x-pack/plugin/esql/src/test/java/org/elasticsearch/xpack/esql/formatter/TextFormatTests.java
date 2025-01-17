@@ -123,17 +123,17 @@ public class TextFormatTests extends ESTestCase {
     public void testCsvFormatWithRegularData() {
         String text = format(CSV, req(), regularData());
         assertEquals("""
-            string,number,location,location2\r
-            Along The River Bank,708,POINT (12.0 56.0),POINT (1234.0 5678.0)\r
-            Mind Train,280,POINT (-97.0 26.0),POINT (-9753.0 2611.0)\r
+            string,number,location,location2,null_field\r
+            Along The River Bank,708,POINT (12.0 56.0),POINT (1234.0 5678.0),\r
+            Mind Train,280,POINT (-97.0 26.0),POINT (-9753.0 2611.0),\r
             """, text);
     }
 
     public void testCsvFormatNoHeaderWithRegularData() {
         String text = format(CSV, reqWithParam("header", "absent"), regularData());
         assertEquals("""
-            Along The River Bank,708,POINT (12.0 56.0),POINT (1234.0 5678.0)\r
-            Mind Train,280,POINT (-97.0 26.0),POINT (-9753.0 2611.0)\r
+            Along The River Bank,708,POINT (12.0 56.0),POINT (1234.0 5678.0),\r
+            Mind Train,280,POINT (-97.0 26.0),POINT (-9753.0 2611.0),\r
             """, text);
     }
 
@@ -146,20 +146,25 @@ public class TextFormatTests extends ESTestCase {
             "number",
             "location",
             "location2",
+            "null_field",
             "Along The River Bank",
             "708",
             "POINT (12.0 56.0)",
             "POINT (1234.0 5678.0)",
+            "",
             "Mind Train",
             "280",
             "POINT (-97.0 26.0)",
-            "POINT (-9753.0 2611.0)"
+            "POINT (-9753.0 2611.0)",
+            ""
         );
         List<String> expectedTerms = terms.stream()
             .map(x -> x.contains(String.valueOf(delim)) ? '"' + x + '"' : x)
             .collect(Collectors.toList());
         StringBuffer sb = new StringBuffer();
         do {
+            sb.append(expectedTerms.remove(0));
+            sb.append(delim);
             sb.append(expectedTerms.remove(0));
             sb.append(delim);
             sb.append(expectedTerms.remove(0));
@@ -175,9 +180,9 @@ public class TextFormatTests extends ESTestCase {
     public void testTsvFormatWithRegularData() {
         String text = format(TSV, req(), regularData());
         assertEquals("""
-            string\tnumber\tlocation\tlocation2
-            Along The River Bank\t708\tPOINT (12.0 56.0)\tPOINT (1234.0 5678.0)
-            Mind Train\t280\tPOINT (-97.0 26.0)\tPOINT (-9753.0 2611.0)
+            string\tnumber\tlocation\tlocation2\tnull_field
+            Along The River Bank\t708\tPOINT (12.0 56.0)\tPOINT (1234.0 5678.0)\t
+            Mind Train\t280\tPOINT (-97.0 26.0)\tPOINT (-9753.0 2611.0)\t
             """, text);
     }
 
@@ -241,12 +246,30 @@ public class TextFormatTests extends ESTestCase {
     public void testPlainTextEmptyCursorWithoutColumns() {
         assertEquals(
             StringUtils.EMPTY,
-            getTextBodyContent(PLAIN_TEXT.format(req(), new EsqlQueryResponse(emptyList(), emptyList(), null, false, false)))
+            getTextBodyContent(PLAIN_TEXT.format(req(), new EsqlQueryResponse(emptyList(), emptyList(), null, false, false, null)))
         );
     }
 
+    public void testCsvFormatWithDropNullColumns() {
+        String text = format(CSV, reqWithParam("drop_null_columns", "true"), regularData());
+        assertEquals("""
+            string,number,location,location2\r
+            Along The River Bank,708,POINT (12.0 56.0),POINT (1234.0 5678.0)\r
+            Mind Train,280,POINT (-97.0 26.0),POINT (-9753.0 2611.0)\r
+            """, text);
+    }
+
+    public void testTsvFormatWithDropNullColumns() {
+        String text = format(TSV, reqWithParam("drop_null_columns", "true"), regularData());
+        assertEquals("""
+            string\tnumber\tlocation\tlocation2
+            Along The River Bank\t708\tPOINT (12.0 56.0)\tPOINT (1234.0 5678.0)
+            Mind Train\t280\tPOINT (-97.0 26.0)\tPOINT (-9753.0 2611.0)
+            """, text);
+    }
+
     private static EsqlQueryResponse emptyData() {
-        return new EsqlQueryResponse(singletonList(new ColumnInfoImpl("name", "keyword")), emptyList(), null, false, false);
+        return new EsqlQueryResponse(singletonList(new ColumnInfoImpl("name", "keyword")), emptyList(), null, false, false, null);
     }
 
     private static EsqlQueryResponse regularData() {
@@ -256,7 +279,8 @@ public class TextFormatTests extends ESTestCase {
             new ColumnInfoImpl("string", "keyword"),
             new ColumnInfoImpl("number", "integer"),
             new ColumnInfoImpl("location", "geo_point"),
-            new ColumnInfoImpl("location2", "cartesian_point")
+            new ColumnInfoImpl("location2", "cartesian_point"),
+            new ColumnInfoImpl("null_field", "keyword")
         );
 
         BytesRefArray geoPoints = new BytesRefArray(2, BigArrays.NON_RECYCLING_INSTANCE);
@@ -274,11 +298,12 @@ public class TextFormatTests extends ESTestCase {
                 blockFactory.newBytesRefBlockBuilder(2)
                     .appendBytesRef(CARTESIAN.asWkb(new Point(1234, 5678)))
                     .appendBytesRef(CARTESIAN.asWkb(new Point(-9753, 2611)))
-                    .build()
+                    .build(),
+                blockFactory.newConstantNullBlock(2)
             )
         );
 
-        return new EsqlQueryResponse(headers, values, null, false, false);
+        return new EsqlQueryResponse(headers, values, null, false, false, null);
     }
 
     private static EsqlQueryResponse escapedData() {
@@ -299,7 +324,7 @@ public class TextFormatTests extends ESTestCase {
             )
         );
 
-        return new EsqlQueryResponse(headers, values, null, false, false);
+        return new EsqlQueryResponse(headers, values, null, false, false, null);
     }
 
     private static RestRequest req() {

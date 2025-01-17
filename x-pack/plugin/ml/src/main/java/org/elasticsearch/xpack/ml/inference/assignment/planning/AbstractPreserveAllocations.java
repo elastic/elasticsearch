@@ -54,7 +54,7 @@ abstract class AbstractPreserveAllocations {
         }
 
         return new Deployment(
-            m.id(),
+            m.deploymentId(),
             m.memoryBytes(),
             m.allocations() - calculatePreservedAllocations(m),
             m.threadsPerAllocation(),
@@ -71,11 +71,14 @@ abstract class AbstractPreserveAllocations {
         // they will not match the models/nodes members we have in this class.
         // Therefore, we build a lookup table based on the ids, so we can merge the plan
         // with its preserved allocations.
-        final Map<Tuple<String, String>, Integer> plannedAssignmentsByModelNodeIdPair = new HashMap<>();
-        for (Deployment m : assignmentPlan.models()) {
-            Map<Node, Integer> assignments = assignmentPlan.assignments(m).orElse(Map.of());
-            for (Map.Entry<Node, Integer> nodeAssignment : assignments.entrySet()) {
-                plannedAssignmentsByModelNodeIdPair.put(Tuple.tuple(m.id(), nodeAssignment.getKey().id()), nodeAssignment.getValue());
+        final Map<Tuple<String, String>, Integer> plannedAssignmentsByDeploymentNodeIdPair = new HashMap<>();
+        for (Deployment d : assignmentPlan.deployments()) {
+            Map<Node, Integer> assignmentsOfDeployment = assignmentPlan.assignments(d).orElse(Map.of());
+            for (Map.Entry<Node, Integer> nodeAssignment : assignmentsOfDeployment.entrySet()) {
+                plannedAssignmentsByDeploymentNodeIdPair.put(
+                    Tuple.tuple(d.deploymentId(), nodeAssignment.getKey().id()),
+                    nodeAssignment.getValue()
+                );
             }
         }
 
@@ -93,8 +96,8 @@ abstract class AbstractPreserveAllocations {
                 }
             }
             for (Deployment deploymentNewAllocations : deployments) {
-                int newAllocations = plannedAssignmentsByModelNodeIdPair.getOrDefault(
-                    Tuple.tuple(deploymentNewAllocations.id(), n.id()),
+                int newAllocations = plannedAssignmentsByDeploymentNodeIdPair.getOrDefault(
+                    Tuple.tuple(deploymentNewAllocations.deploymentId(), n.id()),
                     0
                 );
 

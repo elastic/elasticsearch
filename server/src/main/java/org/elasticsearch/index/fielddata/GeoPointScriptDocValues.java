@@ -67,6 +67,6 @@ public final class GeoPointScriptDocValues extends AbstractSortedNumericDocValue
     public long nextValue() {
         int lat = GeoEncodingUtils.encodeLatitude(script.lats()[cursor]);
         int lon = GeoEncodingUtils.encodeLongitude(script.lons()[cursor++]);
-        return Long.valueOf((((long) lat) << 32) | (lon & 0xFFFFFFFFL));
+        return (((long) lat) << 32) | (lon & 0xFFFFFFFFL);
     }
 }

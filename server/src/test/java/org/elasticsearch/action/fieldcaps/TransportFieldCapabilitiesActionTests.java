@@ -87,9 +87,10 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
                 null
             );
 
-            IllegalArgumentException ex = asInstanceOf(
+            IllegalArgumentException ex = safeAwaitFailure(
                 IllegalArgumentException.class,
-                safeAwaitFailure(FieldCapabilitiesResponse.class, l -> action.doExecute(null, fieldCapsRequest, l))
+                FieldCapabilitiesResponse.class,
+                l -> action.doExecute(null, fieldCapsRequest, l)
             );
 
             assertThat(

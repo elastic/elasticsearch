@@ -139,7 +139,7 @@ public class CustomElandInternalTextEmbeddingServiceSettings extends Elasticsear
 
     public CustomElandInternalTextEmbeddingServiceSettings(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ELAND_SETTINGS_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             dimensions = in.readOptionalVInt();
             similarityMeasure = in.readEnum(SimilarityMeasure.class);
             elementType = in.readEnum(DenseVectorFieldMapper.ElementType.class);
@@ -197,7 +197,7 @@ public class CustomElandInternalTextEmbeddingServiceSettings extends Elasticsear
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ELAND_SETTINGS_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeOptionalVInt(dimensions);
             out.writeEnum(similarityMeasure);
             out.writeEnum(elementType);

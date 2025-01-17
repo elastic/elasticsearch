@@ -24,9 +24,11 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.mockfile.HandleLimitFS;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -168,7 +170,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             DataPartitioning.SHARD,
             randomIntBetween(1, 10),
             pageSize,
-            LuceneOperator.NO_LIMIT
+            LuceneOperator.NO_LIMIT,
+            false // no scoring
         );
         return luceneFactory.get(context);
     }
@@ -500,7 +503,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
             @Override
             public IndexSettings indexSettings() {
-                throw new UnsupportedOperationException();
+                var imd = IndexMetadata.builder("test_index")
+                    .settings(ValueSourceReaderTypeConversionTests.indexSettings(IndexVersion.current(), 1, 1).put(Settings.EMPTY))
+                    .build();
+                return new IndexSettings(imd, Settings.EMPTY);
             }
 
             @Override
@@ -1296,7 +1302,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             randomFrom(DataPartitioning.values()),
             randomIntBetween(1, 10),
             randomPageSize(),
-            LuceneOperator.NO_LIMIT
+            LuceneOperator.NO_LIMIT,
+            false // no scoring
         );
         try (
             Driver driver = new Driver(
@@ -1519,7 +1526,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 DataPartitioning.SHARD,
                 randomIntBetween(1, 10),
                 1000,
-                LuceneOperator.NO_LIMIT
+                LuceneOperator.NO_LIMIT,
+                false // no scoring
             );
             MappedFieldType ft = mapperService.fieldType("key");
             var readerFactory = new ValuesSourceReaderOperator.Factory(

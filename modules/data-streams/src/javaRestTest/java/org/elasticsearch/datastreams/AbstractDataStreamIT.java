@@ -44,6 +44,8 @@ public abstract class AbstractDataStreamIT extends ESRestTestCase {
         // Disable apm-data so the index templates it installs do not impact
         // tests such as testIgnoreDynamicBeyondLimit.
         .setting("xpack.apm_data.enabled", "false")
+        .setting("xpack.otel_data.registry.enabled", "false")
+        .setting("cluster.logsdb.enabled", "false")
         .build();
     protected RestClient client;
 

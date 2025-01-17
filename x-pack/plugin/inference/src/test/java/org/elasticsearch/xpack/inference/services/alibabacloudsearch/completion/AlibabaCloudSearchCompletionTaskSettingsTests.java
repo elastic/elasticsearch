@@ -13,9 +13,11 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionTaskSettings.PARAMETERS;
 import static org.hamcrest.Matchers.is;
 
 public class AlibabaCloudSearchCompletionTaskSettingsTests extends AbstractWireSerializingTestCase<
@@ -31,6 +33,22 @@ public class AlibabaCloudSearchCompletionTaskSettingsTests extends AbstractWireS
             AlibabaCloudSearchCompletionTaskSettings.fromMap(Map.of()),
             is(new AlibabaCloudSearchCompletionTaskSettings((Map<String, Object>) null))
         );
+    }
+
+    public void testUpdatedTaskSettings() {
+        var initialSettings = createRandom();
+        var newSettings = createRandom();
+        Map<String, Object> newSettingsMap = new HashMap<>();
+        if (newSettings.getParameters() != null) {
+            newSettingsMap.put(PARAMETERS, newSettings.getParameters());
+        }
+        AlibabaCloudSearchCompletionTaskSettings updatedSettings = (AlibabaCloudSearchCompletionTaskSettings) initialSettings
+            .updatedTaskSettings(Collections.unmodifiableMap(newSettingsMap));
+        if (newSettings.getParameters() == null) {
+            assertEquals(initialSettings.getParameters(), updatedSettings.getParameters());
+        } else {
+            assertEquals(newSettings.getParameters(), updatedSettings.getParameters());
+        }
     }
 
     @Override
@@ -53,7 +71,7 @@ public class AlibabaCloudSearchCompletionTaskSettingsTests extends AbstractWireS
         var map = new HashMap<String, Object>();
 
         if (params != null) {
-            map.put(AlibabaCloudSearchCompletionTaskSettings.PARAMETERS, params);
+            map.put(PARAMETERS, params);
         }
 
         return map;

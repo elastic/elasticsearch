@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.TaskType;
 
@@ -65,11 +66,12 @@ public class CustomElandModelIT extends InferenceBaseRestTest {
     public void testSparse() throws IOException {
         String modelId = "custom-text-expansion-model";
 
-        createTextExpansionModel(modelId);
-        putModelDefinition(modelId, BASE_64_ENCODED_MODEL, RAW_MODEL_SIZE);
+        createTextExpansionModel(modelId, client());
+        putModelDefinition(modelId, BASE_64_ENCODED_MODEL, RAW_MODEL_SIZE, client());
         putVocabulary(
             List.of("these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"),
-            modelId
+            modelId,
+            client()
         );
 
         var inferenceConfig = """
@@ -85,12 +87,12 @@ public class CustomElandModelIT extends InferenceBaseRestTest {
 
         var inferenceId = "sparse-inf";
         putModel(inferenceId, inferenceConfig, TaskType.SPARSE_EMBEDDING);
-        var results = inferOnMockService(inferenceId, List.of("washing", "machine"));
+        var results = infer(inferenceId, List.of("washing", "machine"));
         deleteModel(inferenceId);
         assertNotNull(results.get("sparse_embedding"));
     }
 
-    protected void createTextExpansionModel(String modelId) throws IOException {
+    static void createTextExpansionModel(String modelId, RestClient client) throws IOException {
         // with_special_tokens: false for this test with limited vocab
         Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
         request.setJsonEntity("""
@@ -107,10 +109,10 @@ public class CustomElandModelIT extends InferenceBaseRestTest {
                  }
                }
              }""");
-        client().performRequest(request);
+        client.performRequest(request);
     }
 
-    protected void putVocabulary(List<String> vocabulary, String modelId) throws IOException {
+    static void putVocabulary(List<String> vocabulary, String modelId, RestClient client) throws IOException {
         List<String> vocabularyWithPad = new ArrayList<>();
         vocabularyWithPad.add("[PAD]");
         vocabularyWithPad.add("[UNK]");
@@ -121,14 +123,27 @@ public class CustomElandModelIT extends InferenceBaseRestTest {
         request.setJsonEntity(Strings.format("""
             { "vocabulary": [%s] }
             """, quotedWords));
-        client().performRequest(request);
+        client.performRequest(request);
     }
 
-    protected void putModelDefinition(String modelId, String base64EncodedModel, long unencodedModelSize) throws IOException {
+    static void putModelDefinition(String modelId, String base64EncodedModel, long unencodedModelSize, RestClient client)
+        throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
         String body = Strings.format("""
             {"total_definition_length":%s,"definition": "%s","total_parts": 1}""", unencodedModelSize, base64EncodedModel);
         request.setJsonEntity(body);
-        client().performRequest(request);
+        client.performRequest(request);
     }
+
+    // Create the model including definition and vocab
+    static void createMlNodeTextExpansionModel(String modelId, RestClient client) throws IOException {
+        createTextExpansionModel(modelId, client);
+        putModelDefinition(modelId, BASE_64_ENCODED_MODEL, RAW_MODEL_SIZE, client);
+        putVocabulary(
+            List.of("these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"),
+            modelId,
+            client
+        );
+    }
+
 }

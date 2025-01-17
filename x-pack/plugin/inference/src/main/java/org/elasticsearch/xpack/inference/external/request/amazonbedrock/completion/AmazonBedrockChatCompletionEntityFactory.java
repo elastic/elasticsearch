@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.Amazo
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockConverseUtils.additionalTopK;
+
 public final class AmazonBedrockChatCompletionEntityFactory {
     public static AmazonBedrockConverseRequestEntity createEntity(AmazonBedrockChatCompletionModel model, List<String> messages) {
         Objects.requireNonNull(model);
@@ -19,55 +21,21 @@ public final class AmazonBedrockChatCompletionEntityFactory {
         var serviceSettings = model.getServiceSettings();
         var taskSettings = model.getTaskSettings();
         switch (serviceSettings.provider()) {
-            case AI21LABS -> {
-                return new AmazonBedrockAI21LabsCompletionRequestEntity(
+            case AI21LABS, AMAZONTITAN, META -> {
+                return new AmazonBedrockConverseRequestEntity(
                     messages,
                     taskSettings.temperature(),
                     taskSettings.topP(),
                     taskSettings.maxNewTokens()
                 );
             }
-            case AMAZONTITAN -> {
-                return new AmazonBedrockTitanCompletionRequestEntity(
+            case ANTHROPIC, COHERE, MISTRAL -> {
+                return new AmazonBedrockConverseRequestEntity(
                     messages,
                     taskSettings.temperature(),
                     taskSettings.topP(),
-                    taskSettings.maxNewTokens()
-                );
-            }
-            case ANTHROPIC -> {
-                return new AmazonBedrockAnthropicCompletionRequestEntity(
-                    messages,
-                    taskSettings.temperature(),
-                    taskSettings.topP(),
-                    taskSettings.topK(),
-                    taskSettings.maxNewTokens()
-                );
-            }
-            case COHERE -> {
-                return new AmazonBedrockCohereCompletionRequestEntity(
-                    messages,
-                    taskSettings.temperature(),
-                    taskSettings.topP(),
-                    taskSettings.topK(),
-                    taskSettings.maxNewTokens()
-                );
-            }
-            case META -> {
-                return new AmazonBedrockMetaCompletionRequestEntity(
-                    messages,
-                    taskSettings.temperature(),
-                    taskSettings.topP(),
-                    taskSettings.maxNewTokens()
-                );
-            }
-            case MISTRAL -> {
-                return new AmazonBedrockMistralCompletionRequestEntity(
-                    messages,
-                    taskSettings.temperature(),
-                    taskSettings.topP(),
-                    taskSettings.topK(),
-                    taskSettings.maxNewTokens()
+                    taskSettings.maxNewTokens(),
+                    additionalTopK(taskSettings.topK())
                 );
             }
             default -> {

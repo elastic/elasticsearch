@@ -32,7 +32,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -1811,74 +1810,6 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         };
         autoFollower.start();
         assertThat(counter.get(), equalTo(states.length));
-    }
-
-    @UpdateForV9
-    @AwaitsFix(bugUrl = "ability to disable soft deletes was removed in 8.0 indexes so we can probably remove this test")
-    public void testAutoFollowerSoftDeletesDisabled() {
-        Client client = mock(Client.class);
-        when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(new RedirectToLocalClusterRemoteClusterClient(client));
-
-        ClusterState remoteState = createRemoteClusterState("logs-20190101", false);
-
-        AutoFollowPattern autoFollowPattern = createAutoFollowPattern("remote", "logs-*");
-        Map<String, AutoFollowPattern> patterns = new HashMap<>();
-        patterns.put("remote", autoFollowPattern);
-        Map<String, List<String>> followedLeaderIndexUUIDS = new HashMap<>();
-        followedLeaderIndexUUIDS.put("remote", new ArrayList<>());
-        Map<String, Map<String, String>> autoFollowHeaders = new HashMap<>();
-        autoFollowHeaders.put("remote", Map.of("key", "val"));
-        AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, autoFollowHeaders);
-
-        ClusterState currentState = ClusterState.builder(new ClusterName("name"))
-            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
-            .build();
-
-        List<AutoFollowCoordinator.AutoFollowResult> results = new ArrayList<>();
-        Consumer<List<AutoFollowCoordinator.AutoFollowResult>> handler = results::addAll;
-        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(currentState), () -> 1L, Runnable::run) {
-            @Override
-            void getRemoteClusterState(String remoteCluster, long metadataVersion, BiConsumer<ClusterStateResponse, Exception> handler) {
-                assertThat(remoteCluster, equalTo("remote"));
-                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, false), null);
-            }
-
-            @Override
-            void createAndFollow(
-                Map<String, String> headers,
-                PutFollowAction.Request followRequest,
-                Runnable successHandler,
-                Consumer<Exception> failureHandler
-            ) {
-                fail("soft deletes are disabled; index should not be followed");
-            }
-
-            @Override
-            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
-                ClusterState resultCs = updateFunction.apply(currentState);
-                AutoFollowMetadata result = resultCs.metadata().custom(AutoFollowMetadata.TYPE);
-                assertThat(result.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
-                assertThat(result.getFollowedLeaderIndexUUIDs().get("remote").size(), equalTo(1));
-                handler.accept(null);
-            }
-
-            @Override
-            void cleanFollowedRemoteIndices(ClusterState remoteClusterState, List<String> patterns) {
-                // Ignore, to avoid invoking updateAutoFollowMetadata(...) twice
-            }
-        };
-        autoFollower.start();
-
-        assertThat(results.size(), equalTo(1));
-        assertThat(results.get(0).clusterStateFetchException, nullValue());
-        List<Map.Entry<Index, Exception>> entries = new ArrayList<>(results.get(0).autoFollowExecutionResults.entrySet());
-        assertThat(entries.size(), equalTo(1));
-        assertThat(entries.get(0).getKey().getName(), equalTo("logs-20190101"));
-        assertThat(entries.get(0).getValue(), notNullValue());
-        assertThat(
-            entries.get(0).getValue().getMessage(),
-            equalTo("index [logs-20190101] cannot be followed, " + "because soft deletes are not enabled")
-        );
     }
 
     public void testAutoFollowerFollowerIndexAlreadyExists() {

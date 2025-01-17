@@ -268,18 +268,19 @@ public class QueryStringQueryParser extends QueryParser {
             if (allFields && this.field != null && this.field.equals(field)) {
                 // "*" is the default field
                 extractedFields = fieldsAndWeights;
+            } else {
+                boolean multiFields = Regex.isSimpleMatchPattern(field);
+                // Filters unsupported fields if a pattern is requested
+                // Filters metadata fields if all fields are requested
+                extractedFields = resolveMappingField(
+                    context,
+                    field,
+                    1.0f,
+                    allFields == false,
+                    multiFields == false,
+                    quoted ? quoteFieldSuffix : null
+                );
             }
-            boolean multiFields = Regex.isSimpleMatchPattern(field);
-            // Filters unsupported fields if a pattern is requested
-            // Filters metadata fields if all fields are requested
-            extractedFields = resolveMappingField(
-                context,
-                field,
-                1.0f,
-                allFields == false,
-                multiFields == false,
-                quoted ? quoteFieldSuffix : null
-            );
         } else if (quoted && quoteFieldSuffix != null) {
             extractedFields = resolveMappingFields(context, fieldsAndWeights, quoteFieldSuffix);
         } else {
@@ -760,7 +761,14 @@ public class QueryStringQueryParser extends QueryParser {
                 setAnalyzer(forceAnalyzer);
                 return super.getRegexpQuery(field, termStr);
             }
-            return currentFieldType.regexpQuery(termStr, RegExp.ALL, 0, getDeterminizeWorkLimit(), getMultiTermRewriteMethod(), context);
+            return currentFieldType.regexpQuery(
+                termStr,
+                RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT,
+                0,
+                getDeterminizeWorkLimit(),
+                getMultiTermRewriteMethod(),
+                context
+            );
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);

@@ -296,7 +296,8 @@ public class ServiceAccountIT extends ESRestTestCase {
                     "monitor",
                     "create_index",
                     "auto_configure",
-                    "maintenance"
+                    "maintenance",
+                    "view_index_metadata"
                   ],
                   "allow_restricted_indices": false
                 },
@@ -311,7 +312,23 @@ public class ServiceAccountIT extends ESRestTestCase {
                     "monitor",
                     "create_index",
                     "auto_configure",
-                    "maintenance"
+                    "maintenance",
+                    "view_index_metadata"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    "agentless-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance",
+                    "view_index_metadata"
                   ],
                   "allow_restricted_indices": false
                 }

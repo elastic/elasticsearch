@@ -21,10 +21,13 @@
 
 package org.elasticsearch.tdigest.arrays;
 
+import org.apache.lucene.util.Accountable;
+import org.elasticsearch.core.Releasable;
+
 /**
  * Minimal interface for ByteArray-like classes used within TDigest.
  */
-public interface TDigestByteArray {
+public interface TDigestByteArray extends Releasable, Accountable {
     int size();
 
     byte get(int index);

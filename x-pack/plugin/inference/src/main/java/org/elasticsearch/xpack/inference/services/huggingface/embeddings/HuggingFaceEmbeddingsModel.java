@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.huggingface.embeddings;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -26,6 +27,7 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
@@ -34,6 +36,7 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
             taskType,
             service,
             HuggingFaceServiceSettings.fromMap(serviceSettings, context),
+            chunkingSettings,
             DefaultSecretSettings.fromMap(secrets)
         );
     }
@@ -44,10 +47,11 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
         TaskType taskType,
         String service,
         HuggingFaceServiceSettings serviceSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, chunkingSettings),
             new ModelSecrets(secrets),
             serviceSettings,
             secrets
@@ -60,6 +64,7 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
             model.getTaskType(),
             model.getConfigurations().getService(),
             serviceSettings,
+            model.getConfigurations().getChunkingSettings(),
             model.getSecretSettings()
         );
     }

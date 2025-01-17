@@ -29,7 +29,7 @@ public class RestPutDatabaseConfigurationAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/_ingest/geoip/database/{id}"));
+        return List.of(new Route(PUT, "/_ingest/ip_location/database/{id}"), new Route(PUT, "/_ingest/geoip/database/{id}"));
     }
 
     @Override

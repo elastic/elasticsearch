@@ -58,7 +58,7 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
     }
 
     @Override
-    protected void doClose() {
+    public void close() {
         preallocated.close();
     }
 
@@ -109,8 +109,8 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
             if (closed) {
                 throw new IllegalStateException("already closed");
             }
-            if (preallocationUsed == preallocated) {
-                // Preallocation buffer was full before this request
+            if (preallocationUsed == preallocated || bytes == 0L) {
+                // Preallocation buffer was full before this request or we are checking the parent circuit breaker
                 next.addEstimateBytesAndMaybeBreak(bytes, label);
                 return;
             }

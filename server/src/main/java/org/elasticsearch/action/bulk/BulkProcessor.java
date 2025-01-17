@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -83,7 +84,7 @@ public class BulkProcessor implements Closeable {
         private final Runnable onClose;
         private int concurrentRequests = 1;
         private int bulkActions = 1000;
-        private ByteSizeValue bulkSize = new ByteSizeValue(5, ByteSizeUnit.MB);
+        private ByteSizeValue bulkSize = ByteSizeValue.of(5, ByteSizeUnit.MB);
         private TimeValue flushInterval = null;
         private BackoffPolicy backoffPolicy = BackoffPolicy.exponentialBackoff();
         private String globalIndex;
@@ -165,7 +166,7 @@ public class BulkProcessor implements Closeable {
          *
          * The default is to back off exponentially.
          *
-         * @see org.elasticsearch.action.bulk.BackoffPolicy#exponentialBackoff()
+         * @see BackoffPolicy#exponentialBackoff()
          */
         public Builder setBackoffPolicy(BackoffPolicy backoffPolicy) {
             if (backoffPolicy == null) {

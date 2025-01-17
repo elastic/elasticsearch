@@ -13,7 +13,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene99.Lucene99Codec;
+import org.apache.lucene.codecs.lucene100.Lucene100Codec;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.mapper.MapperService;
@@ -22,11 +22,11 @@ import org.elasticsearch.index.mapper.MapperService;
  * Legacy version of {@link PerFieldMapperCodec}. This codec is preserved to give an escape hatch in case we encounter issues with new
  * changes in {@link PerFieldMapperCodec}.
  */
-public final class LegacyPerFieldMapperCodec extends Lucene99Codec {
+public final class LegacyPerFieldMapperCodec extends Lucene100Codec {
 
     private final PerFieldFormatSupplier formatSupplier;
 
-    public LegacyPerFieldMapperCodec(Lucene99Codec.Mode compressionMode, MapperService mapperService, BigArrays bigArrays) {
+    public LegacyPerFieldMapperCodec(Lucene100Codec.Mode compressionMode, MapperService mapperService, BigArrays bigArrays) {
         super(compressionMode);
         this.formatSupplier = new PerFieldFormatSupplier(mapperService, bigArrays);
         // If the below assertion fails, it is a sign that Lucene released a new codec. You must create a copy of the current Elasticsearch

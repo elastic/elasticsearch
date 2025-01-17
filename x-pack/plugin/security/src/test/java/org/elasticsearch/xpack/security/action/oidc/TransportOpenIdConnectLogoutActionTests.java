@@ -102,6 +102,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
             .put("path.home", createTempDir())
             .build();
         final ThreadContext threadContext = new ThreadContext(settings);
+        final var defaultContext = threadContext.newStoredContext();
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         AuthenticationTestHelper.builder()
@@ -174,7 +175,11 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
         when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
 
-        final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        final ClusterService clusterService;
+        try (var ignored = threadContext.newStoredContext()) {
+            defaultContext.restore();
+            clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        }
 
         final MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);

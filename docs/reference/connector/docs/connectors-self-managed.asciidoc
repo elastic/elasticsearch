@@ -1,0 +1,123 @@
+[#es-build-connector]
+== Self-managed connectors
+
+.Naming history
+****
+Self-managed connectors were initially known as "connector clients". You might find this term in older documentation.
+****
+
+Self-managed <<es-connectors,Elastic connectors>> are run on your own infrastructure.
+This means they run outside of your Elastic deployment.
+
+You can run the <<es-connectors-deploy-connector-service, connectors service>> from source or from a Docker container.
+
+We also have a quickstart option using *Docker Compose*, to spin up all the required services at once: Elasticsearch, Kibana, and the connectors service.
+Refer to <<es-connectors-docker-compose-quickstart>> for more information.
+
+The following connectors are available as self-managed connectors:
+
+include::_connectors-list-clients.asciidoc[]
+
+[discrete#es-build-connector-prerequisites]
+=== Availability and Elastic prerequisites
+
+[NOTE]
+====
+Self-managed connectors currently don't support Windows.
+Use this https://www.elastic.co/support/matrix#matrix_os[compatibility matrix^] to check which operating systems are supported by self-managed connectors.
+Find this information under *self-managed connectors* on that page.
+====
+
+.*Expand* for Elastic prerequisites information
+[%collapsible]
+====
+Your Elastic deployment must include the following Elastic services:
+
+* *Elasticsearch*
+* *Kibana*
+
+(A new Elastic Cloud deployment includes these services by default.)
+
+To run self-managed connectors, your self-deployed connector service version must match your Elasticsearch version.
+For example, if you're running Elasticsearch 8.10.1, your connector service should be version 8.10.1.x.
+Elastic does not support deployments running mismatched versions (except during upgrades).
+
+[NOTE]
+======
+As of 8.10.0 _new_ self-managed connectors no longer require the Enterprise Search service.
+However, if you are upgrading connectors from versions earlier than 8.9, you'll need to run Enterprise Search once to migrate your connectors to the new format.
+In future releases, you may still need to run Enterprise Search for the purpose of migrations or upgrades.
+======
+
+You must have access to Kibana and have `write` {ref}/security-privileges.html[indices privileges^] for the `.elastic-connectors` index.
+
+To use connector clients in a self-managed environment, you must deploy the <<es-connectors-deploy-connector-service, connectors service>>.
+
+*Support and licensing requirements*
+
+Depending on how you use self-managed connectors, support and licensing requirements will vary.
+
+Refer to the following subscriptions pages for details.
+Find your connector of interest in the *Elastic Search* section under *Client Integrations*:
+
+* https://www.elastic.co/subscriptions/[Elastic self-managed subscriptions page]
+* https://www.elastic.co/subscriptions/cloud[Elastic Cloud subscriptions page]
+
+Note the following information regarding support for self-managed connectors:
+
+* A converted but _unmodified_ managed connector is supported by Elastic.
+* A converted but _customized_ managed connector is _not_ supported by Elastic.
+
+====
+
+[discrete#es-build-connector-data-source-prerequisites]
+.Data source prerequisites
+****
+The first decision you need to make before deploying a connector is which third party service (data source) you want to sync to Elasticsearch.
+Note that each data source will have specific prerequisites you'll need to meet to authorize the connector to access its data.
+For example, certain data sources may require you to create an OAuth application, or create a service account.
+
+You'll need to check the individual connector documentation for these details.
+****
+
+[discrete#es-connectors-deploy-connector-service]
+=== Deploy the connector service
+
+The connector service is a Python application that you must run on your own infrastructure when using self-managed connectors.
+The source code is hosted in the https://github.com/elastic/connectors[elastic/connectors^] repository.
+
+You can run the connector service from source or use Docker:
+
+* <<es-connectors-run-from-source, Run the connectors from source>>. Use this option if you're comfortable working with Python and want to iterate quickly locally.
+* <<es-connectors-run-from-docker, Run the connectors from Docker>>. Use this option if you want to deploy the connectors to a server, or use a container orchestration platform.
+** Refer to our <<es-connectors-docker-compose-quickstart, Docker Compose quickstart>> for a quick way to spin up all the required services at once.
+
+[discrete#es-build-connector-example]
+=== Tutorials
+
+* Follow our <<es-postgresql-connector-client-tutorial, UI-based tutorial>> to learn how run the self-managed connector service and a set up a self-managed connector, *using the UI*.
+* Follow our <<es-connectors-tutorial-api, API-based tutorial>> to learn how to set up a self-managed connector *using the* {ref}/connector-apis.html[*connector APIs*].
+
+These examples use the PostgreSQL connector but the basic process is the same for all self-managed connectors.
+
+[discrete#es-build-connector-testing]
+=== Connector testing
+
+The connector framework enables you to run end-to-end (E2E) tests on your self-managed connectors, against a real data source.
+
+To avoid tampering with a real Elasticsearch instance, E2E tests run an isolated Elasticsearch instance in Docker.
+Configuration values are set in your `docker-compose.yml` file.
+Docker Compose manages the setup of the development environment, including both the mock Elastic instance and mock data source.
+
+E2E tests use *default* configuration values for the connector.
+Find instructions about testing in each connector's documentation.
+
+[discrete#es-build-connector-framework]
+=== Connector framework
+
+The Elastic connector framework enables you to:
+
+* Customize existing self-managed connectors.
+* Build your own self-managed connectors.
+
+Refer to <<es-connectors-framework>> for more information.

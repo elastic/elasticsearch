@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.xpack.esql.core.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 
 public class TestPhysicalPlanOptimizer extends PhysicalPlanOptimizer {
 

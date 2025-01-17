@@ -9,7 +9,6 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -51,7 +50,6 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             SETTINGS,
             INDEX_NAME,
             0,
-            "version",
             "stack",
             null,
             Type.INTERNAL_MANAGED,
@@ -72,9 +70,8 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             SETTINGS,
             name,
             0,
-            "version",
             "stack",
-            Version.fromString(Build.current().minWireCompatVersion()),
+            null,
             Type.INTERNAL_MANAGED,
             List.of(),
             List.of(),

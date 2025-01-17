@@ -38,6 +38,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalTimeValue;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveIntegerLessThanOrEqualToMax;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.getEmbeddingSize;
@@ -48,6 +49,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -545,6 +547,118 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(validation.validationErrors().get(1), is("[scope] does not contain the required setting [not_key]"));
     }
 
+    public void testExtractRequiredPositiveIntegerLessThanOrEqualToMax_ReturnsValueWhenValueIsLessThanMax() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", 1));
+        var parsedInt = extractRequiredPositiveIntegerLessThanOrEqualToMax(map, "key", 5, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(1));
+        assertNotNull(parsedInt);
+        assertThat(parsedInt, is(1));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractRequiredPositiveIntegerLessThanOrEqualToMax_ReturnsValueWhenValueIsEqualToMax() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", 5));
+        var parsedInt = extractRequiredPositiveIntegerLessThanOrEqualToMax(map, "key", 5, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(1));
+        assertNotNull(parsedInt);
+        assertThat(parsedInt, is(5));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractRequiredPositiveIntegerLessThanOrEqualToMax_AddsErrorForNegativeValue() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", -1));
+        var parsedInt = extractRequiredPositiveIntegerLessThanOrEqualToMax(map, "key", 5, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertTrue(map.isEmpty());
+        assertThat(validation.validationErrors().get(1), is("[scope] Invalid value [-1]. [key] must be a positive integer"));
+    }
+
+    public void testExtractRequiredPositiveIntegerLessThanOrEqualToMax_AddsErrorWhenKeyIsMissing() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", -1));
+        var parsedInt = extractRequiredPositiveIntegerLessThanOrEqualToMax(map, "not_key", 5, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertThat(validation.validationErrors().get(1), is("[scope] does not contain the required setting [not_key]"));
+    }
+
+    public void testExtractRequiredPositiveIntegerLessThanOrEqualToMax_AddsErrorWhenValueIsGreaterThanMax() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", 6));
+        var parsedInt = extractRequiredPositiveIntegerLessThanOrEqualToMax(map, "not_key", 5, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertThat(validation.validationErrors().get(1), is("[scope] does not contain the required setting [not_key]"));
+    }
+
+    public void testExtractRequiredPositiveIntegerBetween_ReturnsValueWhenValueIsBetweenMinAndMax() {
+        var minValue = randomNonNegativeInt();
+        var maxValue = randomIntBetween(minValue + 2, minValue + 10);
+        testExtractRequiredPositiveIntegerBetween_Successful(minValue, maxValue, randomIntBetween(minValue + 1, maxValue - 1));
+    }
+
+    public void testExtractRequiredPositiveIntegerBetween_ReturnsValueWhenValueIsEqualToMin() {
+        var minValue = randomNonNegativeInt();
+        var maxValue = randomIntBetween(minValue + 1, minValue + 10);
+        testExtractRequiredPositiveIntegerBetween_Successful(minValue, maxValue, minValue);
+    }
+
+    public void testExtractRequiredPositiveIntegerBetween_ReturnsValueWhenValueIsEqualToMax() {
+        var minValue = randomNonNegativeInt();
+        var maxValue = randomIntBetween(minValue + 1, minValue + 10);
+        testExtractRequiredPositiveIntegerBetween_Successful(minValue, maxValue, maxValue);
+    }
+
+    private void testExtractRequiredPositiveIntegerBetween_Successful(int minValue, int maxValue, int actualValue) {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", actualValue));
+        var parsedInt = ServiceUtils.extractRequiredPositiveIntegerBetween(map, "key", minValue, maxValue, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(1));
+        assertNotNull(parsedInt);
+        assertThat(parsedInt, is(actualValue));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractRequiredIntBetween_AddsErrorForValueBelowMin() {
+        var minValue = randomNonNegativeInt();
+        var maxValue = randomIntBetween(minValue, minValue + 10);
+        testExtractRequiredIntBetween_Unsuccessful(minValue, maxValue, minValue - 1);
+    }
+
+    public void testExtractRequiredIntBetween_AddsErrorForValueAboveMax() {
+        var minValue = randomNonNegativeInt();
+        var maxValue = randomIntBetween(minValue, minValue + 10);
+        testExtractRequiredIntBetween_Unsuccessful(minValue, maxValue, maxValue + 1);
+    }
+
+    private void testExtractRequiredIntBetween_Unsuccessful(int minValue, int maxValue, int actualValue) {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", actualValue));
+        var parsedInt = ServiceUtils.extractRequiredPositiveIntegerBetween(map, "key", minValue, maxValue, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertTrue(map.isEmpty());
+        assertThat(validation.validationErrors().get(1), containsString("Invalid value"));
+    }
+
     public void testExtractOptionalEnum_ReturnsNull_WhenFieldDoesNotExist() {
         var validation = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", "value"));
@@ -796,12 +910,11 @@ public class ServiceUtilsTests extends ESTestCase {
         when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[6];
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(7);
             listener.onResponse(new InferenceTextEmbeddingFloatResults(List.of()));
 
             return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), any(), anyBoolean(), any(), any(), any(), any());
 
         PlainActionFuture<Integer> listener = new PlainActionFuture<>();
         getEmbeddingSize(model, service, listener);
@@ -819,12 +932,11 @@ public class ServiceUtilsTests extends ESTestCase {
         when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[6];
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(7);
             listener.onResponse(new InferenceTextEmbeddingByteResults(List.of()));
 
             return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), any(), anyBoolean(), any(), any(), any(), any());
 
         PlainActionFuture<Integer> listener = new PlainActionFuture<>();
         getEmbeddingSize(model, service, listener);
@@ -844,12 +956,11 @@ public class ServiceUtilsTests extends ESTestCase {
         var textEmbedding = TextEmbeddingResultsTests.createRandomResults();
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[6];
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(7);
             listener.onResponse(textEmbedding);
 
             return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), any(), anyBoolean(), any(), any(), any(), any());
 
         PlainActionFuture<Integer> listener = new PlainActionFuture<>();
         getEmbeddingSize(model, service, listener);
@@ -868,12 +979,11 @@ public class ServiceUtilsTests extends ESTestCase {
         var textEmbedding = InferenceTextEmbeddingByteResultsTests.createRandomResults();
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[6];
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(7);
             listener.onResponse(textEmbedding);
 
             return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), any(), anyBoolean(), any(), any(), any(), any());
 
         PlainActionFuture<Integer> listener = new PlainActionFuture<>();
         getEmbeddingSize(model, service, listener);

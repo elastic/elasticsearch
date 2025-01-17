@@ -18,7 +18,7 @@ import java.util.TreeSet;
 /**
  * A request to get node (cluster) level information.
  */
-public final class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
+public final class NodesInfoRequest extends BaseNodesRequest {
 
     private final NodesInfoMetrics nodesInfoMetrics;
 

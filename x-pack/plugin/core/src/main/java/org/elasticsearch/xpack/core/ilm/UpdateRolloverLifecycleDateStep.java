@@ -46,7 +46,7 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
 
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetadata.getSettings());
         if (indexingComplete) {
-            logger.trace(indexMetadata.getIndex() + " has lifecycle complete set, skipping " + UpdateRolloverLifecycleDateStep.NAME);
+            logger.trace("{} has lifecycle complete set, skipping {}", indexMetadata.getIndex(), UpdateRolloverLifecycleDateStep.NAME);
 
             // The index won't have RolloverInfo if this is a Following index and indexing_complete was set by CCR,
             // so just use the current time.

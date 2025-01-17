@@ -10,13 +10,9 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.search.DocIdSetIterator;
-
-import java.io.IOException;
 
 /**
- * Base implementation that throws an {@link IOException} for the
- * {@link DocIdSetIterator} APIs. This impl is safe to use for sorting and
+ * Base implementation. This impl is safe to use for sorting and
  * aggregations, which only use {@link #advanceExact(int)} and
  * {@link #binaryValue()}.
  */
@@ -28,12 +24,12 @@ public abstract class AbstractBinaryDocValues extends BinaryDocValues {
     }
 
     @Override
-    public int nextDoc() throws IOException {
+    public int nextDoc() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public int advance(int target) throws IOException {
+    public int advance(int target) {
         throw new UnsupportedOperationException();
     }
 

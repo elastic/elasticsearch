@@ -5,6 +5,12 @@
 <titleabbrev>cat anomaly detectors</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cat[Compact and aligned text (CAT) APIs]..
+--
+
 [IMPORTANT]
 ====
 cat APIs are only intended for human consumption using the command line or {kib}
@@ -13,7 +19,7 @@ consumption, use the
 <<ml-get-job-stats,get anomaly detection job statistics API>>.
 ====
 
-Returns configuration and usage information about {anomaly-jobs}.
+Returns configuration and usage information about {ml-docs}/ml-ad-overview.html[{anomaly-jobs}].
 
 [[cat-anomaly-detectors-request]]
 ==== {api-request-title}

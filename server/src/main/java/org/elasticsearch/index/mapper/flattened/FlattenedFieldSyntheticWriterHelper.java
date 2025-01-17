@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -56,7 +55,7 @@ import java.util.Objects;
  * }`
  *
  */
-class FlattenedFieldSyntheticWriterHelper {
+public class FlattenedFieldSyntheticWriterHelper {
 
     private record Prefix(List<String> prefix) {
 
@@ -226,19 +225,23 @@ class FlattenedFieldSyntheticWriterHelper {
         }
     }
 
-    private final SortedSetDocValues dv;
-
-    FlattenedFieldSyntheticWriterHelper(final SortedSetDocValues dv) {
-        this.dv = dv;
+    public interface SortedKeyedValues {
+        BytesRef next() throws IOException;
     }
 
-    void write(final XContentBuilder b) throws IOException {
-        KeyValue curr = new KeyValue(dv.lookupOrd(dv.nextOrd()));
+    private final SortedKeyedValues sortedKeyedValues;
+
+    public FlattenedFieldSyntheticWriterHelper(final SortedKeyedValues sortedKeyedValues) {
+        this.sortedKeyedValues = sortedKeyedValues;
+    }
+
+    public void write(final XContentBuilder b) throws IOException {
+        KeyValue curr = new KeyValue(sortedKeyedValues.next());
         KeyValue prev = KeyValue.EMPTY;
         final List<String> values = new ArrayList<>();
         values.add(curr.value());
-        for (int i = 1; i < dv.docValueCount(); i++) {
-            KeyValue next = new KeyValue(dv.lookupOrd(dv.nextOrd()));
+        for (BytesRef nextValue = sortedKeyedValues.next(); nextValue != null; nextValue = sortedKeyedValues.next()) {
+            KeyValue next = new KeyValue(nextValue);
             writeObject(b, curr, next, curr.start(prev), curr.end(next), values);
             values.add(next.value());
             prev = curr;

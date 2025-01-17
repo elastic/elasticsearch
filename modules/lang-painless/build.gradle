@@ -15,8 +15,8 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-    description 'An easy, safe and fast scripting language for Elasticsearch'
-    classname 'org.elasticsearch.painless.PainlessPlugin'
+    description = 'An easy, safe and fast scripting language for Elasticsearch'
+    classname ='org.elasticsearch.painless.PainlessPlugin'
 }
 
 testClusters.configureEach {
@@ -50,10 +50,14 @@ tasks.named("dependencyLicenses").configure {
     mapping from: /asm-.*/, to: 'asm'
 }
 
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("painless/146_dense_vector_bit_basic/Dot Product is not supported", "inner product is now supported")
+})
+
 restResources {
     restApi {
         include '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'bulk', 'update',
-                'scripts_painless_execute', 'put_script', 'delete_script'
+                'scripts_painless_execute', 'put_script', 'delete_script', 'capabilities'
     }
 }
 

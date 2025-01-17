@@ -58,7 +58,7 @@ This value must between 1 and 100.
 Default: `5`.
 
 `tokens_weight_threshold`::
-(Optional, float) Tokens whose weight is less than `tokens_weight_threshold` are considered nonsignificant and pruned.
+(Optional, float) Tokens whose weight is less than `tokens_weight_threshold` are considered insignificant and pruned.
 This value must be between 0 and 1.
 Default: `0.4`.
 

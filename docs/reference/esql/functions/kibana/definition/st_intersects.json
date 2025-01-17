@@ -152,5 +152,6 @@
   "examples" : [
     "FROM airports\n| WHERE ST_INTERSECTS(location, TO_GEOSHAPE(\"POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))\"))"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

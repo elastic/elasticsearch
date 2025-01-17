@@ -30,7 +30,7 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
@@ -343,7 +343,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         String token = basicAuthHeaderValue(username, new SecureString("s3krit-password"));
         assertResponse(
             client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx"),
-            searchResp -> assertEquals(1L, searchResp.getHits().getTotalHits().value)
+            searchResp -> assertEquals(1L, searchResp.getHits().getTotalHits().value())
         );
 
         assertClusterHealthOnlyAuthorizesWhenAnonymousRoleActive(token);
@@ -366,7 +366,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit-password"));
         assertResponse(
             client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx"),
-            searchResp -> assertEquals(1L, searchResp.getHits().getTotalHits().value)
+            searchResp -> assertEquals(1L, searchResp.getHits().getTotalHits().value())
         );
 
         preparePutUser("joe", "s3krit-password2", hasher, SecuritySettingsSource.TEST_ROLE).get();
@@ -382,7 +382,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         token = basicAuthHeaderValue("joe", new SecureString("s3krit-password2"));
         assertResponse(
             client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx"),
-            searchResp -> assertEquals(1L, searchResp.getHits().getTotalHits().value)
+            searchResp -> assertEquals(1L, searchResp.getHits().getTotalHits().value())
         );
     }
 
@@ -403,7 +403,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit-password"));
         assertResponse(
             client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx"),
-            searchResp -> assertEquals(1L, searchResp.getHits().getTotalHits().value)
+            searchResp -> assertEquals(1L, searchResp.getHits().getTotalHits().value())
         );
 
         DeleteUserResponse response = new DeleteUserRequestBuilder(client()).username("joe").get();
@@ -945,7 +945,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         }
 
         XPackUsageResponse response = safeGet(client().execute(XPackUsageAction.INSTANCE, new XPackUsageRequest(SAFE_AWAIT_TIMEOUT)));
-        Optional<XPackFeatureSet.Usage> securityUsage = response.getUsages()
+        Optional<XPackFeatureUsage> securityUsage = response.getUsages()
             .stream()
             .filter(usage -> usage instanceof SecurityFeatureSetUsage)
             .findFirst();

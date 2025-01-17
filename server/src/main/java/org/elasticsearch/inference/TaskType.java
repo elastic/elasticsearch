@@ -29,15 +29,20 @@ public enum TaskType implements Writeable {
         public boolean isAnyOrSame(TaskType other) {
             return true;
         }
-    };
+    },
+    CHAT_COMPLETION;
 
-    public static String NAME = "task_type";
+    public static final String NAME = "task_type";
 
     public static TaskType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
     }
 
     public static TaskType fromStringOrStatusException(String name) {
+        if (name == null) {
+            throw new ElasticsearchStatusException("Task type must not be null", RestStatus.BAD_REQUEST);
+        }
+
         try {
             TaskType taskType = TaskType.fromString(name);
             return Objects.requireNonNull(taskType);

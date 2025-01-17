@@ -152,5 +152,6 @@
   "examples" : [
     "FROM airport_city_boundaries\n| WHERE ST_CONTAINS(city_boundary, TO_GEOSHAPE(\"POLYGON((109.35 18.3, 109.45 18.3, 109.45 18.4, 109.35 18.4, 109.35 18.3))\"))\n| KEEP abbrev, airport, region, city, city_location"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

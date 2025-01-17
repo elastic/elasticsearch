@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -14,6 +13,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.sql.action.SqlQueryTask;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.proto.SqlVersions;
 
 import java.time.ZoneId;
 import java.util.Map;
@@ -73,7 +73,7 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.runtimeMappings = runtimeMappings;
         this.mode = mode == null ? Mode.PLAIN : mode;
         this.clientId = clientId;
-        this.version = version != null ? version : SqlVersion.fromId(Version.CURRENT.id);
+        this.version = version != null ? version : SqlVersions.SERVER_COMPAT_VERSION;
         this.multiValueFieldLeniency = multiValueFieldLeniency;
         this.includeFrozenIndices = includeFrozen;
         this.taskId = taskId;

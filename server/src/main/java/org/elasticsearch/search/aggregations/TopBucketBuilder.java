@@ -132,7 +132,11 @@ public abstract class TopBucketBuilder<B extends InternalMultiBucketAggregation.
             DelayedBucket<B> removed = queue.insertWithOverflow(bucket);
             if (removed != null) {
                 nonCompetitive.accept(removed);
+                // release any created sub-buckets
                 removed.nonCompetitive(reduceContext);
+            } else {
+                // add one bucket to the final result
+                reduceContext.consumeBucketsAndMaybeBreak(1);
             }
         }
 
@@ -183,6 +187,8 @@ public abstract class TopBucketBuilder<B extends InternalMultiBucketAggregation.
                 next.add(bucket);
                 return;
             }
+            // add one bucket to the final result
+            reduceContext.consumeBucketsAndMaybeBreak(1);
             buffer.add(bucket);
             if (buffer.size() < size) {
                 return;

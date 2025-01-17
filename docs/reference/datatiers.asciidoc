@@ -37,9 +37,8 @@ TIP: The performance of an {es} node is often limited by the performance of the 
 For example hardware profiles, refer to Elastic Cloud's {cloud}/ec-reference-hardware.html[instance configurations]. 
 Review our recommendations for optimizing your storage for <<indexing-use-faster-hardware,indexing>> and <<search-use-faster-hardware,search>>.
 
-IMPORTANT: {es} generally expects nodes within a data tier to share the same 
-hardware profile. Variations not following this recommendation should be 
-carefully architected to avoid <<hotspotting,hot spotting>>.
+IMPORTANT: {es} assumes nodes within a data tier share the same hardware profile (such as CPU, RAM, disk capacity).
+Data tiers with unequally resourced nodes have a higher risk of <<hotspotting,hot spotting>>.
 
 The way data tiers are used often depends on the data's category:
 
@@ -190,7 +189,7 @@ tier].
 [[configure-data-tiers-on-premise]]
 ==== Self-managed deployments
 
-For self-managed deployments, each node's <<data-node,data role>> is configured
+For self-managed deployments, each node's <<data-node-role,data role>> is configured
 in `elasticsearch.yml`. For example, the highest-performance nodes in a cluster
 might be assigned to both the hot and content tiers:
 

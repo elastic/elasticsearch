@@ -23,13 +23,13 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.common.notifications.Level;
@@ -37,26 +37,28 @@ import org.elasticsearch.xpack.core.ml.action.AuditMlNotificationAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction;
 import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction.Request;
-import org.elasticsearch.xpack.ml.packageloader.MachineLearningPackageLoader;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ml.MlTasks.MODEL_IMPORT_TASK_ACTION;
 import static org.elasticsearch.xpack.core.ml.MlTasks.MODEL_IMPORT_TASK_TYPE;
-import static org.elasticsearch.xpack.core.ml.MlTasks.downloadModelTaskDescription;
 
 public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportLoadTrainedModelPackage.class);
 
     private final Client client;
+    private final CircuitBreakerService circuitBreakerService;
+    final Map<String, List<DownloadTaskRemovedListener>> taskRemovedListenersByModelId;
 
     @Inject
     public TransportLoadTrainedModelPackage(
@@ -65,7 +67,8 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Client client
+        Client client,
+        CircuitBreakerService circuitBreakerService
     ) {
         super(
             LoadTrainedModelPackageAction.NAME,
@@ -79,6 +82,8 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = new OriginSettingClient(client, ML_ORIGIN);
+        this.circuitBreakerService = circuitBreakerService;
+        taskRemovedListenersByModelId = new HashMap<>();
     }
 
     @Override
@@ -89,6 +94,12 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
+        if (handleDownloadInProgress(request.getModelId(), request.isWaitForCompletion(), listener)) {
+            logger.debug("Existing download of model [{}] in progress", request.getModelId());
+            // download in progress, nothing to do
+            return;
+        }
+
         ModelDownloadTask downloadTask = createDownloadTask(request);
 
         try {
@@ -98,11 +109,14 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
                 parentTaskAssigningClient,
                 request.getModelId(),
                 request.getModelPackageConfig(),
-                downloadTask
+                downloadTask,
+                threadPool,
+                circuitBreakerService
             );
 
-            threadPool.executor(MachineLearningPackageLoader.UTILITY_THREAD_POOL_NAME)
-                .execute(() -> importModel(client, taskManager, request, modelImporter, listener, downloadTask));
+            var downloadCompleteListener = request.isWaitForCompletion() ? listener : ActionListener.<AcknowledgedResponse>noop();
+
+            importModel(client, () -> unregisterTask(downloadTask), request, modelImporter, downloadTask, downloadCompleteListener);
         } catch (Exception e) {
             taskManager.unregister(downloadTask);
             listener.onFailure(e);
@@ -120,32 +134,97 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
     }
 
     /**
+     * Look for a current download task of the model and optionally wait
+     * for that task to complete if there is one.
+     * synchronized with {@code unregisterTask} to prevent the task being
+     * removed before the remove listener is added.
+     * @param modelId Model being downloaded
+     * @param isWaitForCompletion Wait until the download completes before
+     *                            calling the listener
+     * @param listener Model download listener
+     * @return True if a download task is in progress
+     */
+    synchronized boolean handleDownloadInProgress(
+        String modelId,
+        boolean isWaitForCompletion,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        var description = ModelDownloadTask.taskDescription(modelId);
+        var tasks = taskManager.getCancellableTasks().values();
+
+        ModelDownloadTask inProgress = null;
+        for (var task : tasks) {
+            if (description.equals(task.getDescription()) && task instanceof ModelDownloadTask downloadTask) {
+                inProgress = downloadTask;
+                break;
+            }
+        }
+
+        if (inProgress != null) {
+            if (isWaitForCompletion == false) {
+                // Not waiting for the download to complete, it is enough that the download is in progress
+                // Respond now not when the download completes
+                listener.onResponse(AcknowledgedResponse.TRUE);
+                return true;
+            }
+            // Otherwise register a task removed listener which is called
+            // once the tasks is complete and unregistered
+            var tracker = new DownloadTaskRemovedListener(inProgress, listener);
+            taskRemovedListenersByModelId.computeIfAbsent(modelId, s -> new ArrayList<>()).add(tracker);
+            taskManager.registerRemovedTaskListener(tracker);
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Unregister the completed task triggering any remove task listeners.
+     * This method is synchronized to prevent the task being removed while
+     * {@code waitForExistingDownload} is in progress.
+     * @param task The completed task
+     */
+    synchronized void unregisterTask(ModelDownloadTask task) {
+        taskManager.unregister(task); // unregister will call the on remove function
+
+        var trackers = taskRemovedListenersByModelId.remove(task.getModelId());
+        if (trackers != null) {
+            for (var tracker : trackers) {
+                taskManager.unregisterRemovedTaskListener(tracker);
+            }
+        }
+    }
+
+    /**
      * This is package scope so that we can test the logic directly.
-     * This should only be called from the masterOperation method and the tests
+     * This should only be called from the masterOperation method and the tests.
+     * This method is static for testing.
      *
      * @param auditClient a client which should only be used to send audit notifications. This client cannot be associated with the passed
      *                    in task, that way when the task is cancelled the notification requests can
      *                    still be performed. If it is associated with the task (i.e. via ParentTaskAssigningClient),
      *                    then the requests will throw a TaskCancelledException.
+     * @param unregisterTaskFn Runnable to unregister the task. Because this is a static function
+     *                a lambda is used rather than the instance method.
+     * @param request The download request
+     * @param modelImporter The importer
+     * @param task Download task
+     * @param listener Listener
      */
     static void importModel(
         Client auditClient,
-        TaskManager taskManager,
+        Runnable unregisterTaskFn,
         Request request,
         ModelImporter modelImporter,
-        ActionListener<AcknowledgedResponse> listener,
-        Task task
+        ModelDownloadTask task,
+        ActionListener<AcknowledgedResponse> listener
     ) {
-        String modelId = request.getModelId();
-        final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        final String modelId = request.getModelId();
+        final long relativeStartNanos = System.nanoTime();
 
-        try {
-            final long relativeStartNanos = System.nanoTime();
+        logAndWriteNotificationAtLevel(auditClient, modelId, "starting model import", Level.INFO);
 
-            logAndWriteNotificationAtLevel(auditClient, modelId, "starting model import", Level.INFO);
-
-            modelImporter.doImport();
-
+        var finishListener = ActionListener.<AcknowledgedResponse>wrap(success -> {
             final long totalRuntimeNanos = System.nanoTime() - relativeStartNanos;
             logAndWriteNotificationAtLevel(
                 auditClient,
@@ -153,29 +232,28 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
                 format("finished model import after [%d] seconds", TimeUnit.NANOSECONDS.toSeconds(totalRuntimeNanos)),
                 Level.INFO
             );
-        } catch (TaskCancelledException e) {
-            recordError(auditClient, modelId, exceptionRef, e, Level.WARNING);
-        } catch (ElasticsearchException e) {
-            recordError(auditClient, modelId, exceptionRef, e, Level.ERROR);
-        } catch (MalformedURLException e) {
-            recordError(auditClient, modelId, "an invalid URL", exceptionRef, e, Level.ERROR, RestStatus.INTERNAL_SERVER_ERROR);
-        } catch (URISyntaxException e) {
-            recordError(auditClient, modelId, "an invalid URL syntax", exceptionRef, e, Level.ERROR, RestStatus.INTERNAL_SERVER_ERROR);
-        } catch (IOException e) {
-            recordError(auditClient, modelId, "an IOException", exceptionRef, e, Level.ERROR, RestStatus.SERVICE_UNAVAILABLE);
-        } catch (Exception e) {
-            recordError(auditClient, modelId, "an Exception", exceptionRef, e, Level.ERROR, RestStatus.INTERNAL_SERVER_ERROR);
-        } finally {
-            taskManager.unregister(task);
+            listener.onResponse(AcknowledgedResponse.TRUE);
+        }, exception -> {
+            task.setTaskException(exception);
+            listener.onFailure(processException(auditClient, modelId, exception));
+        });
 
-            if (request.isWaitForCompletion()) {
-                if (exceptionRef.get() != null) {
-                    listener.onFailure(exceptionRef.get());
-                } else {
-                    listener.onResponse(AcknowledgedResponse.TRUE);
-                }
+        modelImporter.doImport(ActionListener.runAfter(finishListener, unregisterTaskFn));
+    }
 
-            }
+    static Exception processException(Client auditClient, String modelId, Exception e) {
+        if (e instanceof TaskCancelledException te) {
+            return recordError(auditClient, modelId, te, Level.WARNING);
+        } else if (e instanceof ElasticsearchException es) {
+            return recordError(auditClient, modelId, es, Level.ERROR);
+        } else if (e instanceof MalformedURLException) {
+            return recordError(auditClient, modelId, "an invalid URL", e, Level.ERROR, RestStatus.BAD_REQUEST);
+        } else if (e instanceof URISyntaxException) {
+            return recordError(auditClient, modelId, "an invalid URL syntax", e, Level.ERROR, RestStatus.BAD_REQUEST);
+        } else if (e instanceof IOException) {
+            return recordError(auditClient, modelId, "an IOException", e, Level.ERROR, RestStatus.SERVICE_UNAVAILABLE);
+        } else {
+            return recordError(auditClient, modelId, "an Exception", e, Level.ERROR, RestStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -200,43 +278,22 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
 
                 @Override
                 public ModelDownloadTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                    return new ModelDownloadTask(
-                        id,
-                        type,
-                        action,
-                        downloadModelTaskDescription(request.getModelId()),
-                        parentTaskId,
-                        headers
-                    );
+                    return new ModelDownloadTask(id, type, action, request.getModelId(), parentTaskId, headers);
                 }
             }, false);
         }
     }
 
-    private static void recordError(
-        Client client,
-        String modelId,
-        AtomicReference<Exception> exceptionRef,
-        ElasticsearchException e,
-        Level level
-    ) {
+    private static Exception recordError(Client client, String modelId, ElasticsearchException e, Level level) {
         String message = format("Model importing failed due to [%s]", e.getDetailedMessage());
         logAndWriteNotificationAtLevel(client, modelId, message, level);
-        exceptionRef.set(e);
+        return e;
     }
 
-    private static void recordError(
-        Client client,
-        String modelId,
-        String failureType,
-        AtomicReference<Exception> exceptionRef,
-        Exception e,
-        Level level,
-        RestStatus status
-    ) {
+    private static Exception recordError(Client client, String modelId, String failureType, Exception e, Level level, RestStatus status) {
         String message = format("Model importing failed due to %s [%s]", failureType, e);
         logAndWriteNotificationAtLevel(client, modelId, message, level);
-        exceptionRef.set(new ElasticsearchStatusException(message, status, e));
+        return new ElasticsearchStatusException(message, status, e);
     }
 
     private static void logAndWriteNotificationAtLevel(Client client, String modelId, String message, Level level) {

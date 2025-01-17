@@ -27,7 +27,7 @@ public class RestDeleteDatabaseConfigurationAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(DELETE, "/_ingest/geoip/database/{id}"));
+        return List.of(new Route(DELETE, "/_ingest/ip_location/database/{id}"), new Route(DELETE, "/_ingest/geoip/database/{id}"));
     }
 
     @Override

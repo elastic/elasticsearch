@@ -13,7 +13,6 @@ import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
-import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
@@ -45,6 +44,7 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -122,6 +122,7 @@ import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
@@ -270,26 +271,6 @@ import static org.hamcrest.Matchers.startsWith;
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
 public abstract class ESIntegTestCase extends ESTestCase {
-
-    /**
-     * Property that controls whether ThirdParty Integration tests are run (not the default).
-     */
-    public static final String SYSPROP_THIRDPARTY = "tests.thirdparty";
-
-    /**
-     * Annotation for third-party integration tests.
-     * <p>
-     * These are tests the require a third-party service in order to run. They
-     * may require the user to manually configure an external process (such as rabbitmq),
-     * or may additionally require some external configuration (e.g. AWS credentials)
-     * via the {@code tests.config} system property.
-     */
-    @Inherited
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.TYPE)
-    @TestGroup(enabled = false, sysProperty = ESIntegTestCase.SYSPROP_THIRDPARTY)
-    public @interface ThirdParty {
-    }
 
     /** node names of the corresponding clusters will start with these prefixes */
     public static final String SUITE_CLUSTER_NODE_PREFIX = "node_s";
@@ -505,13 +486,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (random.nextBoolean()) {
             builder.put(
                 IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                new ByteSizeValue(RandomNumbers.randomIntBetween(random, 1, 300), ByteSizeUnit.MB)
+                ByteSizeValue.of(RandomNumbers.randomIntBetween(random, 1, 300), ByteSizeUnit.MB)
             );
         }
         if (random.nextBoolean()) {
-            builder.put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)); // just
-                                                                                                                                    // don't
-                                                                                                                                    // flush
+            builder.put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB)); // just
+                                                                                                                                   // don't
+                                                                                                                                   // flush
         }
         if (random.nextBoolean()) {
             builder.put(
@@ -778,24 +759,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Creates one or more indices and asserts that the indices are acknowledged. If one of the indices
-     * already exists this method will fail and wipe all the indices created so far.
+     * Creates one or more indices and asserts that the indices are acknowledged.
      */
     public final void createIndex(String... names) {
-
-        List<String> created = new ArrayList<>();
-        for (String name : names) {
-            boolean success = false;
-            try {
-                assertAcked(prepareCreate(name));
-                created.add(name);
-                success = true;
-            } finally {
-                if (success == false && created.isEmpty() == false) {
-                    cluster().wipeIndices(created.toArray(new String[created.size()]));
-                }
-            }
-        }
+        assertAcked(Arrays.stream(names).map(this::prepareCreate).toArray(CreateIndexRequestBuilder[]::new));
     }
 
     /**
@@ -906,9 +873,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /** Ensures the result counts are as expected, and logs the results if different */
     public void assertResultsAndLogOnFailure(long expectedResults, SearchResponse searchResponse) {
         final TotalHits totalHits = searchResponse.getHits().getTotalHits();
-        if (totalHits.value != expectedResults || totalHits.relation != TotalHits.Relation.EQUAL_TO) {
+        if (totalHits.value() != expectedResults || totalHits.relation() != TotalHits.Relation.EQUAL_TO) {
             StringBuilder sb = new StringBuilder("search result contains [");
-            String value = Long.toString(totalHits.value) + (totalHits.relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO ? "+" : "");
+            String value = Long.toString(totalHits.value()) + (totalHits.relation() == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
+                ? "+"
+                : "");
             sb.append(value).append("] results. expected [").append(expectedResults).append("]");
             String failMsg = sb.toString();
             for (SearchHit hit : searchResponse.getHits().getHits()) {
@@ -1545,6 +1514,37 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Runs random indexing until each shard in the given index is at least minBytesPerShard in size.
+     * Force merges all cluster shards down to one segment, and then invokes refresh to ensure all shard data is visible for readers,
+     * before returning.
+     *
+     * @return The final {@link ShardStats} for all shards of the index.
+     */
+    protected ShardStats[] indexAllShardsToAnEqualOrGreaterMinimumSize(final String indexName, long minBytesPerShard) {
+        while (true) {
+            indexRandom(false, indexName, scaledRandomIntBetween(100, 10000));
+            forceMerge();
+            refresh();
+
+            final ShardStats[] shardStats = indicesAdmin().prepareStats(indexName)
+                .clear()
+                .setStore(true)
+                .setTranslog(true)
+                .get()
+                .getShards();
+
+            var smallestShardSize = Arrays.stream(shardStats)
+                .mapToLong(it -> it.getStats().getStore().sizeInBytes())
+                .min()
+                .orElseThrow(() -> new AssertionError("no shards"));
+
+            if (smallestShardSize >= minBytesPerShard) {
+                return shardStats;
+            }
+        }
+    }
+
+    /**
      * Syntactic sugar for:
      * <pre>
      *   return client().prepareIndex(index).setId(id).setSource(source).get();
@@ -1613,7 +1613,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public static boolean indexExists(String index, Client client) {
         GetIndexResponse getIndexResponse = client.admin()
             .indices()
-            .prepareGetIndex()
+            .prepareGetIndex(TEST_REQUEST_TIMEOUT)
             .setIndices(index)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
             .get();
@@ -1776,11 +1776,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
             );
             logger.info("Index [{}] docs async: [{}] bulk: [{}] partitions [{}]", builders.size(), false, true, partition.size());
             for (List<IndexRequestBuilder> segmented : partition) {
+                BulkResponse actionGet;
                 BulkRequestBuilder bulkBuilder = client().prepareBulk();
                 for (IndexRequestBuilder indexRequestBuilder : segmented) {
                     bulkBuilder.add(indexRequestBuilder);
                 }
-                BulkResponse actionGet = bulkBuilder.get();
+                actionGet = bulkBuilder.get();
                 assertThat(actionGet.hasFailures() ? actionGet.buildFailureMessage() : "", actionGet.hasFailures(), equalTo(false));
             }
         }
@@ -2061,6 +2062,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 TransportSearchAction.DEFAULT_PRE_FILTER_SHARD_SIZE.getKey(),
                 randomFrom(1, 2, SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE)
             );
+        if (randomBoolean()) {
+            builder.put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), randomFrom("256B", "512B"));
+            builder.put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "1KB");
+            builder.put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), randomFrom("1KB", "16KB", "64KB"));
+            builder.put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "256B");
+        }
         return builder.build();
     }
 
@@ -2557,14 +2564,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     public static Index resolveIndex(String index) {
-        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex().setIndices(index).get();
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         String uuid = getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_INDEX_UUID);
         return new Index(index, uuid);
     }
 
     public static String resolveCustomDataPath(String index) {
-        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex().setIndices(index).get();
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         return getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_DATA_PATH);
     }

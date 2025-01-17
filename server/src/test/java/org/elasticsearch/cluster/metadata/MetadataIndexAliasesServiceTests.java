@@ -693,10 +693,14 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         String index = randomAlphaOfLength(5);
         ClusterState before = createIndex(ClusterState.builder(ClusterName.DEFAULT).build(), index);
         IndicesAliasesClusterStateUpdateRequest addAliasRequest = new IndicesAliasesClusterStateUpdateRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             List.of(new AliasAction.Add(index, "test", null, null, null, null, null)),
             List.of(AliasActionResult.buildSuccess(List.of(index), AliasActions.add().aliases("test").indices(index)))
         );
         IndicesAliasesClusterStateUpdateRequest removeAliasRequest = new IndicesAliasesClusterStateUpdateRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             List.of(new AliasAction.Remove(index, "test", true)),
             List.of(AliasActionResult.buildSuccess(List.of(index), AliasActions.remove().aliases("test").indices(index)))
         );
@@ -740,7 +744,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
     private ClusterState createIndex(ClusterState state, String index) {
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random())))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomWriteVersion()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();

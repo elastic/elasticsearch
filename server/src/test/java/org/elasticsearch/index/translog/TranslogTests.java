@@ -53,10 +53,10 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
+import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.ParsedDocument.DocumentSize;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -64,6 +64,7 @@ import org.elasticsearch.index.seqno.LocalCheckpointTrackerTests;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog.Location;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -224,7 +225,8 @@ public class TranslogTests extends ESTestCase {
             new TranslogDeletionPolicy(),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            getPersistedSeqNoConsumer()
+            getPersistedSeqNoConsumer(),
+            TranslogOperationAsserter.DEFAULT
         );
     }
 
@@ -235,7 +237,8 @@ public class TranslogTests extends ESTestCase {
             new TranslogDeletionPolicy(),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            getPersistedSeqNoConsumer()
+            getPersistedSeqNoConsumer(),
+            TranslogOperationAsserter.DEFAULT
         );
     }
 
@@ -270,7 +273,8 @@ public class TranslogTests extends ESTestCase {
             new TranslogDeletionPolicy(),
             () -> globalCheckpoint.get(),
             primaryTerm::get,
-            getPersistedSeqNoConsumer()
+            getPersistedSeqNoConsumer(),
+            TranslogOperationAsserter.DEFAULT
         );
     }
 
@@ -286,8 +290,8 @@ public class TranslogTests extends ESTestCase {
     private TranslogConfig getTranslogConfig(final Path path, final Settings settings, OperationListener listener) {
         final ByteSizeValue bufferSize = randomFrom(
             TranslogConfig.DEFAULT_BUFFER_SIZE,
-            new ByteSizeValue(8, ByteSizeUnit.KB),
-            new ByteSizeValue(10 + randomInt(128 * 1024), ByteSizeUnit.BYTES)
+            ByteSizeValue.of(8, ByteSizeUnit.KB),
+            ByteSizeValue.of(10 + randomInt(128 * 1024), ByteSizeUnit.BYTES)
         );
 
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings);
@@ -1391,7 +1395,7 @@ public class TranslogTests extends ESTestCase {
             temp.getTranslogPath(),
             temp.getIndexSettings(),
             temp.getBigArrays(),
-            new ByteSizeValue(1, ByteSizeUnit.KB),
+            ByteSizeValue.of(1, ByteSizeUnit.KB),
             randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
             TranslogConfig.NOOP_OPERATION_LISTENER,
             true
@@ -1444,7 +1448,8 @@ public class TranslogTests extends ESTestCase {
                 new TranslogDeletionPolicy(),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                persistedSeqNos::add
+                persistedSeqNos::add,
+                TranslogOperationAsserter.DEFAULT
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
@@ -1559,7 +1564,8 @@ public class TranslogTests extends ESTestCase {
                 new TranslogDeletionPolicy(),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                persistedSeqNos::add
+                persistedSeqNos::add,
+                TranslogOperationAsserter.DEFAULT
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
@@ -1746,7 +1752,8 @@ public class TranslogTests extends ESTestCase {
                 translog.getDeletionPolicy(),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationAsserter.DEFAULT
             );
             assertEquals(
                 "lastCommitted must be 1 less than current",
@@ -1803,7 +1810,8 @@ public class TranslogTests extends ESTestCase {
                 deletionPolicy,
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationAsserter.DEFAULT
             )
         ) {
             assertNotNull(translogGeneration);
@@ -1830,7 +1838,8 @@ public class TranslogTests extends ESTestCase {
                     deletionPolicy,
                     () -> SequenceNumbers.NO_OPS_PERFORMED,
                     primaryTerm::get,
-                    seqNo -> {}
+                    seqNo -> {},
+                    TranslogOperationAsserter.DEFAULT
                 )
             ) {
                 assertNotNull(translogGeneration);
@@ -1894,7 +1903,8 @@ public class TranslogTests extends ESTestCase {
                 deletionPolicy,
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationAsserter.DEFAULT
             )
         ) {
             assertNotNull(translogGeneration);
@@ -1922,7 +1932,8 @@ public class TranslogTests extends ESTestCase {
                     deletionPolicy,
                     () -> SequenceNumbers.NO_OPS_PERFORMED,
                     primaryTerm::get,
-                    seqNo -> {}
+                    seqNo -> {},
+                    TranslogOperationAsserter.DEFAULT
                 )
             ) {
                 assertNotNull(translogGeneration);
@@ -1984,7 +1995,15 @@ public class TranslogTests extends ESTestCase {
         final TranslogDeletionPolicy deletionPolicy = translog.getDeletionPolicy();
         final TranslogCorruptedException translogCorruptedException = expectThrows(
             TranslogCorruptedException.class,
-            () -> new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, seqNo -> {})
+            () -> new Translog(
+                config,
+                translogUUID,
+                deletionPolicy,
+                () -> SequenceNumbers.NO_OPS_PERFORMED,
+                primaryTerm::get,
+                seqNo -> {},
+                TranslogOperationAsserter.DEFAULT
+            )
         );
         assertThat(
             translogCorruptedException.getMessage(),
@@ -2010,7 +2029,8 @@ public class TranslogTests extends ESTestCase {
                 deletionPolicy,
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationAsserter.DEFAULT
             )
         ) {
             assertNotNull(translogGeneration);
@@ -2293,7 +2313,8 @@ public class TranslogTests extends ESTestCase {
                 new TranslogDeletionPolicy(),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationAsserter.DEFAULT
             );
             fail("translog doesn't belong to this UUID");
         } catch (TranslogCorruptedException ex) {
@@ -2305,7 +2326,8 @@ public class TranslogTests extends ESTestCase {
             deletionPolicy,
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            seqNo -> {}
+            seqNo -> {},
+            TranslogOperationAsserter.DEFAULT
         );
         try (Translog.Snapshot snapshot = this.translog.newSnapshot(randomLongBetween(0, firstUncommitted), Long.MAX_VALUE)) {
             for (int i = firstUncommitted; i < translogOperations; i++) {
@@ -2503,7 +2525,8 @@ public class TranslogTests extends ESTestCase {
                 deletionPolicy,
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationAsserter.DEFAULT
             )
         ) {
             assertEquals(
@@ -2649,7 +2672,8 @@ public class TranslogTests extends ESTestCase {
                     new TranslogDeletionPolicy(),
                     () -> SequenceNumbers.NO_OPS_PERFORMED,
                     primaryTerm::get,
-                    seqNo -> {}
+                    seqNo -> {},
+                    TranslogOperationAsserter.DEFAULT
                 );
                 Translog.Snapshot snapshot = tlog.newSnapshot()
             ) {
@@ -2708,7 +2732,8 @@ public class TranslogTests extends ESTestCase {
             deletionPolicy,
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            seqNo -> {}
+            seqNo -> {},
+            TranslogOperationAsserter.DEFAULT
         );
         assertThat(translog.getMinFileGeneration(), equalTo(1L));
         // no trimming done yet, just recovered
@@ -2771,7 +2796,8 @@ public class TranslogTests extends ESTestCase {
                 deletionPolicy,
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationAsserter.DEFAULT
             )
         ) {
             // we don't know when things broke exactly
@@ -2875,7 +2901,15 @@ public class TranslogTests extends ESTestCase {
                 primaryTerm.get()
             );
         }
-        return new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, seqNo -> {}) {
+        return new Translog(
+            config,
+            translogUUID,
+            deletionPolicy,
+            () -> SequenceNumbers.NO_OPS_PERFORMED,
+            primaryTerm::get,
+            seqNo -> {},
+            TranslogOperationAsserter.DEFAULT
+        ) {
             @Override
             ChannelFactory getChannelFactory() {
                 return channelFactory;
@@ -3019,7 +3053,8 @@ public class TranslogTests extends ESTestCase {
                 new TranslogDeletionPolicy(),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationAsserter.DEFAULT
             ) {
                 @Override
                 protected TranslogWriter createWriter(
@@ -3087,7 +3122,8 @@ public class TranslogTests extends ESTestCase {
                 translog.getDeletionPolicy(),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationAsserter.DEFAULT
             )
         );
         assertEquals(ex.getMessage(), "failed to create new translog file");
@@ -3114,7 +3150,8 @@ public class TranslogTests extends ESTestCase {
                 deletionPolicy,
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationAsserter.DEFAULT
             )
         ) {
             assertFalse(tlog.syncNeeded());
@@ -3130,7 +3167,15 @@ public class TranslogTests extends ESTestCase {
 
         TranslogException ex = expectThrows(
             TranslogException.class,
-            () -> new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, seqNo -> {})
+            () -> new Translog(
+                config,
+                translogUUID,
+                deletionPolicy,
+                () -> SequenceNumbers.NO_OPS_PERFORMED,
+                primaryTerm::get,
+                seqNo -> {},
+                TranslogOperationAsserter.DEFAULT
+            )
         );
         assertEquals(ex.getMessage(), "failed to create new translog file");
         assertEquals(ex.getCause().getClass(), FileAlreadyExistsException.class);
@@ -3256,7 +3301,8 @@ public class TranslogTests extends ESTestCase {
                     deletionPolicy,
                     () -> SequenceNumbers.NO_OPS_PERFORMED,
                     primaryTerm::get,
-                    seqNo -> {}
+                    seqNo -> {},
+                    TranslogOperationAsserter.DEFAULT
                 );
                 Translog.Snapshot snapshot = translog.newSnapshot(localCheckpointOfSafeCommit + 1, Long.MAX_VALUE)
             ) {
@@ -3351,7 +3397,8 @@ public class TranslogTests extends ESTestCase {
             deletionPolicy,
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            seqNo -> {}
+            seqNo -> {},
+            TranslogOperationAsserter.DEFAULT
         );
         translog.add(TranslogOperationsUtils.indexOp("2", 1, primaryTerm.get()));
         translog.rollGeneration();
@@ -3365,7 +3412,8 @@ public class TranslogTests extends ESTestCase {
             deletionPolicy,
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            seqNo -> {}
+            seqNo -> {},
+            TranslogOperationAsserter.DEFAULT
         );
     }
 
@@ -3395,7 +3443,7 @@ public class TranslogTests extends ESTestCase {
             B_1,
             XContentType.JSON,
             null,
-            DocumentSize.UNKNOWN
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
 
         Engine.Index eIndex = new Engine.Index(
@@ -3713,7 +3761,15 @@ public class TranslogTests extends ESTestCase {
                 LongSupplier globalCheckpointSupplier,
                 LongSupplier primaryTermSupplier
             ) throws IOException {
-                super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, seqNo -> {});
+                super(
+                    config,
+                    translogUUID,
+                    deletionPolicy,
+                    globalCheckpointSupplier,
+                    primaryTermSupplier,
+                    seqNo -> {},
+                    TranslogOperationAsserter.DEFAULT
+                );
             }
 
             void callCloseDirectly() throws IOException {
@@ -3855,7 +3911,8 @@ public class TranslogTests extends ESTestCase {
                     brokenTranslog.getDeletionPolicy(),
                     () -> SequenceNumbers.NO_OPS_PERFORMED,
                     primaryTerm::get,
-                    seqNo -> {}
+                    seqNo -> {},
+                    TranslogOperationAsserter.DEFAULT
                 )
             ) {
                 recoveredTranslog.rollGeneration();
@@ -3889,7 +3946,8 @@ public class TranslogTests extends ESTestCase {
                 new TranslogDeletionPolicy(),
                 globalCheckpointSupplier,
                 primaryTerm::get,
-                persistedSeqNos::add
+                persistedSeqNos::add,
+                TranslogOperationAsserter.DEFAULT
             )
         ) {
             Thread[] threads = new Thread[between(2, 8)];
@@ -3974,7 +4032,8 @@ public class TranslogTests extends ESTestCase {
             new TranslogDeletionPolicy(),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            seqNo -> {}
+            seqNo -> {},
+            TranslogOperationAsserter.DEFAULT
         ) {
             @Override
             ChannelFactory getChannelFactory() {
@@ -4021,7 +4080,7 @@ public class TranslogTests extends ESTestCase {
             translogDir,
             IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY),
             NON_RECYCLING_INSTANCE,
-            new ByteSizeValue(1, ByteSizeUnit.KB),
+            ByteSizeValue.of(1, ByteSizeUnit.KB),
             randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
             TranslogConfig.NOOP_OPERATION_LISTENER,
             false
@@ -4040,7 +4099,8 @@ public class TranslogTests extends ESTestCase {
                 new TranslogDeletionPolicy(),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
-                getPersistedSeqNoConsumer()
+                getPersistedSeqNoConsumer(),
+                TranslogOperationAsserter.DEFAULT
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {

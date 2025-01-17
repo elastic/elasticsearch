@@ -54,12 +54,15 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.features.FeatureService;
@@ -408,6 +411,8 @@ import org.elasticsearch.xpack.security.rest.action.user.RestQueryUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
+import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesProviderFactory;
+import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronizer;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecurityMigrationExecutor;
@@ -458,6 +463,7 @@ import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.INCLUDED_RESERVED_ROLES_SETTING;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
+import static org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronizer.QUERYABLE_BUILT_IN_ROLES_ENABLED;
 import static org.elasticsearch.xpack.security.transport.SSLEngineUtils.extractClientCertificates;
 
 public class Security extends Plugin
@@ -628,7 +634,7 @@ public class Security extends Plugin
     private final SetOnce<ReservedRoleNameChecker.Factory> reservedRoleNameCheckerFactory = new SetOnce<>();
     private final SetOnce<FileRoleValidator> fileRoleValidator = new SetOnce<>();
     private final SetOnce<SecondaryAuthActions> secondaryAuthActions = new SetOnce<>();
-
+    private final SetOnce<QueryableBuiltInRolesProviderFactory> queryableRolesProviderFactory = new SetOnce<>();
     private final SetOnce<SecurityMigrationExecutor> securityMigrationExecutor = new SetOnce<>();
 
     // Node local retry count for migration jobs that's checked only on the master node to make sure
@@ -807,13 +813,11 @@ public class Security extends Plugin
         // We need to construct the checks here while the secure settings are still available.
         // If we wait until #getBoostrapChecks the secure settings will have been cleared/closed.
         final List<BootstrapCheck> checks = new ArrayList<>();
-        checks.addAll(
-            Arrays.asList(
-                new TokenSSLBootstrapCheck(),
-                new PkiRealmBootstrapCheck(getSslService()),
-                new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, getLicenseService()),
-                new TransportTLSBootstrapCheck()
-            )
+        Collections.addAll(
+            checks,
+            new TokenSSLBootstrapCheck(),
+            new PkiRealmBootstrapCheck(getSslService()),
+            new TransportTLSBootstrapCheck()
         );
         checks.addAll(InternalRealms.getBootstrapChecks(settings, environment));
         this.bootstrapChecks.set(Collections.unmodifiableList(checks));
@@ -896,6 +900,7 @@ public class Security extends Plugin
         components.add(nativeUsersStore);
         components.add(new PluginComponentBinding<>(NativeRoleMappingStore.class, nativeRoleMappingStore));
         components.add(new PluginComponentBinding<>(UserRoleMapper.class, userRoleMapper));
+        components.add(clusterStateRoleMapper);
         components.add(reservedRealm);
         components.add(realms);
         this.realms.set(realms);
@@ -1036,6 +1041,7 @@ public class Security extends Plugin
             serviceAccountService,
             dlsBitsetCache.get(),
             restrictedIndices,
+            buildRoleBuildingExecutor(threadPool, settings),
             new DeprecationRoleDescriptorConsumer(clusterService, threadPool)
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
@@ -1045,8 +1051,6 @@ public class Security extends Plugin
             getClock(),
             client,
             systemIndices.getProfileIndexManager(),
-            clusterService,
-            featureService,
             realms
         );
         components.add(profileService);
@@ -1201,6 +1205,23 @@ public class Security extends Plugin
 
         reservedRoleMappingAction.set(new ReservedRoleMappingAction());
 
+        if (QUERYABLE_BUILT_IN_ROLES_ENABLED) {
+            if (queryableRolesProviderFactory.get() == null) {
+                queryableRolesProviderFactory.set(new QueryableBuiltInRolesProviderFactory.Default());
+            }
+            components.add(
+                new QueryableBuiltInRolesSynchronizer(
+                    clusterService,
+                    featureService,
+                    queryableRolesProviderFactory.get(),
+                    nativeRolesStore,
+                    reservedRolesStore,
+                    fileRolesStore.get(),
+                    threadPool
+                )
+            );
+        }
+
         cacheInvalidatorRegistry.validate();
 
         final List<ReloadableSecurityComponent> reloadableComponents = new ArrayList<>();
@@ -1265,6 +1286,29 @@ public class Security extends Plugin
                     }
                 })
             );
+    }
+
+    private static Executor buildRoleBuildingExecutor(ThreadPool threadPool, Settings settings) {
+        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+        final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner("build_roles", allocatedProcessors, threadPool.generic());
+        return r -> throttledTaskRunner.enqueueTask(new ActionListener<>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                try (releasable) {
+                    r.run();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (r instanceof AbstractRunnable abstractRunnable) {
+                    abstractRunnable.onFailure(e);
+                }
+                // should be impossible, GENERIC pool doesn't reject anything
+                logger.error("unexpected failure running " + r, e);
+                assert false : new AssertionError("unexpected failure running " + r, e);
+            }
+        });
     }
 
     private AuthorizationEngine getAuthorizationEngine() {
@@ -2293,6 +2337,7 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, grantApiKeyRequestTranslator, RestGrantApiKeyAction.RequestTranslator.class);
         loadSingletonExtensionAndSetOnce(loader, fileRoleValidator, FileRoleValidator.class);
         loadSingletonExtensionAndSetOnce(loader, secondaryAuthActions, SecondaryAuthActions.class);
+        loadSingletonExtensionAndSetOnce(loader, queryableRolesProviderFactory, QueryableBuiltInRolesProviderFactory.class);
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {

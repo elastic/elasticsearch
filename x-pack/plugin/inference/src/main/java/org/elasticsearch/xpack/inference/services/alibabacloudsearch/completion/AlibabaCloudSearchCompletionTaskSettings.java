@@ -94,9 +94,14 @@ public class AlibabaCloudSearchCompletionTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return parameters == null || parameters.isEmpty();
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (parameters != null) {
+        if (parameters != null && parameters.isEmpty() == false) {
             builder.field(PARAMETERS, parameters);
         }
         builder.endObject();
@@ -110,7 +115,7 @@ public class AlibabaCloudSearchCompletionTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_ALIBABACLOUD_SEARCH_ADDED;
+        return TransportVersions.V_8_16_0;
     }
 
     @Override
@@ -133,5 +138,13 @@ public class AlibabaCloudSearchCompletionTaskSettings implements TaskSettings {
 
     public Map<String, Object> getParameters() {
         return parameters;
+    }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        AlibabaCloudSearchCompletionTaskSettings updatedSettings = AlibabaCloudSearchCompletionTaskSettings.fromMap(
+            new HashMap<>(newSettings)
+        );
+        return of(this, updatedSettings);
     }
 }

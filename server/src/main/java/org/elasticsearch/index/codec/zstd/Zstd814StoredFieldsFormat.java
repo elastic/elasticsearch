@@ -52,17 +52,23 @@ public final class Zstd814StoredFieldsFormat extends Lucene90CompressingStoredFi
         BEST_COMPRESSION(3, BEST_COMPRESSION_BLOCK_SIZE, 2048);
 
         final int level, blockSizeInBytes, blockDocCount;
+        final Zstd814StoredFieldsFormat format;
 
         Mode(int level, int blockSizeInBytes, int blockDocCount) {
             this.level = level;
             this.blockSizeInBytes = blockSizeInBytes;
             this.blockDocCount = blockDocCount;
+            this.format = new Zstd814StoredFieldsFormat(this);
+        }
+
+        public Zstd814StoredFieldsFormat getFormat() {
+            return format;
         }
     }
 
     private final Mode mode;
 
-    public Zstd814StoredFieldsFormat(Mode mode) {
+    private Zstd814StoredFieldsFormat(Mode mode) {
         super("ZstdStoredFields814", new ZstdCompressionMode(mode.level), mode.blockSizeInBytes, mode.blockDocCount, 10);
         this.mode = mode;
     }

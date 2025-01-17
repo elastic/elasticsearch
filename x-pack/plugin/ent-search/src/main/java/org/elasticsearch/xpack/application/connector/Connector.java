@@ -9,9 +9,6 @@ package org.elasticsearch.xpack.application.connector;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -63,9 +60,10 @@ import static org.elasticsearch.xpack.application.connector.ConnectorTemplateReg
  *     <li>A {@link ConnectorStatus} indicating the current status of the connector.</li>
  *     <li>A sync cursor, used for incremental syncs.</li>
  *     <li>A boolean flag 'syncNow', which, when set, triggers an immediate synchronization operation.</li>
+ *     <li>A boolean flag 'isDeleted', when set indicates that connector has been soft-deleted. </li>
  * </ul>
  */
-public class Connector implements NamedWriteable, ToXContentObject {
+public class Connector implements ToXContentObject {
 
     public static final String NAME = Connector.class.getName().toUpperCase(Locale.ROOT);
 
@@ -106,6 +104,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     @Nullable
     private final Object syncCursor;
     private final boolean syncNow;
+    private final boolean isDeleted;
 
     /**
      * Constructor for Connector.
@@ -132,6 +131,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
      * @param status             Current status of the connector.
      * @param syncCursor         Position or state indicating the current point of synchronization.
      * @param syncNow            Flag indicating whether an immediate synchronization is requested.
+     * @param isDeleted          Flag indicating whether connector has been soft-deleted.
      */
     private Connector(
         String connectorId,
@@ -155,7 +155,8 @@ public class Connector implements NamedWriteable, ToXContentObject {
         String serviceType,
         ConnectorStatus status,
         Object syncCursor,
-        boolean syncNow
+        boolean syncNow,
+        Boolean isDeleted
     ) {
         this.connectorId = connectorId;
         this.apiKeyId = apiKeyId;
@@ -179,31 +180,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         this.status = status;
         this.syncCursor = syncCursor;
         this.syncNow = syncNow;
-    }
-
-    public Connector(StreamInput in) throws IOException {
-        this.connectorId = in.readOptionalString();
-        this.apiKeyId = in.readOptionalString();
-        this.apiKeySecretId = in.readOptionalString();
-        this.configuration = in.readMap(ConnectorConfiguration::new);
-        this.customScheduling = in.readMap(ConnectorCustomSchedule::new);
-        this.description = in.readOptionalString();
-        this.error = in.readOptionalString();
-        this.features = in.readOptionalWriteable(ConnectorFeatures::new);
-        this.filtering = in.readOptionalCollectionAsList(ConnectorFiltering::new);
-        this.syncJobFiltering = in.readOptionalWriteable(FilteringRules::new);
-        this.indexName = in.readOptionalString();
-        this.isNative = in.readBoolean();
-        this.language = in.readOptionalString();
-        this.lastSeen = in.readOptionalInstant();
-        this.syncInfo = in.readOptionalWriteable(ConnectorSyncInfo::new);
-        this.name = in.readOptionalString();
-        this.pipeline = in.readOptionalWriteable(ConnectorIngestPipeline::new);
-        this.scheduling = in.readOptionalWriteable(ConnectorScheduling::new);
-        this.serviceType = in.readOptionalString();
-        this.status = in.readEnum(ConnectorStatus.class);
-        this.syncCursor = in.readGenericValue();
-        this.syncNow = in.readBoolean();
+        this.isDeleted = isDeleted;
     }
 
     public static final ParseField ID_FIELD = new ParseField("id");
@@ -226,6 +203,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     public static final ParseField STATUS_FIELD = new ParseField("status");
     public static final ParseField SYNC_CURSOR_FIELD = new ParseField("sync_cursor");
     static final ParseField SYNC_NOW_FIELD = new ParseField("sync_now");
+    public static final ParseField IS_DELETED_FIELD = new ParseField("deleted");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Connector, String> PARSER = new ConstructingObjectParser<>(
@@ -265,7 +243,8 @@ public class Connector implements NamedWriteable, ToXContentObject {
                 .setServiceType((String) args[i++])
                 .setStatus((ConnectorStatus) args[i++])
                 .setSyncCursor(args[i++])
-                .setSyncNow((Boolean) args[i])
+                .setSyncNow((Boolean) args[i++])
+                .setIsDeleted((Boolean) args[i])
                 .build();
         }
     );
@@ -357,6 +336,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         );
         PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> p.map(), null, SYNC_CURSOR_FIELD);
         PARSER.declareBoolean(optionalConstructorArg(), SYNC_NOW_FIELD);
+        PARSER.declareBoolean(optionalConstructorArg(), IS_DELETED_FIELD);
     }
 
     public static Connector fromXContentBytes(BytesReference source, String docId, XContentType xContentType) {
@@ -433,6 +413,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
             builder.field(STATUS_FIELD.getPreferredName(), status.toString());
         }
         builder.field(SYNC_NOW_FIELD.getPreferredName(), syncNow);
+        builder.field(IS_DELETED_FIELD.getPreferredName(), isDeleted);
     }
 
     @Override
@@ -443,32 +424,6 @@ public class Connector implements NamedWriteable, ToXContentObject {
         }
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(connectorId);
-        out.writeOptionalString(apiKeyId);
-        out.writeOptionalString(apiKeySecretId);
-        out.writeMap(configuration, StreamOutput::writeWriteable);
-        out.writeMap(customScheduling, StreamOutput::writeWriteable);
-        out.writeOptionalString(description);
-        out.writeOptionalString(error);
-        out.writeOptionalWriteable(features);
-        out.writeOptionalCollection(filtering);
-        out.writeOptionalWriteable(syncJobFiltering);
-        out.writeOptionalString(indexName);
-        out.writeBoolean(isNative);
-        out.writeOptionalString(language);
-        out.writeOptionalInstant(lastSeen);
-        out.writeOptionalWriteable(syncInfo);
-        out.writeOptionalString(name);
-        out.writeOptionalWriteable(pipeline);
-        out.writeOptionalWriteable(scheduling);
-        out.writeOptionalString(serviceType);
-        out.writeEnum(status);
-        out.writeGenericValue(syncCursor);
-        out.writeBoolean(syncNow);
     }
 
     public String getConnectorId() {
@@ -559,6 +514,10 @@ public class Connector implements NamedWriteable, ToXContentObject {
         return syncNow;
     }
 
+    public boolean isDeleted() {
+        return isDeleted;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -566,6 +525,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         Connector connector = (Connector) o;
         return isNative == connector.isNative
             && syncNow == connector.syncNow
+            && isDeleted == connector.isDeleted
             && Objects.equals(connectorId, connector.connectorId)
             && Objects.equals(apiKeyId, connector.apiKeyId)
             && Objects.equals(apiKeySecretId, connector.apiKeySecretId)
@@ -612,13 +572,9 @@ public class Connector implements NamedWriteable, ToXContentObject {
             serviceType,
             status,
             syncCursor,
-            syncNow
+            syncNow,
+            isDeleted
         );
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
     }
 
     public static class Builder {
@@ -645,6 +601,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         private ConnectorStatus status = ConnectorStatus.CREATED;
         private Object syncCursor;
         private boolean syncNow;
+        private boolean isDeleted;
 
         public Builder setConnectorId(String connectorId) {
             this.connectorId = connectorId;
@@ -756,6 +713,11 @@ public class Connector implements NamedWriteable, ToXContentObject {
             return this;
         }
 
+        public Builder setIsDeleted(Boolean isDeleted) {
+            this.isDeleted = Objects.requireNonNullElse(isDeleted, false);
+            return this;
+        }
+
         public Connector build() {
             return new Connector(
                 connectorId,
@@ -779,7 +741,8 @@ public class Connector implements NamedWriteable, ToXContentObject {
                 serviceType,
                 status,
                 syncCursor,
-                syncNow
+                syncNow,
+                isDeleted
             );
         }
     }

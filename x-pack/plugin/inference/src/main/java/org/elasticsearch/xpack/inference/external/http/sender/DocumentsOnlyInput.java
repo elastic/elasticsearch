@@ -14,7 +14,7 @@ public class DocumentsOnlyInput extends InferenceInputs {
 
     public static DocumentsOnlyInput of(InferenceInputs inferenceInputs) {
         if (inferenceInputs instanceof DocumentsOnlyInput == false) {
-            throw createUnsupportedTypeException(inferenceInputs);
+            throw createUnsupportedTypeException(inferenceInputs, DocumentsOnlyInput.class);
         }
 
         return (DocumentsOnlyInput) inferenceInputs;
@@ -22,12 +22,20 @@ public class DocumentsOnlyInput extends InferenceInputs {
 
     private final List<String> input;
 
-    public DocumentsOnlyInput(List<String> chunks) {
-        super();
-        this.input = Objects.requireNonNull(chunks);
+    public DocumentsOnlyInput(List<String> input) {
+        this(input, false);
+    }
+
+    public DocumentsOnlyInput(List<String> input, boolean stream) {
+        super(stream);
+        this.input = Objects.requireNonNull(input);
     }
 
     public List<String> getInputs() {
         return this.input;
+    }
+
+    public int inputSize() {
+        return input.size();
     }
 }

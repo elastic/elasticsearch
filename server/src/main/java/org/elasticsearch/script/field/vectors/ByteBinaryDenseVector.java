@@ -21,7 +21,7 @@ public class ByteBinaryDenseVector implements DenseVector {
     public static final int MAGNITUDE_BYTES = 4;
 
     private final BytesRef docVector;
-    private final byte[] vectorValue;
+    protected final byte[] vectorValue;
     protected final int dims;
 
     private float[] floatDocVector;
@@ -103,7 +103,7 @@ public class ByteBinaryDenseVector implements DenseVector {
 
     @Override
     public int hamming(byte[] queryVector) {
-        return ESVectorUtil.xorBitCount(queryVector, vectorValue);
+        return VectorUtil.xorBitCount(queryVector, vectorValue);
     }
 
     @Override

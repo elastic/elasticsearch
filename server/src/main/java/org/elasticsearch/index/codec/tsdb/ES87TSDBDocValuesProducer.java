@@ -16,6 +16,8 @@ import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.ImpactsEnum;
@@ -27,6 +29,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
@@ -43,6 +46,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_INDEX_JUMP_LENGTH_PER_LEVEL;
+import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
 
 public class ES87TSDBDocValuesProducer extends DocValuesProducer {
@@ -51,6 +56,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
     private final Map<String, SortedEntry> sorted = new HashMap<>();
     private final Map<String, SortedSetEntry> sortedSets = new HashMap<>();
     private final Map<String, SortedNumericEntry> sortedNumerics = new HashMap<>();
+    private final Map<String, DocValuesSkipperEntry> skippers = new HashMap<>();
     private final IndexInput data;
     private final int maxDoc;
 
@@ -61,7 +67,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
         // read in the entries from the metadata file.
         int version = -1;
-        try (ChecksumIndexInput in = state.directory.openChecksumInput(metaName, state.context)) {
+        try (ChecksumIndexInput in = state.directory.openChecksumInput(metaName)) {
             Throwable priorE = null;
 
             try {
@@ -126,7 +132,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             return DocValues.emptyBinary();
         }
 
-        final IndexInput bytesSlice = data.slice("fixed-binary", entry.dataOffset, entry.dataLength);
+        final RandomAccessInput bytesSlice = data.randomAccessSlice(entry.dataOffset, entry.dataLength);
 
         if (entry.docsWithFieldOffset == -1) {
             // dense
@@ -138,8 +144,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
                     @Override
                     public BytesRef binaryValue() throws IOException {
-                        bytesSlice.seek((long) doc * length);
-                        bytesSlice.readBytes(bytes.bytes, 0, length);
+                        bytesSlice.readBytes((long) doc * length, bytes.bytes, 0, length);
                         return bytes;
                     }
                 };
@@ -154,8 +159,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                     public BytesRef binaryValue() throws IOException {
                         long startOffset = addresses.get(doc);
                         bytes.length = (int) (addresses.get(doc + 1L) - startOffset);
-                        bytesSlice.seek(startOffset);
-                        bytesSlice.readBytes(bytes.bytes, 0, bytes.length);
+                        bytesSlice.readBytes(startOffset, bytes.bytes, 0, bytes.length);
                         return bytes;
                     }
                 };
@@ -178,8 +182,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
                     @Override
                     public BytesRef binaryValue() throws IOException {
-                        bytesSlice.seek((long) disi.index() * length);
-                        bytesSlice.readBytes(bytes.bytes, 0, length);
+                        bytesSlice.readBytes((long) disi.index() * length, bytes.bytes, 0, length);
                         return bytes;
                     }
                 };
@@ -195,8 +198,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                         final int index = disi.index();
                         long startOffset = addresses.get(index);
                         bytes.length = (int) (addresses.get(index + 1L) - startOffset);
-                        bytesSlice.seek(startOffset);
-                        bytesSlice.readBytes(bytes.bytes, 0, bytes.length);
+                        bytesSlice.readBytes(startOffset, bytes.bytes, 0, bytes.length);
                         return bytes;
                     }
                 };
@@ -355,7 +357,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private abstract class BaseSortedSetDocValues extends SortedSetDocValues {
+    private abstract static class BaseSortedSetDocValues extends SortedSetDocValues {
 
         final SortedSetEntry entry;
         final IndexInput data;
@@ -401,7 +403,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         final IndexInput bytes;
         final long blockMask;
         final LongValues indexAddresses;
-        final IndexInput indexBytes;
+        final RandomAccessInput indexBytes;
         final BytesRef term;
         long ord = -1;
 
@@ -421,7 +423,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                 entry.termsIndexAddressesLength
             );
             indexAddresses = DirectMonotonicReader.getInstance(entry.termsIndexAddressesMeta, indexAddressesSlice);
-            indexBytes = data.slice("terms-index", entry.termsIndexOffset, entry.termsIndexLength);
+            indexBytes = data.randomAccessSlice(entry.termsIndexOffset, entry.termsIndexLength);
             term = new BytesRef(entry.maxTermLength);
 
             // add the max term length for the dictionary
@@ -479,8 +481,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             assert index >= 0 && index <= (entry.termsDictSize - 1) >>> entry.termsDictIndexShift;
             final long start = indexAddresses.get(index);
             term.length = (int) (indexAddresses.get(index + 1) - start);
-            indexBytes.seek(start);
-            indexBytes.readBytes(term.bytes, 0, term.length);
+            indexBytes.readBytes(start, term.bytes, 0, term.length);
             return term;
         }
 
@@ -659,9 +660,8 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                     i = 0;
                     count = ords.docValueCount();
                 }
-                if (i++ == count) {
-                    return NO_MORE_ORDS;
-                }
+                assert i < count;
+                i++;
                 return ords.nextValue();
             }
 
@@ -701,6 +701,116 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
     }
 
     @Override
+    public DocValuesSkipper getSkipper(FieldInfo field) throws IOException {
+        final DocValuesSkipperEntry entry = skippers.get(field.name);
+
+        final IndexInput input = data.slice("doc value skipper", entry.offset, entry.length);
+        // Prefetch the first page of data. Following pages are expected to get prefetched through
+        // read-ahead.
+        if (input.length() > 0) {
+            input.prefetch(0, 1);
+        }
+        // TODO: should we write to disk the actual max level for this segment?
+        return new DocValuesSkipper() {
+            final int[] minDocID = new int[SKIP_INDEX_MAX_LEVEL];
+            final int[] maxDocID = new int[SKIP_INDEX_MAX_LEVEL];
+
+            {
+                for (int i = 0; i < SKIP_INDEX_MAX_LEVEL; i++) {
+                    minDocID[i] = maxDocID[i] = -1;
+                }
+            }
+
+            final long[] minValue = new long[SKIP_INDEX_MAX_LEVEL];
+            final long[] maxValue = new long[SKIP_INDEX_MAX_LEVEL];
+            final int[] docCount = new int[SKIP_INDEX_MAX_LEVEL];
+            int levels = 1;
+
+            @Override
+            public void advance(int target) throws IOException {
+                if (target > entry.maxDocId) {
+                    // skipper is exhausted
+                    for (int i = 0; i < SKIP_INDEX_MAX_LEVEL; i++) {
+                        minDocID[i] = maxDocID[i] = DocIdSetIterator.NO_MORE_DOCS;
+                    }
+                } else {
+                    // find next interval
+                    assert target > maxDocID[0] : "target must be bigger that current interval";
+                    while (true) {
+                        levels = input.readByte();
+                        assert levels <= SKIP_INDEX_MAX_LEVEL && levels > 0 : "level out of range [" + levels + "]";
+                        boolean valid = true;
+                        // check if current interval is competitive or we can jump to the next position
+                        for (int level = levels - 1; level >= 0; level--) {
+                            if ((maxDocID[level] = input.readInt()) < target) {
+                                input.skipBytes(SKIP_INDEX_JUMP_LENGTH_PER_LEVEL[level]); // the jump for the level
+                                valid = false;
+                                break;
+                            }
+                            minDocID[level] = input.readInt();
+                            maxValue[level] = input.readLong();
+                            minValue[level] = input.readLong();
+                            docCount[level] = input.readInt();
+                        }
+                        if (valid) {
+                            // adjust levels
+                            while (levels < SKIP_INDEX_MAX_LEVEL && maxDocID[levels] >= target) {
+                                levels++;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public int numLevels() {
+                return levels;
+            }
+
+            @Override
+            public int minDocID(int level) {
+                return minDocID[level];
+            }
+
+            @Override
+            public int maxDocID(int level) {
+                return maxDocID[level];
+            }
+
+            @Override
+            public long minValue(int level) {
+                return minValue[level];
+            }
+
+            @Override
+            public long maxValue(int level) {
+                return maxValue[level];
+            }
+
+            @Override
+            public int docCount(int level) {
+                return docCount[level];
+            }
+
+            @Override
+            public long minValue() {
+                return entry.minValue;
+            }
+
+            @Override
+            public long maxValue() {
+                return entry.maxValue;
+            }
+
+            @Override
+            public int docCount() {
+                return entry.docCount;
+            }
+        };
+    }
+
+    @Override
     public void checkIntegrity() throws IOException {
         CodecUtil.checksumEntireFile(data);
     }
@@ -717,6 +827,9 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                 throw new CorruptIndexException("Invalid field number: " + fieldNumber, meta);
             }
             byte type = meta.readByte();
+            if (info.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
+                skippers.put(info.name, readDocValueSkipperMeta(meta));
+            }
             if (type == ES87TSDBDocValuesFormat.NUMERIC) {
                 numerics.put(info.name, readNumeric(meta));
             } else if (type == ES87TSDBDocValuesFormat.BINARY) {
@@ -737,6 +850,17 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         NumericEntry entry = new NumericEntry();
         readNumeric(meta, entry);
         return entry;
+    }
+
+    private static DocValuesSkipperEntry readDocValueSkipperMeta(IndexInput meta) throws IOException {
+        long offset = meta.readLong();
+        long length = meta.readLong();
+        long maxValue = meta.readLong();
+        long minValue = meta.readLong();
+        int docCount = meta.readInt();
+        int maxDocID = meta.readInt();
+
+        return new DocValuesSkipperEntry(offset, length, minValue, maxValue, docCount, maxDocID);
     }
 
     private static void readNumeric(IndexInput meta, NumericEntry entry) throws IOException {
@@ -965,7 +1089,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
                 private final int maxDoc = ES87TSDBDocValuesProducer.this.maxDoc;
                 private int doc = -1;
-                private final ES87TSDBDocValuesEncoder decoder = new ES87TSDBDocValuesEncoder();
+                private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
 
@@ -1030,7 +1154,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             );
             return new NumericDocValues() {
 
-                private final ES87TSDBDocValuesEncoder decoder = new ES87TSDBDocValuesEncoder();
+                private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
 
@@ -1092,7 +1216,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
         return new NumericValues() {
 
-            private final ES87TSDBDocValuesEncoder decoder = new ES87TSDBDocValuesEncoder();
+            private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
             private long currentBlockIndex = -1;
             private final long[] currentBlock = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
 
@@ -1248,6 +1372,8 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             };
         }
     }
+
+    private record DocValuesSkipperEntry(long offset, long length, long minValue, long maxValue, int docCount, int maxDocId) {}
 
     private static class NumericEntry {
         long docsWithFieldOffset;

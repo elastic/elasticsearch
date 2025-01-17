@@ -1,15 +1,16 @@
 constant_keyword:
   - requires:
-      cluster_features: ["gte_v8.4.0"]
-      reason: introduced in 8.4.0
+      cluster_features: [ "mapper.constant_keyword.synthetic_source_write_fix" ]
+      reason: "Behavior fix"
 
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               const_kwd:
                 type: constant_keyword
@@ -26,13 +27,135 @@ constant_keyword:
           kwd: foo
 
   - do:
+      index:
+        index:   test
+        id:      2
+        refresh: true
+        body:
+          kwd: foo
+          const_kwd: bar
+
+  - do:
       search:
         index: test
         body:
           query:
             ids:
               values: [1]
+
   - match:
       hits.hits.0._source:
         kwd: foo
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [2]
+
+  - match:
+      hits.hits.0._source:
+        kwd: foo
+        const_kwd: bar
+
+---
+constant_keyword update value:
+  - requires:
+      cluster_features: [ "mapper.constant_keyword.synthetic_source_write_fix" ]
+      reason: "Behavior fix"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              const_kwd:
+                type: constant_keyword
+              kwd:
+                type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          kwd: foo
+
+  - do:
+      index:
+        index:   test
+        id:      2
+        refresh: true
+        body:
+          const_kwd: bar
+
+  - do:
+      index:
+        index:   test
+        id:      3
+        refresh: true
+        body:
+          kwd: foo
+
+  - do:
+      index:
+        index:   test
+        id:      4
+        refresh: true
+        body:
+          const_kwd: bar
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [1]
+
+  - match:
+      hits.hits.0._source:
+        kwd: foo
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [2]
+
+  - match:
+      hits.hits.0._source:
+        const_kwd: bar
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [3]
+
+  - match:
+      hits.hits.0._source:
+        kwd: foo
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [4]
+
+  - match:
+      hits.hits.0._source:
         const_kwd: bar

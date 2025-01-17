@@ -10,6 +10,6 @@ expression. The right-hand side of the operator represents the pattern.
 
 ```
 FROM employees
-| WHERE first_name RLIKE ".leja.*"
+| WHERE first_name RLIKE """.leja.*"""
 | KEEP first_name, last_name
 ```

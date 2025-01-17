@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -15,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -29,14 +27,6 @@ import java.util.function.Supplier;
  * (which is a type of expression) with a single child, c.
  */
 public abstract class Expression extends Node<Expression> implements Resolvable {
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        for (NamedWriteableRegistry.Entry e : NamedExpression.getNamedWriteables()) {
-            entries.add(new NamedWriteableRegistry.Entry(Expression.class, e.name, in -> (NamedExpression) e.reader.read(in)));
-        }
-        entries.add(Literal.ENTRY);
-        return entries;
-    }
 
     public static class TypeResolution {
         private final boolean failed;
@@ -88,12 +78,20 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
         super(source, children);
     }
 
-    // whether the expression can be evaluated statically (folded) or not
+    /**
+     * Whether the expression can be evaluated statically, aka "folded", or not.
+     */
     public boolean foldable() {
         return false;
     }
 
-    public Object fold() {
+    /**
+     * Evaluate this expression statically to a constant. It is an error to call
+     * this if {@link #foldable} returns false.
+     */
+    public Object fold(FoldContext ctx) {
+        // TODO After removing FoldContext.unbounded from non-test code examine all calls
+        // for places we should use instanceof Literal instead
         throw new QlIllegalArgumentException("Should not fold expression");
     }
 

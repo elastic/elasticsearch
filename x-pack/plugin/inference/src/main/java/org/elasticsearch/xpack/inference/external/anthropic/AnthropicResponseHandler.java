@@ -7,17 +7,20 @@
 
 package org.elasticsearch.xpack.inference.external.anthropic;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
 
-import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
+import java.util.concurrent.Flow;
+
 import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
 
 public class AnthropicResponseHandler extends BaseResponseHandler {
@@ -41,15 +44,25 @@ public class AnthropicResponseHandler extends BaseResponseHandler {
 
     static final String SERVER_BUSY = "Received an Anthropic server is temporarily overloaded status code";
 
-    public AnthropicResponseHandler(String requestType, ResponseParser parseFunction) {
+    private final boolean canHandleStreamingResponses;
+
+    public AnthropicResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponses) {
         super(requestType, parseFunction, ErrorMessageResponseEntity::fromResponse);
+        this.canHandleStreamingResponses = canHandleStreamingResponses;
     }
 
     @Override
-    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
-        throws RetryException {
-        checkForFailureStatusCode(request, result);
-        checkForEmptyBody(throttlerManager, logger, request, result);
+    public boolean canHandleStreamingResponses() {
+        return canHandleStreamingResponses;
+    }
+
+    @Override
+    public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
+        var sseProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
+        var anthropicProcessor = new AnthropicStreamingProcessor();
+        sseProcessor.subscribe(anthropicProcessor);
+        flow.subscribe(sseProcessor);
+        return new StreamingChatCompletionResults(anthropicProcessor);
     }
 
     /**
@@ -60,13 +73,14 @@ public class AnthropicResponseHandler extends BaseResponseHandler {
      * @param result  The http response and body
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
      */
-    void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
-        int statusCode = result.response().getStatusLine().getStatusCode();
-        if (statusCode >= 200 && statusCode < 300) {
+    @Override
+    protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
+        if (result.isSuccessfulResponse()) {
             return;
         }
 
         // handle error codes
+        int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
             throw new RetryException(true, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 529) {

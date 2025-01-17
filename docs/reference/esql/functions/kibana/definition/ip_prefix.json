@@ -32,5 +32,6 @@
   "examples" : [
     "row ip4 = to_ip(\"1.2.3.4\"), ip6 = to_ip(\"fe80::cae2:65ff:fece:feb9\")\n| eval ip4_prefix = ip_prefix(ip4, 24, 0), ip6_prefix = ip_prefix(ip6, 0, 112);"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -42,45 +43,58 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
         MetadataUpdateSettingsService metadataUpdateSettingsService = internalCluster().getCurrentMasterNodeInstance(
             MetadataUpdateSettingsService.class
         );
-        UpdateSettingsClusterStateUpdateRequest request = new UpdateSettingsClusterStateUpdateRequest().ackTimeout(TimeValue.ZERO);
-        List<Index> indices = new ArrayList<>();
+        List<Index> indicesList = new ArrayList<>();
         for (IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
             for (IndexService indexService : indicesService) {
-                indices.add(indexService.index());
+                indicesList.add(indexService.index());
             }
         }
-        request.indices(indices.toArray(Index.EMPTY_ARRAY));
-        request.settings(Settings.builder().put("index.codec", "FastDecompressionCompressingStoredFieldsData").build());
+        final var indices = indicesList.toArray(Index.EMPTY_ARRAY);
+
+        final Function<UpdateSettingsClusterStateUpdateRequest.OnStaticSetting, UpdateSettingsClusterStateUpdateRequest> requestFactory =
+            onStaticSetting -> new UpdateSettingsClusterStateUpdateRequest(
+                TEST_REQUEST_TIMEOUT,
+                TimeValue.ZERO,
+                Settings.builder().put("index.codec", "FastDecompressionCompressingStoredFieldsData").build(),
+                UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                onStaticSetting,
+                indices
+            );
 
         // First make sure it fails if reopenShards is not set on the request:
         AtomicBoolean expectedFailureOccurred = new AtomicBoolean(false);
-        metadataUpdateSettingsService.updateSettings(request, new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                fail("Should have failed updating a non-dynamic setting without reopenShards set to true");
-            }
+        metadataUpdateSettingsService.updateSettings(
+            requestFactory.apply(UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    fail("Should have failed updating a non-dynamic setting without reopenShards set to true");
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                expectedFailureOccurred.set(true);
+                @Override
+                public void onFailure(Exception e) {
+                    expectedFailureOccurred.set(true);
+                }
             }
-        });
+        );
         assertBusy(() -> assertThat(expectedFailureOccurred.get(), equalTo(true)));
 
         // Now we set reopenShards and expect it to work:
-        request.reopenShards(true);
         AtomicBoolean success = new AtomicBoolean(false);
-        metadataUpdateSettingsService.updateSettings(request, new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                success.set(true);
-            }
+        metadataUpdateSettingsService.updateSettings(
+            requestFactory.apply(UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    success.set(true);
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
             }
-        });
+        );
         assertBusy(() -> assertThat(success.get(), equalTo(true)));
 
         // Now we look into the IndexShard objects to make sure that the code was actually updated (vs just the setting):
@@ -110,16 +124,23 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
         MetadataUpdateSettingsService metadataUpdateSettingsService = internalCluster().getCurrentMasterNodeInstance(
             MetadataUpdateSettingsService.class
         );
-        UpdateSettingsClusterStateUpdateRequest request = new UpdateSettingsClusterStateUpdateRequest().ackTimeout(TimeValue.ZERO);
-        List<Index> indices = new ArrayList<>();
+        List<Index> indicesList = new ArrayList<>();
         for (IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
             for (IndexService indexService : indicesService) {
-                indices.add(indexService.index());
+                indicesList.add(indexService.index());
             }
         }
-        request.indices(indices.toArray(Index.EMPTY_ARRAY));
-        request.settings(Settings.builder().put("index.codec", "FastDecompressionCompressingStoredFieldsData").build());
-        request.reopenShards(true);
+        final var indices = indicesList.toArray(Index.EMPTY_ARRAY);
+
+        final Function<Settings.Builder, UpdateSettingsClusterStateUpdateRequest> requestFactory =
+            settings -> new UpdateSettingsClusterStateUpdateRequest(
+                TEST_REQUEST_TIMEOUT,
+                TimeValue.ZERO,
+                settings.build(),
+                UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES,
+                indices
+            );
 
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
         AtomicBoolean shardsUnassigned = new AtomicBoolean(false);
@@ -142,47 +163,49 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
 
         AtomicBoolean success = new AtomicBoolean(false);
         // Make the first request, just to set things up:
-        metadataUpdateSettingsService.updateSettings(request, new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                success.set(true);
-            }
+        metadataUpdateSettingsService.updateSettings(
+            requestFactory.apply(Settings.builder().put("index.codec", "FastDecompressionCompressingStoredFieldsData")),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    success.set(true);
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
             }
-        });
+        );
         assertBusy(() -> assertThat(success.get(), equalTo(true)));
         assertBusy(() -> assertThat(expectedSettingsChangeInClusterState.get(), equalTo(true)));
         assertThat(shardsUnassigned.get(), equalTo(true));
 
         assertBusy(() -> assertThat(hasUnassignedShards(clusterService.state(), indexName), equalTo(false)));
 
-        // Same request, except now we'll also set the dynamic "index.max_result_window" setting:
-        request.settings(
-            Settings.builder()
-                .put("index.codec", "FastDecompressionCompressingStoredFieldsData")
-                .put("index.max_result_window", "1500")
-                .build()
-        );
         success.set(false);
         expectedSettingsChangeInClusterState.set(false);
         shardsUnassigned.set(false);
         expectedSetting.set("index.max_result_window");
         expectedSettingValue.set("1500");
         // Making this request ought to add this new setting but not unassign the shards:
-        metadataUpdateSettingsService.updateSettings(request, new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                success.set(true);
-            }
+        metadataUpdateSettingsService.updateSettings(
+            // Same request, except now we'll also set the dynamic "index.max_result_window" setting:
+            requestFactory.apply(
+                Settings.builder().put("index.codec", "FastDecompressionCompressingStoredFieldsData").put("index.max_result_window", "1500")
+            ),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    success.set(true);
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
             }
-        });
+        );
 
         assertBusy(() -> assertThat(success.get(), equalTo(true)));
         assertBusy(() -> assertThat(expectedSettingsChangeInClusterState.get(), equalTo(true)));

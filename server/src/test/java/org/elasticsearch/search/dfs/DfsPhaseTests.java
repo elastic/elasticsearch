@@ -40,7 +40,7 @@ public class DfsPhaseTests extends ESTestCase {
     @Before
     public final void init() {
         threadPool = new TestThreadPool(DfsPhaseTests.class.getName());
-        threadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH_WORKER);
+        threadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH);
     }
 
     @After

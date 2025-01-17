@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.Arrays;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntBetween;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
@@ -161,7 +161,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         for (int i = 0; i < iters; i++) {
             final Index index = new Index("test", "_na_");
             final String name = "ngr";
-            IndexVersion v = IndexVersionUtils.randomVersion(random());
+            IndexVersion v = IndexVersionUtils.randomVersion();
             Builder builder = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3);
             boolean reverse = random().nextBoolean();
             if (reverse) {
@@ -183,6 +183,9 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
                 assertThat(edgeNGramTokenFilter, instanceOf(EdgeNGramTokenFilter.class));
             }
         }
+        assertWarnings(
+            "The [side] parameter is deprecated and will be removed. Use a [reverse] before and after the [edge_ngram] instead."
+        );
     }
 
     /*`

@@ -1,4 +1,7 @@
 setup:
+  - requires:
+      cluster_features: [ "gte_v8.4.0" ]
+      reason: "Cluster mappings stats for indexed dense vector was added in 8.4"
   - skip:
       features: headers
 
@@ -15,6 +18,11 @@ setup:
                 dims: 768
                 index: true
                 similarity: l2_norm
+                element_type: byte
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 100
               vector2:
                 type: dense_vector
                 dims: 1024
@@ -41,9 +49,6 @@ setup:
 
 ---
 "Field mapping stats":
-  - requires:
-      cluster_features: ["gte_v8.4.0"]
-      reason: "Cluster mappings stats for indexed dense vector was added in 8.4"
   - do: { cluster.stats: { } }
   - length: { indices.mappings.field_types: 1 }
   - match: { indices.mappings.field_types.0.name: dense_vector }
@@ -52,3 +57,28 @@ setup:
   - match: { indices.mappings.field_types.0.indexed_vector_count: 3 }
   - match: { indices.mappings.field_types.0.indexed_vector_dim_min: 768 }
   - match: { indices.mappings.field_types.0.indexed_vector_dim_max: 1024 }
+---
+"Field mapping stats with field details":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_cluster/stats
+          capabilities:
+            - "verbose-dense-vector-mapping-stats"
+      reason: "Capability required to run test"
+  - do: { cluster.stats: { } }
+  - length: { indices.mappings.field_types: 1 }
+  - match: { indices.mappings.field_types.0.name: dense_vector }
+  - match: { indices.mappings.field_types.0.count: 4 }
+  - match: { indices.mappings.field_types.0.index_count: 2 }
+  - match: { indices.mappings.field_types.0.indexed_vector_count: 3 }
+  - match: { indices.mappings.field_types.0.indexed_vector_dim_min: 768 }
+  - match: { indices.mappings.field_types.0.indexed_vector_dim_max: 1024 }
+  - match: { indices.mappings.field_types.0.vector_index_type_count.hnsw: 1 }
+  - match: { indices.mappings.field_types.0.vector_index_type_count.int8_hnsw: 2 }
+  - match: { indices.mappings.field_types.0.vector_index_type_count.not_indexed: 1 }
+  - match: { indices.mappings.field_types.0.vector_similarity_type_count.l2_norm: 2 }
+  - match: { indices.mappings.field_types.0.vector_similarity_type_count.dot_product: 1 }
+  - match: { indices.mappings.field_types.0.vector_element_type_count.float: 3 }
+  - match: { indices.mappings.field_types.0.vector_element_type_count.byte: 1 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.azureopenai.embeddings;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -100,6 +101,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
         String deploymentId,
         String apiVersion,
         String user,
+        ChunkingSettings chunkingSettings,
         @Nullable String apiKey,
         @Nullable String entraId,
         String inferenceEntityId
@@ -112,6 +114,29 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
             "service",
             new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null, null, null),
             new AzureOpenAiEmbeddingsTaskSettings(user),
+            chunkingSettings,
+            new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
+        );
+    }
+
+    public static AzureOpenAiEmbeddingsModel createModel(
+        String resourceName,
+        String deploymentId,
+        String apiVersion,
+        String user,
+        @Nullable String apiKey,
+        @Nullable String entraId,
+        String inferenceEntityId
+    ) {
+        var secureApiKey = apiKey != null ? new SecureString(apiKey.toCharArray()) : null;
+        var secureEntraId = entraId != null ? new SecureString(entraId.toCharArray()) : null;
+        return new AzureOpenAiEmbeddingsModel(
+            inferenceEntityId,
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null, null, null),
+            new AzureOpenAiEmbeddingsTaskSettings(user),
+            null,
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
         );
     }
@@ -147,6 +172,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
                 null
             ),
             new AzureOpenAiEmbeddingsTaskSettings(user),
+            null,
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
         );
     }

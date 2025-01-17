@@ -51,6 +51,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
@@ -135,64 +136,21 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         lonlat.add(20f);
         lonlat.add(11f);
 
-        assertHitCount(
-            client().search(
-                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH).source(searchSource().query(baseQuery))
-            ),
-            (numDummyDocs + 2)
-        );
-
-        assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
-                    .source(searchSource().query(functionScoreQuery(baseQuery, gaussDecayFunction("loc", lonlat, "1000km"))))
-            ),
-            response -> {
-                assertHitCount(response, (numDummyDocs + 2));
-                assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-                assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
-            }
-        );
-        // Test Exp
-
-        assertHitCount(
-            client().search(
-                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH).source(searchSource().query(baseQuery))
-            ),
-            (numDummyDocs + 2)
-        );
-
-        assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
-                    .source(searchSource().query(functionScoreQuery(baseQuery, linearDecayFunction("loc", lonlat, "1000km"))))
-            ),
-            response -> {
-                assertHitCount(response, (numDummyDocs + 2));
-                assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-                assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
-            }
-        );
-
-        // Test Lin
-
-        assertHitCount(
-            client().search(
-                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH).source(searchSource().query(baseQuery))
-            ),
-            (numDummyDocs + 2)
-        );
-
-        assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
-                    .source(searchSource().query(functionScoreQuery(baseQuery, exponentialDecayFunction("loc", lonlat, "1000km"))))
-            ),
-            response -> {
-                assertHitCount(response, (numDummyDocs + 2));
-                assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-                assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
-            }
+        assertResponses(response -> {
+            assertHitCount(response, (numDummyDocs + 2));
+            assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+            assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+            assertHitCount(
+                (numDummyDocs + 2),
+                prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH).setSource(searchSource().query(baseQuery))
+            );
+        },
+            prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(searchSource().query(functionScoreQuery(baseQuery, gaussDecayFunction("loc", lonlat, "1000km")))),
+            prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(searchSource().query(functionScoreQuery(baseQuery, linearDecayFunction("loc", lonlat, "1000km")))),
+            prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(searchSource().query(functionScoreQuery(baseQuery, exponentialDecayFunction("loc", lonlat, "1000km"))))
         );
     }
 
@@ -234,77 +192,46 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         indexRandom(true, indexBuilders);
 
-        // Test Gauss
-
-        assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
-                    .source(
-                        searchSource().size(numDummyDocs + 2)
-                            .query(
-                                functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 1.0, 5.0, 1.0)).boostMode(
-                                    CombineFunction.REPLACE
-                                )
-                            )
-                    )
-            ),
-            response -> {
-                SearchHits sh = response.getHits();
-                assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
-                assertThat(sh.getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
-                assertThat(sh.getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
-                assertThat(sh.getAt(1).getScore(), equalTo(sh.getAt(0).getScore()));
-                for (int i = 0; i < numDummyDocs; i++) {
-                    assertThat(sh.getAt(i + 2).getId(), equalTo(Integer.toString(i + 3)));
-                }
+        assertResponses(response -> {
+            SearchHits sh = response.getHits();
+            assertThat(sh.getTotalHits().value(), equalTo((long) (numDummyDocs + 2)));
+            assertThat(sh.getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
+            assertThat(sh.getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
+            assertThat(sh.getAt(1).getScore(), equalTo(sh.getAt(0).getScore()));
+            for (int i = 0; i < numDummyDocs; i++) {
+                assertThat(sh.getAt(i + 2).getId(), equalTo(Integer.toString(i + 3)));
             }
-        );
-
-        // Test Exp
-
-        assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
-                    .source(
-                        searchSource().size(numDummyDocs + 2)
-                            .query(
-                                functionScoreQuery(termQuery("test", "value"), exponentialDecayFunction("num", 1.0, 5.0, 1.0)).boostMode(
-                                    CombineFunction.REPLACE
-                                )
+        },
+            // Test Gauss
+            prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(
+                    searchSource().size(numDummyDocs + 2)
+                        .query(
+                            functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 1.0, 5.0, 1.0)).boostMode(
+                                CombineFunction.REPLACE
                             )
-                    )
-            ),
-            response -> {
-                SearchHits sh = response.getHits();
-                assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
-                assertThat(sh.getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
-                assertThat(sh.getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
-                assertThat(sh.getAt(1).getScore(), equalTo(sh.getAt(0).getScore()));
-                for (int i = 0; i < numDummyDocs; i++) {
-                    assertThat(sh.getAt(i + 2).getId(), equalTo(Integer.toString(i + 3)));
-                }
-            }
-        );
-        // Test Lin
-        assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
-                    .source(
-                        searchSource().size(numDummyDocs + 2)
-                            .query(
-                                functionScoreQuery(termQuery("test", "value"), linearDecayFunction("num", 1.0, 20.0, 1.0)).boostMode(
-                                    CombineFunction.REPLACE
-                                )
+                        )
+                ),
+            // Test Exp
+            prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(
+                    searchSource().size(numDummyDocs + 2)
+                        .query(
+                            functionScoreQuery(termQuery("test", "value"), exponentialDecayFunction("num", 1.0, 5.0, 1.0)).boostMode(
+                                CombineFunction.REPLACE
                             )
-                    )
-            ),
-            response -> {
-                SearchHits sh = response.getHits();
-                assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
-                assertThat(sh.getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
-                assertThat(sh.getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
-                assertThat(sh.getAt(1).getScore(), equalTo(sh.getAt(0).getScore()));
-            }
+                        )
+                ),
+            // Test Lin
+            prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(
+                    searchSource().size(numDummyDocs + 2)
+                        .query(
+                            functionScoreQuery(termQuery("test", "value"), linearDecayFunction("num", 1.0, 20.0, 1.0)).boostMode(
+                                CombineFunction.REPLACE
+                            )
+                        )
+                )
         );
     }
 
@@ -355,62 +282,45 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         );
         indexRandom(true, false, indexBuilders); // force no dummy docs
 
-        // Test Gauss
         List<Float> lonlat = new ArrayList<>();
         lonlat.add(20f);
         lonlat.add(11f);
 
-        assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
-                    .source(
-                        searchSource().query(
-                            functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("loc", lonlat, "1000km")).boostMode(
-                                CombineFunction.MULTIPLY
-                            )
+        assertResponses(response -> {
+            SearchHits sh = response.getHits();
+            assertThat(sh.getTotalHits().value(), equalTo((long) (2)));
+            assertThat(sh.getAt(0).getId(), equalTo("1"));
+            assertThat(sh.getAt(1).getId(), equalTo("2"));
+        },
+            // Test Gauss
+            prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(
+                    searchSource().query(
+                        functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("loc", lonlat, "1000km")).boostMode(
+                            CombineFunction.MULTIPLY
                         )
                     )
-            ),
-            response -> {
-                SearchHits sh = response.getHits();
-                assertThat(sh.getTotalHits().value, equalTo((long) (2)));
-                assertThat(sh.getAt(0).getId(), equalTo("1"));
-                assertThat(sh.getAt(1).getId(), equalTo("2"));
-            }
-        );
-        // Test Exp
-        assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
-                    .source(searchSource().query(termQuery("test", "value")))
-            ),
-            response -> {
-                SearchHits sh = response.getHits();
-                assertThat(sh.getTotalHits().value, equalTo((long) (2)));
-                assertThat(sh.getAt(0).getId(), equalTo("1"));
-                assertThat(sh.getAt(1).getId(), equalTo("2"));
-            }
+                ),
+            // Test Exp
+            prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH).setSource(searchSource().query(termQuery("test", "value")))
         );
 
         assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
-                    .source(
-                        searchSource().query(
-                            functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("loc", lonlat, "1000km")).boostMode(
-                                CombineFunction.REPLACE
-                            )
+            prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(
+                    searchSource().query(
+                        functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("loc", lonlat, "1000km")).boostMode(
+                            CombineFunction.REPLACE
                         )
                     )
-            ),
+                ),
             response -> {
                 SearchHits sh = response.getHits();
-                assertThat(sh.getTotalHits().value, equalTo((long) (2)));
+                assertThat(sh.getTotalHits().value(), equalTo((long) (2)));
                 assertThat(sh.getAt(0).getId(), equalTo("2"));
                 assertThat(sh.getAt(1).getId(), equalTo("1"));
             }
         );
-
     }
 
     public void testParseGeoPoint() throws Exception {
@@ -447,44 +357,30 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             constantScoreQuery(termQuery("test", "value")),
             ScoreFunctionBuilders.weightFactorFunction(randomIntBetween(1, 10))
         );
-        GeoPoint point = new GeoPoint(20, 11);
-        assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
-                    .source(
-                        searchSource().query(
-                            functionScoreQuery(baseQueryBuilder, gaussDecayFunction("loc", point, "1000km")).boostMode(
-                                CombineFunction.REPLACE
-                            )
+
+        assertResponses(response -> {
+            SearchHits sh = response.getHits();
+            assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
+            assertThat(sh.getAt(0).getId(), equalTo("1"));
+            assertThat((double) sh.getAt(0).getScore(), closeTo(1.0f, 1.e-5));
+        },
+            prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(
+                    searchSource().query(
+                        functionScoreQuery(baseQueryBuilder, gaussDecayFunction("loc", new GeoPoint(20, 11), "1000km")).boostMode(
+                            CombineFunction.REPLACE
                         )
                     )
-            ),
-            response -> {
-                SearchHits sh = response.getHits();
-                assertThat(sh.getTotalHits().value, equalTo((long) (1)));
-                assertThat(sh.getAt(0).getId(), equalTo("1"));
-                assertThat((double) sh.getAt(0).getScore(), closeTo(1.0, 1.e-5));
-            }
-        );
-        // this is equivalent to new GeoPoint(20, 11); just flipped so scores must be same
-        float[] coords = { 11, 20 };
-        assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
-                    .source(
-                        searchSource().query(
-                            functionScoreQuery(baseQueryBuilder, gaussDecayFunction("loc", coords, "1000km")).boostMode(
-                                CombineFunction.REPLACE
-                            )
+                ),
+            // new float[] {11,20} is equivalent to new GeoPoint(20, 11); just flipped so scores must be same
+            prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(
+                    searchSource().query(
+                        functionScoreQuery(baseQueryBuilder, gaussDecayFunction("loc", new float[] { 11, 20 }, "1000km")).boostMode(
+                            CombineFunction.REPLACE
                         )
                     )
-            ),
-            response -> {
-                SearchHits sh = response.getHits();
-                assertThat(sh.getTotalHits().value, equalTo((long) (1)));
-                assertThat(sh.getAt(0).getId(), equalTo("1"));
-                assertThat((double) sh.getAt(0).getScore(), closeTo(1.0f, 1.e-5));
-            }
+                )
         );
     }
 
@@ -516,55 +412,47 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         );
         // decay score should return 0.5 for this function and baseQuery should return 2.0f as it's score
         assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
-                    .source(
-                        searchSource().query(
-                            functionScoreQuery(baseQueryBuilder, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(
-                                CombineFunction.MULTIPLY
-                            )
+            prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(
+                    searchSource().query(
+                        functionScoreQuery(baseQueryBuilder, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(
+                            CombineFunction.MULTIPLY
                         )
                     )
-            ),
+                ),
             response -> {
                 SearchHits sh = response.getHits();
-                assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+                assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
                 assertThat(sh.getAt(0).getId(), equalTo("1"));
                 assertThat((double) sh.getAt(0).getScore(), closeTo(1.0, 1.e-5));
             }
         );
         assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
-                    .source(
-                        searchSource().query(
-                            functionScoreQuery(baseQueryBuilder, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(
-                                CombineFunction.REPLACE
-                            )
+            prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(
+                    searchSource().query(
+                        functionScoreQuery(baseQueryBuilder, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(
+                            CombineFunction.REPLACE
                         )
                     )
-            ),
+                ),
             response -> {
                 SearchHits sh = response.getHits();
-                assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+                assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
                 assertThat(sh.getAt(0).getId(), equalTo("1"));
                 assertThat((double) sh.getAt(0).getScore(), closeTo(0.5, 1.e-5));
             }
         );
         assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
-                    .source(
-                        searchSource().query(
-                            functionScoreQuery(baseQueryBuilder, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(
-                                CombineFunction.SUM
-                            )
-                        )
-                    )
-            ),
+            prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(
+                    (searchSource().query(
+                        functionScoreQuery(baseQueryBuilder, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(CombineFunction.SUM)
+                    ))
+                ),
             response -> {
                 SearchHits sh = response.getHits();
-                assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+                assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
                 assertThat(sh.getAt(0).getId(), equalTo("1"));
                 assertThat((double) sh.getAt(0).getScore(), closeTo(2.0 + 0.5, 1.e-5));
                 logger.info(
@@ -576,55 +464,43 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         );
 
         assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
-                    .source(
-                        searchSource().query(
-                            functionScoreQuery(baseQueryBuilder, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(
-                                CombineFunction.AVG
-                            )
-                        )
+            prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(
+                    searchSource().query(
+                        functionScoreQuery(baseQueryBuilder, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(CombineFunction.AVG)
                     )
-            ),
+                ),
             response -> {
                 SearchHits sh = response.getHits();
-                assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+                assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
                 assertThat(sh.getAt(0).getId(), equalTo("1"));
                 assertThat((double) sh.getAt(0).getScore(), closeTo((2.0 + 0.5) / 2, 1.e-5));
             }
         );
         assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
-                    .source(
-                        searchSource().query(
-                            functionScoreQuery(baseQueryBuilder, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(
-                                CombineFunction.MIN
-                            )
-                        )
+            prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(
+                    searchSource().query(
+                        functionScoreQuery(baseQueryBuilder, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(CombineFunction.MIN)
                     )
-            ),
+                ),
             response -> {
                 SearchHits sh = response.getHits();
-                assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+                assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
                 assertThat(sh.getAt(0).getId(), equalTo("1"));
                 assertThat((double) sh.getAt(0).getScore(), closeTo(0.5, 1.e-5));
             }
         );
         assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
-                    .source(
-                        searchSource().query(
-                            functionScoreQuery(baseQueryBuilder, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(
-                                CombineFunction.MAX
-                            )
-                        )
+            prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(
+                    searchSource().query(
+                        functionScoreQuery(baseQueryBuilder, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(CombineFunction.MAX)
                     )
-            ),
+                ),
             response -> {
                 SearchHits sh = response.getHits();
-                assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+                assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
                 assertThat(sh.getAt(0).getId(), equalTo("1"));
                 assertThat((double) sh.getAt(0).getScore(), closeTo(2.0, 1.e-5));
             }
@@ -872,7 +748,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testManyDocsLin() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleWriteVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
             .startObject("_doc")
@@ -1128,21 +1004,19 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         indexRandom(true, doc1, doc2);
 
-        assertResponse(client().search(new SearchRequest(new String[] {}).source(searchSource().query(baseQuery))), response -> {
+        assertResponse(prepareSearch().setSource(searchSource().query(baseQuery)), response -> {
             assertSearchHits(response, "1", "2");
             SearchHits sh = response.getHits();
-            assertThat(sh.getTotalHits().value, equalTo((long) (2)));
+            assertThat(sh.getTotalHits().value(), equalTo((long) (2)));
         });
 
         List<Float> lonlat = new ArrayList<>();
         lonlat.add(20f);
         lonlat.add(10f);
         assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).source(
-                    searchSource().query(
-                        functionScoreQuery(baseQuery, gaussDecayFunction("loc", lonlat, "1000km").setMultiValueMode(MultiValueMode.MIN))
-                    )
+            prepareSearch().setSource(
+                searchSource().query(
+                    functionScoreQuery(baseQuery, gaussDecayFunction("loc", lonlat, "1000km").setMultiValueMode(MultiValueMode.MIN))
                 )
             ),
             response -> {
@@ -1154,11 +1028,9 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             }
         );
         assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).source(
-                    searchSource().query(
-                        functionScoreQuery(baseQuery, gaussDecayFunction("loc", lonlat, "1000km").setMultiValueMode(MultiValueMode.MAX))
-                    )
+            prepareSearch().setSource(
+                searchSource().query(
+                    functionScoreQuery(baseQuery, gaussDecayFunction("loc", lonlat, "1000km").setMultiValueMode(MultiValueMode.MAX))
                 )
             ),
             response -> {
@@ -1180,11 +1052,9 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         indexRandom(true, doc1, doc2);
         assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).source(
-                    searchSource().query(
-                        functionScoreQuery(baseQuery, linearDecayFunction("num", "0", "10").setMultiValueMode(MultiValueMode.SUM))
-                    )
+            prepareSearch().setSource(
+                searchSource().query(
+                    functionScoreQuery(baseQuery, linearDecayFunction("num", "0", "10").setMultiValueMode(MultiValueMode.SUM))
                 )
             ),
             response -> {
@@ -1197,11 +1067,9 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             }
         );
         assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).source(
-                    searchSource().query(
-                        functionScoreQuery(baseQuery, linearDecayFunction("num", "0", "10").setMultiValueMode(MultiValueMode.AVG))
-                    )
+            prepareSearch().setSource(
+                searchSource().query(
+                    functionScoreQuery(baseQuery, linearDecayFunction("num", "0", "10").setMultiValueMode(MultiValueMode.AVG))
                 )
             ),
             response -> {

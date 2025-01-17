@@ -9,19 +9,20 @@
 
 package org.elasticsearch.action.admin.indices.resolve;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -31,6 +32,7 @@ import java.util.Objects;
 public class ResolveClusterActionRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
+    public static final String TRANSPORT_VERSION_ERROR_MESSAGE_PREFIX = "ResolveClusterAction requires at least version";
 
     private String[] names;
     /*
@@ -66,12 +68,7 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
     public ResolveClusterActionRequest(StreamInput in) throws IOException {
         super(in);
         if (in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            throw new UnsupportedOperationException(
-                "ResolveClusterAction requires at least version "
-                    + TransportVersions.V_8_13_0.toReleaseVersion()
-                    + " but was "
-                    + in.getTransportVersion().toReleaseVersion()
-            );
+            throw new UnsupportedOperationException(createVersionErrorMessage(in.getTransportVersion()));
         }
         this.names = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
@@ -82,15 +79,19 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            throw new UnsupportedOperationException(
-                "ResolveClusterAction requires at least version "
-                    + TransportVersions.V_8_13_0.toReleaseVersion()
-                    + " but was "
-                    + out.getTransportVersion().toReleaseVersion()
-            );
+            throw new UnsupportedOperationException(createVersionErrorMessage(out.getTransportVersion()));
         }
         out.writeStringArray(names);
         indicesOptions.writeIndicesOptions(out);
+    }
+
+    private String createVersionErrorMessage(TransportVersion versionFound) {
+        return Strings.format(
+            "%s %s but was %s",
+            TRANSPORT_VERSION_ERROR_MESSAGE_PREFIX,
+            TransportVersions.V_8_13_0.toReleaseVersion(),
+            versionFound.toReleaseVersion()
+        );
     }
 
     @Override
@@ -166,10 +167,7 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
 
     boolean localIndicesPresent(String[] indices) {
         for (String index : indices) {
-            // ensure that `index` is a remote name and not a date math expression which includes ':' symbol
-            // since date math expression after evaluation should not contain ':' symbol
-            String indexExpression = IndexNameExpressionResolver.resolveDateMathExpression(index);
-            if (indexExpression.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR) < 0) {
+            if (RemoteClusterAware.isRemoteIndexName(index) == false) {
                 return true;
             }
         }

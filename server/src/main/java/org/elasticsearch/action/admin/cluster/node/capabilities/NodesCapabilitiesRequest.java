@@ -16,7 +16,7 @@ import org.elasticsearch.rest.RestRequest;
 
 import java.util.Set;
 
-public class NodesCapabilitiesRequest extends BaseNodesRequest<NodesCapabilitiesRequest> {
+public class NodesCapabilitiesRequest extends BaseNodesRequest {
 
     private RestRequest.Method method = RestRequest.Method.GET;
     private String path = "/";

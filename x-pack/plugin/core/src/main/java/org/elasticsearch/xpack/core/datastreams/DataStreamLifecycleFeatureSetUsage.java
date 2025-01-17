@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
@@ -24,7 +24,7 @@ import java.util.LongSummaryStatistics;
 import java.util.Map;
 import java.util.Objects;
 
-public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
+public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
 
     public static final DataStreamLifecycleFeatureSetUsage DISABLED = new DataStreamLifecycleFeatureSetUsage();
     final LifecycleStats lifecycleStats;
@@ -111,7 +111,7 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
         }
 
         public static LifecycleStats read(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.GLOBAL_RETENTION_TELEMETRY)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 return new LifecycleStats(
                     in.readVLong(),
                     in.readBoolean(),
@@ -139,7 +139,7 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.GLOBAL_RETENTION_TELEMETRY)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeVLong(dataStreamsWithLifecyclesCount);
                 out.writeBoolean(defaultRolloverUsed);
                 dataRetentionStats.writeTo(out);

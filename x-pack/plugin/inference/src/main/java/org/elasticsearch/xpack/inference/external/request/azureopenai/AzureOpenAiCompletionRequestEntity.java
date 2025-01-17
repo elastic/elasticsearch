@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public record AzureOpenAiCompletionRequestEntity(List<String> messages, @Nullable String user) implements ToXContentObject {
+public record AzureOpenAiCompletionRequestEntity(List<String> messages, @Nullable String user, boolean stream) implements ToXContentObject {
 
     private static final String NUMBER_OF_RETURNED_CHOICES_FIELD = "n";
 
@@ -27,6 +27,8 @@ public record AzureOpenAiCompletionRequestEntity(List<String> messages, @Nullabl
     private static final String CONTENT_FIELD = "content";
 
     private static final String USER_FIELD = "user";
+
+    private static final String STREAM_FIELD = "stream";
 
     public AzureOpenAiCompletionRequestEntity {
         Objects.requireNonNull(messages);
@@ -56,6 +58,10 @@ public record AzureOpenAiCompletionRequestEntity(List<String> messages, @Nullabl
 
         if (Strings.isNullOrEmpty(user) == false) {
             builder.field(USER_FIELD, user);
+        }
+
+        if (stream) {
+            builder.field(STREAM_FIELD, true);
         }
 
         builder.endObject();

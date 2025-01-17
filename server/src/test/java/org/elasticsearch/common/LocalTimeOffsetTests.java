@@ -275,7 +275,7 @@ public class LocalTimeOffsetTests extends ESTestCase {
     }
 
     /**
-     * The the last "fully defined" transitions in the provided {@linkplain ZoneId}.
+     * The last "fully defined" transitions in the provided {@linkplain ZoneId}.
      */
     private static ZoneOffsetTransition lastTransitionIn(ZoneId zone) {
         List<ZoneOffsetTransition> transitions = zone.getRules().getTransitions();

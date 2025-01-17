@@ -34,7 +34,8 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
     TrainedModelCacheInfoAction.Request,
     TrainedModelCacheInfoAction.Response,
     TransportTrainedModelCacheInfoAction.NodeModelCacheInfoRequest,
-    CacheInfo> {
+    CacheInfo,
+    Void> {
 
     private final ModelLoadingService modelLoadingService;
 
@@ -86,7 +87,7 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
         );
     }
 
-    @UpdateForV9 // this can be replaced with TransportRequest.Empty in v9
+    @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING) // this can be replaced with TransportRequest.Empty in v9
     public static class NodeModelCacheInfoRequest extends TransportRequest {
 
         NodeModelCacheInfoRequest() {}

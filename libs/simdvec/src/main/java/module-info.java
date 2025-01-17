@@ -10,6 +10,7 @@
 module org.elasticsearch.simdvec {
     requires org.elasticsearch.nativeaccess;
     requires org.apache.lucene.core;
+    requires org.elasticsearch.logging;
 
     exports org.elasticsearch.simdvec to org.elasticsearch.server;
 }

@@ -43,7 +43,7 @@ For more information on managing indices, refer to <<indices, Index APIs>>.
 
 * To filter the list of indices, use the search bar or click a badge.
 Badges indicate if an index is a <<ccr-put-follow,follower index>>, a
-<<rollup-get-rollup-index-caps,rollup index>>, or <<unfreeze-index-api,frozen>>.
+<<rollup-get-rollup-index-caps,rollup index>>, or <<frozen-indices,frozen>>.
 
 * To drill down into the index
 <<mapping,mappings>>, <<index-modules-settings,settings>>, and statistics,
@@ -67,7 +67,7 @@ This value is the time period for which your data is guaranteed to be stored. Da
 Elasticsearch at a later time.
 
 [role="screenshot"]
-image::images/index-mgmt/management-data-stream.png[Data stream details]
+image::images/index-mgmt/management-data-stream-fields.png[Data stream details]
 
 * To view more information about a data stream, such as its generation or its
 current index lifecycle policy, click the stream's name. From this view, you can navigate to *Discover* to

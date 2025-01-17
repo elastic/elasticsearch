@@ -10,19 +10,22 @@
 package org.elasticsearch.cluster.block;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
+import java.util.EnumSet;
 import java.util.Map;
 
 import static java.util.EnumSet.copyOf;
+import static org.elasticsearch.test.TransportVersionUtils.getFirstVersion;
+import static org.elasticsearch.test.TransportVersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.TransportVersionUtils.randomVersion;
+import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
@@ -36,7 +39,7 @@ public class ClusterBlockTests extends ESTestCase {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
             TransportVersion version = randomVersion(random());
-            ClusterBlock clusterBlock = randomClusterBlock();
+            ClusterBlock clusterBlock = randomClusterBlock(version);
 
             BytesStreamOutput out = new BytesStreamOutput();
             out.setTransportVersion(version);
@@ -50,13 +53,41 @@ public class ClusterBlockTests extends ESTestCase {
         }
     }
 
+    public void testSerializationBwc() throws Exception {
+        var out = new BytesStreamOutput();
+        out.setTransportVersion(
+            randomVersionBetween(random(), getFirstVersion(), getPreviousVersion(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK))
+        );
+
+        var clusterBlock = randomClusterBlock(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK);
+        clusterBlock.writeTo(out);
+
+        var in = out.bytes().streamInput();
+        in.setTransportVersion(randomVersion());
+
+        assertClusterBlockEquals(
+            new ClusterBlock(
+                clusterBlock.id(),
+                clusterBlock.uuid(),
+                clusterBlock.description(),
+                clusterBlock.retryable(),
+                clusterBlock.disableStatePersistence(),
+                clusterBlock.isAllowReleaseResources(),
+                clusterBlock.status(),
+                // ClusterBlockLevel.REFRESH should not be sent over the wire to nodes with version < NEW_REFRESH_CLUSTER_BLOCK
+                ClusterBlock.filterLevels(clusterBlock.levels(), level -> ClusterBlockLevel.REFRESH.equals(level) == false)
+            ),
+            new ClusterBlock(in)
+        );
+    }
+
     public void testToStringDanglingComma() {
-        final ClusterBlock clusterBlock = randomClusterBlock();
+        final ClusterBlock clusterBlock = randomClusterBlock(randomVersion(random()));
         assertThat(clusterBlock.toString(), not(endsWith(",")));
     }
 
     public void testGlobalBlocksCheckedIfNoIndicesSpecified() {
-        ClusterBlock globalBlock = randomClusterBlock();
+        ClusterBlock globalBlock = randomClusterBlock(randomVersion(random()));
         ClusterBlocks clusterBlocks = new ClusterBlocks(Collections.singleton(globalBlock), Map.of());
         ClusterBlockException exception = clusterBlocks.indicesBlockedException(randomFrom(globalBlock.levels()), new String[0]);
         assertNotNull(exception);
@@ -113,9 +144,13 @@ public class ClusterBlockTests extends ESTestCase {
         assertThat(builder.build().getIndexBlockWithId("index", randomValueOtherThan(blockId, ESTestCase::randomInt)), nullValue());
     }
 
-    private static ClusterBlock randomClusterBlock() {
+    private static ClusterBlock randomClusterBlock(TransportVersion version) {
         final String uuid = randomBoolean() ? UUIDs.randomBase64UUID() : null;
-        final List<ClusterBlockLevel> levels = Arrays.asList(ClusterBlockLevel.values());
+        final EnumSet<ClusterBlockLevel> levels = ClusterBlock.filterLevels(
+            EnumSet.allOf(ClusterBlockLevel.class),
+            // Filter out ClusterBlockLevel.REFRESH for versions < TransportVersions.NEW_REFRESH_CLUSTER_BLOCK
+            level -> ClusterBlockLevel.REFRESH.equals(level) == false || version.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK)
+        );
         return new ClusterBlock(
             randomInt(),
             uuid,

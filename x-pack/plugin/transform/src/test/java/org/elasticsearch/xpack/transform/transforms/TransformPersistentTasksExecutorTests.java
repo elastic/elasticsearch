@@ -34,7 +34,6 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -49,6 +48,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.DefaultTransformExtension;
 import org.elasticsearch.xpack.transform.Transform;
+import org.elasticsearch.xpack.transform.TransformConfigAutoMigration;
 import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndexTests;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.time.Clock;
@@ -81,6 +82,7 @@ import static org.mockito.Mockito.when;
 
 public class TransformPersistentTasksExecutorTests extends ESTestCase {
     private static ThreadPool threadPool;
+    private TransformConfigAutoMigration autoMigration;
 
     @BeforeClass
     public static void setUpThreadPool() {
@@ -101,6 +103,16 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     @AfterClass
     public static void tearDownThreadPool() {
         terminate(threadPool);
+    }
+
+    @Before
+    public void initMocks() {
+        autoMigration = mock();
+        doAnswer(ans -> {
+            ActionListener<?> listener = ans.getArgument(1);
+            listener.onResponse(ans.getArgument(0));
+            return null;
+        }).when(autoMigration).migrateAndSave(any(), any());
     }
 
     public void testNodeVersionAssignment() {
@@ -593,8 +605,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             new ClusterService(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                null,
-                (TaskManager) null
+                threadPool,
+                null
             ),
             configManager,
             mockAuditor
@@ -610,7 +622,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             clusterService(),
             Settings.EMPTY,
             new DefaultTransformExtension(),
-            TestIndexNameExpressionResolver.newInstance()
+            TestIndexNameExpressionResolver.newInstance(),
+            autoMigration
         );
     }
 

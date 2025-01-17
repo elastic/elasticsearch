@@ -134,10 +134,6 @@ The following parameters are accepted by `text` fields:
 
     Whether the field value should be stored and retrievable separately from
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false` (default).
-    This parameter will be automatically set to `true` for TSDB indices
-    (indices that have `index.mode` set to `time_series`)
-    if there is no <<keyword-synthetic-source, `keyword`>>
-    sub-field that supports synthetic `_source`.
 
 <<search-analyzer,`search_analyzer`>>::
 
@@ -177,15 +173,23 @@ a <<keyword-synthetic-source, `keyword`>> sub-field that supports synthetic
 `_source` or if the `text` field sets `store` to `true`. Either way, it may
 not have <<copy-to,`copy_to`>>.
 
-If using a sub-`keyword` field then the values are sorted in the same way as
+If using a sub-`keyword` field, then the values are sorted in the same way as
 a `keyword` field's values are sorted. By default, that means sorted with
 duplicates removed. So:
 [source,console,id=synthetic-source-text-example-default]
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "text": {
         "type": "text",
@@ -233,8 +237,16 @@ are preserved.
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "text": { "type": "text", "store": true }
     }

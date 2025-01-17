@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -48,27 +49,27 @@ public class InTests extends AbstractFunctionTestCase {
 
     public void testInWithContainedValue() {
         In in = new In(EMPTY, TWO, Arrays.asList(ONE, TWO, THREE));
-        assertTrue((Boolean) in.fold());
+        assertTrue((Boolean) in.fold(FoldContext.small()));
     }
 
     public void testInWithNotContainedValue() {
         In in = new In(EMPTY, THREE, Arrays.asList(ONE, TWO));
-        assertFalse((Boolean) in.fold());
+        assertFalse((Boolean) in.fold(FoldContext.small()));
     }
 
     public void testHandleNullOnLeftValue() {
         In in = new In(EMPTY, NULL, Arrays.asList(ONE, TWO, THREE));
-        assertNull(in.fold());
+        assertNull(in.fold(FoldContext.small()));
         in = new In(EMPTY, NULL, Arrays.asList(ONE, NULL, THREE));
-        assertNull(in.fold());
+        assertNull(in.fold(FoldContext.small()));
 
     }
 
     public void testHandleNullsOnRightValue() {
         In in = new In(EMPTY, THREE, Arrays.asList(ONE, NULL, THREE));
-        assertTrue((Boolean) in.fold());
+        assertTrue((Boolean) in.fold(FoldContext.small()));
         in = new In(EMPTY, ONE, Arrays.asList(TWO, NULL, THREE));
-        assertNull(in.fold());
+        assertNull(in.fold(FoldContext.small()));
     }
 
     private static Literal L(Object value) {
@@ -187,8 +188,24 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        for (DataType type1 : new DataType[] { DataType.KEYWORD, DataType.TEXT }) {
-            for (DataType type2 : new DataType[] { DataType.KEYWORD, DataType.TEXT }) {
+        suppliers.add(new TestCaseSupplier("semantic_text", List.of(DataType.SEMANTIC_TEXT, DataType.SEMANTIC_TEXT), () -> {
+            List<Object> inlist = randomList(items, items, () -> randomLiteral(DataType.SEMANTIC_TEXT).value());
+            Object field = inlist.get(0);
+            List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
+            for (Object i : inlist) {
+                args.add(new TestCaseSupplier.TypedData(i, DataType.SEMANTIC_TEXT, "inlist" + i));
+            }
+            args.add(new TestCaseSupplier.TypedData(field, DataType.SEMANTIC_TEXT, "field"));
+            return new TestCaseSupplier.TestCase(
+                args,
+                matchesPattern("InBytesRefEvaluator.*"),
+                DataType.BOOLEAN,
+                equalTo(inlist.contains(field))
+            );
+        }));
+
+        for (DataType type1 : DataType.stringTypes()) {
+            for (DataType type2 : DataType.stringTypes()) {
                 if (type1 == type2 || items > 1) continue;
                 suppliers.add(new TestCaseSupplier(type1 + " " + type2, List.of(type1, type2), () -> {
                     List<Object> inlist = randomList(items, items, () -> randomLiteral(type1).value());

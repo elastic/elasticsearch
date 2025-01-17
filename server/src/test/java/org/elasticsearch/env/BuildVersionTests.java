@@ -42,4 +42,8 @@ public class BuildVersionTests extends ESTestCase {
         assertFalse(afterMinCompat.isFutureVersion());
         assertTrue(futureVersion.isFutureVersion());
     }
+
+    public static BuildVersion increment(BuildVersion version) {
+        return BuildVersion.fromVersionId(((DefaultBuildVersion) version).version.id() + 1);
+    }
 }

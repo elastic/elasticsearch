@@ -16,6 +16,7 @@ import org.apache.logging.log4j.core.config.Property;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Arrays;
 import java.util.List;
@@ -23,10 +24,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -112,10 +116,46 @@ public class MockLog implements Releasable {
         }
     }
 
+    public void awaitAllExpectationsMatched() {
+        awaitAllExpectationsMatched(ESTestCase.SAFE_AWAIT_TIMEOUT);
+    }
+
+    // exposed for testing
+    void awaitAllExpectationsMatched(TimeValue waitTime) {
+        final var deadlineNanos = System.nanoTime() + waitTime.nanos();
+        final var nanosPerMilli = TimeValue.timeValueMillis(1).nanos();
+        try {
+            for (LoggingExpectation expectation : expectations) {
+                final var remainingMillis = (deadlineNanos - System.nanoTime() + nanosPerMilli - 1) / nanosPerMilli; // round up
+                assertThat(remainingMillis, greaterThan(0L));
+                expectation.awaitMatched(remainingMillis);
+            }
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("interrupted", interruptedException);
+        }
+    }
+
+    /**
+     * Keeps track of whether the {@link LogEvent} instances it receives match the expected content.
+     */
     public interface LoggingExpectation {
+        /**
+         * Called on every {@link LogEvent} received by the captured appenders.
+         */
         void match(LogEvent event);
 
+        /**
+         * Returns if this expectation is matched, otherwise throws an {@link AssertionError}.
+         */
         void assertMatched();
+
+        /**
+         * Returns if this expectation is matched within the given number of milliseconds, otherwise throws an {@link AssertionError}.
+         */
+        default void awaitMatched(long millis) throws InterruptedException {
+            assertMatched();
+        }
     }
 
     public abstract static class AbstractEventExpectation implements LoggingExpectation {
@@ -123,14 +163,13 @@ public class MockLog implements Releasable {
         protected final String logger;
         protected final Level level;
         protected final String message;
-        volatile boolean saw;
+        protected final CountDownLatch seenLatch = new CountDownLatch(1);
 
         public AbstractEventExpectation(String name, String logger, Level level, String message) {
             this.name = name;
             this.logger = logger;
             this.level = level;
             this.message = message;
-            this.saw = false;
         }
 
         @Override
@@ -138,11 +177,11 @@ public class MockLog implements Releasable {
             if (event.getLevel().equals(level) && event.getLoggerName().equals(logger) && innerMatch(event)) {
                 if (Regex.isSimpleMatchPattern(message)) {
                     if (Regex.simpleMatch(message, event.getMessage().getFormattedMessage())) {
-                        saw = true;
+                        seenLatch.countDown();
                     }
                 } else {
                     if (event.getMessage().getFormattedMessage().contains(message)) {
-                        saw = true;
+                        seenLatch.countDown();
                     }
                 }
             }
@@ -162,7 +201,7 @@ public class MockLog implements Releasable {
 
         @Override
         public void assertMatched() {
-            assertThat("expected not to see " + name + " but did", saw, equalTo(false));
+            assertThat("expected not to see " + name + " but did", seenLatch.getCount(), equalTo(1L));
         }
     }
 
@@ -174,7 +213,12 @@ public class MockLog implements Releasable {
 
         @Override
         public void assertMatched() {
-            assertThat("expected to see " + name + " but did not", saw, equalTo(true));
+            assertThat("expected to see " + name + " but did not", seenLatch.getCount(), equalTo(0L));
+        }
+
+        @Override
+        public void awaitMatched(long millis) throws InterruptedException {
+            assertThat("expected to see " + name + " but did not", seenLatch.await(millis, TimeUnit.MILLISECONDS), equalTo(true));
         }
     }
 
@@ -195,7 +239,17 @@ public class MockLog implements Releasable {
             if (expectSeen) {
                 super.assertMatched();
             } else {
-                assertThat("expected not to see " + name + " yet but did", saw, equalTo(false));
+                assertThat("expected not to see " + name + " yet but did", seenLatch.getCount(), equalTo(1L));
+            }
+        }
+
+        @Override
+        public void awaitMatched(long millis) throws InterruptedException {
+            if (expectSeen) {
+                super.awaitMatched(millis);
+            } else {
+                // do not wait for negative expectation
+                assertThat("expected not to see " + name + " yet but did", seenLatch.getCount(), equalTo(1L));
             }
         }
     }
@@ -229,11 +283,11 @@ public class MockLog implements Releasable {
 
     public static class PatternSeenEventExpectation implements LoggingExpectation {
 
-        protected final String name;
-        protected final String logger;
-        protected final Level level;
-        protected final Pattern pattern;
-        volatile boolean saw;
+        private final String name;
+        private final String logger;
+        private final Level level;
+        private final Pattern pattern;
+        private final CountDownLatch seenLatch = new CountDownLatch(1);
 
         public PatternSeenEventExpectation(String name, String logger, Level level, String pattern) {
             this.name = name;
@@ -246,16 +300,20 @@ public class MockLog implements Releasable {
         public void match(LogEvent event) {
             if (event.getLevel().equals(level) && event.getLoggerName().equals(logger)) {
                 if (pattern.matcher(event.getMessage().getFormattedMessage()).matches()) {
-                    saw = true;
+                    seenLatch.countDown();
                 }
             }
         }
 
         @Override
         public void assertMatched() {
-            assertThat(name, saw, equalTo(true));
+            assertThat(name, seenLatch.getCount(), equalTo(0L));
         }
 
+        @Override
+        public void awaitMatched(long millis) throws InterruptedException {
+            assertThat(name, seenLatch.await(millis, TimeUnit.MILLISECONDS), equalTo(true));
+        }
     }
 
     /**
@@ -279,6 +337,15 @@ public class MockLog implements Releasable {
         public void assertMatched() {
             try {
                 delegate.assertMatched();
+            } finally {
+                assertMatchedCalled = true;
+            }
+        }
+
+        @Override
+        public void awaitMatched(long millis) throws InterruptedException {
+            try {
+                delegate.awaitMatched(millis);
             } finally {
                 assertMatchedCalled = true;
             }
@@ -334,6 +401,19 @@ public class MockLog implements Releasable {
             }
             action.run();
             mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    /**
+     * Executes an action and waits until the given logging expectations are satisfied.
+     */
+    public static void awaitLogger(Runnable action, Class<?> loggerOwner, MockLog.LoggingExpectation... expectations) {
+        try (var mockLog = MockLog.capture(loggerOwner)) {
+            for (var expectation : expectations) {
+                mockLog.addExpectation(expectation);
+            }
+            action.run();
+            mockLog.awaitAllExpectationsMatched();
         }
     }
 }

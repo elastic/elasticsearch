@@ -13,7 +13,6 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -44,9 +43,7 @@ public class RestMultiGetAction extends BaseRestHandler {
             new Route(GET, "/_mget"),
             new Route(POST, "/_mget"),
             new Route(GET, "/{index}/_mget"),
-            new Route(POST, "/{index}/_mget"),
-            Route.builder(GET, "/{index}/{type}/_mget").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/_mget").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            new Route(POST, "/{index}/_mget")
         );
     }
 
@@ -57,9 +54,6 @@ public class RestMultiGetAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.param("type") != null) {
-            request.param("type");
-        }
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         multiGetRequest.refresh(request.paramAsBoolean("refresh", multiGetRequest.refresh()));
         multiGetRequest.preference(request.param("preference"));

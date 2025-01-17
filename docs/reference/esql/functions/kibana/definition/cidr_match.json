@@ -44,5 +44,6 @@
   "examples" : [
     "FROM hosts \n| WHERE CIDR_MATCH(ip1, \"127.0.0.2/32\", \"127.0.0.3/32\") \n| KEEP card, host, ip0, ip1"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

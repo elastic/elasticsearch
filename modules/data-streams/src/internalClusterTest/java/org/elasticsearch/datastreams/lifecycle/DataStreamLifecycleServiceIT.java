@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -345,7 +346,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("index_*"))
-                .template(new Template(null, CompressedXContent.fromJSON(mapping), null, null))
+                .template(Template.builder().mappings(CompressedXContent.fromJSON(mapping)))
                 .build()
         );
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
@@ -1083,7 +1084,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
             List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
             assertThat(backingIndices.size(), equalTo(1));
-            List<Index> failureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices().getIndices();
+            List<Index> failureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices();
             assertThat(failureIndices.size(), equalTo(2));
         });
 
@@ -1128,7 +1129,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
             List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
             assertThat(backingIndices.size(), equalTo(1));
-            List<Index> failureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices().getIndices();
+            List<Index> failureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices();
             assertThat(failureIndices.size(), equalTo(1));
             assertThat(failureIndices.get(0).getName(), equalTo(secondGenerationIndex));
         });
@@ -1155,14 +1156,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             .actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-        return getDataStreamResponse.getDataStreams()
-            .get(0)
-            .getDataStream()
-            .getFailureIndices()
-            .getIndices()
-            .stream()
-            .map(Index::getName)
-            .toList();
+        return getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices().stream().map(Index::getName).toList();
     }
 
     static void indexDocs(String dataStream, int numDocs) {
@@ -1221,9 +1215,15 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
-                .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle))
+                .template(
+                    Template.builder()
+                        .settings(settings)
+                        .mappings(mappings == null ? null : CompressedXContent.fromJSON(mappings))
+                        .lifecycle(lifecycle)
+                        .dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(withFailureStore))
+                )
                 .metadata(metadata)
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, withFailureStore))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
@@ -1268,14 +1268,12 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                         .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                         .indexPatterns(List.of(DataStream.BACKING_INDEX_PREFIX + SYSTEM_DATA_STREAM_NAME + "*"))
                         .template(
-                            new Template(
-                                Settings.EMPTY,
-                                null,
-                                null,
-                                DataStreamLifecycle.newBuilder()
-                                    .dataRetention(TimeValue.timeValueDays(SYSTEM_DATA_STREAM_RETENTION_DAYS))
-                                    .build()
-                            )
+                            Template.builder()
+                                .settings(Settings.EMPTY)
+                                .lifecycle(
+                                    DataStreamLifecycle.newBuilder()
+                                        .dataRetention(TimeValue.timeValueDays(SYSTEM_DATA_STREAM_RETENTION_DAYS))
+                                )
                         )
                         .build(),
                     Map.of(),

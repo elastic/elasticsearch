@@ -27,16 +27,19 @@ public class AzureOpenAiCompletionRequest implements AzureOpenAiRequest {
 
     private final AzureOpenAiCompletionModel model;
 
-    public AzureOpenAiCompletionRequest(List<String> input, AzureOpenAiCompletionModel model) {
+    private final boolean stream;
+
+    public AzureOpenAiCompletionRequest(List<String> input, AzureOpenAiCompletionModel model, boolean stream) {
         this.input = input;
         this.model = Objects.requireNonNull(model);
         this.uri = model.getUri();
+        this.stream = stream;
     }
 
     @Override
     public HttpRequest createHttpRequest() {
         var httpPost = new HttpPost(uri);
-        var requestEntity = Strings.toString(new AzureOpenAiCompletionRequestEntity(input, model.getTaskSettings().user()));
+        var requestEntity = Strings.toString(new AzureOpenAiCompletionRequestEntity(input, model.getTaskSettings().user(), isStreaming()));
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
@@ -54,6 +57,11 @@ public class AzureOpenAiCompletionRequest implements AzureOpenAiRequest {
     @Override
     public String getInferenceEntityId() {
         return model.getInferenceEntityId();
+    }
+
+    @Override
+    public boolean isStreaming() {
+        return stream;
     }
 
     @Override

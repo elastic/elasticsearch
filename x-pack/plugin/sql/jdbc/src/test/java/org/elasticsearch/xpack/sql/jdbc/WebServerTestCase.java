@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.rest.root.MainResponse;
 import org.elasticsearch.test.BuildUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.junit.After;
 import org.junit.Before;
 
@@ -42,10 +42,10 @@ public abstract class WebServerTestCase extends ESTestCase {
     }
 
     MainResponse createCurrentVersionMainResponse() {
-        return createMainResponse(Version.CURRENT);
+        return createMainResponse(VersionTests.current());
     }
 
-    MainResponse createMainResponse(Version version) {
+    MainResponse createMainResponse(SqlVersion version) {
         // the SQL client only cares about node version,
         // so ignore index & transport versions here (just set them to current)
         String clusterUuid = randomAlphaOfLength(10);

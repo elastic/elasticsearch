@@ -20,7 +20,7 @@ import java.util.function.Predicate;
 
 public final class SystemPrivilege extends Privilege {
 
-    public static SystemPrivilege INSTANCE = new SystemPrivilege();
+    public static final SystemPrivilege INSTANCE = new SystemPrivilege();
 
     private static final Predicate<String> ALLOWED_ACTIONS = StringMatcher.of(
         "internal:*",
@@ -39,7 +39,7 @@ public final class SystemPrivilege extends Privilege {
         RetentionLeaseActions.REMOVE.name() + "*", // needed for CCR to remove retention leases
         RetentionLeaseActions.RENEW.name() + "*", // needed for CCR to renew retention leases
         "indices:admin/settings/update", // needed for DiskThresholdMonitor.markIndicesReadOnly
-        CompletionPersistentTaskAction.NAME, // needed for ShardFollowTaskCleaner
+        CompletionPersistentTaskAction.INSTANCE.name(), // needed for ShardFollowTaskCleaner
         "indices:data/write/*", // needed for SystemIndexMigrator
         "indices:data/read/*", // needed for SystemIndexMigrator
         "indices:admin/refresh", // needed for SystemIndexMigrator

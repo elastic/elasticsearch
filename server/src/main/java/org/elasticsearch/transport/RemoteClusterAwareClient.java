@@ -12,8 +12,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.RemoteClusterClient;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.core.Nullable;
 
 import java.util.concurrent.Executor;
 
@@ -35,41 +36,48 @@ final class RemoteClusterAwareClient implements RemoteClusterClient {
 
     @Override
     public <Request extends ActionRequest, Response extends TransportResponse> void execute(
+        Transport.Connection connection,
         RemoteClusterActionType<Response> action,
         Request request,
         ActionListener<Response> listener
     ) {
-        maybeEnsureConnected(listener.delegateFailureAndWrap((delegateListener, v) -> {
-            final Transport.Connection connection;
-            try {
-                if (request instanceof RemoteClusterAwareRequest) {
-                    DiscoveryNode preferredTargetNode = ((RemoteClusterAwareRequest) request).getPreferredTargetNode();
-                    connection = remoteClusterService.getConnection(preferredTargetNode, clusterAlias);
-                } else {
-                    connection = remoteClusterService.getConnection(clusterAlias);
-                }
-            } catch (ConnectTransportException e) {
-                if (ensureConnected == false) {
-                    // trigger another connection attempt, but don't wait for it to complete
-                    remoteClusterService.ensureConnected(clusterAlias, ActionListener.noop());
-                }
-                throw e;
-            }
-            service.sendRequest(
-                connection,
-                action.name(),
-                request,
-                TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(delegateListener, action.getResponseReader(), responseExecutor)
-            );
-        }));
+        service.sendRequest(
+            connection,
+            action.name(),
+            request,
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(listener, action.getResponseReader(), responseExecutor)
+        );
     }
 
-    private void maybeEnsureConnected(ActionListener<Void> ensureConnectedListener) {
-        if (ensureConnected) {
-            ActionListener.run(ensureConnectedListener, l -> remoteClusterService.ensureConnected(clusterAlias, l));
-        } else {
-            ensureConnectedListener.onResponse(null);
-        }
+    @Override
+    public <Request extends ActionRequest> void getConnection(@Nullable Request request, ActionListener<Transport.Connection> listener) {
+        SubscribableListener
+
+            .<Void>newForked(ensureConnectedListener -> {
+                if (ensureConnected) {
+                    remoteClusterService.ensureConnected(clusterAlias, ensureConnectedListener);
+                } else {
+                    ensureConnectedListener.onResponse(null);
+                }
+            })
+
+            .andThenApply(ignored -> {
+                try {
+                    if (request instanceof RemoteClusterAwareRequest remoteClusterAwareRequest) {
+                        return remoteClusterService.getConnection(remoteClusterAwareRequest.getPreferredTargetNode(), clusterAlias);
+                    } else {
+                        return remoteClusterService.getConnection(clusterAlias);
+                    }
+                } catch (ConnectTransportException e) {
+                    if (ensureConnected == false) {
+                        // trigger another connection attempt, but don't wait for it to complete
+                        remoteClusterService.ensureConnected(clusterAlias, ActionListener.noop());
+                    }
+                    throw e;
+                }
+            })
+
+            .addListener(listener);
     }
 }

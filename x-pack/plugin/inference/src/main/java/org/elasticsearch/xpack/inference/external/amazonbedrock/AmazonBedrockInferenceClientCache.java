@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.amazonbedrock;
 
-import com.amazonaws.http.IdleConnectionReaper;
-
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
@@ -31,29 +29,30 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
     // not final for testing
     private Clock clock;
 
-    public AmazonBedrockInferenceClientCache(
-        BiFunction<AmazonBedrockModel, TimeValue, AmazonBedrockBaseClient> creator,
-        @Nullable Clock clock
-    ) {
+    public AmazonBedrockInferenceClientCache(BiFunction<AmazonBedrockModel, TimeValue, AmazonBedrockBaseClient> creator, Clock clock) {
         this.creator = Objects.requireNonNull(creator);
-        this.clock = Objects.requireNonNullElse(clock, Clock.systemUTC());
+        this.clock = Objects.requireNonNull(clock);
     }
 
     public AmazonBedrockBaseClient getOrCreateClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
-        var returnClient = internalGetOrCreateClient(model, timeout);
         flushExpiredClients();
-        return returnClient;
+        return internalGetOrCreateClient(model, timeout);
     }
 
     private AmazonBedrockBaseClient internalGetOrCreateClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
         final Integer modelHash = AmazonBedrockInferenceClient.getModelKeysAndRegionHashcode(model, timeout);
         cacheLock.readLock().lock();
         try {
-            return clientsCache.computeIfAbsent(modelHash, hashKey -> {
-                final AmazonBedrockBaseClient builtClient = creator.apply(model, timeout);
-                builtClient.setClock(clock);
-                builtClient.resetExpiration();
-                return builtClient;
+            return clientsCache.compute(modelHash, (hashKey, client) -> {
+                AmazonBedrockBaseClient clientToUse = client;
+                if (clientToUse == null) {
+                    clientToUse = creator.apply(model, timeout);
+                }
+
+                // for testing - would be nice to refactor client factory in the future to take clock as parameter
+                clientToUse.setClock(clock);
+                clientToUse.resetExpiration();
+                return clientToUse;
             });
         } finally {
             cacheLock.readLock().unlock();
@@ -114,10 +113,6 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
         } finally {
             cacheLock.writeLock().unlock();
         }
-
-        // shutdown IdleConnectionReaper background thread
-        // it will be restarted on new client usage
-        IdleConnectionReaper.shutdown();
     }
 
     // used for testing

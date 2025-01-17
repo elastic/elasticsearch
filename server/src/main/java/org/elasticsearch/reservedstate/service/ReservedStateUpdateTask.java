@@ -11,7 +11,6 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -47,6 +46,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
 
     private final String namespace;
     private final ReservedStateChunk stateChunk;
+    private final ReservedStateVersionCheck versionCheck;
     private final Map<String, ReservedClusterStateHandler<?>> handlers;
     private final Collection<String> orderedHandlers;
     private final Consumer<ErrorState> errorReporter;
@@ -55,6 +55,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     public ReservedStateUpdateTask(
         String namespace,
         ReservedStateChunk stateChunk,
+        ReservedStateVersionCheck versionCheck,
         Map<String, ReservedClusterStateHandler<?>> handlers,
         Collection<String> orderedHandlers,
         Consumer<ErrorState> errorReporter,
@@ -62,6 +63,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     ) {
         this.namespace = namespace;
         this.stateChunk = stateChunk;
+        this.versionCheck = versionCheck;
         this.handlers = handlers;
         this.orderedHandlers = orderedHandlers;
         this.errorReporter = errorReporter;
@@ -89,7 +91,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         Map<String, Object> reservedState = stateChunk.state();
         ReservedStateVersion reservedStateVersion = stateChunk.metadata();
 
-        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion) == false) {
+        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion, versionCheck) == false) {
             return currentState;
         }
 
@@ -110,7 +112,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             }
         }
 
-        checkAndThrowOnError(errors, reservedStateVersion);
+        checkAndThrowOnError(errors, reservedStateVersion, versionCheck);
 
         // Remove the last error if we had previously encountered any in prior processing of reserved state
         reservedMetadataBuilder.errorMetadata(null);
@@ -121,14 +123,15 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         return stateBuilder.metadata(metadataBuilder).build();
     }
 
-    private void checkAndThrowOnError(List<String> errors, ReservedStateVersion reservedStateVersion) {
+    private void checkAndThrowOnError(List<String> errors, ReservedStateVersion version, ReservedStateVersionCheck versionCheck) {
         // Any errors should be discovered through validation performed in the transform calls
         if (errors.isEmpty() == false) {
             logger.debug("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
             var errorState = new ErrorState(
                 namespace,
-                reservedStateVersion.version(),
+                version.version(),
+                versionCheck,
                 errors,
                 ReservedStateErrorMetadata.ErrorKind.VALIDATION
             );
@@ -155,48 +158,59 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     static boolean checkMetadataVersion(
         String namespace,
         ReservedStateMetadata existingMetadata,
-        ReservedStateVersion reservedStateVersion
+        ReservedStateVersion reservedStateVersion,
+        ReservedStateVersionCheck versionCheck
     ) {
-        if (Version.CURRENT.before(reservedStateVersion.minCompatibleVersion())) {
+        if (reservedStateVersion.buildVersion().isFutureVersion()) {
             logger.warn(
                 () -> format(
                     "Reserved cluster state version [%s] for namespace [%s] is not compatible with this Elasticsearch node",
-                    reservedStateVersion.minCompatibleVersion(),
+                    reservedStateVersion.buildVersion(),
                     namespace
                 )
             );
             return false;
         }
 
-        if (reservedStateVersion.version().equals(ReservedStateMetadata.EMPTY_VERSION)) {
+        Long newVersion = reservedStateVersion.version();
+        if (newVersion.equals(ReservedStateMetadata.EMPTY_VERSION)) {
             return true;
         }
 
         // require a regular positive version, reject any special version
-        if (reservedStateVersion.version() <= 0L) {
+        if (newVersion <= 0L) {
             logger.warn(
                 () -> format(
                     "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal to 0",
                     namespace,
-                    reservedStateVersion.version()
+                    newVersion
                 )
             );
             return false;
         }
 
-        if (existingMetadata != null && existingMetadata.version() >= reservedStateVersion.version()) {
-            logger.warn(
-                () -> format(
-                    "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal"
-                        + " to the current metadata version [%s]",
-                    namespace,
-                    reservedStateVersion.version(),
-                    existingMetadata.version()
-                )
-            );
-            return false;
+        if (existingMetadata == null) {
+            return true;
         }
 
-        return true;
+        Long currentVersion = existingMetadata.version();
+        if (versionCheck.test(currentVersion, newVersion)) {
+            return true;
+        }
+
+        logger.warn(
+            () -> format(
+                "Not updating reserved cluster state for namespace [%s], because version [%s] is %s the current metadata version [%s]",
+                namespace,
+                newVersion,
+                switch (versionCheck) {
+                    case HIGHER_OR_SAME_VERSION -> "less than";
+                    case HIGHER_VERSION_ONLY -> "less than or equal to";
+                },
+                currentVersion
+            )
+        );
+        return false;
     }
+
 }

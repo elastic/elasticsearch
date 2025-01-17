@@ -32,7 +32,7 @@ public final class Explanations {
         public static final String NO_COPIES = """
             Elasticsearch can't allocate this shard because there are no copies of its data in the cluster. Elasticsearch will allocate \
             this shard when a node holding a good copy of its data joins the cluster. If no such node is available, restore this index \
-            from a recent snapshot.""";
+            from a recent snapshot. For more information, see\s""" + org.elasticsearch.common.ReferenceDocs.ALLOCATION_EXPLAIN_NO_COPIES;
 
         public static final String DELAYED_WITH_ALTERNATIVE = """
             The node containing this shard copy recently left the cluster. Elasticsearch is waiting for it to return. If the node does not \

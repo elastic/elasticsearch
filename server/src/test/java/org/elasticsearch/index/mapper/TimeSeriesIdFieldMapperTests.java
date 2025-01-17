@@ -28,10 +28,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -63,13 +66,19 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     private DocumentMapper createDocumentMapper(String routingPath, XContentBuilder mappings) throws IOException {
+        return createDocumentMapper(getVersion(), routingPath, mappings);
+    }
+
+    private DocumentMapper createDocumentMapper(IndexVersion version, String routingPath, XContentBuilder mappings) throws IOException {
         return createMapperService(
+            version,
             getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
                 .put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), 200) // Allow tests that use many dimensions
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-10-29T00:00:00Z")
                 .build(),
+            () -> true,
             mappings
         ).documentMapper();
     }
@@ -642,6 +651,44 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         ParsedDocument doc1 = parseDocument(docMapper1, fields);
         ParsedDocument doc2 = parseDocument(docMapper2, fields);
         assertThat(doc1.rootDoc().getBinaryValue("_tsid").bytes, not(doc2.rootDoc().getBinaryValue("_tsid").bytes));
+    }
+
+    public void testMultiValueDimensionsNotSupportedBeforeTsidHashing() throws IOException {
+        IndexVersion priorToTsidHashing = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_ID_HASHING);
+        DocumentMapper docMapper = createDocumentMapper(
+            priorToTsidHashing,
+            "a",
+            mapping(b -> b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject())
+        );
+
+        String a1 = randomAlphaOfLength(10);
+        String a2 = randomAlphaOfLength(10);
+        CheckedConsumer<XContentBuilder, IOException> fields = d -> d.field("a", new String[] { a1, a2 });
+        DocumentParsingException exception = assertThrows(DocumentParsingException.class, () -> parseDocument(docMapper, fields));
+        assertThat(exception.getMessage(), containsString("Dimension field [a] cannot be a multi-valued field"));
+    }
+
+    public void testMultiValueDimensions() throws IOException {
+        DocumentMapper docMapper = createDocumentMapper(
+            IndexVersions.TIME_SERIES_ID_HASHING,
+            "a",
+            mapping(b -> b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject())
+        );
+
+        String a1 = randomAlphaOfLength(10);
+        String a2 = randomAlphaOfLength(10);
+        List<ParsedDocument> docs = List.of(
+            parseDocument(docMapper, d -> d.field("a", new String[] { a1 })),
+            parseDocument(docMapper, d -> d.field("a", new String[] { a1, a2 })),
+            parseDocument(docMapper, d -> d.field("a", new String[] { a2, a1 })),
+            parseDocument(docMapper, d -> d.field("a", new String[] { a1, a2, a1 })),
+            parseDocument(docMapper, d -> d.field("a", new String[] { a2, a1, a2 }))
+        );
+        List<String> tsids = docs.stream()
+            .map(doc -> doc.rootDoc().getBinaryValue("_tsid").toString())
+            .distinct()
+            .collect(Collectors.toList());
+        assertThat(tsids, hasSize(docs.size()));
     }
 
     /**

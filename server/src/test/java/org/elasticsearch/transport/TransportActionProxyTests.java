@@ -85,15 +85,15 @@ public class TransportActionProxyTests extends ESTestCase {
         threadPool = new TestThreadPool(getClass().getName());
         serviceA = buildService(version0, transportVersion0); // this one supports dynamic tracer updates
         serviceA.taskManager.setTaskCancellationService(new TaskCancellationService(serviceA));
-        nodeA = serviceA.getLocalDiscoNode();
+        nodeA = serviceA.getLocalNode();
         serviceB = buildService(version1, transportVersion1); // this one doesn't support dynamic tracer updates
         serviceB.taskManager.setTaskCancellationService(new TaskCancellationService(serviceB));
-        nodeB = serviceB.getLocalDiscoNode();
+        nodeB = serviceB.getLocalNode();
         serviceC = buildService(version1, transportVersion1); // this one doesn't support dynamic tracer updates
         serviceC.taskManager.setTaskCancellationService(new TaskCancellationService(serviceC));
-        nodeC = serviceC.getLocalDiscoNode();
+        nodeC = serviceC.getLocalNode();
         serviceD = buildService(version1, transportVersion1);
-        nodeD = serviceD.getLocalDiscoNode();
+        nodeD = serviceD.getLocalNode();
     }
 
     @Override

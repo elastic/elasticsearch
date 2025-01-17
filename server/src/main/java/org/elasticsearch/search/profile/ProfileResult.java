@@ -14,11 +14,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -27,22 +25,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.stream.Collectors.toMap;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-
 /**
  * The result of a profiled *thing*, like a query or an aggregation. See
  * {@link AbstractProfiler} for the statistic collection framework.
  */
 public final class ProfileResult implements Writeable, ToXContentObject {
-    static final ParseField TYPE = new ParseField("type");
-    static final ParseField DESCRIPTION = new ParseField("description");
-    static final ParseField BREAKDOWN = new ParseField("breakdown");
-    static final ParseField DEBUG = new ParseField("debug");
+    public static final ParseField TYPE = new ParseField("type");
+    public static final ParseField DESCRIPTION = new ParseField("description");
+    public static final ParseField BREAKDOWN = new ParseField("breakdown");
+    public static final ParseField DEBUG = new ParseField("debug");
     static final ParseField NODE_TIME = new ParseField("time");
-    static final ParseField NODE_TIME_RAW = new ParseField("time_in_nanos");
-    static final ParseField CHILDREN = new ParseField("children");
+    public static final ParseField NODE_TIME_RAW = new ParseField("time_in_nanos");
+    public static final ParseField CHILDREN = new ParseField("children");
 
     private final String type;
     private final String description;
@@ -180,29 +174,5 @@ public final class ProfileResult implements Writeable, ToXContentObject {
     @Override
     public String toString() {
         return Strings.toString(this);
-    }
-
-    private static final InstantiatingObjectParser<ProfileResult, Void> PARSER;
-    static {
-        InstantiatingObjectParser.Builder<ProfileResult, Void> parser = InstantiatingObjectParser.builder(
-            "profile_result",
-            true,
-            ProfileResult.class
-        );
-        parser.declareString(constructorArg(), TYPE);
-        parser.declareString(constructorArg(), DESCRIPTION);
-        parser.declareObject(
-            constructorArg(),
-            (p, c) -> p.map().entrySet().stream().collect(toMap(Map.Entry::getKey, e -> ((Number) e.getValue()).longValue())),
-            BREAKDOWN
-        );
-        parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), DEBUG);
-        parser.declareLong(constructorArg(), NODE_TIME_RAW);
-        parser.declareObjectArray(optionalConstructorArg(), (p, c) -> fromXContent(p), CHILDREN);
-        PARSER = parser.build();
-    }
-
-    public static ProfileResult fromXContent(XContentParser p) throws IOException {
-        return PARSER.parse(p, null);
     }
 }

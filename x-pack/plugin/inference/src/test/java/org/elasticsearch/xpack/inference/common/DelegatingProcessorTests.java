@@ -14,6 +14,7 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -28,17 +29,25 @@ public class DelegatingProcessorTests extends ESTestCase {
 
     public static <T, R> R onNext(DelegatingProcessor<T, R> processor, T item) {
         var response = new AtomicReference<R>();
+        var error = new AtomicReference<Throwable>();
 
         processor.onSubscribe(mock());
 
         Flow.Subscriber<R> downstream = mock();
+
         doAnswer(ans -> {
             response.set(ans.getArgument(0));
             return null;
         }).when(downstream).onNext(any());
+        doAnswer(ans -> {
+            error.set(ans.getArgument(0));
+            return null;
+        }).when(downstream).onError(any());
+
         processor.subscribe(downstream);
 
         processor.onNext(item);
+        assertThat("onError should not be called", error.get(), nullValue());
         assertThat("Response from processor was null", response.get(), notNullValue());
         return response.get();
     }
@@ -46,7 +55,8 @@ public class DelegatingProcessorTests extends ESTestCase {
     public static <T, R> Throwable onError(DelegatingProcessor<T, R> processor, T item) {
         var response = new AtomicReference<Throwable>();
 
-        processor.onSubscribe(mock());
+        Flow.Subscription upstream = mock();
+        processor.onSubscribe(upstream);
 
         Flow.Subscriber<R> downstream = mock();
         doAnswer(ans -> {
@@ -57,6 +67,7 @@ public class DelegatingProcessorTests extends ESTestCase {
 
         processor.onNext(item);
         assertThat("Error from processor was null", response.get(), notNullValue());
+        verify(upstream, times(1)).cancel();
         return response.get();
     }
 

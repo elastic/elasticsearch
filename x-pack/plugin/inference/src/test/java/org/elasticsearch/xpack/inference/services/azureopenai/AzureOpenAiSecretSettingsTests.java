@@ -30,7 +30,31 @@ import static org.hamcrest.Matchers.is;
 public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiSecretSettings> {
 
     public static AzureOpenAiSecretSettings createRandom() {
-        return new AzureOpenAiSecretSettings(randomSecureStringOfLength(15), randomSecureStringOfLength(15));
+        boolean isApiKeyNotEntraId = randomBoolean();
+        return new AzureOpenAiSecretSettings(
+            isApiKeyNotEntraId ? randomSecureStringOfLength(15) : null,
+            isApiKeyNotEntraId == false ? randomSecureStringOfLength(15) : null
+        );
+    }
+
+    public void testNewSecretSettingsApiKey() {
+        AzureOpenAiSecretSettings initialSettings = createRandom();
+        AzureOpenAiSecretSettings newSettings = new AzureOpenAiSecretSettings(randomSecureStringOfLength(15), null);
+        AzureOpenAiSecretSettings finalSettings = (AzureOpenAiSecretSettings) initialSettings.newSecretSettings(
+            Map.of(API_KEY, newSettings.apiKey().toString())
+        );
+
+        assertEquals(newSettings, finalSettings);
+    }
+
+    public void testNewSecretSettingsEntraId() {
+        AzureOpenAiSecretSettings initialSettings = createRandom();
+        AzureOpenAiSecretSettings newSettings = new AzureOpenAiSecretSettings(null, randomSecureStringOfLength(15));
+        AzureOpenAiSecretSettings finalSettings = (AzureOpenAiSecretSettings) initialSettings.newSecretSettings(
+            Map.of(ENTRA_ID, newSettings.entraId().toString())
+        );
+
+        assertEquals(newSettings, finalSettings);
     }
 
     public void testFromMap_ApiKey_Only() {

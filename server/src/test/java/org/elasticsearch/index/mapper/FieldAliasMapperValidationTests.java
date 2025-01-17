@@ -179,7 +179,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             name,
             Explicit.IMPLICIT_TRUE,
             Optional.empty(),
-            Explicit.IMPLICIT_FALSE,
+            Optional.empty(),
             ObjectMapper.Dynamic.FALSE,
             emptyMap()
         );

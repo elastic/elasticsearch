@@ -16,7 +16,7 @@ import java.io.IOException;
 /**
  * The request used to clear the cache for native roles stored in an index.
  */
-public class ClearRolesCacheRequest extends BaseNodesRequest<ClearRolesCacheRequest> {
+public class ClearRolesCacheRequest extends BaseNodesRequest {
 
     String[] names;
 

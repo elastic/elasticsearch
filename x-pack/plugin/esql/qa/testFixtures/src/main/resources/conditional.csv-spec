@@ -261,3 +261,23 @@ warning:Line 1:38: java.lang.IllegalArgumentException: single-value function enc
 
 a:integer | b:integer | same:boolean
 ;
+
+caseOnTheValue_NotOnTheField
+required_capability: fixed_wrong_is_not_null_check_on_case
+
+FROM employees 
+| WHERE emp_no < 10022 AND emp_no > 10012 
+| KEEP languages, emp_no 
+| EVAL eval = CASE(languages == 1, null, languages == 2, "bilingual", languages > 2, "multilingual", languages IS NULL, "languages is null") 
+| SORT languages, emp_no 
+| WHERE eval IS NOT NULL;
+
+languages:integer| emp_no:integer|eval:keyword                    
+2                |10016          |bilingual        
+2                |10017          |bilingual        
+2                |10018          |bilingual        
+5                |10014          |multilingual     
+5                |10015          |multilingual     
+null             |10020          |languages is null
+null             |10021          |languages is null
+;

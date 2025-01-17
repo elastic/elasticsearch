@@ -192,6 +192,7 @@ Which returns:
 [source,console-result]
 ----
 {
+  "took": 28,
   "columns": [
     {"name": "author", "type": "text"},
     {"name": "name", "type": "text"},
@@ -206,6 +207,7 @@ Which returns:
   ]
 }
 ----
+// TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
 
 [discrete]
 [[esql-locale-param]]
@@ -384,12 +386,13 @@ GET /_query/async/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUT
 // TEST[skip: no access to query ID - may return response values]
 
 If the response's `is_running` value is `false`, the query has finished
-and the results are returned.
+and the results are returned, along with the `took` time for the query.
 
 [source,console-result]
 ----
 {
   "is_running": false,
+  "took": 48,
   "columns": ...
 }
 ----

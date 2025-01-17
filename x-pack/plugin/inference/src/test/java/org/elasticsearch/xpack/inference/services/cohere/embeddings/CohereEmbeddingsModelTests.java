@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -208,6 +209,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
         String url,
         String apiKey,
         CohereEmbeddingsTaskSettings taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable Integer tokenLimit,
         @Nullable Integer dimensions,
         @Nullable String model,
@@ -222,6 +224,30 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
                 Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT)
             ),
             taskSettings,
+            chunkingSettings,
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+    public static CohereEmbeddingsModel createModel(
+        String url,
+        String apiKey,
+        CohereEmbeddingsTaskSettings taskSettings,
+        @Nullable Integer tokenLimit,
+        @Nullable Integer dimensions,
+        @Nullable String model,
+        @Nullable CohereEmbeddingType embeddingType
+    ) {
+        return new CohereEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            new CohereEmbeddingsServiceSettings(
+                new CohereServiceSettings(url, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, model, null),
+                Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT)
+            ),
+            taskSettings,
+            null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
@@ -245,6 +271,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
                 Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT)
             ),
             taskSettings,
+            null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

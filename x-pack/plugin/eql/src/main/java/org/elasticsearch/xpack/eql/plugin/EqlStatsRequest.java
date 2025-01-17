@@ -17,7 +17,7 @@ import java.io.IOException;
 /**
  * Request to gather usage statistics
  */
-public class EqlStatsRequest extends BaseNodesRequest<EqlStatsRequest> {
+public class EqlStatsRequest extends BaseNodesRequest {
 
     private boolean includeStats;
 

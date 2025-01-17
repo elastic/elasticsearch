@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.response.amazonbedrock.embeddings;
 
-import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
+import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonB
 
 public class AmazonBedrockEmbeddingsResponseHandler extends AmazonBedrockResponseHandler {
 
-    private InvokeModelResult invokeModelResult;
+    private InvokeModelResponse invokeModelResult;
 
     @Override
     public InferenceServiceResults parseResult(Request request, HttpResult result) throws RetryException {
@@ -31,7 +31,7 @@ public class AmazonBedrockEmbeddingsResponseHandler extends AmazonBedrockRespons
         return "Amazon Bedrock Embeddings";
     }
 
-    public void acceptEmbeddingsResult(InvokeModelResult result) {
+    public void acceptEmbeddingsResult(InvokeModelResponse result) {
         this.invokeModelResult = result;
     }
 }

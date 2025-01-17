@@ -52,7 +52,7 @@ public interface DataSourceResponse {
     }
 
     record FieldTypeGenerator(Supplier<FieldTypeInfo> generator) implements DataSourceResponse {
-        public record FieldTypeInfo(FieldType fieldType, boolean dynamic) {}
+        public record FieldTypeInfo(FieldType fieldType) {}
     }
 
     record ObjectArrayGenerator(Supplier<Optional<Integer>> lengthGenerator) implements DataSourceResponse {}
@@ -60,4 +60,6 @@ public interface DataSourceResponse {
     record LeafMappingParametersGenerator(Supplier<Map<String, Object>> mappingGenerator) implements DataSourceResponse {}
 
     record ObjectMappingParametersGenerator(Supplier<Map<String, Object>> mappingGenerator) implements DataSourceResponse {}
+
+    record DynamicMappingGenerator(Function<Boolean, Boolean> generator) implements DataSourceResponse {}
 }

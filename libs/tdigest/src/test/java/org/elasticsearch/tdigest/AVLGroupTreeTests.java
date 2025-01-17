@@ -21,87 +21,88 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
-import org.elasticsearch.test.ESTestCase;
-
-public class AVLGroupTreeTests extends ESTestCase {
+public class AVLGroupTreeTests extends TDigestTestCase {
 
     public void testSimpleAdds() {
-        AVLGroupTree x = new AVLGroupTree(WrapperTDigestArrays.INSTANCE);
-        assertEquals(IntAVLTree.NIL, x.floor(34));
-        assertEquals(IntAVLTree.NIL, x.first());
-        assertEquals(IntAVLTree.NIL, x.last());
-        assertEquals(0, x.size());
-        assertEquals(0, x.sum());
+        try (AVLGroupTree x = AVLGroupTree.create(arrays())) {
+            assertEquals(IntAVLTree.NIL, x.floor(34));
+            assertEquals(IntAVLTree.NIL, x.first());
+            assertEquals(IntAVLTree.NIL, x.last());
+            assertEquals(0, x.size());
+            assertEquals(0, x.sum());
 
-        x.add(new Centroid(1));
-        assertEquals(1, x.sum());
-        Centroid centroid = new Centroid(2);
-        centroid.add(3, 1);
-        centroid.add(4, 1);
-        x.add(centroid);
+            x.add(new Centroid(1));
+            assertEquals(1, x.sum());
+            Centroid centroid = new Centroid(2);
+            centroid.add(3, 1);
+            centroid.add(4, 1);
+            x.add(centroid);
 
-        assertEquals(2, x.size());
-        assertEquals(4, x.sum());
+            assertEquals(2, x.size());
+            assertEquals(4, x.sum());
+        }
     }
 
     public void testBalancing() {
-        AVLGroupTree x = new AVLGroupTree(WrapperTDigestArrays.INSTANCE);
-        for (int i = 0; i < 101; i++) {
-            x.add(new Centroid(i));
+        try (AVLGroupTree x = AVLGroupTree.create(arrays())) {
+            for (int i = 0; i < 101; i++) {
+                x.add(new Centroid(i));
+            }
+
+            assertEquals(101, x.size());
+            assertEquals(101, x.sum());
+
+            x.checkBalance();
+            x.checkAggregates();
         }
-
-        assertEquals(101, x.size());
-        assertEquals(101, x.sum());
-
-        x.checkBalance();
-        x.checkAggregates();
     }
 
     public void testFloor() {
         // mostly tested in other tests
-        AVLGroupTree x = new AVLGroupTree(WrapperTDigestArrays.INSTANCE);
-        for (int i = 0; i < 101; i++) {
-            x.add(new Centroid(i / 2));
-        }
+        try (AVLGroupTree x = AVLGroupTree.create(arrays())) {
+            for (int i = 0; i < 101; i++) {
+                x.add(new Centroid(i / 2));
+            }
 
-        assertEquals(IntAVLTree.NIL, x.floor(-30));
+            assertEquals(IntAVLTree.NIL, x.floor(-30));
 
-        for (Centroid centroid : x) {
-            assertEquals(centroid.mean(), x.mean(x.floor(centroid.mean() + 0.1)), 0);
+            for (Centroid centroid : x) {
+                assertEquals(centroid.mean(), x.mean(x.floor(centroid.mean() + 0.1)), 0);
+            }
         }
     }
 
     public void testHeadSum() {
-        AVLGroupTree x = new AVLGroupTree(WrapperTDigestArrays.INSTANCE);
-        for (int i = 0; i < 1000; ++i) {
-            x.add(randomDouble(), randomIntBetween(1, 10));
+        try (AVLGroupTree x = AVLGroupTree.create(arrays())) {
+            for (int i = 0; i < 1000; ++i) {
+                x.add(randomDouble(), randomIntBetween(1, 10));
+            }
+            long sum = 0;
+            long last = -1;
+            for (int node = x.first(); node != IntAVLTree.NIL; node = x.next(node)) {
+                assertEquals(sum, x.headSum(node));
+                sum += x.count(node);
+                last = x.count(node);
+            }
+            assertEquals(last, x.count(x.last()));
         }
-        long sum = 0;
-        long last = -1;
-        for (int node = x.first(); node != IntAVLTree.NIL; node = x.next(node)) {
-            assertEquals(sum, x.headSum(node));
-            sum += x.count(node);
-            last = x.count(node);
-        }
-        assertEquals(last, x.count(x.last()));
     }
 
     public void testFloorSum() {
-        AVLGroupTree x = new AVLGroupTree(WrapperTDigestArrays.INSTANCE);
-        int total = 0;
-        for (int i = 0; i < 1000; ++i) {
-            int count = randomIntBetween(1, 10);
-            x.add(randomDouble(), count);
-            total += count;
-        }
-        assertEquals(IntAVLTree.NIL, x.floorSum(-1));
-        for (long i = 0; i < total + 10; ++i) {
-            final int floorNode = x.floorSum(i);
-            assertTrue(x.headSum(floorNode) <= i);
-            final int next = x.next(floorNode);
-            assertTrue(next == IntAVLTree.NIL || x.headSum(next) > i);
+        try (AVLGroupTree x = AVLGroupTree.create(arrays())) {
+            int total = 0;
+            for (int i = 0; i < 1000; ++i) {
+                int count = randomIntBetween(1, 10);
+                x.add(randomDouble(), count);
+                total += count;
+            }
+            assertEquals(IntAVLTree.NIL, x.floorSum(-1));
+            for (long i = 0; i < total + 10; ++i) {
+                final int floorNode = x.floorSum(i);
+                assertTrue(x.headSum(floorNode) <= i);
+                final int next = x.next(floorNode);
+                assertTrue(next == IntAVLTree.NIL || x.headSum(next) > i);
+            }
         }
     }
-
 }

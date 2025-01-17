@@ -414,7 +414,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                                 InternalTopHits topHits = bucket.getAggregations().get("top_hits");
                                 TotalHits hits = topHits.getHits().getTotalHits();
                                 assertNotNull(hits);
-                                assertThat(hits.value, equalTo(counter));
+                                assertThat(hits.value(), equalTo(counter));
                                 assertThat(topHits.getHits().getMaxScore(), equalTo(Float.NaN));
                                 counter += 1;
                             }

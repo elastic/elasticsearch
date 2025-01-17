@@ -163,7 +163,6 @@ index setting limits the number of dimensions in an index.
 Dimension fields have the following constraints:
 
 * The `doc_values` and `index` mapping parameters must be `true`.
-* Field values cannot be an <<array,array or multi-value>>.
 // end::dimension[]
 * Dimension values are used to identify a document’s time series. If dimension values are altered in any way during indexing, the document will be stored as belonging to different from intended time series. As a result there are additional constraints:
 ** The field cannot use a <<normalizer,`normalizer`>>.
@@ -179,18 +178,22 @@ be changed or removed in a future release. Elastic will work to fix
 any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 
-`keyword` fields support <<synthetic-source,synthetic `_source`>> in their
-default configuration. Synthetic `_source` cannot be used together with
-a <<normalizer,`normalizer`>> or <<copy-to,`copy_to`>>.
-
-By default, synthetic source sorts `keyword` fields and removes duplicates.
+Synthetic source may sort `keyword` fields and remove duplicates.
 For example:
 [source,console,id=synthetic-source-keyword-example-default]
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "kwd": { "type": "keyword" }
     }
@@ -219,8 +222,16 @@ are preserved. For example:
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "kwd": { "type": "keyword", "store": true }
     }
@@ -249,8 +260,16 @@ For example:
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "kwd": { "type": "keyword", "ignore_above": 3 }
     }

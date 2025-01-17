@@ -35,7 +35,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
 
     @Override
     protected FieldCapabilities doParseInstance(XContentParser parser) throws IOException {
-        return FieldCapabilities.fromXContent(FIELD_NAME, parser);
+        return FieldCapsUtils.parseFieldCaps(FIELD_NAME, parser);
     }
 
     @Override

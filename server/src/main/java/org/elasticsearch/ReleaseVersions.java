@@ -114,8 +114,8 @@ public class ReleaseVersions {
                     // this will no longer be the case with ES 10 (which won't know about ES v8.x where we introduced separated versions)
                     // maybe keep the release mapping around in the csv file?
                     // SEP for now
-                    @UpdateForV9
-                    // @UpdateForV10
+                    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
+                    // @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)
                     Version oldVersion = Version.fromId(id);
                     return oldVersion.toString();
                 }

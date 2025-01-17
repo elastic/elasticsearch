@@ -40,6 +40,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenizationUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DebertaV2Tokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DebertaV2TokenizationUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigUpdate;
@@ -547,6 +549,13 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 (p, c) -> XLMRobertaTokenization.fromXContent(p, (boolean) c)
             )
         );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                Tokenization.class,
+                new ParseField(DebertaV2Tokenization.NAME),
+                (p, c) -> DebertaV2Tokenization.fromXContent(p, (boolean) c)
+            )
+        );
 
         namedXContent.add(
             new NamedXContentRegistry.Entry(
@@ -581,6 +590,13 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 TokenizationUpdate.class,
                 XLMRobertaTokenizationUpdate.NAME,
                 (p, c) -> XLMRobertaTokenizationUpdate.fromXContent(p)
+            )
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                TokenizationUpdate.class,
+                DebertaV2TokenizationUpdate.NAME,
+                (p, c) -> DebertaV2TokenizationUpdate.fromXContent(p)
             )
         );
 
@@ -791,6 +807,7 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         );
         namedWriteables.add(new NamedWriteableRegistry.Entry(Tokenization.class, RobertaTokenization.NAME, RobertaTokenization::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(Tokenization.class, XLMRobertaTokenization.NAME, XLMRobertaTokenization::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(Tokenization.class, DebertaV2Tokenization.NAME, DebertaV2Tokenization::new));
 
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
@@ -826,6 +843,9 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 XLMRobertaTokenizationUpdate.NAME.getPreferredName(),
                 XLMRobertaTokenizationUpdate::new
             )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TokenizationUpdate.class, DebertaV2Tokenization.NAME, DebertaV2TokenizationUpdate::new)
         );
 
         return namedWriteables;

@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.io.InputStream;
 
 public class SearchTemplateResponse extends ActionResponse implements ToXContentObject {
-    public static ParseField TEMPLATE_OUTPUT_FIELD = new ParseField("template_output");
+    public static final ParseField TEMPLATE_OUTPUT_FIELD = new ParseField("template_output");
 
     /** Contains the source of the rendered template **/
     private BytesReference source;
@@ -107,7 +107,7 @@ public class SearchTemplateResponse extends ActionResponse implements ToXContent
 
     void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (hasResponse()) {
-            ChunkedToXContent.wrapAsToXContent(p -> response.innerToXContentChunked(p)).toXContent(builder, params);
+            ChunkedToXContent.wrapAsToXContent(response::innerToXContentChunked).toXContent(builder, params);
         } else {
             // we can assume the template is always json as we convert it before compiling it
             try (InputStream stream = source.streamInput()) {

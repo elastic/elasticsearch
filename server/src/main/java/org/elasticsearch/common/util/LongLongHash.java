@@ -40,7 +40,7 @@ public final class LongLongHash extends AbstractHash {
         super(capacity, maxLoadFactor, bigArrays);
         try {
             // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
-            keys = bigArrays.newLongArray(2 * capacity, false);
+            keys = bigArrays.newLongArray(2 * maxSize, false);
         } finally {
             if (keys == null) {
                 close();
@@ -84,7 +84,7 @@ public final class LongLongHash extends AbstractHash {
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                id(index, id);
+                setId(index, id);
                 append(id, key1, key2);
                 ++size;
                 return id;
@@ -99,18 +99,20 @@ public final class LongLongHash extends AbstractHash {
 
     private void append(long id, long key1, long key2) {
         long keyOffset = 2 * id;
-        keys = bigArrays.grow(keys, keyOffset + 2);
         keys.set(keyOffset, key1);
         keys.set(keyOffset + 1, key2);
     }
 
-    private void reset(long key1, long key2, long id) {
+    private void reset(long id) {
+        final LongArray keys = this.keys;
+        final long keyOffset = id * 2;
+        final long key1 = keys.get(keyOffset);
+        final long key2 = keys.get(keyOffset + 1);
         final long slot = slot(hash(key1, key2), mask);
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                id(index, id);
-                append(id, key1, key2);
+                setId(index, id);
                 break;
             }
         }
@@ -125,6 +127,7 @@ public final class LongLongHash extends AbstractHash {
         if (size >= maxSize) {
             assert size == maxSize;
             grow();
+            keys = bigArrays.resize(keys, maxSize * 2);
         }
         assert size < maxSize;
         return set(key1, key2, size);
@@ -132,12 +135,9 @@ public final class LongLongHash extends AbstractHash {
 
     @Override
     protected void removeAndAdd(long index) {
-        final long id = id(index, -1);
+        final long id = getAndSetId(index, -1);
         assert id >= 0;
-        long keyOffset = id * 2;
-        final long key1 = keys.getAndSet(keyOffset, 0);
-        final long key2 = keys.getAndSet(keyOffset + 1, 0);
-        reset(key1, key2, id);
+        reset(id);
     }
 
     @Override

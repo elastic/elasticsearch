@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -18,7 +17,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -57,10 +55,6 @@ public class SecuritySystemIndices {
 
     public static final String INTERNAL_SECURITY_PROFILE_INDEX_8 = ".security-profile-8";
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
-    public static final Version VERSION_SECURITY_PROFILE_ORIGIN = Version.V_8_3_0;
-    public static final NodeFeature SECURITY_PROFILE_ORIGIN_FEATURE = new NodeFeature("security.security_profile_origin");
-    public static final NodeFeature SECURITY_MIGRATION_FRAMEWORK = new NodeFeature("security.migration_framework");
-    public static final NodeFeature SECURITY_ROLES_METADATA_FLATTENED = new NodeFeature("security.roles_metadata_flattened");
 
     /**
      * Security managed index mappings used to be updated based on the product version. They are now updated based on per-index mappings
@@ -142,7 +136,6 @@ public class SecuritySystemIndices {
                 .setSettings(getMainIndexSettings())
                 .setAliasName(SECURITY_MAIN_ALIAS)
                 .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
-                .setVersionMetaKey(SECURITY_VERSION_STRING)
                 .setOrigin(SECURITY_ORIGIN)
                 .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS);
 
@@ -694,7 +687,6 @@ public class SecuritySystemIndices {
             .setSettings(getTokenIndexSettings())
             .setAliasName(SECURITY_TOKENS_ALIAS)
             .setIndexFormat(INTERNAL_TOKENS_INDEX_FORMAT)
-            .setVersionMetaKey(SECURITY_VERSION_STRING)
             .setOrigin(SECURITY_ORIGIN)
             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
             .build();
@@ -878,10 +870,8 @@ public class SecuritySystemIndices {
             .setSettings(getProfileIndexSettings(settings))
             .setAliasName(SECURITY_PROFILE_ALIAS)
             .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
-            .setVersionMetaKey(SECURITY_VERSION_STRING)
             .setOrigin(SECURITY_PROFILE_ORIGIN) // new origin since 8.3
             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
-            .setMinimumNodeVersion(VERSION_SECURITY_PROFILE_ORIGIN)
             .setPriorSystemIndexDescriptors(
                 List.of(
                     SystemIndexDescriptor.builder()
@@ -892,7 +882,6 @@ public class SecuritySystemIndices {
                         .setSettings(getProfileIndexSettings(settings))
                         .setAliasName(SECURITY_PROFILE_ALIAS)
                         .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
-                        .setVersionMetaKey(SECURITY_VERSION_STRING)
                         .setOrigin(SECURITY_ORIGIN)
                         .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
                         .build()

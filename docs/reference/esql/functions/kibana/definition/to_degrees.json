@@ -56,5 +56,6 @@
   "examples" : [
     "ROW rad = [1.57, 3.14, 4.71]\n| EVAL deg = TO_DEGREES(rad)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

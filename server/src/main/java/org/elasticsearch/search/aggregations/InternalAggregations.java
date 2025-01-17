@@ -8,8 +8,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,21 +20,18 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseTypedKeysObject;
 
 /**
  * Represents a set of {@link InternalAggregation}s
@@ -52,7 +47,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
     /**
      * Constructs a new aggregation.
      */
-    private InternalAggregations(List<InternalAggregation> aggregations) {
+    public InternalAggregations(List<InternalAggregation> aggregations) {
         this.aggregations = aggregations;
         if (aggregations.isEmpty()) {
             aggregationsAsMap = Map.of();
@@ -124,27 +119,6 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
             aggregation.toXContent(builder, params);
         }
         return builder;
-    }
-
-    public static InternalAggregations fromXContent(XContentParser parser) throws IOException {
-        final List<InternalAggregation> aggregations = new ArrayList<>();
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.START_OBJECT) {
-                SetOnce<InternalAggregation> typedAgg = new SetOnce<>();
-                String currentField = parser.currentName();
-                parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, InternalAggregation.class, typedAgg::set);
-                if (typedAgg.get() != null) {
-                    aggregations.add(typedAgg.get());
-                } else {
-                    throw new ParsingException(
-                        parser.getTokenLocation(),
-                        String.format(Locale.ROOT, "Could not parse aggregation keyed as [%s]", currentField)
-                    );
-                }
-            }
-        }
-        return new InternalAggregations(aggregations);
     }
 
     public static InternalAggregations from(List<InternalAggregation> aggregations) {

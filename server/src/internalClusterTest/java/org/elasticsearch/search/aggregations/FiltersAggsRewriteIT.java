@@ -57,7 +57,7 @@ public class FiltersAggsRewriteIT extends ESSingleNodeTestCase {
         metadata.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         builder.setMetadata(metadata);
         assertResponse(client().prepareSearch("test").setSize(0).addAggregation(builder), response -> {
-            assertEquals(3, response.getHits().getTotalHits().value);
+            assertEquals(3, response.getHits().getTotalHits().value());
             InternalFilters filters = response.getAggregations().get("titles");
             assertEquals(1, filters.getBuckets().size());
             assertEquals(2, filters.getBuckets().get(0).getDocCount());

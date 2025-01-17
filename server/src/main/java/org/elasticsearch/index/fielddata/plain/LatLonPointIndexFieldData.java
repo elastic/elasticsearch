@@ -43,7 +43,7 @@ public final class LatLonPointIndexFieldData extends AbstractPointIndexFieldData
     }
 
     @Override
-    public LeafPointFieldData<MultiGeoPointValues> loadDirect(LeafReaderContext context) throws Exception {
+    public LeafPointFieldData<MultiGeoPointValues> loadDirect(LeafReaderContext context) {
         return load(context);
     }
 

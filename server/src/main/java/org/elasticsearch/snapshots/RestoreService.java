@@ -11,7 +11,6 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -26,6 +25,7 @@ import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -52,6 +52,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -65,6 +66,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
@@ -153,7 +155,14 @@ public final class RestoreService implements ClusterStateApplier {
         SETTING_VERSION_CREATED,
         SETTING_INDEX_UUID,
         SETTING_CREATION_DATE,
-        SETTING_HISTORY_UUID
+        SETTING_HISTORY_UUID,
+        IndexSettings.MODE.getKey(),
+        IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+        IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(),
+        IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(),
+        IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(),
+        IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(),
+        IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey()
     );
 
     // It's OK to change some settings, but we shouldn't allow simply removing them
@@ -351,6 +360,7 @@ public final class RestoreService implements ClusterStateApplier {
             metadataBuilder = Metadata.builder();
         }
 
+        // TODO: https://github.com/elastic/elasticsearch/issues/119545 - This does not yet support selectors
         final String[] indicesInRequest = request.indices();
         List<String> requestIndices = new ArrayList<>(indicesInRequest.length);
         if (indicesInRequest.length == 0) {
@@ -398,6 +408,8 @@ public final class RestoreService implements ClusterStateApplier {
         Map<String, DataStream> dataStreamsToRestore = result.v1();
         Map<String, DataStreamAlias> dataStreamAliasesToRestore = result.v2();
 
+        validateDataStreamTemplatesExistAndWarnIfMissing(dataStreamsToRestore, snapshotInfo, globalMetadata);
+
         // Remove the data streams from the list of requested indices
         requestIndices.removeAll(dataStreamsToRestore.keySet());
 
@@ -414,7 +426,7 @@ public final class RestoreService implements ClusterStateApplier {
             if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                 failureIndices = dataStreamsToRestore.values()
                     .stream()
-                    .flatMap(ds -> ds.getFailureIndices().getIndices().stream().map(idx -> new Tuple<>(ds.isSystem(), idx.getName())))
+                    .flatMap(ds -> ds.getFailureIndices().stream().map(idx -> new Tuple<>(ds.isSystem(), idx.getName())))
                     .collect(Collectors.partitioningBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toSet())));
             }
             systemDataStreamIndices = Sets.union(backingIndices.getOrDefault(true, Set.of()), failureIndices.getOrDefault(true, Set.of()));
@@ -508,6 +520,35 @@ public final class RestoreService implements ClusterStateApplier {
                 listener
             )
         );
+    }
+
+    private void validateDataStreamTemplatesExistAndWarnIfMissing(
+        Map<String, DataStream> dataStreamsToRestore,
+        SnapshotInfo snapshotInfo,
+        Metadata globalMetadata
+    ) {
+
+        Stream<ComposableIndexTemplate> streams = Stream.concat(
+            clusterService.state().metadata().templatesV2().values().stream(),
+            globalMetadata == null ? Stream.empty() : globalMetadata.templatesV2().values().stream()
+        );
+
+        Set<String> templatePatterns = streams.filter(cit -> cit.getDataStreamTemplate() != null)
+            .flatMap(cit -> cit.indexPatterns().stream())
+            .collect(Collectors.toSet());
+
+        for (String name : dataStreamsToRestore.keySet()) {
+            if (templatePatterns.stream().noneMatch(pattern -> Regex.simpleMatch(pattern, name))) {
+                String warningMessage = format(
+                    "Snapshot [%s] contains data stream [%s] but custer does not have a matching index template. This will cause"
+                        + " rollover to fail until a matching index template is created",
+                    snapshotInfo.snapshotId(),
+                    name
+                );
+                logger.warn(() -> warningMessage);
+                HeaderWarning.addWarning(warningMessage);
+            }
+        }
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
@@ -732,7 +773,7 @@ public final class RestoreService implements ClusterStateApplier {
             .map(i -> metadata.get(renameIndex(i.getName(), request, true, false)).getIndex())
             .toList();
         List<Index> updatedFailureIndices = DataStream.isFailureStoreFeatureFlagEnabled()
-            ? dataStream.getFailureIndices()
+            ? dataStream.getFailureComponent()
                 .getIndices()
                 .stream()
                 .map(i -> metadata.get(renameIndex(i.getName(), request, false, true)).getIndex())
@@ -740,8 +781,8 @@ public final class RestoreService implements ClusterStateApplier {
             : List.of();
         return dataStream.copy()
             .setName(dataStreamName)
-            .setBackingIndices(dataStream.getBackingIndices().copy().setIndices(updatedIndices).build())
-            .setFailureIndices(dataStream.getFailureIndices().copy().setIndices(updatedFailureIndices).build())
+            .setBackingIndices(dataStream.getDataComponent().copy().setIndices(updatedIndices).build())
+            .setFailureIndices(dataStream.getFailureComponent().copy().setIndices(updatedFailureIndices).build())
             .build();
     }
 
@@ -1306,6 +1347,7 @@ public final class RestoreService implements ClusterStateApplier {
             final Map<ShardId, ShardRestoreStatus> shards = new HashMap<>();
 
             final IndexVersion minIndexCompatibilityVersion = currentState.getNodes().getMinSupportedIndexVersion();
+            final IndexVersion minReadOnlyIndexCompatibilityVersion = currentState.getNodes().getMinReadOnlySupportedIndexVersion();
             final String localNodeId = clusterService.state().nodes().getLocalNodeId();
             for (Map.Entry<String, IndexId> indexEntry : indicesToRestore.entrySet()) {
                 final IndexId index = indexEntry.getValue();
@@ -1318,12 +1360,16 @@ public final class RestoreService implements ClusterStateApplier {
                     request.indexSettings(),
                     request.ignoreIndexSettings()
                 );
-                if (snapshotIndexMetadata.getCompatibilityVersion().before(minIndexCompatibilityVersion)) {
+                if (snapshotIndexMetadata.getCompatibilityVersion().isLegacyIndexVersion()) {
                     // adapt index metadata so that it can be understood by current version
                     snapshotIndexMetadata = convertLegacyIndex(snapshotIndexMetadata, currentState, indicesService);
                 }
                 try {
-                    snapshotIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(snapshotIndexMetadata, minIndexCompatibilityVersion);
+                    snapshotIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(
+                        snapshotIndexMetadata,
+                        minIndexCompatibilityVersion,
+                        minReadOnlyIndexCompatibilityVersion
+                    );
                 } catch (Exception ex) {
                     throw new SnapshotRestoreException(snapshot, "cannot restore index [" + index + "] because it cannot be upgraded", ex);
                 }
@@ -1351,11 +1397,7 @@ public final class RestoreService implements ClusterStateApplier {
                         currentState.metadata()
                     );
 
-                    final IndexMetadata.Builder indexMdBuilder = restoreToCreateNewIndex(
-                        snapshotIndexMetadata,
-                        renamedIndexName,
-                        currentState.getMinTransportVersion()
-                    );
+                    final IndexMetadata.Builder indexMdBuilder = restoreToCreateNewIndex(snapshotIndexMetadata, renamedIndexName);
                     if (request.includeAliases() == false
                         && snapshotIndexMetadata.getAliases().isEmpty() == false
                         && isSystemIndex(snapshotIndexMetadata) == false) {
@@ -1373,11 +1415,7 @@ public final class RestoreService implements ClusterStateApplier {
                 } else {
                     // Index exists and it's closed - open it in metadata and start recovery
                     validateExistingClosedIndex(currentIndexMetadata, snapshotIndexMetadata, renamedIndexName, partial);
-                    final IndexMetadata.Builder indexMdBuilder = restoreOverClosedIndex(
-                        snapshotIndexMetadata,
-                        currentIndexMetadata,
-                        currentState.getMinTransportVersion()
-                    );
+                    final IndexMetadata.Builder indexMdBuilder = restoreOverClosedIndex(snapshotIndexMetadata, currentIndexMetadata);
 
                     if (request.includeAliases() == false && isSystemIndex(snapshotIndexMetadata) == false) {
                         // Remove all snapshot aliases
@@ -1752,11 +1790,7 @@ public final class RestoreService implements ClusterStateApplier {
         return convertedIndexMetadataBuilder.build();
     }
 
-    private static IndexMetadata.Builder restoreToCreateNewIndex(
-        IndexMetadata snapshotIndexMetadata,
-        String renamedIndexName,
-        TransportVersion minClusterTransportVersion
-    ) {
+    private static IndexMetadata.Builder restoreToCreateNewIndex(IndexMetadata snapshotIndexMetadata, String renamedIndexName) {
         return IndexMetadata.builder(snapshotIndexMetadata)
             .state(IndexMetadata.State.OPEN)
             .index(renamedIndexName)
@@ -1764,14 +1798,10 @@ public final class RestoreService implements ClusterStateApplier {
                 Settings.builder().put(snapshotIndexMetadata.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             )
             .timestampRange(IndexLongFieldRange.NO_SHARDS)
-            .eventIngestedRange(IndexLongFieldRange.NO_SHARDS, minClusterTransportVersion);
+            .eventIngestedRange(IndexLongFieldRange.NO_SHARDS);
     }
 
-    private static IndexMetadata.Builder restoreOverClosedIndex(
-        IndexMetadata snapshotIndexMetadata,
-        IndexMetadata currentIndexMetadata,
-        TransportVersion minTransportVersion
-    ) {
+    private static IndexMetadata.Builder restoreOverClosedIndex(IndexMetadata snapshotIndexMetadata, IndexMetadata currentIndexMetadata) {
         final IndexMetadata.Builder indexMdBuilder = IndexMetadata.builder(snapshotIndexMetadata)
             .state(IndexMetadata.State.OPEN)
             .version(Math.max(snapshotIndexMetadata.getVersion(), 1 + currentIndexMetadata.getVersion()))
@@ -1780,7 +1810,7 @@ public final class RestoreService implements ClusterStateApplier {
             .settingsVersion(Math.max(snapshotIndexMetadata.getSettingsVersion(), 1 + currentIndexMetadata.getSettingsVersion()))
             .aliasesVersion(Math.max(snapshotIndexMetadata.getAliasesVersion(), 1 + currentIndexMetadata.getAliasesVersion()))
             .timestampRange(IndexLongFieldRange.NO_SHARDS)
-            .eventIngestedRange(IndexLongFieldRange.NO_SHARDS, minTransportVersion)
+            .eventIngestedRange(IndexLongFieldRange.NO_SHARDS)
             .index(currentIndexMetadata.getIndex().getName())
             .settings(
                 Settings.builder()

@@ -343,8 +343,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     }
 
     /**
-     * If scrolling was enabled ({@link SearchRequest#scroll(org.elasticsearch.search.Scroll)}, the
-     * scroll id that can be used to continue scrolling.
+     * If scrolling was enabled ({@link SearchRequest#scroll(TimeValue)}, the scroll id that can be used to continue scrolling.
      */
     public String getScrollId() {
         return scrollId;
@@ -392,28 +391,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     public Iterator<? extends ToXContent> innerToXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
-            ChunkedToXContentHelper.singleChunk(SearchResponse.this::headerToXContent),
+            ChunkedToXContentHelper.chunk(SearchResponse.this::headerToXContent),
             Iterators.single(clusters),
             Iterators.concat(
-                Iterators.flatMap(Iterators.single(hits), r -> r.toXContentChunked(params)),
-                Iterators.single((ToXContent) (b, p) -> {
-                    if (aggregations != null) {
-                        aggregations.toXContent(b, p);
-                    }
-                    return b;
-                }),
-                Iterators.single((b, p) -> {
-                    if (suggest != null) {
-                        suggest.toXContent(b, p);
-                    }
-                    return b;
-                }),
-                Iterators.single((b, p) -> {
-                    if (profileResults != null) {
-                        profileResults.toXContent(b, p);
-                    }
-                    return b;
-                })
+                hits.toXContentChunked(params),
+                aggregations == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(aggregations),
+                suggest == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(suggest),
+                profileResults == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(profileResults)
             )
         );
     }
@@ -810,7 +794,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          *              This will be false for local-cluster (non-CCS) only searches.
          */
         public boolean hasRemoteClusters() {
-            return total > 1 || clusterInfo.keySet().stream().anyMatch(alias -> alias != RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            return total > 1
+                || clusterInfo.keySet().stream().anyMatch(alias -> alias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false);
         }
 
     }

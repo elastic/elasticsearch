@@ -12,7 +12,6 @@ package org.elasticsearch.action.admin.indices.create;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -25,7 +24,7 @@ import java.util.Set;
 /**
  * Cluster state update request that allows to create an index
  */
-public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequest<CreateIndexClusterStateUpdateRequest> {
+public class CreateIndexClusterStateUpdateRequest {
 
     private final String cause;
     private final String index;
@@ -36,6 +35,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private ResizeType resizeType;
     private boolean copySettings;
     private SystemDataStreamDescriptor systemDataStreamDescriptor;
+    private boolean isFailureIndex = false;
 
     private Settings settings = Settings.EMPTY;
 
@@ -100,6 +100,11 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public CreateIndexClusterStateUpdateRequest systemDataStreamDescriptor(SystemDataStreamDescriptor systemDataStreamDescriptor) {
         this.systemDataStreamDescriptor = systemDataStreamDescriptor;
+        return this;
+    }
+
+    public CreateIndexClusterStateUpdateRequest isFailureIndex(boolean isFailureIndex) {
+        this.isFailureIndex = isFailureIndex;
         return this;
     }
 
@@ -169,6 +174,10 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return dataStreamName;
     }
 
+    public boolean isFailureIndex() {
+        return isFailureIndex;
+    }
+
     public CreateIndexClusterStateUpdateRequest dataStreamName(String dataStreamName) {
         this.dataStreamName = dataStreamName;
         return this;
@@ -229,6 +238,8 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
             + systemDataStreamDescriptor
             + ", matchingTemplate="
             + matchingTemplate
+            + ", isFailureIndex="
+            + isFailureIndex
             + '}';
     }
 }

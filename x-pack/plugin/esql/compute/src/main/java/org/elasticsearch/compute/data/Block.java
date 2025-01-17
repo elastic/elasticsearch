@@ -10,15 +10,12 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
-
-import java.util.List;
 
 /**
  * A Block is a columnar representation of homogenous data. It has a position (row) count, and
@@ -215,9 +212,45 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     /**
      * Expand multivalued fields into one row per value. Returns the same block if there aren't any multivalued
      * fields to expand. The returned block needs to be closed by the caller to release the block's resources.
-     * TODO: pass BlockFactory
      */
     Block expand();
+
+    /**
+     * Build a {@link Block} with a {@code null} inserted {@code before} each
+     * listed position.
+     * <p>
+     *     Note: {@code before} must be non-decreasing.
+     * </p>
+     */
+    default Block insertNulls(IntVector before) {
+        // TODO remove default and scatter to implementation where it can be a lot more efficient
+        int myCount = getPositionCount();
+        int beforeCount = before.getPositionCount();
+        try (Builder builder = elementType().newBlockBuilder(myCount + beforeCount, blockFactory())) {
+            int beforeP = 0;
+            int nextNull = before.getInt(beforeP);
+            for (int mainP = 0; mainP < myCount; mainP++) {
+                while (mainP == nextNull) {
+                    builder.appendNull();
+                    beforeP++;
+                    if (beforeP >= beforeCount) {
+                        builder.copyFrom(this, mainP, myCount);
+                        return builder.build();
+                    }
+                    nextNull = before.getInt(beforeP);
+                }
+                // This line right below this is the super inefficient one.
+                builder.copyFrom(this, mainP, mainP + 1);
+            }
+            assert nextNull == myCount;
+            while (beforeP < beforeCount) {
+                nextNull = before.getInt(beforeP++);
+                assert nextNull == myCount;
+                builder.appendNull();
+            }
+            return builder.build();
+        }
+    }
 
     /**
      * Builds {@link Block}s. Typically, you use one of it's direct supinterfaces like {@link IntBlock.Builder}.
@@ -289,19 +322,6 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
             }
             return blocks;
         }
-    }
-
-    static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            IntBlock.ENTRY,
-            LongBlock.ENTRY,
-            FloatBlock.ENTRY,
-            DoubleBlock.ENTRY,
-            BytesRefBlock.ENTRY,
-            BooleanBlock.ENTRY,
-            ConstantNullBlock.ENTRY,
-            CompositeBlock.ENTRY
-        );
     }
 
     /**

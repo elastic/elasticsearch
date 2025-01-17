@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.action.saml;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,9 +32,7 @@ public final class SamlPrepareAuthenticationRequest extends ActionRequest {
         super(in);
         realmName = in.readOptionalString();
         assertionConsumerServiceURL = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
-            relayState = in.readOptionalString();
-        }
+        relayState = in.readOptionalString();
     }
 
     public SamlPrepareAuthenticationRequest() {}
@@ -87,8 +84,6 @@ public final class SamlPrepareAuthenticationRequest extends ActionRequest {
         super.writeTo(out);
         out.writeOptionalString(realmName);
         out.writeOptionalString(assertionConsumerServiceURL);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
-            out.writeOptionalString(relayState);
-        }
+        out.writeOptionalString(relayState);
     }
 }

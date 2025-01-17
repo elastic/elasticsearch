@@ -31,9 +31,9 @@ public class Histogram extends GroupingFunction {
 
     private final Literal interval;
     private final ZoneId zoneId;
-    public static String YEAR_INTERVAL = DateHistogramInterval.YEAR.toString();
-    public static String MONTH_INTERVAL = DateHistogramInterval.MONTH.toString();
-    public static String DAY_INTERVAL = DateHistogramInterval.DAY.toString();
+    public static final String YEAR_INTERVAL = DateHistogramInterval.YEAR.toString();
+    public static final String MONTH_INTERVAL = DateHistogramInterval.MONTH.toString();
+    public static final String DAY_INTERVAL = DateHistogramInterval.DAY.toString();
 
     public Histogram(Source source, Expression field, Expression interval, ZoneId zoneId) {
         super(source, field, Collections.singletonList(interval));

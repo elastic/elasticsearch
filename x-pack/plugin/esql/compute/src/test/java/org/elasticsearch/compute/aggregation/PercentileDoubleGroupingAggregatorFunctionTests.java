@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -51,14 +52,15 @@ public class PercentileDoubleGroupingAggregatorFunctionTests extends GroupingAgg
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
-        TDigestState td = TDigestState.create(QuantileStates.DEFAULT_COMPRESSION);
-        input.stream().flatMapToDouble(p -> allDoubles(p, group)).forEach(td::add);
-        if (td.size() > 0) {
-            double expected = td.quantile(percentile / 100);
-            double value = ((DoubleBlock) result).getDouble(position);
-            assertThat(value, closeTo(expected, expected * 0.1));
-        } else {
-            assertTrue(result.isNull(position));
+        try (TDigestState td = TDigestState.create(newLimitedBreaker(ByteSizeValue.ofMb(100)), QuantileStates.DEFAULT_COMPRESSION)) {
+            input.stream().flatMapToDouble(p -> allDoubles(p, group)).forEach(td::add);
+            if (td.size() > 0) {
+                double expected = td.quantile(percentile / 100);
+                double value = ((DoubleBlock) result).getDouble(position);
+                assertThat(value, closeTo(expected, expected * 0.1));
+            } else {
+                assertTrue(result.isNull(position));
+            }
         }
     }
 }

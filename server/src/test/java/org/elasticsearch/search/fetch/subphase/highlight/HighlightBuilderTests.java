@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -323,7 +324,7 @@ public class HighlightBuilderTests extends ESTestCase {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(
                     name,
                     createDefaultIndexAnalyzers(),
-                    idxSettings.getMode().isSyntheticSourceEnabled()
+                    SourceFieldMapper.isSynthetic(idxSettings)
                 );
                 return builder.build(MapperBuilderContext.root(false, false)).fieldType();
             }
@@ -576,10 +577,10 @@ public class HighlightBuilderTests extends ESTestCase {
     public void testInvalidMaxAnalyzedOffset() throws IOException {
         XContentParseException e = expectParseThrows(
             XContentParseException.class,
-            "{ \"max_analyzed_offset\" : " + randomIntBetween(-100, 0) + "}"
+            "{ \"max_analyzed_offset\" : " + randomIntBetween(-100, -2) + "}"
         );
         assertThat(e.getMessage(), containsString("[highlight] failed to parse field [" + MAX_ANALYZED_OFFSET_FIELD.toString() + "]"));
-        assertThat(e.getCause().getMessage(), containsString("[max_analyzed_offset] must be a positive integer"));
+        assertThat(e.getCause().getMessage(), containsString("[max_analyzed_offset] must be a positive integer, or -1"));
     }
 
     /**
@@ -604,17 +605,6 @@ public class HighlightBuilderTests extends ESTestCase {
                 assertThat(in.readVInt(), equalTo(1));
             }
         }
-    }
-
-    public void testForceSourceDeprecation() throws IOException {
-        String highlightJson = """
-            { "fields" : { }, "force_source" : true }
-            """;
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightJson)) {
-            HighlightBuilder.fromXContent(parser);
-        }
-
-        assertWarnings("Deprecated field [force_source] used, this field is unused and will be removed entirely");
     }
 
     protected static XContentBuilder toXContent(HighlightBuilder highlight, XContentType contentType) throws IOException {

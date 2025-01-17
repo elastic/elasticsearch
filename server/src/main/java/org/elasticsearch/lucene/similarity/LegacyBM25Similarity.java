@@ -43,7 +43,7 @@ public final class LegacyBM25Similarity extends Similarity {
      * </ul>
      */
     public LegacyBM25Similarity() {
-        this.bm25Similarity = new BM25Similarity();
+        this(new BM25Similarity());
     }
 
     /**
@@ -54,7 +54,12 @@ public final class LegacyBM25Similarity extends Similarity {
      *         not within the range {@code [0..1]}
      */
     public LegacyBM25Similarity(float k1, float b, boolean discountOverlaps) {
-        this.bm25Similarity = new BM25Similarity(k1, b, discountOverlaps);
+        this(new BM25Similarity(k1, b, discountOverlaps));
+    }
+
+    private LegacyBM25Similarity(BM25Similarity bm25Similarity) {
+        super(bm25Similarity.getDiscountOverlaps());
+        this.bm25Similarity = bm25Similarity;
     }
 
     @Override
@@ -79,13 +84,6 @@ public final class LegacyBM25Similarity extends Similarity {
      */
     public float getB() {
         return bm25Similarity.getB();
-    }
-
-    /**
-     * Returns true if overlap tokens are discounted from the document's length.
-     */
-    public boolean getDiscountOverlaps() {
-        return bm25Similarity.getDiscountOverlaps();
     }
 
     @Override

@@ -11,12 +11,22 @@ package org.elasticsearch.test.rest;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
 public class RequestsWithoutContentIT extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     public void testIndexMissingBody() throws IOException {
         ResponseException responseException = expectThrows(
@@ -27,10 +37,9 @@ public class RequestsWithoutContentIT extends ESRestTestCase {
     }
 
     public void testBulkMissingBody() throws IOException {
-        ResponseException responseException = expectThrows(
-            ResponseException.class,
-            () -> client().performRequest(new Request(randomBoolean() ? "POST" : "PUT", "/_bulk"))
-        );
+        Request request = new Request(randomBoolean() ? "POST" : "PUT", "/_bulk");
+        request.setJsonEntity("");
+        ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertResponseException(responseException, "request body is required");
     }
 

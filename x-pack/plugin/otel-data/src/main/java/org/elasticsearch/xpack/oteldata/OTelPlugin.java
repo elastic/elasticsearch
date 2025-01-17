@@ -33,9 +33,7 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
     // This setting will be ignored if the plugin is disabled.
     static final Setting<Boolean> OTEL_DATA_REGISTRY_ENABLED = Setting.boolSetting(
         "xpack.otel_data.registry.enabled",
-        // OTel-data is under development, and we start with opt-in first.
-        // Furthermore, this could help with staged rollout in serverless
-        false,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -50,14 +48,7 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
         Settings settings = services.environment().settings();
         ClusterService clusterService = services.clusterService();
         registry.set(
-            new OTelIndexTemplateRegistry(
-                settings,
-                clusterService,
-                services.threadPool(),
-                services.client(),
-                services.xContentRegistry(),
-                services.featureService()
-            )
+            new OTelIndexTemplateRegistry(settings, clusterService, services.threadPool(), services.client(), services.xContentRegistry())
         );
         if (enabled) {
             OTelIndexTemplateRegistry registryInstance = registry.get();

@@ -120,6 +120,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
 
         this.threadPool = new TestThreadPool("saml logout test thread pool", settings);
         final ThreadContext threadContext = this.threadPool.getThreadContext();
+        final var defaultContext = threadContext.newStoredContext();
         AuthenticationTestHelper.builder()
             .user(new User("kibana"))
             .realmRef(new Authentication.RealmRef("realm", "type", "node"))
@@ -207,7 +208,11 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
 
         final MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
-        final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        final ClusterService clusterService;
+        try (var ignored = threadContext.newStoredContext()) {
+            defaultContext.restore();
+            clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        }
         final SecurityContext securityContext = new SecurityContext(settings, threadContext);
         tokenService = new TokenService(
             settings,

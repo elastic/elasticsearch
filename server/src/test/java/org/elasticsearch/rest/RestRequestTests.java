@@ -12,8 +12,9 @@ package org.elasticsearch.rest;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -87,7 +88,7 @@ public class RestRequestTests extends ESTestCase {
     private <T extends Exception> void runConsumesContentTest(final CheckedConsumer<RestRequest, T> consumer, final boolean expected) {
         final HttpRequest httpRequest = mock(HttpRequest.class);
         when(httpRequest.uri()).thenReturn("");
-        when(httpRequest.content()).thenReturn(new BytesArray(new byte[1]));
+        when(httpRequest.body()).thenReturn(HttpBody.fromBytesReference(new BytesArray(new byte[1])));
         when(httpRequest.getHeaders()).thenReturn(
             Collections.singletonMap("Content-Type", Collections.singletonList(randomFrom("application/json", "application/x-ndjson")))
         );
@@ -320,7 +321,7 @@ public class RestRequestTests extends ESTestCase {
         }
 
         @Override
-        public BytesReference content() {
+        public ReleasableBytesReference content() {
             return restRequest.content();
         }
     }

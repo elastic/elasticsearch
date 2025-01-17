@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * This class defines an empty secret settings object. This is useful for services that do not have any secret settings.
@@ -43,9 +44,14 @@ public record EmptySecretSettings() implements SecretSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_EIS_INTEGRATION_ADDED;
+        return TransportVersions.V_8_16_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {}
+
+    @Override
+    public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+        return INSTANCE;
+    }
 }

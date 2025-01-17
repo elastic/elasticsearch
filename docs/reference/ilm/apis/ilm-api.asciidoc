@@ -1,6 +1,12 @@
 [[index-lifecycle-management-api]]
 == {ilm-cap} APIs
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ilm[{ilm-cap} APIs].
+--
+
 You use the following APIs to set up policies to automatically manage the index lifecycle.
 For more information about {ilm} ({ilm-init}), see <<index-lifecycle-management>>.
 

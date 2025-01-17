@@ -56,5 +56,6 @@
   "examples" : [
     "ROW wkt = \"POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))\"\n| EVAL geom = TO_GEOSHAPE(wkt)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

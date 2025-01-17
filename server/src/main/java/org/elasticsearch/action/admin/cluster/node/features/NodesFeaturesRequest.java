@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.cluster.node.features;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 
-public class NodesFeaturesRequest extends BaseNodesRequest<NodesFeaturesRequest> {
+public class NodesFeaturesRequest extends BaseNodesRequest {
     public NodesFeaturesRequest(String... nodes) {
         super(nodes);
     }

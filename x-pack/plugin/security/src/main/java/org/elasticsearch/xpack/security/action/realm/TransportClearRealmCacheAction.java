@@ -32,7 +32,8 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<
     ClearRealmCacheRequest,
     ClearRealmCacheResponse,
     ClearRealmCacheRequest.Node,
-    ClearRealmCacheResponse.Node> {
+    ClearRealmCacheResponse.Node,
+    Void> {
 
     private final Realms realms;
     private final AuthenticationService authenticationService;

@@ -63,6 +63,17 @@ public class EvalOperator extends AbstractPageMappingOperator {
         /** A Factory for creating ExpressionEvaluators. */
         interface Factory {
             ExpressionEvaluator get(DriverContext context);
+
+            /**
+             * {@code true} if it is safe and fast to evaluate this expression eagerly
+             * in {@link ExpressionEvaluator}s that need to be lazy, like {@code CASE}.
+             * This defaults to {@code false}, but expressions
+             * that evaluate quickly and can not produce warnings may override this to
+             * {@code true} to get a significant speed-up in {@code CASE}-like operations.
+             */
+            default boolean eagerEvalSafeInLazy() {
+                return false;
+            }
         }
 
         /**

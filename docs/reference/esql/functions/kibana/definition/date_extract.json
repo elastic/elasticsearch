@@ -45,5 +45,6 @@
     "ROW date = DATE_PARSE(\"yyyy-MM-dd\", \"2022-05-06\")\n| EVAL year = DATE_EXTRACT(\"year\", date)",
     "FROM sample_data\n| WHERE DATE_EXTRACT(\"hour_of_day\", @timestamp) < 9 AND DATE_EXTRACT(\"hour_of_day\", @timestamp) >= 17"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

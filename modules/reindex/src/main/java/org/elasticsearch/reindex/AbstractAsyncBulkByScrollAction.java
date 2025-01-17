@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -26,6 +25,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -43,7 +43,6 @@ import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -64,7 +63,7 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.action.bulk.BackoffPolicy.exponentialBackoff;
+import static org.elasticsearch.common.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
@@ -212,7 +211,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         if (mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES
             && mainRequest.getMaxDocs() <= preparedSearchRequest.source().size()
             && mainRequest.isAbortOnVersionConflict()) {
-            preparedSearchRequest.scroll((Scroll) null);
+            preparedSearchRequest.scroll(null);
         }
 
         return preparedSearchRequest;

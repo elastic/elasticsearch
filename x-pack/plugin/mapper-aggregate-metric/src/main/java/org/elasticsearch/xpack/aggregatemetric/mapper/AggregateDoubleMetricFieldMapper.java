@@ -469,8 +469,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                             return 0; // Unknown
                         }
 
-                        @Override
-                        public void close() {}
                     };
                 }
 

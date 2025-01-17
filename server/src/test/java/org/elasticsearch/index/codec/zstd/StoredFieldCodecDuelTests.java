@@ -10,7 +10,7 @@
 package org.elasticsearch.index.codec.zstd;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene99.Lucene99Codec;
+import org.apache.lucene.codecs.lucene100.Lucene100Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
@@ -35,13 +35,13 @@ public class StoredFieldCodecDuelTests extends ESTestCase {
     private static final String DOUBLE_FIELD = "double_field_5";
 
     public void testDuelBestSpeed() throws IOException {
-        var baseline = new LegacyPerFieldMapperCodec(Lucene99Codec.Mode.BEST_SPEED, null, BigArrays.NON_RECYCLING_INSTANCE);
+        var baseline = new LegacyPerFieldMapperCodec(Lucene100Codec.Mode.BEST_SPEED, null, BigArrays.NON_RECYCLING_INSTANCE);
         var contender = new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, null, BigArrays.NON_RECYCLING_INSTANCE);
         doTestDuel(baseline, contender);
     }
 
     public void testDuelBestCompression() throws IOException {
-        var baseline = new LegacyPerFieldMapperCodec(Lucene99Codec.Mode.BEST_COMPRESSION, null, BigArrays.NON_RECYCLING_INSTANCE);
+        var baseline = new LegacyPerFieldMapperCodec(Lucene100Codec.Mode.BEST_COMPRESSION, null, BigArrays.NON_RECYCLING_INSTANCE);
         var contender = new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, null, BigArrays.NON_RECYCLING_INSTANCE);
         doTestDuel(baseline, contender);
     }

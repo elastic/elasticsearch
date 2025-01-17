@@ -21,6 +21,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.nativeaccess.NativeAccess;
@@ -211,7 +212,6 @@ final class BootstrapChecks {
         checks.add(new OnErrorCheck());
         checks.add(new OnOutOfMemoryErrorCheck());
         checks.add(new EarlyAccessCheck());
-        checks.add(new AllPermissionCheck());
         checks.add(new DiscoveryConfiguredCheck());
         checks.add(new ByteOrderCheck());
         return Collections.unmodifiableList(checks);
@@ -412,12 +412,12 @@ final class BootstrapChecks {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            final long maxFileSize = getMaxFileSize();
+            final long maxFileSize = getProcessLimits().maxFileSize();
             if (maxFileSize != Long.MIN_VALUE && maxFileSize != ProcessLimits.UNLIMITED) {
                 final String message = String.format(
                     Locale.ROOT,
                     "max file size [%d] for user [%s] is too low, increase to [unlimited]",
-                    getMaxFileSize(),
+                    maxFileSize,
                     BootstrapInfo.getSystemProperties().get("user.name")
                 );
                 return BootstrapCheckResult.failure(message);
@@ -426,8 +426,8 @@ final class BootstrapChecks {
             }
         }
 
-        long getMaxFileSize() {
-            return NativeAccess.instance().getProcessLimits().maxVirtualMemorySize();
+        protected ProcessLimits getProcessLimits() {
+            return NativeAccess.instance().getProcessLimits();
         }
 
         @Override
@@ -701,7 +701,7 @@ final class BootstrapChecks {
         }
 
         String javaVersion() {
-            return Constants.JAVA_VERSION;
+            return Runtime.version().toString();
         }
 
         @Override
@@ -722,6 +722,9 @@ final class BootstrapChecks {
         }
 
         boolean isAllPermissionGranted() {
+            if (RuntimeVersionFeature.isSecurityManagerAvailable() == false) {
+                return false;
+            }
             final SecurityManager sm = System.getSecurityManager();
             assert sm != null;
             try {

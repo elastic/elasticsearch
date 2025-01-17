@@ -26,7 +26,8 @@ public class SpatialStatsTransportAction extends TransportNodesAction<
     SpatialStatsAction.Request,
     SpatialStatsAction.Response,
     SpatialStatsAction.NodeRequest,
-    SpatialStatsAction.NodeResponse> {
+    SpatialStatsAction.NodeResponse,
+    Void> {
     private final SpatialUsage usage;
 
     @Inject

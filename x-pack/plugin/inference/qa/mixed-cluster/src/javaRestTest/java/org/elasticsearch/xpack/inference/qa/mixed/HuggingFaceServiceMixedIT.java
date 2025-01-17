@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -27,6 +28,7 @@ public class HuggingFaceServiceMixedIT extends BaseMixedTestCase {
 
     private static final String HF_EMBEDDINGS_ADDED = "8.12.0";
     private static final String HF_ELSER_ADDED = "8.12.0";
+    private static final String HF_EMBEDDINGS_CHUNKING_SETTINGS_ADDED = "8.16.0";
     private static final String MINIMUM_SUPPORTED_VERSION = "8.15.0";
 
     private static MockWebServer embeddingsServer;
@@ -59,7 +61,24 @@ public class HuggingFaceServiceMixedIT extends BaseMixedTestCase {
         final String inferenceId = "mixed-cluster-embeddings";
 
         embeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponse()));
-        put(inferenceId, embeddingConfig(getUrl(embeddingsServer)), TaskType.TEXT_EMBEDDING);
+
+        try {
+            put(inferenceId, embeddingConfig(getUrl(embeddingsServer)), TaskType.TEXT_EMBEDDING);
+        } catch (Exception e) {
+            if (bwcVersion.before(Version.fromString(HF_EMBEDDINGS_CHUNKING_SETTINGS_ADDED))) {
+                // Chunking settings were added in 8.16.0. if the version is before that, an exception will be thrown if the index mapping
+                // was created based on a mapping from an old node
+                assertThat(
+                    e.getMessage(),
+                    containsString(
+                        "One or more nodes in your cluster does not support chunking_settings. "
+                            + "Please update all nodes in your cluster to the latest version to use chunking_settings."
+                    )
+                );
+                return;
+            }
+        }
+
         var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, inferenceId).get("endpoints");
         assertThat(configs, hasSize(1));
         assertEquals("hugging_face", configs.get(0).get("service"));
@@ -84,6 +103,7 @@ public class HuggingFaceServiceMixedIT extends BaseMixedTestCase {
         final String inferenceId = "mixed-cluster-elser";
         final String upgradedClusterId = "upgraded-cluster-elser";
 
+        elserServer.enqueue(new MockResponse().setResponseCode(200).setBody(elserResponse()));
         put(inferenceId, elserConfig(getUrl(elserServer)), TaskType.SPARSE_EMBEDDING);
 
         var configs = (List<Map<String, Object>>) get(TaskType.SPARSE_EMBEDDING, inferenceId).get("endpoints");

@@ -20,6 +20,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 
@@ -41,7 +42,7 @@ public final class DocValuesSliceQuery extends SliceQuery {
         return new ConstantScoreWeight(this, boost) {
 
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 final SortedNumericDocValues values = DocValues.getSortedNumeric(context.reader(), getField());
                 final DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
                 final TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
@@ -66,7 +67,8 @@ public final class DocValuesSliceQuery extends SliceQuery {
                         return 10;
                     }
                 };
-                return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);
+                Scorer scorer = new ConstantScoreScorer(score(), scoreMode, twoPhase);
+                return new DefaultScorerSupplier(scorer);
             }
 
             @Override

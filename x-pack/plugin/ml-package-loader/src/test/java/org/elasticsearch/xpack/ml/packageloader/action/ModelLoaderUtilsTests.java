@@ -17,6 +17,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.Is.is;
 
 public class ModelLoaderUtilsTests extends ESTestCase {
@@ -80,13 +81,12 @@ public class ModelLoaderUtilsTests extends ESTestCase {
         assertEquals(64, expectedDigest.length());
 
         int chunkSize = randomIntBetween(100, 10_000);
+        int totalParts = (bytes.length + chunkSize - 1) / chunkSize;
 
         ModelLoaderUtils.InputStreamChunker inputStreamChunker = new ModelLoaderUtils.InputStreamChunker(
             new ByteArrayInputStream(bytes),
             chunkSize
         );
-
-        int totalParts = (bytes.length + chunkSize - 1) / chunkSize;
 
         for (int part = 0; part < totalParts - 1; ++part) {
             assertEquals(chunkSize, inputStreamChunker.next().length());
@@ -111,5 +111,41 @@ public class ModelLoaderUtilsTests extends ESTestCase {
         assertThat(parsedVocab.vocab(), contains("foo", "bar", "baz"));
         assertThat(parsedVocab.merges(), contains("mergefoo", "mergebar", "mergebaz"));
         assertThat(parsedVocab.scores(), contains(1.0, 2.0, 3.0));
+    }
+
+    public void testSplitIntoRanges() {
+        long totalSize = randomLongBetween(10_000, 50_000_000);
+        int numStreams = randomIntBetween(1, 10);
+        int chunkSize = 1024;
+        var ranges = ModelLoaderUtils.split(totalSize, numStreams, chunkSize);
+        assertThat(ranges, hasSize(numStreams + 1));
+
+        int expectedNumChunks = (int) ((totalSize + chunkSize - 1) / chunkSize);
+        assertThat(ranges.stream().mapToInt(ModelLoaderUtils.RequestRange::numParts).sum(), is(expectedNumChunks));
+
+        long startBytes = 0;
+        int startPartIndex = 0;
+        for (int i = 0; i < ranges.size() - 1; i++) {
+            assertThat(ranges.get(i).rangeStart(), is(startBytes));
+            long end = startBytes + ((long) ranges.get(i).numParts() * chunkSize) - 1;
+            assertThat(ranges.get(i).rangeEnd(), is(end));
+            long expectedNumBytesInRange = (long) chunkSize * ranges.get(i).numParts() - 1;
+            assertThat(ranges.get(i).rangeEnd() - ranges.get(i).rangeStart(), is(expectedNumBytesInRange));
+            assertThat(ranges.get(i).startPart(), is(startPartIndex));
+
+            startBytes = end + 1;
+            startPartIndex += ranges.get(i).numParts();
+        }
+
+        var finalRange = ranges.get(ranges.size() - 1);
+        assertThat(finalRange.rangeStart(), is(startBytes));
+        assertThat(finalRange.rangeEnd(), is(totalSize - 1));
+        assertThat(finalRange.numParts(), is(1));
+    }
+
+    public void testRangeRequestBytesRange() {
+        long start = randomLongBetween(0, 2 << 10);
+        long end = randomLongBetween(start + 1, 2 << 11);
+        assertEquals("bytes=" + start + "-" + end, new ModelLoaderUtils.RequestRange(start, end, 0, 1).bytesRange());
     }
 }

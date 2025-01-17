@@ -16,7 +16,6 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PagedGrowableWriter;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Arrays;
 
 /**
@@ -369,7 +368,7 @@ public final class OrdinalsBuilder implements Closeable {
      * Closes this builder and release all resources.
      */
     @Override
-    public void close() throws IOException {
+    public void close() {
         ordinals = null;
     }
 }

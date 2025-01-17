@@ -14,7 +14,7 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-public class ClearSecurityCacheRequest extends BaseNodesRequest<ClearSecurityCacheRequest> {
+public class ClearSecurityCacheRequest extends BaseNodesRequest {
 
     private String cacheName;
     private String[] keys;

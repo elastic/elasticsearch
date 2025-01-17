@@ -115,7 +115,7 @@ public record TaskInfo(
         if (description != null) {
             builder.field("description", description);
         }
-        builder.timeField("start_time_in_millis", "start_time", startTime);
+        builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTime);
         if (builder.humanReadable()) {
             builder.field("running_time", new TimeValue(runningTimeNanos, TimeUnit.NANOSECONDS).toString());
         }

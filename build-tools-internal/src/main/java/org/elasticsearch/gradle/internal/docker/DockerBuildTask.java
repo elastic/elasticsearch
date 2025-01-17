@@ -30,6 +30,7 @@ import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
+import org.gradle.process.ExecSpec;
 import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkerExecutor;
@@ -166,6 +167,7 @@ public abstract class DockerBuildTask extends DefaultTask {
             for (int attempt = 1; attempt <= maxAttempts; attempt++) {
                 try {
                     LoggedExec.exec(execOperations, spec -> {
+                        maybeConfigureDockerConfig(spec);
                         spec.executable("docker");
                         spec.args("pull");
                         spec.args(baseImage);
@@ -181,6 +183,13 @@ public abstract class DockerBuildTask extends DefaultTask {
             throw new GradleException("Failed to pull Docker base image [" + baseImage + "], all attempts failed");
         }
 
+        private void maybeConfigureDockerConfig(ExecSpec spec) {
+            String dockerConfig = System.getenv("DOCKER_CONFIG");
+            if (dockerConfig != null) {
+                spec.environment("DOCKER_CONFIG", dockerConfig);
+            }
+        }
+
         @Override
         public void execute() {
             final Parameters parameters = getParameters();
@@ -193,6 +202,8 @@ public abstract class DockerBuildTask extends DefaultTask {
             final boolean isCrossPlatform = isCrossPlatform();
 
             LoggedExec.exec(execOperations, spec -> {
+                maybeConfigureDockerConfig(spec);
+
                 spec.executable("docker");
 
                 if (isCrossPlatform) {

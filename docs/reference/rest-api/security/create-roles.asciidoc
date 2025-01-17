@@ -5,6 +5,12 @@
 <titleabbrev>Create or update roles</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Adds and updates roles in the native realm.
 
 [[security-api-put-role-request]]
@@ -96,6 +102,19 @@ have on the specified indices.
 read access to. A document within the specified indices must match this query in
 order for it to be accessible by the owners of the role.
 
+`remote_cluster`:: (list) A list of remote cluster permissions entries.
++
+--
+NOTE: Remote cluster permissions are effective for <<remote-clusters-api-key,remote clusters configured with the API key based model>>.
+They have no effect for remote clusters configured with the <<remote-clusters-cert,certificate based model>>.
+--
+`clusters` (required)::: (list) A list of cluster aliases to which the permissions
+in this entry apply.
+`privileges`(required)::: (list) The cluster level privileges that the owners of the role
+have in the specified clusters. Note - only a subset of the cluster privileges are supported for remote clusters.
+The <<security-api-get-builtin-privileges-request, builtin privileges API>> can be used to determine
+which privileges are allowed per version.
+
 For more information, see <<defining-roles>>.
 
 [[security-api-put-role-example]]
@@ -165,21 +184,29 @@ POST /_security/role/cli_or_drivers_minimal
 --------------------------------------------------
 // end::sql-queries-permission[]
 
-The following example configures a role with remote indices privileges on a remote cluster:
+The following example configures a role with remote indices and remote cluster privileges for a remote cluster:
 [source,console]
 --------------------------------------------------
-POST /_security/role/role_with_remote_indices
+POST /_security/role/only_remote_access_role
 {
   "remote_indices": [
     {
-      "clusters": [ "my_remote" ], <1>
+      "clusters": ["my_remote"], <1>
       "names": ["logs*"], <2>
       "privileges": ["read", "read_cross_cluster", "view_index_metadata"] <3>
+    }
+  ],
+  "remote_cluster": [
+    {
+      "clusters": ["my_remote"], <1>
+      "privileges": ["monitor_stats"]  <4>
     }
   ]
 }
 --------------------------------------------------
 
-<1> The remote indices privileges apply to remote cluster with the alias `my_remote`.
-<2> Privileges are granted for indices matching pattern `logs*` on the remote cluster ( `my_remote`).
+<1> The remote indices and remote cluster privileges apply to remote cluster with the alias `my_remote`.
+<2> Privileges are granted for indices matching pattern `logs*` on the remote cluster (`my_remote`).
 <3> The actual <<privileges-list-indices,index privileges>> granted for `logs*` on `my_remote`.
+<4> The actual <<privileges-list-cluster,cluster privileges>> granted for `my_remote`.
+Note - only a subset of the cluster privileges are supported for remote clusters.

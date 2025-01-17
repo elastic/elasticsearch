@@ -26,49 +26,43 @@ public class DelegatingCircuitBreakerServiceTests extends ESTestCase {
      * the purpose of the test is not hitting the `IllegalStateException("already closed")` in
      * PreallocatedCircuitBreaker#addEstimateBytesAndMaybeBreak in {@link PreallocatedCircuitBreakerService}
      */
-    public void testThreadedExecution() {
+    public void testThreadedExecution() throws InterruptedException {
+        HierarchyCircuitBreakerService topBreaker = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            Settings.builder()
+                .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10mb")
+                // Disable the real memory checking because it causes other tests to interfere with this one.
+                .put(USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+                .build(),
+            List.of(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        PreallocatedCircuitBreakerService preallocated = new PreallocatedCircuitBreakerService(
+            topBreaker,
+            CircuitBreaker.REQUEST,
+            10_000,
+            "test"
+        );
 
-        try (
-            HierarchyCircuitBreakerService topBreaker = new HierarchyCircuitBreakerService(
-                CircuitBreakerMetrics.NOOP,
-                Settings.builder()
-                    .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10mb")
-                    // Disable the real memory checking because it causes other tests to interfere with this one.
-                    .put(USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
-                    .build(),
-                List.of(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            )
-        ) {
-            PreallocatedCircuitBreakerService preallocated = new PreallocatedCircuitBreakerService(
-                topBreaker,
-                CircuitBreaker.REQUEST,
-                10_000,
-                "test"
-            );
+        CircuitBreaker breaker = preallocated.getBreaker(CircuitBreaker.REQUEST);
 
-            CircuitBreaker breaker = preallocated.getBreaker(CircuitBreaker.REQUEST);
+        DelegatingCircuitBreakerService delegatingCircuitBreakerService = new DelegatingCircuitBreakerService(breaker, (bytes -> {
+            breaker.addEstimateBytesAndMaybeBreak(bytes, "test");
+        }));
 
-            DelegatingCircuitBreakerService delegatingCircuitBreakerService = new DelegatingCircuitBreakerService(breaker, (bytes -> {
-                breaker.addEstimateBytesAndMaybeBreak(bytes, "test");
-            }));
+        Thread consumerThread = new Thread(() -> {
+            for (int i = 0; i < 100; ++i) {
+                delegatingCircuitBreakerService.getBreaker("ignored").addEstimateBytesAndMaybeBreak(i % 2 == 0 ? 10 : -10, "ignored");
+            }
+        });
 
-            Thread consumerThread = new Thread(() -> {
-                for (int i = 0; i < 100; ++i) {
-                    delegatingCircuitBreakerService.getBreaker("ignored").addEstimateBytesAndMaybeBreak(i % 2 == 0 ? 10 : -10, "ignored");
-                }
-            });
-
-            final Thread producerThread = new Thread(() -> {
-                delegatingCircuitBreakerService.disconnect();
-                preallocated.close();
-            });
-            consumerThread.start();
-            producerThread.start();
-            consumerThread.join();
-            producerThread.join();
-        } catch (InterruptedException e) {
-            throw new AssertionError(e);
-        }
+        final Thread producerThread = new Thread(() -> {
+            delegatingCircuitBreakerService.disconnect();
+            preallocated.close();
+        });
+        consumerThread.start();
+        producerThread.start();
+        consumerThread.join();
+        producerThread.join();
     }
 }

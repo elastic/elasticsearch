@@ -201,12 +201,10 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(".test-data-stream"))
                             .template(
-                                new Template(
-                                    Settings.EMPTY,
-                                    mappings,
-                                    null,
-                                    DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build()
-                                )
+                                Template.builder()
+                                    .settings(Settings.EMPTY)
+                                    .mappings(mappings)
+                                    .lifecycle(DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build())
                             )
                             .dataStreamTemplate(new DataStreamTemplate())
                             .build(),

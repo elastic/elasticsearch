@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.azure;
 
 import com.azure.storage.common.policy.RequestRetryOptions;
 
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -97,10 +98,18 @@ public class AzureStorageServiceTests extends ESTestCase {
             .build();
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService.get();
-            AzureBlobServiceClient client1 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
+            AzureBlobServiceClient client1 = azureStorageService.client(
+                "azure1",
+                LocationMode.PRIMARY_ONLY,
+                randomFrom(OperationPurpose.values())
+            );
             assertThat(client1.getSyncClient().getAccountUrl(), equalTo("https://myaccount1.blob.my_endpoint_suffix"));
 
-            AzureBlobServiceClient client2 = azureStorageService.client("azure2", LocationMode.PRIMARY_ONLY);
+            AzureBlobServiceClient client2 = azureStorageService.client(
+                "azure2",
+                LocationMode.PRIMARY_ONLY,
+                randomFrom(OperationPurpose.values())
+            );
             assertThat(client2.getSyncClient().getAccountUrl(), equalTo("https://myaccount2.blob.core.windows.net"));
         }
     }
@@ -121,16 +130,24 @@ public class AzureStorageServiceTests extends ESTestCase {
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings1)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService.get();
 
-            AzureBlobServiceClient client11 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
+            AzureBlobServiceClient client11 = azureStorageService.client(
+                "azure1",
+                LocationMode.PRIMARY_ONLY,
+                randomFrom(OperationPurpose.values())
+            );
             assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount11.blob.core.windows.net"));
 
-            AzureBlobServiceClient client12 = azureStorageService.client("azure2", LocationMode.PRIMARY_ONLY);
+            AzureBlobServiceClient client12 = azureStorageService.client(
+                "azure2",
+                LocationMode.PRIMARY_ONLY,
+                randomFrom(OperationPurpose.values())
+            );
             assertThat(client12.getSyncClient().getAccountUrl(), equalTo("https://myaccount12.blob.core.windows.net"));
 
             // client 3 is missing
             final SettingsException e1 = expectThrows(
                 SettingsException.class,
-                () -> azureStorageService.client("azure3", LocationMode.PRIMARY_ONLY)
+                () -> azureStorageService.client("azure3", LocationMode.PRIMARY_ONLY, randomFrom(OperationPurpose.values()))
             );
             assertThat(e1.getMessage(), is("Unable to find client with name [azure3]"));
 
@@ -141,7 +158,11 @@ public class AzureStorageServiceTests extends ESTestCase {
             assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount11.blob.core.windows.net"));
 
             // new client 1 is changed
-            AzureBlobServiceClient client21 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
+            AzureBlobServiceClient client21 = azureStorageService.client(
+                "azure1",
+                LocationMode.PRIMARY_ONLY,
+                randomFrom(OperationPurpose.values())
+            );
             assertThat(client21.getSyncClient().getAccountUrl(), equalTo("https://myaccount21.blob.core.windows.net"));
 
             // old client 2 not changed
@@ -150,12 +171,16 @@ public class AzureStorageServiceTests extends ESTestCase {
             // new client2 is gone
             final SettingsException e2 = expectThrows(
                 SettingsException.class,
-                () -> azureStorageService.client("azure2", LocationMode.PRIMARY_ONLY)
+                () -> azureStorageService.client("azure2", LocationMode.PRIMARY_ONLY, randomFrom(OperationPurpose.values()))
             );
             assertThat(e2.getMessage(), is("Unable to find client with name [azure2]"));
 
             // client 3 emerged
-            AzureBlobServiceClient client23 = azureStorageService.client("azure3", LocationMode.PRIMARY_ONLY);
+            AzureBlobServiceClient client23 = azureStorageService.client(
+                "azure3",
+                LocationMode.PRIMARY_ONLY,
+                randomFrom(OperationPurpose.values())
+            );
             assertThat(client23.getSyncClient().getAccountUrl(), equalTo("https://myaccount23.blob.core.windows.net"));
         }
     }
@@ -167,7 +192,11 @@ public class AzureStorageServiceTests extends ESTestCase {
         final Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService.get();
-            AzureBlobServiceClient client11 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
+            AzureBlobServiceClient client11 = azureStorageService.client(
+                "azure1",
+                LocationMode.PRIMARY_ONLY,
+                randomFrom(OperationPurpose.values())
+            );
             assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
             // reinit with empty settings is okay
             plugin.reload(Settings.EMPTY);
@@ -176,7 +205,7 @@ public class AzureStorageServiceTests extends ESTestCase {
             // client is no longer registered
             final SettingsException e = expectThrows(
                 SettingsException.class,
-                () -> azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY)
+                () -> azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY, randomFrom(OperationPurpose.values()))
             );
             assertThat(e.getMessage(), equalTo("Unable to find client with name [azure1]"));
         }
@@ -195,7 +224,11 @@ public class AzureStorageServiceTests extends ESTestCase {
         final Settings settings2 = Settings.builder().setSecureSettings(secureSettings2).build();
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings1)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService.get();
-            AzureBlobServiceClient client11 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
+            AzureBlobServiceClient client11 = azureStorageService.client(
+                "azure1",
+                LocationMode.PRIMARY_ONLY,
+                randomFrom(OperationPurpose.values())
+            );
             assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
             assertThat(
                 expectThrows(SettingsException.class, () -> plugin.reload(settings2)).getMessage(),
@@ -463,24 +496,41 @@ public class AzureStorageServiceTests extends ESTestCase {
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService.get();
 
-            expectThrows(IllegalArgumentException.class, () -> azureStorageService.client("azure1", LocationMode.PRIMARY_THEN_SECONDARY));
-            expectThrows(IllegalArgumentException.class, () -> azureStorageService.client("azure1", LocationMode.SECONDARY_ONLY));
-            expectThrows(IllegalArgumentException.class, () -> azureStorageService.client("azure1", LocationMode.SECONDARY_THEN_PRIMARY));
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> azureStorageService.client("azure1", LocationMode.PRIMARY_THEN_SECONDARY, randomFrom(OperationPurpose.values()))
+            );
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> azureStorageService.client("azure1", LocationMode.SECONDARY_ONLY, randomFrom(OperationPurpose.values()))
+            );
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> azureStorageService.client("azure1", LocationMode.SECONDARY_THEN_PRIMARY, randomFrom(OperationPurpose.values()))
+            );
 
-            AzureBlobServiceClient client1 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
+            AzureBlobServiceClient client1 = azureStorageService.client(
+                "azure1",
+                LocationMode.PRIMARY_ONLY,
+                randomFrom(OperationPurpose.values())
+            );
             assertThat(client1.getSyncClient().getAccountUrl(), equalTo("https://account1.zone.azure.net"));
 
             assertThat(
-                azureStorageService.client("azure2", randomBoolean() ? LocationMode.PRIMARY_ONLY : LocationMode.PRIMARY_THEN_SECONDARY)
-                    .getSyncClient()
-                    .getAccountUrl(),
+                azureStorageService.client(
+                    "azure2",
+                    randomBoolean() ? LocationMode.PRIMARY_ONLY : LocationMode.PRIMARY_THEN_SECONDARY,
+                    randomFrom(OperationPurpose.values())
+                ).getSyncClient().getAccountUrl(),
                 equalTo("https://account2.zone.azure.net")
             );
 
             assertThat(
-                azureStorageService.client("azure2", randomBoolean() ? LocationMode.SECONDARY_ONLY : LocationMode.SECONDARY_THEN_PRIMARY)
-                    .getSyncClient()
-                    .getAccountUrl(),
+                azureStorageService.client(
+                    "azure2",
+                    randomBoolean() ? LocationMode.SECONDARY_ONLY : LocationMode.SECONDARY_THEN_PRIMARY,
+                    randomFrom(OperationPurpose.values())
+                ).getSyncClient().getAccountUrl(),
                 equalTo("https://account2-secondary.zone.azure.net")
             );
         }

@@ -41,7 +41,7 @@ public class GetTransformNodeStatsAction extends ActionType<GetTransformNodeStat
         super(NAME);
     }
 
-    public static class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
+    public static class NodesStatsRequest extends BaseNodesRequest {
         public NodesStatsRequest() {
             super(Strings.EMPTY_ARRAY);
         }

@@ -69,7 +69,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             (n, c, o) -> o == null ? null : LocaleUtils.parse(o.toString()),
             RuntimeField.initializerNotSupported(),
             (b, n, v) -> {
-                if (v != null && false == v.equals(Locale.ROOT)) {
+                if (v != null && false == v.equals(DateFieldMapper.DEFAULT_LOCALE)) {
                     b.field(n, v.toString());
                 }
             },
@@ -97,7 +97,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             OnScriptError onScriptError
         ) {
             String pattern = format.getValue() == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern() : format.getValue();
-            Locale locale = this.locale.getValue() == null ? Locale.ROOT : this.locale.getValue();
+            Locale locale = this.locale.getValue() == null ? DateFieldMapper.DEFAULT_LOCALE : this.locale.getValue();
             DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern, supportedVersion).withLocale(locale);
             return new DateScriptFieldType(name, factory, dateTimeFormatter, script, meta, onScriptError);
         }

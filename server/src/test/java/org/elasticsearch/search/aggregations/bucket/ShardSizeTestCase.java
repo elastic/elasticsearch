@@ -80,12 +80,12 @@ public abstract class ShardSizeTestCase extends ESIntegTestCase {
         indexRandom(true, docs);
 
         assertNoFailuresAndResponse(prepareSearch("idx").setRouting(routing1).setQuery(matchAllQuery()), resp -> {
-            long totalOnOne = resp.getHits().getTotalHits().value;
+            long totalOnOne = resp.getHits().getTotalHits().value();
             assertThat(totalOnOne, is(15L));
         });
         assertNoFailuresAndResponse(prepareSearch("idx").setRouting(routing2).setQuery(matchAllQuery()), resp -> {
             assertNoFailures(resp);
-            long totalOnTwo = resp.getHits().getTotalHits().value;
+            long totalOnTwo = resp.getHits().getTotalHits().value();
             assertThat(totalOnTwo, is(12L));
         });
     }

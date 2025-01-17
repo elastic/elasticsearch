@@ -13,26 +13,29 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
+import java.net.URI;
+
 public interface GoogleAiStudioRequest extends Request {
 
     String API_KEY_PARAMETER = "key";
 
     static void decorateWithApiKeyParameter(HttpPost httpPost, DefaultSecretSettings secretSettings) {
         try {
-            var uri = httpPost.getURI();
-            var uriWithApiKey = new URIBuilder().setScheme(uri.getScheme())
-                .setHost(uri.getHost())
-                .setPort(uri.getPort())
-                .setPath(uri.getPath())
-                .addParameter(API_KEY_PARAMETER, secretSettings.apiKey().toString())
-                .build();
-
+            var uriWithApiKey = builderWithApiKeyParameter(httpPost.getURI(), secretSettings).build();
             httpPost.setURI(uriWithApiKey);
         } catch (Exception e) {
             ValidationException validationException = new ValidationException(e);
             validationException.addValidationError(e.getMessage());
             throw validationException;
         }
+    }
+
+    static URIBuilder builderWithApiKeyParameter(URI uri, DefaultSecretSettings secretSettings) {
+        return new URIBuilder().setScheme(uri.getScheme())
+            .setHost(uri.getHost())
+            .setPort(uri.getPort())
+            .setPath(uri.getPath())
+            .addParameter(API_KEY_PARAMETER, secretSettings.apiKey().toString());
     }
 
 }

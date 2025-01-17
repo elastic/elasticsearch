@@ -1,6 +1,0 @@
-pr: 112409
-summary: Include reason when no nodes are found
-area: "Transform"
-type: bug
-issues:
- - 112404

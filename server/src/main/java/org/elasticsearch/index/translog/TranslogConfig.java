@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.nio.file.Path;
@@ -25,7 +26,7 @@ import java.nio.file.Path;
  */
 public final class TranslogConfig {
 
-    public static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(1, ByteSizeUnit.MB);
+    public static final ByteSizeValue DEFAULT_BUFFER_SIZE = ByteSizeValue.of(1, ByteSizeUnit.MB);
     public static final ByteSizeValue EMPTY_TRANSLOG_BUFFER_SIZE = ByteSizeValue.ofBytes(10);
     public static final OperationListener NOOP_OPERATION_LISTENER = (d, s, l) -> {};
 
@@ -142,5 +143,17 @@ public final class TranslogConfig {
      */
     public boolean fsync() {
         return fsync;
+    }
+
+    /**
+     * @return {@code true} if the configuration allows the Translog files to exist, {@code false} otherwise. In the case there is no
+     * translog, the shard is not writeable.
+     */
+    public boolean hasTranslog() {
+        var compatibilityVersion = indexSettings.getIndexMetadata().getCompatibilityVersion();
+        if (compatibilityVersion.before(IndexVersions.MINIMUM_COMPATIBLE) || indexSettings.getIndexMetadata().isSearchableSnapshot()) {
+            return false;
+        }
+        return true;
     }
 }

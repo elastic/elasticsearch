@@ -142,7 +142,6 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
      */
     private void addRawInput(IntBlock groups) {
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-            // TODO remove the check one we don't emit null anymore
             if (groups.isNull(groupPosition)) {
                 continue;
             }

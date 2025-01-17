@@ -115,7 +115,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -1392,7 +1391,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testAuthorizeIndicesFailures() {
-        TransportRequest request = new GetIndexRequest().indices("b");
+        TransportRequest request = new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices("b");
         ClusterState state = mockEmptyMetadata();
         RoleDescriptor role = new RoleDescriptor(
             "a_all",
@@ -1580,7 +1579,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         TransportShardBulkAction.performOnPrimary(
             request,
             indexShard,
-            new UpdateHelper(mock(ScriptService.class), DocumentParsingProvider.EMPTY_INSTANCE),
+            new UpdateHelper(mock(ScriptService.class)),
             System::currentTimeMillis,
             mappingUpdater,
             waitForMappingUpdate,
@@ -1727,7 +1726,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testDenialForAnonymousUser() {
-        TransportRequest request = new GetIndexRequest().indices("b");
+        TransportRequest request = new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices("b");
         ClusterState state = mockEmptyMetadata();
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "a_all").build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
@@ -1773,7 +1772,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testDenialForAnonymousUserAuthorizationExceptionDisabled() {
-        TransportRequest request = new GetIndexRequest().indices("b");
+        TransportRequest request = new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices("b");
         ClusterState state = mockEmptyMetadata();
         Settings settings = Settings.builder()
             .put(AnonymousUser.ROLES_SETTING.getKey(), "a_all")
@@ -1826,7 +1825,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testAuditTrailIsRecordedWhenIndexWildcardThrowsError() {
         IndicesOptions options = IndicesOptions.fromOptions(false, false, true, true);
-        TransportRequest request = new GetIndexRequest().indices("not-an-index-*").indicesOptions(options);
+        TransportRequest request = new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices("not-an-index-*").indicesOptions(options);
         ClusterState state = mockEmptyMetadata();
         RoleDescriptor role = new RoleDescriptor(
             "a_all",
@@ -1930,7 +1929,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testRunAsRequestWithRunAsUserWithoutPermission() {
-        TransportRequest request = new GetIndexRequest().indices("a");
+        TransportRequest request = new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices("a");
         User authenticatedUser = new User("test user", "can run as");
         final Authentication authentication = createAuthentication(new User("run as me", "b"), authenticatedUser);
         final RoleDescriptor runAsRole = new RoleDescriptor(
@@ -1990,7 +1989,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testRunAsRequestWithValidPermissions() {
-        TransportRequest request = new GetIndexRequest().indices("b");
+        TransportRequest request = new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices("b");
         User authenticatedUser = new User("test user", "can run as");
         final Authentication authentication = createAuthentication(new User("run as me", "b"), authenticatedUser);
         final RoleDescriptor runAsRole = new RoleDescriptor(
@@ -3417,7 +3416,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 RequestInfo requestInfo,
                 AuthorizationInfo authorizationInfo,
                 AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                Map<String, IndexAbstraction> aliasOrIndexLookup,
+                Metadata metadata,
                 ActionListener<IndexAuthorizationResult> listener
             ) {
                 throw new UnsupportedOperationException("not implemented");

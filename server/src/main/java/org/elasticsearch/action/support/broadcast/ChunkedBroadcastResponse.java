@@ -11,6 +11,7 @@ package org.elasticsearch.action.support.broadcast;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xcontent.ToXContent;
@@ -39,7 +40,7 @@ public abstract class ChunkedBroadcastResponse extends BaseBroadcastResponse imp
             b.startObject();
             RestActions.buildBroadcastShardsHeader(b, p, this);
             return b;
-        }), customXContentChunks(params), Iterators.single((builder, p) -> builder.endObject()));
+        }), customXContentChunks(params), ChunkedToXContentHelper.endObject());
     }
 
     protected abstract Iterator<ToXContent> customXContentChunks(ToXContent.Params params);

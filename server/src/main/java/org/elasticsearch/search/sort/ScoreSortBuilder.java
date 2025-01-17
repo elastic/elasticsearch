@@ -126,7 +126,6 @@ public final class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
                     @Override
                     protected boolean advanceExact(int doc) throws IOException {
-                        assert doc == scorer.docID() : "expected scorer to be on [" + doc + "] but was on [" + scorer.docID() + "]";
                         /* We will never be called by documents that don't match the
                          * query and they'll all have a score, thus `true`. */
                         score = scorer.score();

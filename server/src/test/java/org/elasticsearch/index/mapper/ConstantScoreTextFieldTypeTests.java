@@ -16,6 +16,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
@@ -231,20 +232,26 @@ public class ConstantScoreTextFieldTypeTests extends FieldTypeTestCase {
     public void testPrefixIntervals() throws IOException {
         MappedFieldType ft = createFieldType();
         IntervalsSource prefixIntervals = ft.prefixIntervals(new BytesRef("foo"), MOCK_CONTEXT);
-        assertEquals(Intervals.prefix(new BytesRef("foo")), prefixIntervals);
+        assertEquals(Intervals.prefix(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()), prefixIntervals);
     }
 
     public void testWildcardIntervals() throws IOException {
         MappedFieldType ft = createFieldType();
         IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
-        assertEquals(Intervals.wildcard(new BytesRef("foo")), wildcardIntervals);
+        assertEquals(Intervals.wildcard(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()), wildcardIntervals);
+    }
+
+    public void testRegexpIntervals() {
+        MappedFieldType ft = createFieldType();
+        IntervalsSource regexpIntervals = ft.regexpIntervals(new BytesRef("foo"), MOCK_CONTEXT);
+        assertEquals(Intervals.regexp(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()), regexpIntervals);
     }
 
     public void testFuzzyIntervals() throws IOException {
         MappedFieldType ft = createFieldType();
         IntervalsSource fuzzyIntervals = ft.fuzzyIntervals("foo", 1, 2, true, MOCK_CONTEXT);
         FuzzyQuery fq = new FuzzyQuery(new Term("field", "foo"), 1, 2, 128, true);
-        IntervalsSource expectedIntervals = Intervals.multiterm(fq.getAutomata(), "foo");
+        IntervalsSource expectedIntervals = Intervals.multiterm(fq.getAutomata(), IndexSearcher.getMaxClauseCount(), "foo");
         assertEquals(expectedIntervals, fuzzyIntervals);
     }
 
@@ -259,6 +266,15 @@ public class ConstantScoreTextFieldTypeTests extends FieldTypeTestCase {
         ConstantScoreTextFieldType ft = createFieldType();
         ft.setIndexPrefixes(1, 4);
         IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
-        assertEquals(Intervals.wildcard(new BytesRef("foo")), wildcardIntervals);
+        assertEquals(Intervals.wildcard(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()), wildcardIntervals);
+    }
+
+    public void testRangeIntervals() {
+        MappedFieldType ft = createFieldType();
+        IntervalsSource rangeIntervals = ft.rangeIntervals(new BytesRef("foo"), new BytesRef("foo1"), true, true, MOCK_CONTEXT);
+        assertEquals(
+            Intervals.range(new BytesRef("foo"), new BytesRef("foo1"), true, true, IndexSearcher.getMaxClauseCount()),
+            rangeIntervals
+        );
     }
 }

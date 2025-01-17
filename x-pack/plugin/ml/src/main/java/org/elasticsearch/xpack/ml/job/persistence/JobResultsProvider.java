@@ -126,6 +126,7 @@ import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.stats.StatsAccumulator;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.GrokPatternCreator;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
@@ -392,7 +393,10 @@ public class JobResultsProvider {
             addTermsMapping(indexMappings, indexName, termFields, listener);
         }, listener::onFailure);
 
-        GetMappingsRequest getMappingsRequest = client.admin().indices().prepareGetMappings(indexName).request();
+        GetMappingsRequest getMappingsRequest = client.admin()
+            .indices()
+            .prepareGetMappings(MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT, indexName)
+            .request();
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
@@ -870,7 +874,7 @@ public class JobResultsProvider {
                     throw QueryPage.emptyQueryPage(Bucket.RESULTS_FIELD);
                 }
 
-                QueryPage<Bucket> buckets = new QueryPage<>(results, searchResponse.getHits().getTotalHits().value, Bucket.RESULTS_FIELD);
+                QueryPage<Bucket> buckets = new QueryPage<>(results, searchResponse.getHits().getTotalHits().value(), Bucket.RESULTS_FIELD);
 
                 if (query.isExpand()) {
                     Iterator<Bucket> bucketsToExpand = buckets.results()
@@ -1086,7 +1090,7 @@ public class JobResultsProvider {
                 }
                 QueryPage<CategoryDefinition> result = new QueryPage<>(
                     results,
-                    searchResponse.getHits().getTotalHits().value,
+                    searchResponse.getHits().getTotalHits().value(),
                     CategoryDefinition.RESULTS_FIELD
                 );
                 handler.accept(result);
@@ -1143,7 +1147,7 @@ public class JobResultsProvider {
                 }
                 QueryPage<AnomalyRecord> queryPage = new QueryPage<>(
                     results,
-                    searchResponse.getHits().getTotalHits().value,
+                    searchResponse.getHits().getTotalHits().value(),
                     AnomalyRecord.RESULTS_FIELD
                 );
                 handler.accept(queryPage);
@@ -1207,7 +1211,7 @@ public class JobResultsProvider {
                 }
                 QueryPage<Influencer> result = new QueryPage<>(
                     influencers,
-                    response.getHits().getTotalHits().value,
+                    response.getHits().getTotalHits().value(),
                     Influencer.RESULTS_FIELD
                 );
                 handler.accept(result);
@@ -1375,7 +1379,7 @@ public class JobResultsProvider {
 
                 QueryPage<ModelSnapshot> result = new QueryPage<>(
                     results,
-                    searchResponse.getHits().getTotalHits().value,
+                    searchResponse.getHits().getTotalHits().value(),
                     ModelSnapshot.RESULTS_FIELD
                 );
                 handler.accept(result);
@@ -1411,7 +1415,7 @@ public class JobResultsProvider {
                 }
             }
 
-            return new QueryPage<>(results, searchResponse.getHits().getTotalHits().value, ModelPlot.RESULTS_FIELD);
+            return new QueryPage<>(results, searchResponse.getHits().getTotalHits().value(), ModelPlot.RESULTS_FIELD);
         } finally {
             searchResponse.decRef();
         }
@@ -1444,7 +1448,7 @@ public class JobResultsProvider {
                 }
             }
 
-            return new QueryPage<>(results, searchResponse.getHits().getTotalHits().value, ModelPlot.RESULTS_FIELD);
+            return new QueryPage<>(results, searchResponse.getHits().getTotalHits().value(), ModelPlot.RESULTS_FIELD);
         } finally {
             searchResponse.decRef();
         }
@@ -1700,7 +1704,7 @@ public class JobResultsProvider {
                         event.eventId(hit.getId());
                         events.add(event.build());
                     }
-                    handler.onResponse(new QueryPage<>(events, response.getHits().getTotalHits().value, ScheduledEvent.RESULTS_FIELD));
+                    handler.onResponse(new QueryPage<>(events, response.getHits().getTotalHits().value(), ScheduledEvent.RESULTS_FIELD));
                 } catch (Exception e) {
                     handler.onFailure(e);
                 }
@@ -1901,7 +1905,7 @@ public class JobResultsProvider {
                     for (SearchHit hit : hits) {
                         calendars.add(MlParserUtils.parse(hit, Calendar.LENIENT_PARSER).build());
                     }
-                    listener.onResponse(new QueryPage<>(calendars, response.getHits().getTotalHits().value, Calendar.RESULTS_FIELD));
+                    listener.onResponse(new QueryPage<>(calendars, response.getHits().getTotalHits().value(), Calendar.RESULTS_FIELD));
                 } catch (Exception e) {
                     listener.onFailure(e);
                 }

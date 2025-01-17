@@ -26,6 +26,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -47,11 +48,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
-import java.util.stream.Stream;
 
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLatitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLongitude;
@@ -65,16 +64,16 @@ import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.clusterHasInferenceEndpoint;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoint;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoint;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 
 // This test can run very long in serverless configurations
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
-
-    // To avoid referencing the main module, we replicate EsqlFeatures.ASYNC_QUERY.id() here
-    protected static final String ASYNC_QUERY_FEATURE_ID = "esql.async_query";
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlSpecTestCase.class);
     private final String fileName;
@@ -129,13 +128,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @Before
     public void setup() throws IOException {
-        if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
-            loadDataSetIntoEs(client());
+        if (supportsInferenceTestService() && clusterHasInferenceEndpoint(client()) == false) {
+            createInferenceEndpoint(client());
         }
-    }
 
-    protected boolean supportsAsync() {
-        return clusterHasFeature(ASYNC_QUERY_FEATURE_ID); // the Async API was introduced in 8.13.0
+        if (indexExists(availableDatasetsForEs(client(), supportsIndexModeLookup()).iterator().next().indexName()) == false) {
+            loadDataSetIntoEs(client(), supportsIndexModeLookup());
+        }
     }
 
     @AfterClass
@@ -148,6 +147,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 throw e;
             }
         }
+
+        deleteInferenceEndpoint(client());
     }
 
     public boolean logResults() {
@@ -164,18 +165,41 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void shouldSkipTest(String testName) throws IOException {
+        if (testCase.requiredCapabilities.contains("semantic_text_type")
+            || testCase.requiredCapabilities.contains("semantic_text_aggregations")
+            || testCase.requiredCapabilities.contains("semantic_text_field_caps")) {
+            assumeTrue("Inference test service needs to be supported for semantic_text", supportsInferenceTestService());
+        }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
     }
 
     protected static void checkCapabilities(RestClient client, TestFeatureService testFeatureService, String testName, CsvTestCase testCase)
         throws IOException {
-        if (testCase.requiredCapabilities.isEmpty()) {
+        if (hasCapabilities(client, testCase.requiredCapabilities)) {
             return;
         }
+
+        var features = new EsqlFeatures().getFeatures().stream().map(NodeFeature::id).collect(Collectors.toSet());
+
+        for (String feature : testCase.requiredCapabilities) {
+            var esqlFeature = "esql." + feature;
+            assumeTrue("Requested capability " + feature + " is an ESQL cluster feature", features.contains(esqlFeature));
+            assumeTrue("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature(esqlFeature));
+        }
+    }
+
+    protected static boolean hasCapabilities(List<String> requiredCapabilities) throws IOException {
+        return hasCapabilities(adminClient(), requiredCapabilities);
+    }
+
+    public static boolean hasCapabilities(RestClient client, List<String> requiredCapabilities) throws IOException {
+        if (requiredCapabilities.isEmpty()) {
+            return true;
+        }
         try {
-            if (clusterHasCapability(client, "POST", "/_query", List.of(), testCase.requiredCapabilities).orElse(false)) {
-                return;
+            if (clusterHasCapability(client, "POST", "/_query", List.of(), requiredCapabilities).orElse(false)) {
+                return true;
             }
             LOGGER.info("capabilities API returned false, we might be in a mixed version cluster so falling back to cluster features");
         } catch (ResponseException e) {
@@ -194,17 +218,15 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 throw e;
             }
         }
+        return false;
+    }
 
-        var features = Stream.concat(
-            new EsqlFeatures().getFeatures().stream(),
-            new EsqlFeatures().getHistoricalFeatures().keySet().stream()
-        ).map(NodeFeature::id).collect(Collectors.toSet());
+    protected boolean supportsInferenceTestService() {
+        return true;
+    }
 
-        for (String feature : testCase.requiredCapabilities) {
-            var esqlFeature = "esql." + feature;
-            assumeTrue("Requested capability " + feature + " is an ESQL cluster feature", features.contains(esqlFeature));
-            assumeTrue("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature(esqlFeature));
-        }
+    protected boolean supportsIndexModeLookup() throws IOException {
+        return true;
     }
 
     protected final void doTest() throws Throwable {
@@ -214,7 +236,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             builder.tables(tables());
         }
 
-        Map<String, Object> answer = runEsql(builder.query(testCase.query), testCase.expectedWarnings(), testCase.expectedWarningsRegex());
+        Map<String, Object> answer = runEsql(builder.query(testCase.query), testCase.assertWarnings(deduplicateExactWarnings()));
 
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
@@ -232,16 +254,29 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         assertResults(expectedColumnsWithValues, actualColumns, actualValues, testCase.ignoreOrder, logger);
     }
 
-    private Map<String, Object> runEsql(
-        RequestObjectBuilder requestObject,
-        List<String> expectedWarnings,
-        List<Pattern> expectedWarningsRegex
-    ) throws IOException {
+    /**
+     * Should warnings be de-duplicated before checking for exact matches. Defaults
+     * to {@code false}, but in some environments we emit duplicate warnings. We'd prefer
+     * not to emit duplicate warnings but for now it isn't worth fighting with. So! In
+     * those environments we override this to deduplicate.
+     * <p>
+     *     Note: This only applies to warnings declared as {@code warning:}. Those
+     *     declared as {@code warningRegex:} are always a list of
+     *     <strong>allowed</strong> warnings. {@code warningRegex:} matches 0 or more
+     *     warnings. There is no need to deduplicate because there's no expectation
+     *     of an exact match.
+     * </p>
+     *
+     */
+    protected boolean deduplicateExactWarnings() {
+        return false;
+    }
+
+    private Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
         if (mode == Mode.ASYNC) {
-            assert supportsAsync();
-            return RestEsqlTestCase.runEsqlAsync(requestObject, expectedWarnings, expectedWarningsRegex);
+            return RestEsqlTestCase.runEsqlAsync(requestObject, assertWarnings);
         } else {
-            return RestEsqlTestCase.runEsqlSync(requestObject, expectedWarnings, expectedWarningsRegex);
+            return RestEsqlTestCase.runEsqlSync(requestObject, assertWarnings);
         }
     }
 
@@ -279,9 +314,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 }
                 return values;
             } else if (value instanceof Double d) {
-                return new BigDecimal(d).round(new MathContext(10, RoundingMode.DOWN)).doubleValue();
+                return new BigDecimal(d).round(new MathContext(7, RoundingMode.DOWN)).doubleValue();
             } else if (value instanceof String s) {
-                return new BigDecimal(s).round(new MathContext(10, RoundingMode.DOWN)).doubleValue();
+                return new BigDecimal(s).round(new MathContext(7, RoundingMode.DOWN)).doubleValue();
             }
         }
         return value.toString();

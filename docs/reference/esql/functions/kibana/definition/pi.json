@@ -12,5 +12,6 @@
   "examples" : [
     "ROW PI()"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

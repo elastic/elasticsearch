@@ -122,7 +122,8 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
             clusterService,
             computer,
             (state, action) -> state,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
         );
         var allocationService = new MockAllocationService(
             randomAllocationDeciders(settings, clusterSettings),
@@ -135,7 +136,7 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
         safeAwait((ActionListener<Void> listener) -> allocationService.reroute(clusterState, "inital-allocate", listener));
 
         var balanceBeforeReset = allocator.getDesiredBalance();
-        assertThat(balanceBeforeReset.lastConvergedIndex(), greaterThan(DesiredBalance.INITIAL.lastConvergedIndex()));
+        assertThat(balanceBeforeReset.lastConvergedIndex(), greaterThan(DesiredBalance.BECOME_MASTER_INITIAL.lastConvergedIndex()));
         assertThat(balanceBeforeReset.assignments(), not(anEmptyMap()));
 
         var listener = new PlainActionFuture<ActionResponse.Empty>();

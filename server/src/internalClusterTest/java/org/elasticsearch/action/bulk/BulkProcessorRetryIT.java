@@ -10,6 +10,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
@@ -135,11 +136,11 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
         final boolean finalRejectedAfterAllRetries = rejectedAfterAllRetries;
         assertResponse(prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).setSize(0), results -> {
             if (rejectedExecutionExpected) {
-                assertThat((int) results.getHits().getTotalHits().value, lessThanOrEqualTo(numberOfAsyncOps));
+                assertThat((int) results.getHits().getTotalHits().value(), lessThanOrEqualTo(numberOfAsyncOps));
             } else if (finalRejectedAfterAllRetries) {
-                assertThat((int) results.getHits().getTotalHits().value, lessThan(numberOfAsyncOps));
+                assertThat((int) results.getHits().getTotalHits().value(), lessThan(numberOfAsyncOps));
             } else {
-                assertThat((int) results.getHits().getTotalHits().value, equalTo(numberOfAsyncOps));
+                assertThat((int) results.getHits().getTotalHits().value(), equalTo(numberOfAsyncOps));
             }
         });
     }

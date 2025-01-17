@@ -35,7 +35,8 @@ public class TransportGetTransformNodeStatsAction extends TransportNodesAction<
     NodesStatsRequest,
     NodesStatsResponse,
     NodeStatsRequest,
-    NodeStatsResponse> {
+    NodeStatsResponse,
+    Void> {
 
     private final TransportService transportService;
     private final TransformScheduler scheduler;

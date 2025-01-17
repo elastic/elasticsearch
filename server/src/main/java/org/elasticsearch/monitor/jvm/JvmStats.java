@@ -64,10 +64,7 @@ public class JvmStats implements Writeable, ToXContentFragment {
         List<MemoryPool> pools = new ArrayList<>();
         for (MemoryPoolMXBean memoryPoolMXBean : memoryPoolMXBeans) {
             try {
-                String name = GcNames.getByMemoryPoolName(memoryPoolMXBean.getName(), null);
-                if (name == null) { // if we can't resolve it, its not interesting.... (Per Gen, Code Cache)
-                    continue;
-                }
+                String name = GcNames.getByMemoryPoolName(memoryPoolMXBean.getName(), memoryPoolMXBean.getName());
                 MemoryUsage usage = memoryPoolMXBean.getUsage();
                 MemoryUsage peakUsage = memoryPoolMXBean.getPeakUsage();
                 pools.add(

@@ -291,23 +291,6 @@ setup:
                     sum:
                       sum:
                         field: val
----
-"Configure with no synthetic source":
-  - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: "Error message changed in 8.15.0"
-
-  - do:
-      catch: '/Indices with with index mode \[time_series\] only support synthetic source/'
-      indices.create:
-        index: tsdb_error
-        body:
-          settings:
-            mode: time_series
-            routing_path: [key]
-          mappings:
-            _source:
-              enabled: false
 
 ---
 "Number for keyword routing field":

@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
 import org.elasticsearch.xpack.security.authc.jwt.JwtUtil;
 
 import java.io.IOException;
@@ -366,8 +367,14 @@ public class OpenIdConnectAuthenticator {
     private JWKSet readJwkSetFromFile(String jwkSetPath) throws IOException, ParseException {
         final Path path = realmConfig.env().configFile().resolve(jwkSetPath);
         // avoid using JWKSet.loadFile() as it does not close FileInputStream internally
-        String jwkSet = Files.readString(path, StandardCharsets.UTF_8);
-        return JWKSet.parse(jwkSet);
+        try {
+            String jwkSet = AccessController.doPrivileged(
+                (PrivilegedExceptionAction<String>) () -> Files.readString(path, StandardCharsets.UTF_8)
+            );
+            return JWKSet.parse(jwkSet);
+        } catch (PrivilegedActionException ex) {
+            throw (IOException) ex.getException();
+        }
     }
 
     /**
@@ -808,7 +815,7 @@ public class OpenIdConnectAuthenticator {
 
     private void setMetadataFileWatcher(String jwkSetPath) throws IOException {
         final Path path = realmConfig.env().configFile().resolve(jwkSetPath);
-        FileWatcher watcher = new FileWatcher(path);
+        FileWatcher watcher = new PrivilegedFileWatcher(path);
         watcher.addListener(new FileListener(LOGGER, () -> this.idTokenValidator.set(createIdTokenValidator(false))));
         watcherService.add(watcher, ResourceWatcherService.Frequency.MEDIUM);
     }

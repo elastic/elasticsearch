@@ -21,6 +21,10 @@
 
 package org.elasticsearch.tdigest;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
 import org.elasticsearch.tdigest.arrays.TDigestLongArray;
@@ -31,7 +35,12 @@ import java.util.Iterator;
 /**
  * A tree of t-digest centroids.
  */
-final class AVLGroupTree extends AbstractCollection<Centroid> {
+final class AVLGroupTree extends AbstractCollection<Centroid> implements Releasable, Accountable {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(AVLGroupTree.class);
+
+    private final TDigestArrays arrays;
+    private boolean closed = false;
+
     /* For insertions into the tree */
     private double centroid;
     private long count;
@@ -40,49 +49,95 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
     private final TDigestLongArray aggregatedCounts;
     private final IntAVLTree tree;
 
-    AVLGroupTree(TDigestArrays arrays) {
-        tree = new IntAVLTree(arrays) {
+    static AVLGroupTree create(TDigestArrays arrays) {
+        arrays.adjustBreaker(SHALLOW_SIZE);
+        try {
+            return new AVLGroupTree(arrays);
+        } catch (Exception e) {
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            throw e;
+        }
+    }
 
-            @Override
-            protected void resize(int newCapacity) {
-                super.resize(newCapacity);
-                centroids.resize(newCapacity);
-                counts.resize(newCapacity);
-                aggregatedCounts.resize(newCapacity);
+    private AVLGroupTree(TDigestArrays arrays) {
+        this.arrays = arrays;
+
+        IntAVLTree tree = null;
+        TDigestDoubleArray centroids = null;
+        TDigestLongArray counts = null;
+        TDigestLongArray aggregatedCounts = null;
+
+        try {
+            this.tree = tree = createIntAvlTree(arrays);
+            this.centroids = centroids = arrays.newDoubleArray(tree.capacity());
+            this.counts = counts = arrays.newLongArray(tree.capacity());
+            this.aggregatedCounts = aggregatedCounts = arrays.newLongArray(tree.capacity());
+
+            tree = null;
+            centroids = null;
+            counts = null;
+            aggregatedCounts = null;
+        } finally {
+            Releasables.close(tree, centroids, counts, aggregatedCounts);
+        }
+    }
+
+    private IntAVLTree createIntAvlTree(TDigestArrays arrays) {
+        arrays.adjustBreaker(IntAVLTree.SHALLOW_SIZE);
+        try {
+            return new InternalIntAvlTree(arrays);
+        } catch (Exception e) {
+            arrays.adjustBreaker(-IntAVLTree.SHALLOW_SIZE);
+            throw e;
+        }
+    }
+
+    private class InternalIntAvlTree extends IntAVLTree {
+        private InternalIntAvlTree(TDigestArrays arrays) {
+            super(arrays);
+        }
+
+        @Override
+        protected void resize(int newCapacity) {
+            super.resize(newCapacity);
+            centroids.resize(newCapacity);
+            counts.resize(newCapacity);
+            aggregatedCounts.resize(newCapacity);
+        }
+
+        @Override
+        protected void merge(int node) {
+            // two nodes are never considered equal
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void copy(int node) {
+            centroids.set(node, centroid);
+            counts.set(node, count);
+        }
+
+        @Override
+        protected int compare(int node) {
+            if (centroid < centroids.get(node)) {
+                return -1;
+            } else {
+                // upon equality, the newly added node is considered greater
+                return 1;
             }
+        }
 
-            @Override
-            protected void merge(int node) {
-                // two nodes are never considered equal
-                throw new UnsupportedOperationException();
-            }
+        @Override
+        protected void fixAggregates(int node) {
+            super.fixAggregates(node);
+            aggregatedCounts.set(node, counts.get(node) + aggregatedCounts.get(left(node)) + aggregatedCounts.get(right(node)));
+        }
 
-            @Override
-            protected void copy(int node) {
-                centroids.set(node, centroid);
-                counts.set(node, count);
-            }
+    }
 
-            @Override
-            protected int compare(int node) {
-                if (centroid < centroids.get(node)) {
-                    return -1;
-                } else {
-                    // upon equality, the newly added node is considered greater
-                    return 1;
-                }
-            }
-
-            @Override
-            protected void fixAggregates(int node) {
-                super.fixAggregates(node);
-                aggregatedCounts.set(node, counts.get(node) + aggregatedCounts.get(left(node)) + aggregatedCounts.get(right(node)));
-            }
-
-        };
-        centroids = arrays.newDoubleArray(tree.capacity());
-        counts = arrays.newLongArray(tree.capacity());
-        aggregatedCounts = arrays.newLongArray(tree.capacity());
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + centroids.ramBytesUsed() + counts.ramBytesUsed() + aggregatedCounts.ramBytesUsed() + tree.ramBytesUsed();
     }
 
     /**
@@ -267,4 +322,12 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
         }
     }
 
+    @Override
+    public void close() {
+        if (closed == false) {
+            closed = true;
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            Releasables.close(centroids, counts, aggregatedCounts, tree);
+        }
+    }
 }

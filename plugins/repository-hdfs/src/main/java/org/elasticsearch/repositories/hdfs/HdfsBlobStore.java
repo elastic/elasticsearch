@@ -16,10 +16,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 
 import java.io.IOException;
-import java.util.Iterator;
 
 final class HdfsBlobStore implements BlobStore {
 
@@ -70,11 +68,6 @@ final class HdfsBlobStore implements BlobStore {
     @Override
     public BlobContainer blobContainer(BlobPath path) {
         return new HdfsBlobContainer(path, this, buildHdfsPath(path), bufferSize, securityContext, replicationFactor);
-    }
-
-    @Override
-    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
-        throw new UnsupportedOperationException("Bulk deletes are not supported in Hdfs repositories");
     }
 
     private Path buildHdfsPath(BlobPath blobPath) {

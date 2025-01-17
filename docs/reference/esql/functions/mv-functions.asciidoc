@@ -19,6 +19,7 @@
 * <<esql-mv_median>>
 * <<esql-mv_median_absolute_deviation>>
 * <<esql-mv_min>>
+* <<esql-mv_percentile>>
 * <<esql-mv_pseries_weighted_sum>>
 * <<esql-mv_sort>>
 * <<esql-mv_slice>>
@@ -37,6 +38,7 @@ include::layout/mv_max.asciidoc[]
 include::layout/mv_median.asciidoc[]
 include::layout/mv_median_absolute_deviation.asciidoc[]
 include::layout/mv_min.asciidoc[]
+include::layout/mv_percentile.asciidoc[]
 include::layout/mv_pseries_weighted_sum.asciidoc[]
 include::layout/mv_slice.asciidoc[]
 include::layout/mv_sort.asciidoc[]

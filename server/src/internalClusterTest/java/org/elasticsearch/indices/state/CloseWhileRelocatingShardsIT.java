@@ -229,7 +229,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
 
             for (String index : acknowledgedCloses) {
                 assertResponse(prepareSearch(index).setSize(0).setTrackTotalHits(true), response -> {
-                    long docsCount = response.getHits().getTotalHits().value;
+                    long docsCount = response.getHits().getTotalHits().value();
                     assertEquals(
                         "Expected "
                             + docsPerIndex.get(index)

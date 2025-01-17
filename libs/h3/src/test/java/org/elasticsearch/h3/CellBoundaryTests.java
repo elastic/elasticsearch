@@ -218,4 +218,22 @@ public class CellBoundaryTests extends ESTestCase {
         }
         return false;
     }
+
+    public void testEqualsAndHashCode() {
+        final long h3 = H3.geoToH3(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude(), randomIntBetween(0, 15));
+        final CellBoundary boundary1 = H3.h3ToGeoBoundary(h3);
+        final CellBoundary boundary2 = H3.h3ToGeoBoundary(h3);
+        assertEquals(boundary1, boundary2);
+        assertEquals(boundary1.hashCode(), boundary2.hashCode());
+
+        final long otherH3 = H3.geoToH3(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude(), randomIntBetween(0, 15));
+        final CellBoundary otherCellBoundary = H3.h3ToGeoBoundary(otherH3);
+        if (otherH3 != h3) {
+            assertNotEquals(boundary1, otherCellBoundary);
+            assertNotEquals(boundary1.hashCode(), otherCellBoundary.hashCode());
+        } else {
+            assertEquals(boundary1, otherCellBoundary);
+            assertEquals(boundary1.hashCode(), otherCellBoundary.hashCode());
+        }
+    }
 }

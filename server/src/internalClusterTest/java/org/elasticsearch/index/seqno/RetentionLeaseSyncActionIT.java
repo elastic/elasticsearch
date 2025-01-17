@@ -92,7 +92,7 @@ public class RetentionLeaseSyncActionIT extends ESIntegTestCase {
         return internalCluster().getInstance(IndexingPressure.class, targetNode)
             .markPrimaryOperationStarted(
                 1,
-                IndexingPressure.MAX_INDEXING_BYTES.get(internalCluster().getInstance(Settings.class, targetNode)).getBytes() + 1,
+                IndexingPressure.MAX_PRIMARY_BYTES.get(internalCluster().getInstance(Settings.class, targetNode)).getBytes() + 1,
                 true
             );
     }

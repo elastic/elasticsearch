@@ -33,7 +33,15 @@ public class FlattenedFieldParserTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        parser = new FlattenedFieldParser("field", "field._keyed", new FakeFieldType("field"), Integer.MAX_VALUE, Integer.MAX_VALUE, null);
+        parser = new FlattenedFieldParser(
+            "field",
+            "field._keyed",
+            "field._keyed._ignored",
+            new FakeFieldType("field"),
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            null
+        );
     }
 
     public void testTextValues() throws Exception {
@@ -283,6 +291,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
         FlattenedFieldParser configuredParser = new FlattenedFieldParser(
             "field",
             "field._keyed",
+            "field._keyed._ignored",
             new FakeFieldType("field"),
             2,
             Integer.MAX_VALUE,
@@ -306,6 +315,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
         FlattenedFieldParser configuredParser = new FlattenedFieldParser(
             "field",
             "field._keyed",
+            "field._keyed._ignored",
             new FakeFieldType("field"),
             3,
             Integer.MAX_VALUE,
@@ -323,6 +333,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
         FlattenedFieldParser configuredParser = new FlattenedFieldParser(
             "field",
             "field._keyed",
+            "field._keyed._ignored",
             new FakeFieldType("field"),
             Integer.MAX_VALUE,
             10,
@@ -345,6 +356,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
         FlattenedFieldParser configuredParser = new FlattenedFieldParser(
             "field",
             "field._keyed",
+            "field._keyed._ignored",
             fieldType,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,

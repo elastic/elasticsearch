@@ -34,7 +34,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.contains;
 
-@UpdateForV9
+@UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
 @LuceneTestCase.AwaitsFix(bugUrl = "we need to figure out the index migrations here for 9.0")
 public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
 

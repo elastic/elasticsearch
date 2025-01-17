@@ -2153,4 +2153,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     public void testSyntheticSourceKeepArrays() {
         // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
     }
+
+    @Override
+    public void testSyntheticSourceInheritsKeepArrays() {
+        // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
+    }
 }

@@ -5,7 +5,7 @@ type: breaking
 issues: []
 breaking:
   title: Set allow_partial_search_results=true by default
-  area: EQL
+  area: REST API
   details:
     Before this change, in case of shard failures, EQL queries always returned an error.
     With this change,they will keep running and will return partial results.

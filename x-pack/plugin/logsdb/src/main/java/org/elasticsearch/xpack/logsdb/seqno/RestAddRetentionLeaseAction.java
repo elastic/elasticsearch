@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.rest.seqno;
+package org.elasticsearch.xpack.logsdb.seqno;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;

@@ -225,41 +225,37 @@ GET /retrievers_example/_search
         "linear": {
             "retrievers": [
                 {
-                    "component": {
-                        "retriever": {
-                            "standard": {
-                                "query": {
-                                    "query_string": {
-                                        "query": "(information retrieval) OR (artificial intelligence)",
-                                        "default_field": "text"
-                                    }
+                    "retriever": {
+                        "standard": {
+                            "query": {
+                                "query_string": {
+                                    "query": "(information retrieval) OR (artificial intelligence)",
+                                    "default_field": "text"
                                 }
                             }
-                        },
-                        "weight": 2,
-                        "normalizer": "minmax"
-                    }
+                        }
+                    },
+                    "weight": 2,
+                    "normalizer": "minmax"
                 },
                 {
-                    "component": {
-                        "retriever": {
-                            "knn": {
-                                "field": "vector",
-                                "query_vector": [
-                                    0.23,
-                                    0.67,
-                                    0.89
-                                ],
-                                "k": 3,
-                                "num_candidates": 5
-                            }
-                        },
-                        "weight": 1.5,
-                        "normalizer": {
-                            "minmax": {
-                                "min": 0.5,
-                                "max": 1.0
-                            }
+                    "retriever": {
+                        "knn": {
+                            "field": "vector",
+                            "query_vector": [
+                                0.23,
+                                0.67,
+                                0.89
+                            ],
+                            "k": 3,
+                            "num_candidates": 5
+                        }
+                    },
+                    "weight": 1.5,
+                    "normalizer": {
+                        "minmax": {
+                            "min": 0.5,
+                            "max": 1.0
                         }
                     }
                 }
@@ -334,59 +330,55 @@ GET /retrievers_example/_search
         "linear": {
             "retrievers": [
                 {
-                    "component": {
-                        "retriever": {
-                            "standard": {
-                                "query": {
-                                    "function_score": {
-                                        "query": {
-                                            "term": {
-                                                "topic": "ai"
-                                            }
-                                        },
-                                        "functions": [
-                                            {
-                                                "script_score": {
-                                                    "script": {
-                                                        "source": "doc['timestamp'].value.millis"
-                                                    }
+                    "retriever": {
+                        "standard": {
+                            "query": {
+                                "function_score": {
+                                    "query": {
+                                        "term": {
+                                            "topic": "ai"
+                                        }
+                                    },
+                                    "functions": [
+                                        {
+                                            "script_score": {
+                                                "script": {
+                                                    "source": "doc['timestamp'].value.millis"
                                                 }
                                             }
-                                        ],
-                                        "boost_mode": "replace"
-                                    }
-                                },
-                                "sort": {
-                                    "timestamp": {
-                                        "order": "asc"
-                                    }
+                                        }
+                                    ],
+                                    "boost_mode": "replace"
+                                }
+                            },
+                            "sort": {
+                                "timestamp": {
+                                    "order": "asc"
                                 }
                             }
-                        },
-                        "weight": 2,
-                        "normalizer": {
-                            "minmax": {
-                                "min": "1483228800000"
-                            }
+                        }
+                    },
+                    "weight": 2,
+                    "normalizer": {
+                        "minmax": {
+                            "min": "1483228800000"
                         }
                     }
                 },
                 {
-                    "component": {
-                        "retriever": {
-                            "knn": {
-                                "field": "vector",
-                                "query_vector": [
-                                    0.23,
-                                    0.67,
-                                    0.89
-                                ],
-                                "k": 3,
-                                "num_candidates": 5
-                            }
-                        },
-                        "weight": 1.5
-                    }
+                    "retriever": {
+                        "knn": {
+                            "field": "vector",
+                            "query_vector": [
+                                0.23,
+                                0.67,
+                                0.89
+                            ],
+                            "k": 3,
+                            "num_candidates": 5
+                        }
+                    },
+                    "weight": 1.5
                 }
             ],
             "rank_window_size": 10

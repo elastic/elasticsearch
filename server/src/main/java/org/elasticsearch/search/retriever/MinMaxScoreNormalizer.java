@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.search.normalizer;
+package org.elasticsearch.search.retriever;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.xcontent.ConstructingObjectParser;

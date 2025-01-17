@@ -11,8 +11,6 @@ package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.normalizer.MinMaxScoreNormalizer;
-import org.elasticsearch.search.normalizer.ScoreNormalizer;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.NamedXContentRegistry;

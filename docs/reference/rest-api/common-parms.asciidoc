@@ -1358,14 +1358,14 @@ according to each retriever's specifications.
 end::compound-retriever-filter[]
 
 tag::linear-retriever-components[]
-`components`::
-(Required, array of `component` objects)
+`retrievers`::
+(Required, array of objects)
 +
-A list of the components, i.e. the sub-retrievers' configuration, that we will take into account and whose result sets
-we will merge through a weighted sum. Each component can have a different weight and normalization depending
+A list of the sub-retrievers' configuration, that we will take into account and whose result sets
+we will merge through a weighted sum. Each configuration can have a different weight and normalization depending
 on the specified retriever.
 
-Each `component` entry specifies the following parameters:
+Each entry specifies the following parameters:
 
 * `retriever`::
 (Required, a <<retriever, retriever>> object)

@@ -14,7 +14,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.normalizer.ScoreNormalizer;
 import org.elasticsearch.search.rank.LinearRankDoc;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -47,8 +46,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     public static final NodeFeature LINEAR_RETRIEVER_SUPPORTED = new NodeFeature("linear_retriever_supported");
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
 
-    private static final float EPSILON = 1e-6f;
-
     private final float[] weights;
     private final ScoreNormalizer[] normalizers;
 
@@ -74,12 +71,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     );
 
     static {
-        PARSER.declareObjectArray(constructorArg(), (p, c) -> {
-            p.nextToken();
-            LinearRetrieverComponent retrieverBuilder = LinearRetrieverComponent.fromXContent(p, c);
-            p.nextToken();
-            return retrieverBuilder;
-        }, RETRIEVERS_FIELD);
+        PARSER.declareObjectArray(constructorArg(), LinearRetrieverComponent::fromXContent, RETRIEVERS_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
     }
@@ -145,7 +137,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         for (int rank = 0; rank < topResults.length; ++rank) {
             topResults[rank] = sortedResults[rank];
             topResults[rank].rank = rank + 1;
-            topResults[rank].score = Math.max(EPSILON * (topResults.length - rank), topResults[rank].score);
         }
         return topResults;
     }
@@ -161,7 +152,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             builder.startArray(RETRIEVERS_FIELD.getPreferredName());
             for (var entry : innerRetrievers) {
                 builder.startObject();
-                builder.startObject(LinearRetrieverComponent.NAME);
                 builder.field(LinearRetrieverComponent.RETRIEVER_FIELD.getPreferredName(), entry.retriever());
                 builder.field(LinearRetrieverComponent.WEIGHT_FIELD.getPreferredName(), weights[index]);
                 builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizers[index]);

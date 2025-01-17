@@ -46,38 +46,34 @@ setup:
             linear:
               retrievers: [
                 {
-                  component: {
-                    retriever: {
-                      standard: {
-                        query: {
-                          constant_score: {
-                            filter: {
-                              term: {
-                                keyword: {
-                                  value: "one"
-                                }
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
                               }
-                            },
-                            boost: 10.0
-                          }
+                            }
+                          },
+                          boost: 10.0
                         }
                       }
-                    },
-                    weight: 0.5
-                  }
+                    }
+                  },
+                  weight: 0.5
                 },
                 {
-                  component: {
-                    retriever: {
-                      knn: {
-                        field: "vector",
-                        query_vector: [ 4 ],
-                        k: 1,
-                        num_candidates: 1
-                      }
-                    },
-                    weight: 2.0
-                  }
+                  retriever: {
+                    knn: {
+                      field: "vector",
+                      query_vector: [ 4 ],
+                      k: 1,
+                      num_candidates: 1
+                    }
+                  },
+                  weight: 2.0
                 }
               ]
 
@@ -97,69 +93,65 @@ setup:
             linear:
               retrievers: [
                 {
-                  component: {
-                    retriever: {
-                      standard: {
-                        query: {
-                          bool: {
-                            should: [
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      keyword: {
-                                        value: "one"
-                                      }
+                  retriever: {
+                    standard: {
+                      query: {
+                        bool: {
+                          should: [
+                            {
+                              constant_score: {
+                                filter: {
+                                  term: {
+                                    keyword: {
+                                      value: "one"
                                     }
-                                  },
-                                  boost: 10.0
-                                }
-                              },
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      keyword: {
-                                        value: "two"
-                                      }
-                                    }
-                                  },
-                                  boost: 9.0
-                                }
-                              },
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      keyword: {
-                                        value: "three"
-                                      }
-                                    }
-                                  },
-                                  boost: 5.0
-                                }
+                                  }
+                                },
+                                boost: 10.0
                               }
-                            ]
-                          }
+                            },
+                            {
+                              constant_score: {
+                                filter: {
+                                  term: {
+                                    keyword: {
+                                      value: "two"
+                                    }
+                                  }
+                                },
+                                boost: 9.0
+                              }
+                            },
+                            {
+                              constant_score: {
+                                filter: {
+                                  term: {
+                                    keyword: {
+                                      value: "three"
+                                    }
+                                  }
+                                },
+                                boost: 5.0
+                              }
+                            }
+                          ]
                         }
                       }
-                    },
-                    weight: 10.0,
-                    normalizer: "minmax"
-                  }
+                    }
+                  },
+                  weight: 10.0,
+                  normalizer: "minmax"
                 },
                 {
-                  component: {
-                    retriever: {
-                      knn: {
-                        field: "vector",
-                        query_vector: [ 4 ],
-                        k: 1,
-                        num_candidates: 1
-                      }
-                    },
-                    weight: 2.0
-                  }
+                  retriever: {
+                    knn: {
+                      field: "vector",
+                      query_vector: [ 4 ],
+                      k: 1,
+                      num_candidates: 1
+                    }
+                  },
+                  weight: 2.0
                 }
               ]
 
@@ -184,86 +176,82 @@ setup:
             linear:
               retrievers: [
                 {
-                  component: {
-                    retriever: {
-                      standard: {
-                        query: {
-                          bool: {
-                            should: [
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      keyword: {
-                                        value: "one"
-                                      }
+                  retriever: {
+                    standard: {
+                      query: {
+                        bool: {
+                          should: [
+                            {
+                              constant_score: {
+                                filter: {
+                                  term: {
+                                    keyword: {
+                                      value: "one"
                                     }
-                                  },
-                                  boost: 10.0  # normalized score for this would be -0.55
-                                }
-                              },
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      keyword: {
-                                        value: "two"
-                                      }
-                                    }
-                                  },
-                                  boost: 9.0  # normalized score for this would be -0.56
-                                }
-                              },
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      keyword: {
-                                        value: "three"
-                                      }
-                                    }
-                                  },
-                                  boost: 5.0  # normalized score for this would be -0.63
-                                }
-                              },
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      keyword: {
-                                        value: "four"
-                                      }
-                                    }
-                                  },
-                                  boost: 1.0  # normalized score for this would be -0.7
-                                }
+                                  }
+                                },
+                                boost: 10.0  # normalized score for this would be -0.55
                               }
-                            ]
-                          }
+                            },
+                            {
+                              constant_score: {
+                                filter: {
+                                  term: {
+                                    keyword: {
+                                      value: "two"
+                                    }
+                                  }
+                                },
+                                boost: 9.0  # normalized score for this would be -0.56
+                              }
+                            },
+                            {
+                              constant_score: {
+                                filter: {
+                                  term: {
+                                    keyword: {
+                                      value: "three"
+                                    }
+                                  }
+                                },
+                                boost: 5.0  # normalized score for this would be -0.63
+                              }
+                            },
+                            {
+                              constant_score: {
+                                filter: {
+                                  term: {
+                                    keyword: {
+                                      value: "four"
+                                    }
+                                  }
+                                },
+                                boost: 1.0  # normalized score for this would be -0.7
+                              }
+                            }
+                          ]
                         }
                       }
-                    },
-                    normalizer: {
-                      minmax: {
-                        min: 42,
-                        max: 100
-                      }
+                    }
+                  },
+                  normalizer: {
+                    minmax: {
+                      min: 42,
+                      max: 100
                     }
                   }
                 },
                 {
                   # this only provides a score of 10 for doc 4
-                  component: {
-                    retriever: {
-                      knn: {
-                        field: "vector",
-                        query_vector: [ 4 ],
-                        k: 1,
-                        num_candidates: 1
-                      }
-                    },
-                    weight: 10.0
-                  }
+                  retriever: {
+                    knn: {
+                      field: "vector",
+                      query_vector: [ 4 ],
+                      k: 1,
+                      num_candidates: 1
+                    }
+                  },
+                  weight: 10.0
                 }
               ]
 
@@ -288,41 +276,37 @@ setup:
             linear:
               retrievers: [
                 {
-                  component: {
-                    retriever: {
-                      standard: {
-                        query: {
-                          constant_score: {
-                            filter: {
-                              term: {
-                                keyword: {
-                                  value: "one"
-                                }
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
                               }
-                            },
-                            boost: 10.0
-                          }
+                            }
+                          },
+                          boost: 10.0
                         }
                       }
-                    },
-                    weight: 1.0,
-                    normalizer: {
-                      aardvark: { }
                     }
+                  },
+                  weight: 1.0,
+                  normalizer: {
+                    aardvark: { }
                   }
                 },
                 {
-                  component: {
-                    retriever: {
-                      knn: {
-                        field: "vector",
-                        query_vector: [ 4 ],
-                        k: 1,
-                        num_candidates: 1
-                      }
-                    },
-                    weight: 2.0
-                  }
+                  retriever: {
+                    knn: {
+                      field: "vector",
+                      query_vector: [ 4 ],
+                      k: 1,
+                      num_candidates: 1
+                    }
+                  },
+                  weight: 2.0
                 }
               ]
 
@@ -336,69 +320,65 @@ setup:
             linear:
               retrievers: [
                 {
-                  component: {
-                    retriever: {
-                      standard: {
-                        query: {
-                          bool: {
-                            should: [
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      keyword: {
-                                        value: "one"
-                                      }
+                  retriever: {
+                    standard: {
+                      query: {
+                        bool: {
+                          should: [
+                            {
+                              constant_score: {
+                                filter: {
+                                  term: {
+                                    keyword: {
+                                      value: "one"
                                     }
-                                  },
-                                  boost: 10.0
-                                }
-                              },
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      keyword: {
-                                        value: "two"
-                                      }
-                                    }
-                                  },
-                                  boost: 9.0
-                                }
-                              },
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      keyword: {
-                                        value: "three"
-                                      }
-                                    }
-                                  },
-                                  boost: 5.0
-                                }
+                                  }
+                                },
+                                boost: 10.0
                               }
-                            ]
-                          }
+                            },
+                            {
+                              constant_score: {
+                                filter: {
+                                  term: {
+                                    keyword: {
+                                      value: "two"
+                                    }
+                                  }
+                                },
+                                boost: 9.0
+                              }
+                            },
+                            {
+                              constant_score: {
+                                filter: {
+                                  term: {
+                                    keyword: {
+                                      value: "three"
+                                    }
+                                  }
+                                },
+                                boost: 5.0
+                              }
+                            }
+                          ]
                         }
                       }
-                    },
-                    weight: 10.0,
-                    normalizer: "minmax"
-                  }
+                    }
+                  },
+                  weight: 10.0,
+                  normalizer: "minmax"
                 },
                 {
-                  component: {
-                    retriever: {
-                      knn: {
-                        field: "vector",
-                        query_vector: [ 4 ],
-                        k: 1,
-                        num_candidates: 1
-                      }
-                    },
-                    weight: 2.0
-                  }
+                  retriever: {
+                    knn: {
+                      field: "vector",
+                      query_vector: [ 4 ],
+                      k: 1,
+                      num_candidates: 1
+                    }
+                  },
+                  weight: 2.0
                 }
               ]
           from: 2
@@ -417,69 +397,65 @@ setup:
             linear:
               retrievers: [
                 {
-                  component: {
-                    retriever: {
-                      standard: {
-                        query: {
-                          bool: {
-                            should: [
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      keyword: {
-                                        value: "one"
-                                      }
+                  retriever: {
+                    standard: {
+                      query: {
+                        bool: {
+                          should: [
+                            {
+                              constant_score: {
+                                filter: {
+                                  term: {
+                                    keyword: {
+                                      value: "one"
                                     }
-                                  },
-                                  boost: 10.0
-                                }
-                              },
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      keyword: {
-                                        value: "two"
-                                      }
-                                    }
-                                  },
-                                  boost: 9.0
-                                }
-                              },
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      keyword: {
-                                        value: "three"
-                                      }
-                                    }
-                                  },
-                                  boost: 5.0
-                                }
+                                  }
+                                },
+                                boost: 10.0
                               }
-                            ]
-                          }
+                            },
+                            {
+                              constant_score: {
+                                filter: {
+                                  term: {
+                                    keyword: {
+                                      value: "two"
+                                    }
+                                  }
+                                },
+                                boost: 9.0
+                              }
+                            },
+                            {
+                              constant_score: {
+                                filter: {
+                                  term: {
+                                    keyword: {
+                                      value: "three"
+                                    }
+                                  }
+                                },
+                                boost: 5.0
+                              }
+                            }
+                          ]
                         }
                       }
-                    },
-                    weight: 10.0,
-                    normalizer: "minmax"
-                  }
+                    }
+                  },
+                  weight: 10.0,
+                  normalizer: "minmax"
                 },
                 {
-                  component: {
-                    retriever: {
-                      knn: {
-                        field: "vector",
-                        query_vector: [ 4 ],
-                        k: 1,
-                        num_candidates: 1
-                      }
-                    },
-                    weight: 2.0
-                  }
+                  retriever: {
+                    knn: {
+                      field: "vector",
+                      query_vector: [ 4 ],
+                      k: 1,
+                      num_candidates: 1
+                    }
+                  },
+                  weight: 2.0
                 }
               ]
           from: 3
@@ -500,30 +476,26 @@ setup:
             linear:
               retrievers: [
                 {
-                  component: {
-                    retriever: {
-                      standard: {
-                        query: {
-                          match_all: { }
-                        }
+                  retriever: {
+                    standard: {
+                      query: {
+                        match_all: { }
                       }
-                    },
-                    weight: 10.0,
-                    normalizer: "minmax"
-                  }
+                    }
+                  },
+                  weight: 10.0,
+                  normalizer: "minmax"
                 },
                 {
-                  component: {
-                    retriever: {
-                      knn: {
-                        field: "vector",
-                        query_vector: [ 4 ],
-                        k: 1,
-                        num_candidates: 1
-                      }
-                    },
-                    weight: 2.0
-                  }
+                  retriever: {
+                    knn: {
+                      field: "vector",
+                      query_vector: [ 4 ],
+                      k: 1,
+                      num_candidates: 1
+                    }
+                  },
+                  weight: 2.0
                 }
               ]
               rank_window_size: 2
@@ -538,69 +510,65 @@ setup:
             linear:
               retrievers: [
                 {
-                  component: {
-                    retriever: {
-                      standard: {
-                        query: {
-                          bool: {
-                            should: [
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      keyword: {
-                                        value: "one"
-                                      }
+                  retriever: {
+                    standard: {
+                      query: {
+                        bool: {
+                          should: [
+                            {
+                              constant_score: {
+                                filter: {
+                                  term: {
+                                    keyword: {
+                                      value: "one"
                                     }
-                                  },
-                                  boost: 10.0
-                                }
-                              },
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      keyword: {
-                                        value: "two"
-                                      }
-                                    }
-                                  },
-                                  boost: 9.0
-                                }
-                              },
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      keyword: {
-                                        value: "three"
-                                      }
-                                    }
-                                  },
-                                  boost: 5.0
-                                }
+                                  }
+                                },
+                                boost: 10.0
                               }
-                            ]
-                          }
+                            },
+                            {
+                              constant_score: {
+                                filter: {
+                                  term: {
+                                    keyword: {
+                                      value: "two"
+                                    }
+                                  }
+                                },
+                                boost: 9.0
+                              }
+                            },
+                            {
+                              constant_score: {
+                                filter: {
+                                  term: {
+                                    keyword: {
+                                      value: "three"
+                                    }
+                                  }
+                                },
+                                boost: 5.0
+                              }
+                            }
+                          ]
                         }
                       }
-                    },
-                    weight: 1.0,
-                    normalizer: "minmax"
-                  }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: "minmax"
                 },
                 {
-                  component: {
-                    retriever: {
-                      knn: {
-                        field: "vector",
-                        query_vector: [ 4 ],
-                        k: 1,
-                        num_candidates: 1
-                      }
-                    },
-                    weight: 2.0
-                  }
+                  retriever: {
+                    knn: {
+                      field: "vector",
+                      query_vector: [ 4 ],
+                      k: 1,
+                      num_candidates: 1
+                    }
+                  },
+                  weight: 2.0
                 }
               ]
               rank_window_size: 2
@@ -622,58 +590,54 @@ setup:
             linear:
               retrievers: [
                 {
-                  component: {
-                    retriever: {
-                      standard: {
-                        query: {
-                          bool: {
-                            should: [
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      keyword: {
-                                        value: "one"
-                                      }
+                  retriever: {
+                    standard: {
+                      query: {
+                        bool: {
+                          should: [
+                            {
+                              constant_score: {
+                                filter: {
+                                  term: {
+                                    keyword: {
+                                      value: "one"
                                     }
-                                  },
-                                  boost: 10.0
-                                }
-                              },
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      keyword: {
-                                        value: "four"
-                                      }
-                                    }
-                                  },
-                                  boost: 1.0
-                                }
+                                  }
+                                },
+                                boost: 10.0
                               }
-                            ]
-                          }
-                        },
-                        _name: "my_standard_retriever"
-                      }
-                    },
-                    weight: 10.0,
-                    normalizer: "minmax"
-                  }
+                            },
+                            {
+                              constant_score: {
+                                filter: {
+                                  term: {
+                                    keyword: {
+                                      value: "four"
+                                    }
+                                  }
+                                },
+                                boost: 1.0
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      _name: "my_standard_retriever"
+                    }
+                  },
+                  weight: 10.0,
+                  normalizer: "minmax"
                 },
                 {
-                  component: {
-                    retriever: {
-                      knn: {
-                        field: "vector",
-                        query_vector: [ 4 ],
-                        k: 1,
-                        num_candidates: 1
-                      }
-                    },
-                    weight: 20.0
-                  }
+                  retriever: {
+                    knn: {
+                      field: "vector",
+                      query_vector: [ 4 ],
+                      k: 1,
+                      num_candidates: 1
+                    }
+                  },
+                  weight: 20.0
                 }
               ]
           explain: true
@@ -702,38 +666,34 @@ setup:
             linear:
               retrievers: [
                 {
-                  component: {
-                    retriever: {
-                      standard: {
-                        query: {
-                          constant_score: {
-                            filter: {
-                              term: {
-                                keyword: {
-                                  value: "one"
-                                }
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
                               }
-                            },
-                            boost: 10.0
-                          }
+                            }
+                          },
+                          boost: 10.0
                         }
                       }
-                    },
-                    weight: 0.5
-                  }
+                    }
+                  },
+                  weight: 0.5
                 },
                 {
-                  component: {
-                    retriever: {
-                      knn: {
-                        field: "vector",
-                        query_vector: [ 4 ],
-                        k: 1,
-                        num_candidates: 1
-                      }
-                    },
-                    weight: 2.0
-                  }
+                  retriever: {
+                    knn: {
+                      field: "vector",
+                      query_vector: [ 4 ],
+                      k: 1,
+                      num_candidates: 1
+                    }
+                  },
+                  weight: 2.0
                 }
               ]
           collapse:
@@ -762,69 +722,60 @@ setup:
             linear:
               retrievers: [
                 {
-                  component: {
-                    retriever: {
-                      standard: {
-                        query: {
-                          constant_score: {
-                            filter: {
-                              term: {
-                                keyword: {
-                                  value: "one"
-                                }
-                              }
-                            },
-                            boost: 10.0
-                          }
-                        }
-                      }
-                    },
-                    weight: 0.5
-                  }
-                },
-                {
-                  component: {
-                    retriever: {
-                      linear: {
-                        retrievers: [
-                          {
-                            component: {
-                              retriever: {
-                                standard: {
-                                  query: {
-                                    constant_score: {
-                                      filter: {
-                                        term: {
-                                          keyword: {
-                                            value: "two"
-                                          }
-                                        }
-                                      },
-                                      boost: 20.0
-                                    }
-                                  }
-                                }
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
                               }
                             }
                           },
-                          {
-                            component:
-                              {
-                                retriever: {
-                                  knn: {
-                                    field: "vector",
-                                    query_vector: [ 4 ],
-                                    k: 1,
-                                    num_candidates: 1
-                                  }
+                          boost: 10.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 0.5
+                },
+                {
+                  retriever: {
+                    linear: {
+                      retrievers: [
+                        {
+                          retriever: {
+                            standard: {
+                              query: {
+                                constant_score: {
+                                  filter: {
+                                    term: {
+                                      keyword: {
+                                        value: "two"
+                                      }
+                                    }
+                                  },
+                                  boost: 20.0
                                 }
                               }
+                            }
                           }
-                        ]
-                      }
-                    },
-                    weight: 2.0
-                  }
+                        },
+                        {
+                          retriever: {
+                            knn: {
+                              field: "vector",
+                              query_vector: [ 4 ],
+                              k: 1,
+                              num_candidates: 1
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  weight: 2.0
                 }
               ]
 
@@ -846,38 +797,34 @@ setup:
             linear:
               retrievers: [
                 {
-                  component: {
-                    retriever: {
-                      standard: {
-                        query: {
-                          constant_score: {
-                            filter: {
-                              term: {
-                                keyword: {
-                                  value: "one"
-                                }
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
                               }
-                            },
-                            boost: 10.0
-                          }
+                            }
+                          },
+                          boost: 10.0
                         }
                       }
-                    },
-                    weight: 0.5
-                  }
+                    }
+                  },
+                  weight: 0.5
                 },
                 {
-                  component: {
-                    retriever: {
-                      knn: {
-                        field: "vector",
-                        query_vector: [ 4 ],
-                        k: 1,
-                        num_candidates: 1
-                      }
-                    },
-                    weight: 2.0
-                  }
+                  retriever: {
+                    knn: {
+                      field: "vector",
+                      query_vector: [ 4 ],
+                      k: 1,
+                      num_candidates: 1
+                    }
+                  },
+                  weight: 2.0
                 }
               ]
               filter:
@@ -900,43 +847,39 @@ setup:
             linear:
               retrievers: [
                 {
-                  component: {
-                    retriever: {
-                      standard: {
-                        query: {
-                          constant_score: {
-                            filter: {
-                              term: {
-                                keyword: {
-                                  value: "one"
-                                }
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
                               }
-                            },
-                            boost: 10.0
-                          }
-                        },
-                        filter: {
-                          term: {
-                            keyword: "four"
-                          }
+                            }
+                          },
+                          boost: 10.0
+                        }
+                      },
+                      filter: {
+                        term: {
+                          keyword: "four"
                         }
                       }
-                    },
-                    weight: 0.5
-                  }
+                    }
+                  },
+                  weight: 0.5
                 },
                 {
-                  component: {
-                    retriever: {
-                      knn: {
-                        field: "vector",
-                        query_vector: [ 4 ],
-                        k: 1,
-                        num_candidates: 1
-                      }
-                    },
-                    weight: 2.0
-                  }
+                  retriever: {
+                    knn: {
+                      field: "vector",
+                      query_vector: [ 4 ],
+                      k: 1,
+                      num_candidates: 1
+                    }
+                  },
+                  weight: 2.0
                 }
               ]
 
@@ -956,43 +899,41 @@ setup:
             linear:
               retrievers: [
                 {
-                  component: {
-                    retriever: {
-                      standard: {
-                        query: {
-                          constant_score: {
-                            filter: {
-                              bool: {
-                                should: [
-                                  {
-                                    term: {
-                                      keyword: {
-                                        value: "one"  # this will give doc 1 a normalized score of 10
-                                      }
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            bool: {
+                              should: [
+                                {
+                                  term: {
+                                    keyword: {
+                                      value: "one"  # this will give doc 1 a normalized score of 10
                                     }
-                                  },
-                                  {
-                                    term: {
-                                      keyword: {
-                                        value: "two" # this will give doc 2 a normalized score of 10
-                                      }
+                                  }
+                                },
+                                {
+                                  term: {
+                                    keyword: {
+                                      value: "two" # this will give doc 2 a normalized score of 10
                                     }
-                                  } ]
-                              }
-                            },
-                            boost: 10.0
-                          }
-                        },
-                        sort: {
-                          timestamp: {
-                            order: "asc"
-                          }
+                                  }
+                                } ]
+                            }
+                          },
+                          boost: 10.0
+                        }
+                      },
+                      sort: {
+                        timestamp: {
+                          order: "asc"
                         }
                       }
-                    },
-                    weight: 1.0,
-                    normalizer: "minmax"
-                  }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: "minmax"
                 },
                 {
                   # because we're sorting on timestamp and use a rank window size of 2, we will only get to see
@@ -1004,76 +945,74 @@ setup:
                   # will be:
                   # normalized(doc3) = 0.59989
                   # normalized(doc2) = 0.40010
-                  component: {
-                    retriever: {
-                      standard: {
-                        query: {
-                          function_score: {
-                            query: {
-                              bool: {
-                                should: [
-                                  {
-                                    constant_score: {
-                                      filter: {
-                                        term: {
-                                          keyword: {
-                                            value: "one"
-                                          }
+                  retriever: {
+                    standard: {
+                      query: {
+                        function_score: {
+                          query: {
+                            bool: {
+                              should: [
+                                {
+                                  constant_score: {
+                                    filter: {
+                                      term: {
+                                        keyword: {
+                                          value: "one"
                                         }
-                                      },
-                                      boost: 10.0
-                                    }
-                                  },
-                                  {
-                                    constant_score: {
-                                      filter: {
-                                        term: {
-                                          keyword: {
-                                            value: "two"
-                                          }
-                                        }
-                                      },
-                                      boost: 9.0
-                                    }
-                                  },
-                                  {
-                                    constant_score: {
-                                      filter: {
-                                        term: {
-                                          keyword: {
-                                            value: "three"
-                                          }
-                                        }
-                                      },
-                                      boost: 1.0
-                                    }
+                                      }
+                                    },
+                                    boost: 10.0
                                   }
-                                ]
-                              }
-                            },
-                            functions: [ {
-                              script_score: {
-                                script: {
-                                  source: "doc['timestamp'].value.millis"
+                                },
+                                {
+                                  constant_score: {
+                                    filter: {
+                                      term: {
+                                        keyword: {
+                                          value: "two"
+                                        }
+                                      }
+                                    },
+                                    boost: 9.0
+                                  }
+                                },
+                                {
+                                  constant_score: {
+                                    filter: {
+                                      term: {
+                                        keyword: {
+                                          value: "three"
+                                        }
+                                      }
+                                    },
+                                    boost: 1.0
+                                  }
                                 }
+                              ]
+                            }
+                          },
+                          functions: [ {
+                            script_score: {
+                              script: {
+                                source: "doc['timestamp'].value.millis"
                               }
-                            } ],
-                            "boost_mode": "replace"
-                          }
-                        },
-                        sort: {
-                          timestamp: {
-                            order: "desc"
-                          }
+                            }
+                          } ],
+                          "boost_mode": "replace"
+                        }
+                      },
+                      sort: {
+                        timestamp: {
+                          order: "desc"
                         }
                       }
-                    },
-                    weight: 1.0,
-                    normalizer: {
-                      minmax: {
-                        min: 1577836800000, # 2020-01-01T00:00:00
-                        max: 1735689600000 # 2025-01-01T00:00:00
-                      }
+                    }
+                  },
+                  weight: 1.0,
+                  normalizer: {
+                    minmax: {
+                      min: 1577836800000, # 2020-01-01T00:00:00
+                      max: 1735689600000 # 2025-01-01T00:00:00
                     }
                   }
                 }

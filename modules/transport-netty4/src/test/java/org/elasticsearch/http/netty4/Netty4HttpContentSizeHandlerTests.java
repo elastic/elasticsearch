@@ -157,19 +157,38 @@ public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
     }
 
     /**
-     * Assert that handler returns 413 Request Entity Too Large and emit decoding failure on
-     * oversized request with expect-100-continue header and content present.
+     * Mixed load of oversized and normal requests with Exepct:100-Continue.
      */
-    public void testEntityTooLargeWithContent() {
-        var sendRequest = httpRequest();
-        HttpUtil.set100ContinueExpected(sendRequest, true);
-        HttpUtil.setContentLength(sendRequest, OVERSIZED_LENGTH);
-        var unexpectedContent = lastHttpContent(OVERSIZED_LENGTH);
-        channel.writeInbound(encode(sendRequest, unexpectedContent));
-        var resp = (FullHttpResponse) channel.readOutbound();
-        assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
-        assertTrue(((HttpRequest) channel.readInbound()).decoderResult().isFailure());
-        resp.release();
+    public void testMixedContent() {
+        for (int i = 0; i < REPS; i++) {
+            var isOversized = randomBoolean();
+            var sendRequest = httpRequest();
+            HttpUtil.set100ContinueExpected(sendRequest, true);
+            if (isOversized) {
+                HttpUtil.setContentLength(sendRequest, OVERSIZED_LENGTH);
+                channel.writeInbound(encode(sendRequest));
+                var resp = (FullHttpResponse) channel.readOutbound();
+                assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
+                channel.writeInbound(encode(LastHttpContent.EMPTY_LAST_CONTENT)); // terminate
+                assertNull(channel.readInbound());
+                resp.release();
+            } else {
+                var normalSize = between(1, MAX_CONTENT_LENGTH);
+                HttpUtil.setContentLength(sendRequest, normalSize);
+                channel.writeInbound(encode(sendRequest));
+                var resp = (FullHttpResponse) channel.readOutbound();
+                assertEquals(HttpResponseStatus.CONTINUE, resp.status());
+                resp.release();
+                var sendContent = lastHttpContent(normalSize);
+                channel.writeInbound(encode(sendContent));
+                var recvRequest = (HttpRequest) channel.readInbound();
+                var recvContent = (LastHttpContent) channel.readInbound();
+                assertEquals("content length header should match", normalSize, HttpUtil.getContentLength(recvRequest));
+                assertFalse("should remove expect header", HttpUtil.is100ContinueExpected(recvRequest));
+                assertEquals("actual content size should match", normalSize, recvContent.content().readableBytes());
+                recvContent.release();
+            }
+        }
     }
 
     /**
@@ -211,7 +230,6 @@ public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
         } while (true);
 
         var resp = (FullHttpResponse) channel.readOutbound();
-        assertNull("second part should not pass", channel.readInbound());
         assertEquals("should respond with 413", HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
         assertFalse("should close channel", channel.isOpen());
         resp.release();

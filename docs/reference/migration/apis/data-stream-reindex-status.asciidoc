@@ -1,0 +1,100 @@
+[role="xpack"]
+[[data-stream-reindex-status-api]]
+=== Reindex data stream status API
+++++
+<titleabbrev>Reindex data stream status</titleabbrev>
+++++
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-migration[Migration APIs].
+--
+
+include::{es-ref-dir}/migration/apis/shared-migration-apis-tip.asciidoc[]
+
+Obtains the current status of a reindex task for the requested data stream. This status is
+available while the reindex task is running and for 24 hours after completion of the task,
+whether it succeeds or fails. If the task is cancel, the status is no longer available.
+If the task fails, the cause of the failure will be part of the status.
+
+
+[[data-stream-reindex-status-api-request]]
+==== {api-request-title}
+
+`GET /_migration/reindex/<data-stream>/_status`
+
+
+[[data-stream-reindex-status-prereqs]]
+==== {api-prereq-title}
+
+?????????????????????????
+
+[[data-stream-reindex-status-path-params]]
+==== {api-path-parms-title}
+
+`<data-stream>`::
+(Required, string)
+Name of data stream to get status for. This reindex job for the
+data stream should be currently running or have been completed in the last 24 hours.
+
+
+[role="child_attributes"]
+[[data-stream-reindex-status-response-body]]
+==== {api-response-body-title}
+
+`start_time`::
+(Optional, <<time-units,time value>>) The time when the reindex task started.
+
+`start_time_millis`::
+(integer) The time when the reindex task started, in milliseconds since the epoch.
+
+`complete`::
+(boolean) `false` if the reindex task is still running, and `true` if the task has completed with success or failure.
+
+`total_indices_in_data_stream`::
+(integer) The total number of backing indices in the data stream. This includes the
+write index and any indices which require a version upgrade.
+
+`total_indices_requiring_upgrade`::
+(integer) The number of backing indices that need to be upgraded. These will consist of the indices which are of an
+older version and are not closed or read-only.
+
+`successes`::
+(integer) The number of backing indices which have already been successfully upgraded.
+
+`in_progress`::
+(array of objects) Information on the backing indices which are currently being reindexed.
++
+.Properties of objects in `in_progress`
+[%collapsible%open]
+=====
+`index`::
+(string) The name of a given in progress backing index.
+
+`total_doc_count`::
+(integer) The number of documents in the backing index.
+
+`reindexed_doc_count`::
+(integer) The number of documents which have already been added to the destination backing index.
+=====
+
+`pending`::
+(integer) The number of backing indices which still need to be upgraded and have not yet been started.
+
+`errors`::
+(array of objects) Information on any errors which have occurred.
++
+.Properties of objects in `errors`
+[%collapsible%open]
+=====
+`index`::
+(string) The name of a backing index which has had an error during reindex.
+
+`message`::
+(string) Description of the error.
+=====
+
+`exceptions`::
+(Optional, string) If an exception caused the data stream reindex to fail, the exception message is included here in the status.
+

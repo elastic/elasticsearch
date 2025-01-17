@@ -1,5 +1,5 @@
 [role="xpack"]
-[[reindex-data-stream-api]]
+[[data-stream-reindex-api]]
 === Reindex data stream API
 ++++
 <titleabbrev>Reindex data stream</titleabbrev>
@@ -25,13 +25,13 @@ the INSERT_STATUS_API. This status will be available for 24 hours after the task
 it finished successfully or fails. A running data stream reindex task can be cancelled using the
 CANCEL_API.
 
-[[reindex-data-stream-api-request]]
+[[data-stream-reindex-api-request]]
 ==== {api-request-title}
 
 `POST /_migration/reindex`
 
 
-[[reindex-data-stream-api-prereqs]]
+[[data-stream-reindex-api-prereqs]]
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `manage`
@@ -47,7 +47,7 @@ stream.
 ** The `delete_index` privilege.
 
 
-[[reindex-data-stream-body]]
+[[data-stream-reindex-body]]
 ==== {api-request-body-title}
 
 `source`::
@@ -59,27 +59,3 @@ stream.
 data stream. Each backing index will be reindexed, then swapped into the data stream, then the old index will be deleted.
 Currently, the only allowed value for this parameter is `upgrade`.
 
-
-[[reindex-data-stream-api-settings]]
-==== Settings
-
-You can use the following settings to control the behavior of the reindex data stream API:
-
-[[migrate_max_concurrent_indices_reindexed_per_data_stream-setting]]
-// tag::migrate_max_concurrent_indices_reindexed_per_data_stream-setting-tag[]
-`migrate.max_concurrent_indices_reindexed_per_data_stream`
-(<<dynamic-cluster-setting,Dynamic>>)
-The number of backing indices within a given data stream which will be reindexed concurrently. Defaults to `1`.
-// end::migrate_max_concurrent_indices_reindexed_per_data_stream-tag[]
-
-[[reindex-data-stream-api-example]]
-==== {api-examples-title}
-
-To see the list of offenders in your cluster, submit a GET request to the
-`_migration/reindex` endpoint:
-
-[source,console]
---------------------------------------------------
-GET /_migration/reindex
---------------------------------------------------
-// TEST[skip:cannot assert tests have certain deprecations]

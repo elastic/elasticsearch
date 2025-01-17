@@ -257,8 +257,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
   method: testNoStream
   issue: https://github.com/elastic/elasticsearch/issues/114788
-- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/111319
 - class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
   method: testSnapshotRestore {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111799
@@ -304,6 +302,25 @@ tests:
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/10_apm/Test template reinstallation}
   issue: https://github.com/elastic/elasticsearch/issues/116445
+- class: org.elasticsearch.xpack.ml.integration.InferenceIngestInputConfigIT
+  method: testIngestWithMultipleInputFields
+  issue: https://github.com/elastic/elasticsearch/issues/120282
+- class: org.elasticsearch.xpack.ml.integration.InferenceIngestInputConfigIT
+  method: testIngestWithInputFields
+  issue: https://github.com/elastic/elasticsearch/issues/120283
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: supports darwin aarch distributions
+  issue: https://github.com/elastic/elasticsearch/issues/119947
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.1.3, bwcProject: bugfix2, expectedAssembleTaskName:
+    extractedAssemble, #3]"
+  issue: https://github.com/elastic/elasticsearch/issues/119261
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: supports linux aarch distributions
+  issue: https://github.com/elastic/elasticsearch/issues/119868
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: bwc expanded distribution folder can be resolved as bwc project artifact
+  issue: https://github.com/elastic/elasticsearch/issues/119869
 
 # Examples:
 #

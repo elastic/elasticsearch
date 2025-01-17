@@ -31,7 +31,7 @@ public class MatchErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Match(source, args.get(0), args.get(1));
+        return new Match(source, args.get(0), args.get(1), null);
     }
 
     @Override

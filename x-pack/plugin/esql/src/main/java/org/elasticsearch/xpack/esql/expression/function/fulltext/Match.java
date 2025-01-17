@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
@@ -33,7 +34,6 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
-import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
@@ -262,8 +262,8 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
             if (resolution.unresolved()) {
                 throw new InvalidArgumentException(resolution.message());
             }
-            Object optionExprFold = optionExpr.fold();
-            Object valueExprFold = valueExpr.fold();
+            Object optionExprFold = optionExpr.fold(FoldContext.small());
+            Object valueExprFold = valueExpr.fold(FoldContext.small());
             String optionName = optionExprFold instanceof BytesRef br ? br.utf8ToString() : optionExprFold.toString();
             String optionValue = valueExprFold instanceof BytesRef br ? br.utf8ToString() : valueExprFold.toString();
             // validate the optionExpr is supported

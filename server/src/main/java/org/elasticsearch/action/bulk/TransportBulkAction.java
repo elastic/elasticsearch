@@ -321,9 +321,9 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             // Determine which data streams and failure stores need to be rolled over.
             DataStream dataStream = state.metadata().dataStreams().get(request.index());
             if (dataStream != null) {
-                if (writeToFailureStore == false && dataStream.getBackingIndices().isRolloverOnWrite()) {
+                if (writeToFailureStore == false && dataStream.getDataComponent().isRolloverOnWrite()) {
                     dataStreamsToBeRolledOver.add(request.index());
-                } else if (lazyRolloverFailureStoreFeature && writeToFailureStore && dataStream.getFailureIndices().isRolloverOnWrite()) {
+                } else if (lazyRolloverFailureStoreFeature && writeToFailureStore && dataStream.getFailureComponent().isRolloverOnWrite()) {
                     failureStoresToBeRolledOver.add(request.index());
                 }
             }

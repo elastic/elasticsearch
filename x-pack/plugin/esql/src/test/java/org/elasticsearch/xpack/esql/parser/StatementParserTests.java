@@ -615,6 +615,52 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    public void testValidQuotingFromIndexPattern() {
+        var patterns = randomList(1, 5, () -> {
+            String pattern = randomIndexIdentifier();// index or alias
+            if (randomBoolean()) {// pattern
+                pattern += "*";
+            }
+            if (randomBoolean()) {// quoted
+                pattern = "\"" + pattern + "\"";
+            }
+            if (randomBoolean()) {// remote cluster
+                var cluster = randomIdentifier();
+                if (randomBoolean()) {// quoted
+                    cluster = "\"" + cluster + "\"";
+                }
+                pattern = cluster + ":" + pattern;
+            }
+            return pattern;
+        });
+
+        var plan = statement("FROM " + String.join(",", patterns));
+        var expected = String.join(",", patterns).replace("\"", "");
+
+        assertThat(plan, instanceOf(UnresolvedRelation.class));
+        assertThat(((UnresolvedRelation) plan).table().index(), equalTo(expected));
+    }
+
+    private static String randomIndexIdentifier() {
+        // https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params
+        var validFirstCharacters = "abcdefghijklmnopqrstuvwxyz0123456789!'$^&";
+        var validCharacters = validFirstCharacters + "+-_.";
+
+        var index = new StringBuilder();
+        if (randomInt(9) == 0) {// hidden
+            index.append('.');
+        }
+        index.append(randomCharacterFrom(validFirstCharacters));
+        for (int i = 0; i < randomIntBetween(1, 100); i++) {
+            index.append(randomCharacterFrom(validCharacters));
+        }
+        return index.toString();
+    }
+
+    private static char randomCharacterFrom(String str) {
+        return str.charAt(randomInt(str.length() - 1));
+    }
+
     public void testInvalidQuotingAsFromIndexPattern() {
         expectError("FROM \"foo", ": token recognition error at: '\"foo'");
         expectError("FROM \"foo | LIMIT 1", ": token recognition error at: '\"foo | LIMIT 1'");

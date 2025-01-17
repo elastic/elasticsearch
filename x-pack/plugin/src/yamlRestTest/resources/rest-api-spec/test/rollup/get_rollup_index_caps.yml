@@ -196,12 +196,12 @@ setup:
             ]
           }
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in in Elasticsearch 9.0. See docs for more information."
       rollup.get_rollup_index_caps:
         index: "foo_rollup"
 
   - match:
-      allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 9.0. See docs for more information."
       foo_rollup:
         rollup_jobs:
           - job_id: "foo"

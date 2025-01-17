@@ -101,6 +101,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
 
     @FunctionInfo(
         returnType = "boolean",
+        operator = ":",
         preview = true,
         description = """
             Use `MATCH` to perform a <<query-dsl-match-query,match query>> on the specified field.
@@ -206,7 +207,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
     }
 
     @Override
-    public void postLogicalOptimizationVerification(Failures failures) {
+    public void postOptimizationVerification(Failures failures) {
         Expression fieldExpression = field();
         // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
         if (fieldExpression instanceof AbstractConvertFunction convertFunction) {

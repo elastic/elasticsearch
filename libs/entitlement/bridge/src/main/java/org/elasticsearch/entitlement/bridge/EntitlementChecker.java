@@ -13,11 +13,27 @@ import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.net.ContentHandlerFactory;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.net.DatagramSocketImplFactory;
 import java.net.FileNameMap;
+import java.net.InetAddress;
+import java.net.MulticastSocket;
+import java.net.NetworkInterface;
+import java.net.Proxy;
+import java.net.ProxySelector;
+import java.net.ResponseCache;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketAddress;
 import java.net.SocketImplFactory;
 import java.net.URL;
+import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.security.cert.CertStoreParameters;
 import java.util.List;
 
 import javax.net.ssl.HostnameVerifier;
@@ -167,4 +183,112 @@ public interface EntitlementChecker {
 
     void check$java_net_URLConnection$$setContentHandlerFactory(Class<?> callerClass, ContentHandlerFactory fac);
 
+    ////////////////////
+    //
+    // Network access
+    //
+    void check$java_net_ProxySelector$$setDefault(Class<?> callerClass, ProxySelector ps);
+
+    void check$java_net_ResponseCache$$setDefault(Class<?> callerClass, ResponseCache rc);
+
+    void check$java_net_spi_InetAddressResolverProvider$(Class<?> callerClass);
+
+    void check$java_net_spi_URLStreamHandlerProvider$(Class<?> callerClass);
+
+    void check$java_net_URL$(Class<?> callerClass, String protocol, String host, int port, String file, URLStreamHandler handler);
+
+    void check$java_net_URL$(Class<?> callerClass, URL context, String spec, URLStreamHandler handler);
+
+    void check$java_net_DatagramSocket$bind(Class<?> callerClass, DatagramSocket that, SocketAddress addr);
+
+    void check$java_net_DatagramSocket$connect(Class<?> callerClass, DatagramSocket that, InetAddress addr);
+
+    void check$java_net_DatagramSocket$connect(Class<?> callerClass, DatagramSocket that, SocketAddress addr);
+
+    void check$java_net_DatagramSocket$send(Class<?> callerClass, DatagramSocket that, DatagramPacket p);
+
+    void check$java_net_DatagramSocket$receive(Class<?> callerClass, DatagramSocket that, DatagramPacket p);
+
+    void check$java_net_DatagramSocket$joinGroup(Class<?> callerClass, DatagramSocket that, SocketAddress addr, NetworkInterface ni);
+
+    void check$java_net_DatagramSocket$leaveGroup(Class<?> callerClass, DatagramSocket that, SocketAddress addr, NetworkInterface ni);
+
+    void check$java_net_MulticastSocket$joinGroup(Class<?> callerClass, MulticastSocket that, InetAddress addr);
+
+    void check$java_net_MulticastSocket$joinGroup(Class<?> callerClass, MulticastSocket that, SocketAddress addr, NetworkInterface ni);
+
+    void check$java_net_MulticastSocket$leaveGroup(Class<?> callerClass, MulticastSocket that, InetAddress addr);
+
+    void check$java_net_MulticastSocket$leaveGroup(Class<?> callerClass, MulticastSocket that, SocketAddress addr, NetworkInterface ni);
+
+    void check$java_net_MulticastSocket$send(Class<?> callerClass, MulticastSocket that, DatagramPacket p, byte ttl);
+
+    // Binding/connecting ctor
+    void check$java_net_ServerSocket$(Class<?> callerClass, int port);
+
+    void check$java_net_ServerSocket$(Class<?> callerClass, int port, int backlog);
+
+    void check$java_net_ServerSocket$(Class<?> callerClass, int port, int backlog, InetAddress bindAddr);
+
+    void check$java_net_ServerSocket$accept(Class<?> callerClass, ServerSocket that);
+
+    void check$java_net_ServerSocket$implAccept(Class<?> callerClass, ServerSocket that, Socket s);
+
+    void check$java_net_ServerSocket$bind(Class<?> callerClass, ServerSocket that, SocketAddress endpoint);
+
+    void check$java_net_ServerSocket$bind(Class<?> callerClass, ServerSocket that, SocketAddress endpoint, int backlog);
+
+    // Binding/connecting ctors
+    void check$java_net_Socket$(Class<?> callerClass, Proxy proxy);
+
+    void check$java_net_Socket$(Class<?> callerClass, String host, int port);
+
+    void check$java_net_Socket$(Class<?> callerClass, InetAddress address, int port);
+
+    void check$java_net_Socket$(Class<?> callerClass, String host, int port, InetAddress localAddr, int localPort);
+
+    void check$java_net_Socket$(Class<?> callerClass, InetAddress address, int port, InetAddress localAddr, int localPort);
+
+    void check$java_net_Socket$(Class<?> callerClass, String host, int port, boolean stream);
+
+    void check$java_net_Socket$(Class<?> callerClass, InetAddress host, int port, boolean stream);
+
+    void check$java_net_Socket$bind(Class<?> callerClass, Socket that, SocketAddress endpoint);
+
+    void check$java_net_Socket$connect(Class<?> callerClass, Socket that, SocketAddress endpoint);
+
+    void check$java_net_Socket$connect(Class<?> callerClass, Socket that, SocketAddress endpoint, int backlog);
+
+    // Network miscellanea
+    void check$java_net_URL$openConnection(Class<?> callerClass, java.net.URL that, Proxy proxy);
+
+    // HttpClient.Builder is an interface, so we instrument its only (internal) implementation
+    void check$jdk_internal_net_http_HttpClientBuilderImpl$build(Class<?> callerClass, HttpClient.Builder that);
+
+    // HttpClient#send and sendAsync are abstract, so we instrument their internal implementation
+    void check$jdk_internal_net_http_HttpClientImpl$send(
+        Class<?> callerClass,
+        HttpClient that,
+        HttpRequest request,
+        HttpResponse.BodyHandler<?> responseBodyHandler
+    );
+
+    void check$jdk_internal_net_http_HttpClientImpl$sendAsync(
+        Class<?> callerClass,
+        HttpClient that,
+        HttpRequest userRequest,
+        HttpResponse.BodyHandler<?> responseHandler
+    );
+
+    void check$jdk_internal_net_http_HttpClientImpl$sendAsync(
+        Class<?> callerClass,
+        HttpClient that,
+        HttpRequest userRequest,
+        HttpResponse.BodyHandler<?> responseHandler,
+        HttpResponse.PushPromiseHandler<?> pushPromiseHandler
+    );
+
+    // We need to check the LDAPCertStore, as this will connect, but this is internal/created via SPI,
+    // so we instrument the general factory instead and then filter in the check method implementation
+    void check$java_security_cert_CertStore$$getInstance(Class<?> callerClass, String type, CertStoreParameters params);
 }

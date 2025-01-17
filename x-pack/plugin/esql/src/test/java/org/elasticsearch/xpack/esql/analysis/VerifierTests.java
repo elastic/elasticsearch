@@ -1957,13 +1957,34 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testLookupJoinDataTypeMismatch() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
 
         query("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
 
         assertEquals(
             "1:87: JOIN left field [language_code] of type [KEYWORD] is incompatible with right field [language_code] of type [INTEGER]",
             error("FROM test | EVAL language_code = languages::keyword | LOOKUP JOIN languages_lookup ON language_code")
+        );
+    }
+
+    public void testInvalidMapOption() {
+        assumeTrue("MapExpression require snapshot build", EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled());
+        // invalid key
+        assertEquals(
+            "1:22: Invalid option key in [log_with_base_in_map(languages, {\"base\":2.0, \"invalidOption\":true})], "
+                + "expected base but got [\"invalidOption\"]",
+            error("FROM test | EVAL l = log_with_base_in_map(languages, {\"base\":2.0, \"invalidOption\":true})")
+        );
+        // key is case-sensitive
+        assertEquals(
+            "1:22: Invalid option key in [log_with_base_in_map(languages, {\"Base\":2.0})], " + "expected base but got [\"Base\"]",
+            error("FROM test | EVAL l = log_with_base_in_map(languages, {\"Base\":2.0})")
+        );
+        // invalid value
+        assertEquals(
+            "1:22: Invalid option value in [log_with_base_in_map(languages, {\"base\":\"invalid\"})], "
+                + "expected a numeric number but got [invalid]",
+            error("FROM test | EVAL l = log_with_base_in_map(languages, {\"base\":\"invalid\"})")
         );
     }
 

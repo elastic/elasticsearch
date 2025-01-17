@@ -93,7 +93,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         Metadata metadata = metaBuilder.build();
         NodeJoinExecutor.ensureIndexCompatibility(
             IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current(),
             metadata
         );
@@ -102,7 +102,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
             IllegalStateException.class,
             () -> NodeJoinExecutor.ensureIndexCompatibility(
                 IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersionUtils.getPreviousVersion(IndexVersion.current()),
                 metadata
             )
@@ -123,7 +123,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
             IllegalStateException.class,
             () -> NodeJoinExecutor.ensureIndexCompatibility(
                 IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
                 metadata
             )
@@ -133,7 +133,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
     public void testJoinClusterWithReadOnlyCompatibleIndices() {
         assertThat(
             "8.x has no N-2 support so read-only compatibility is the same as regular read/write compatibility",
-            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersions.MINIMUM_COMPATIBLE,
             equalTo(IndexVersions.MINIMUM_COMPATIBLE)
         );
         {
@@ -141,7 +141,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 .settings(
                     Settings.builder()
                         .put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.MINIMUM_COMPATIBLE)
                         .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
                 )
                 .numberOfShards(1)
@@ -150,7 +150,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
             NodeJoinExecutor.ensureIndexCompatibility(
                 IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
                 Metadata.builder().put(indexMetadata, false).build()
             );
@@ -160,7 +160,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 .settings(
                     Settings.builder()
                         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(randomFrom(5000099, 6000099)))
-                        .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
+                        .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersions.MINIMUM_COMPATIBLE)
                         .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
                 )
                 .numberOfShards(1)
@@ -169,7 +169,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
             NodeJoinExecutor.ensureIndexCompatibility(
                 IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
                 Metadata.builder().put(indexMetadata, false).build()
             );
@@ -185,7 +185,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 IllegalStateException.class,
                 () -> NodeJoinExecutor.ensureIndexCompatibility(
                     IndexVersions.MINIMUM_COMPATIBLE,
-                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                    IndexVersions.MINIMUM_COMPATIBLE,
                     IndexVersion.current(),
                     Metadata.builder().put(indexMetadata, false).build()
                 )
@@ -545,7 +545,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         Metadata metadata = metaBuilder.build();
         NodeJoinExecutor.ensureIndexCompatibility(
             IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current(),
             metadata
         );

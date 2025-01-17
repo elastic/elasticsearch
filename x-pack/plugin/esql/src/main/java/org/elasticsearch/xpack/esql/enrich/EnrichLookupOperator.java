@@ -17,6 +17,7 @@ import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ResponseHeadersCollector;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -27,7 +28,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public final class EnrichLookupOperator extends AsyncOperator {
+public final class EnrichLookupOperator extends AsyncOperator<Page> {
     private final EnrichLookupService enrichLookupService;
     private final String sessionId;
     private final CancellableTask parentTask;
@@ -128,11 +129,27 @@ public final class EnrichLookupOperator extends AsyncOperator {
             enrichFields,
             source
         );
+        CheckedFunction<List<Page>, Page, Exception> handleResponse = pages -> {
+            if (pages.size() != 1) {
+                throw new UnsupportedOperationException("ENRICH should only return a single page");
+            }
+            return inputPage.appendPage(pages.get(0));
+        };
         enrichLookupService.lookupAsync(
             request,
             parentTask,
-            ActionListener.runBefore(listener.map(inputPage::appendPage), responseHeadersCollector::collect)
+            ActionListener.runBefore(listener.map(handleResponse), responseHeadersCollector::collect)
         );
+    }
+
+    @Override
+    public Page getOutput() {
+        return fetchFromBuffer();
+    }
+
+    @Override
+    protected void releaseFetchedOnAnyThread(Page page) {
+        releasePageOnAnyThread(page);
     }
 
     @Override

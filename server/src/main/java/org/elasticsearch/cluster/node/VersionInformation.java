@@ -32,7 +32,7 @@ public record VersionInformation(
     public static final VersionInformation CURRENT = new VersionInformation(
         Version.CURRENT,
         IndexVersions.MINIMUM_COMPATIBLE,
-        IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+        IndexVersions.MINIMUM_COMPATIBLE,
         IndexVersion.current()
     );
 

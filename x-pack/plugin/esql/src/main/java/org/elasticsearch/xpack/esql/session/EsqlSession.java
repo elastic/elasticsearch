@@ -641,12 +641,12 @@ public class EsqlSession {
         references.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.name()));
 
         Set<String> fieldNames = references.names();
-            fieldNames.addAll(subfields(fieldNames));
-            fieldNames.addAll(enrichPolicyMatchFields);
-            fieldNames.addAll(subfields(enrichPolicyMatchFields));
+        fieldNames.addAll(subfields(fieldNames));
+        fieldNames.addAll(enrichPolicyMatchFields);
+        fieldNames.addAll(subfields(enrichPolicyMatchFields));
         fieldNames.addAll(IndexResolver.INDEX_METADATA_FIELD);
-            return result.withFieldNames(fieldNames);
-        }
+        return result.withFieldNames(fieldNames);
+    }
 
     private static boolean matchByName(Attribute attr, String other, boolean skipIfPattern) {
         boolean isPattern = Regex.isSimpleMatchPattern(attr.name());

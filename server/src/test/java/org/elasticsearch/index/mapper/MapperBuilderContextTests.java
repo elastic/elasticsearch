@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Optional;
+
 public class MapperBuilderContextTests extends ESTestCase {
 
     public void testRoot() {
@@ -32,7 +34,7 @@ public class MapperBuilderContextTests extends ESTestCase {
         MapperBuilderContext root = MapperBuilderContext.root(true, false);
         assertFalse(root.isInNestedContext());
 
-        MapperBuilderContext childContext = root.createChildContext("child", ObjectMapper.Dynamic.FALSE);
+        MapperBuilderContext childContext = root.createChildContext("child", ObjectMapper.Dynamic.FALSE, Optional.empty());
         assertFalse(childContext.isInNestedContext());
     }
 }

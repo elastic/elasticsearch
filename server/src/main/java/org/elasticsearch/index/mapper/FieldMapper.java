@@ -94,6 +94,7 @@ public abstract class FieldMapper extends Mapper {
         MultiFields multiFields,
         CopyTo copyTo,
         Optional<SourceKeepMode> sourceKeepMode,
+        SourceKeepMode inheritedSourceKeepMode,
         boolean hasScript,
         OnScriptError onScriptError
     ) {
@@ -101,7 +102,14 @@ public abstract class FieldMapper extends Mapper {
             return empty;
         }
 
-        private static final BuilderParams empty = new BuilderParams(MultiFields.empty(), CopyTo.empty(), Optional.empty(), false, null);
+        private static final BuilderParams empty = new BuilderParams(
+            MultiFields.empty(),
+            CopyTo.empty(),
+            Optional.empty(),
+            SourceKeepMode.NONE,
+            false,
+            null
+        );
     }
 
     protected final MappedFieldType mappedFieldType;
@@ -632,7 +640,7 @@ public abstract class FieldMapper extends Mapper {
                     return empty();
                 } else {
                     FieldMapper[] mappers = new FieldMapper[mapperBuilders.size()];
-                    context = context.createChildContext(mainFieldBuilder.leafName(), null);
+                    context = context.createChildContext(mainFieldBuilder.leafName(), null, Optional.empty());
                     int i = 0;
                     for (Map.Entry<String, Function<MapperBuilderContext, FieldMapper>> entry : this.mapperBuilders.entrySet()) {
                         mappers[i++] = entry.getValue().apply(context);
@@ -1387,14 +1395,21 @@ public abstract class FieldMapper extends Mapper {
         }
 
         protected BuilderParams builderParams(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
-            return new BuilderParams(multiFieldsBuilder.build(mainFieldBuilder, context), copyTo, sourceKeepMode, hasScript, onScriptError);
+            return new BuilderParams(
+                multiFieldsBuilder.build(mainFieldBuilder, context),
+                copyTo,
+                sourceKeepMode,
+                context.sourceKeepMode(),
+                hasScript,
+                onScriptError
+            );
         }
 
         protected void merge(FieldMapper in, Conflicts conflicts, MapperMergeContext mapperMergeContext) {
             for (Parameter<?> param : getParameters()) {
                 param.merge(in, conflicts);
             }
-            MapperMergeContext childContext = mapperMergeContext.createChildContext(in.leafName(), null);
+            MapperMergeContext childContext = mapperMergeContext.createChildContext(in.leafName(), null, Optional.empty());
             for (FieldMapper newSubField : in.builderParams.multiFields.mappers) {
                 multiFieldsBuilder.update(newSubField, childContext);
             }

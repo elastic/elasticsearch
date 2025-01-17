@@ -78,7 +78,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
                 enabled,
                 sourceKeepMode,
                 dynamic,
-                buildMappers(context.createChildContext(leafName(), timeSeriesDimensionSubFields.value(), dynamic)),
+                buildMappers(context.createChildContext(leafName(), timeSeriesDimensionSubFields.value(), dynamic, sourceKeepMode)),
                 timeSeriesDimensionSubFields,
                 priority
             );

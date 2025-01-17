@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Holds context for building Mapper objects from their Builders
@@ -23,12 +24,36 @@ public class MapperBuilderContext {
     /**
      * The root context, to be used when building a tree of mappers
      */
+    public static MapperBuilderContext root(boolean isSourceSynthetic, Mapper.SourceKeepMode sourceKeepMode, boolean isDataStream) {
+        return root(isSourceSynthetic, sourceKeepMode, isDataStream, MergeReason.MAPPING_UPDATE);
+    }
+
     public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream) {
-        return root(isSourceSynthetic, isDataStream, MergeReason.MAPPING_UPDATE);
+        assert isSourceSynthetic == false;
+        return root(isSourceSynthetic, Mapper.SourceKeepMode.NONE, isDataStream);
+    }
+
+    public static MapperBuilderContext root(
+        boolean isSourceSynthetic,
+        Mapper.SourceKeepMode sourceKeepMode,
+        boolean isDataStream,
+        MergeReason mergeReason
+    ) {
+        return new MapperBuilderContext(
+            null,
+            isSourceSynthetic,
+            sourceKeepMode,
+            isDataStream,
+            false,
+            ObjectMapper.Defaults.DYNAMIC,
+            mergeReason,
+            false
+        );
     }
 
     public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream, MergeReason mergeReason) {
-        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream, false, ObjectMapper.Defaults.DYNAMIC, mergeReason, false);
+        assert isSourceSynthetic == false;
+        return root(isSourceSynthetic, Mapper.SourceKeepMode.NONE, isDataStream, mergeReason);
     }
 
     private final String path;
@@ -38,10 +63,12 @@ public class MapperBuilderContext {
     private final ObjectMapper.Dynamic dynamic;
     private final MergeReason mergeReason;
     private final boolean inNestedContext;
+    private final Mapper.SourceKeepMode sourceKeepMode;
 
     MapperBuilderContext(
         String path,
         boolean isSourceSynthetic,
+        Mapper.SourceKeepMode sourceKeepMode,
         boolean isDataStream,
         boolean parentObjectContainsDimensions,
         ObjectMapper.Dynamic dynamic,
@@ -51,6 +78,7 @@ public class MapperBuilderContext {
         Objects.requireNonNull(dynamic, "dynamic must not be null");
         this.path = path;
         this.isSourceSynthetic = isSourceSynthetic;
+        this.sourceKeepMode = sourceKeepMode;
         this.isDataStream = isDataStream;
         this.parentObjectContainsDimensions = parentObjectContainsDimensions;
         this.dynamic = dynamic;
@@ -65,8 +93,12 @@ public class MapperBuilderContext {
      * @param dynamic strategy for handling dynamic mappings in this context
      * @return a new MapperBuilderContext with this context as its parent
      */
-    public MapperBuilderContext createChildContext(String name, @Nullable ObjectMapper.Dynamic dynamic) {
-        return createChildContext(name, this.parentObjectContainsDimensions, dynamic);
+    public MapperBuilderContext createChildContext(
+        String name,
+        @Nullable ObjectMapper.Dynamic dynamic,
+        Optional<Mapper.SourceKeepMode> sourceKeepMode
+    ) {
+        return createChildContext(name, this.parentObjectContainsDimensions, dynamic, sourceKeepMode);
     }
 
     /**
@@ -80,11 +112,13 @@ public class MapperBuilderContext {
     public MapperBuilderContext createChildContext(
         String name,
         boolean parentObjectContainsDimensions,
-        @Nullable ObjectMapper.Dynamic dynamic
+        @Nullable ObjectMapper.Dynamic dynamic,
+        Optional<Mapper.SourceKeepMode> sourceKeepMode
     ) {
         return new MapperBuilderContext(
             buildFullName(name),
             this.isSourceSynthetic,
+            sourceKeepMode.orElseGet(this::sourceKeepMode),
             this.isDataStream,
             parentObjectContainsDimensions,
             getDynamic(dynamic),
@@ -112,6 +146,13 @@ public class MapperBuilderContext {
      */
     public boolean isSourceSynthetic() {
         return isSourceSynthetic;
+    }
+
+    /**
+     * Should the {@code _source} field be stored to avoid synthetic source modifications?
+     */
+    public Mapper.SourceKeepMode sourceKeepMode() {
+        return sourceKeepMode;
     }
 
     /**

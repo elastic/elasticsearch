@@ -215,7 +215,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
             super.merge(semanticMergeWith, conflicts, mapperMergeContext);
             conflicts.check();
-            var context = mapperMergeContext.createChildContext(semanticMergeWith.leafName(), ObjectMapper.Dynamic.FALSE);
+            var context = mapperMergeContext.createChildContext(semanticMergeWith.leafName(), ObjectMapper.Dynamic.FALSE, sourceKeepMode);
             var inferenceField = inferenceFieldBuilder.apply(context.getMapperBuilderContext());
             var mergedInferenceField = inferenceField.merge(semanticMergeWith.fieldType().getInferenceField(), context);
             inferenceFieldBuilder = c -> mergedInferenceField;
@@ -234,7 +234,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             if (context.isInNestedContext()) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + fullName + "] cannot be nested");
             }
-            var childContext = context.createChildContext(leafName(), ObjectMapper.Dynamic.FALSE);
+            var childContext = context.createChildContext(leafName(), ObjectMapper.Dynamic.FALSE, sourceKeepMode);
             final ObjectMapper inferenceField = inferenceFieldBuilder.apply(childContext);
 
             return new SemanticTextFieldMapper(

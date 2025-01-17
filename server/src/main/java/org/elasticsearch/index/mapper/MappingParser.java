@@ -192,7 +192,9 @@ public final class MappingParser {
         }
 
         return new Mapping(
-            rootObjectMapper.build(MapperBuilderContext.root(isSourceSynthetic, isDataStream, reason)),
+            rootObjectMapper.build(
+                MapperBuilderContext.root(isSourceSynthetic, mappingParserContext.getIndexSettings().sourceKeepMode(), isDataStream, reason)
+            ),
             metadataMappers.values().toArray(new MetadataFieldMapper[0]),
             meta
         );

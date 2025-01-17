@@ -138,7 +138,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         @Override
         public PercolatorFieldMapper build(MapperBuilderContext context) {
             PercolatorFieldType fieldType = new PercolatorFieldType(context.buildFullName(leafName()), meta.getValue());
-            context = context.createChildContext(leafName(), null);
+            context = context.createChildContext(leafName(), null, sourceKeepMode);
             KeywordFieldMapper extractedTermsField = createExtractQueryFieldBuilder(
                 EXTRACTED_TERMS_FIELD_NAME,
                 context,

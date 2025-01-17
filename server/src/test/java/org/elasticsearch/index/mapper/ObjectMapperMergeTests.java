@@ -367,6 +367,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
             new MapperBuilderContext(
                 "foo.metrics",
                 false,
+                Mapper.SourceKeepMode.NONE,
                 false,
                 false,
                 ObjectMapper.Defaults.DYNAMIC,
@@ -387,6 +388,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
             new MapperBuilderContext(
                 "foo.metrics",
                 false,
+                Mapper.SourceKeepMode.NONE,
                 false,
                 false,
                 ObjectMapper.Defaults.DYNAMIC,

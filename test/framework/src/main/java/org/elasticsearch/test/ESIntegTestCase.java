@@ -185,6 +185,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -1243,7 +1244,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     namedWriteableRegistry
                 );
                 Map<String, Object> masterStateMap = convertToMap(masterClusterState);
-                int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
                 String masterId = masterClusterState.nodes().getMasterNodeId();
                 for (SubscribableListener<ClusterStateResponse> localStateListener : localStates) {
                     localStateListener.andThenAccept(localClusterStateResponse -> {
@@ -1255,7 +1255,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                             namedWriteableRegistry
                         );
                         final Map<String, Object> localStateMap = convertToMap(localClusterState);
-                        final int localClusterStateSize = ClusterState.Builder.toBytes(localClusterState).length;
                         // Check that the non-master node has the same version of the cluster state as the master and
                         // that the master node matches the master (otherwise there is no requirement for the cluster state to
                         // match)
@@ -1269,7 +1268,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
                                 );
                                 // We cannot compare serialization bytes since serialization order of maps is not guaranteed
                                 // but we can compare serialization sizes - they should be the same
-                                assertEquals("cluster state size does not match", masterClusterStateSize, localClusterStateSize);
+                                assertTrue("cluster states must be equal", equal(masterClusterState.toString(), localClusterState.toString()));
+
                                 // Compare JSON serialization
                                 assertNull(
                                     "cluster state JSON serialization does not match",
@@ -1289,6 +1289,26 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }).addListener(refCountingListener.acquire());
         }
         safeGet(future);
+    }
+
+    private static boolean equal(String str1, String str2) {
+        if (str1.length() != str2.length()) return false;
+
+        Map<Character, Integer> charCount = new HashMap<>();
+        str1.chars()
+            .mapToObj(c -> (char) c)
+            .forEach(c -> charCount.put(c, charCount.getOrDefault(c, 0) + 1));
+
+        str2.chars()
+            .mapToObj(c -> (char) c)
+            .forEach(c -> {
+                charCount.put(c, charCount.getOrDefault(c, 0) - 1);
+                if (charCount.get(c) == 0) {
+                    charCount.remove(c);
+                }
+            });
+
+        return charCount.isEmpty();
     }
 
     protected void ensureClusterStateCanBeReadByNodeTool() throws IOException {

@@ -186,7 +186,7 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
         }
 
         public Builder setTaskTypes(EnumSet<TaskType> taskTypes) {
-            this.taskTypes = taskTypes;
+            this.taskTypes = TaskType.copyOf(taskTypes);
             return this;
         }
 

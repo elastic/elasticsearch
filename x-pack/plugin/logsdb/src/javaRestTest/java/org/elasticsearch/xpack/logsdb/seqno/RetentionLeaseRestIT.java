@@ -31,7 +31,7 @@ import java.util.Locale;
 import java.util.Map;
 
 public class RetentionLeaseRestIT extends ESRestTestCase {
-    private static final String RETENTION_LEASE_ENDPOINT = "/%s/seq_no/add_retention_lease";
+    private static final String ADD_RETENTION_LEASE_ENDPOINT = "/%s/seq_no/add_retention_lease";
     private static final String BULK_INDEX_ENDPOINT = "/%s/_bulk";
     private static final String[] DOCUMENT_NAMES = { "alpha", "beta", "gamma", "delta" };
 
@@ -57,7 +57,7 @@ public class RetentionLeaseRestIT extends ESRestTestCase {
 
         assertOK(bulkIndex(indexName, randomIntBetween(10, 20)));
 
-        final Request retentionLeaseRequest = new Request("PUT", String.format(Locale.ROOT, RETENTION_LEASE_ENDPOINT, indexName));
+        final Request retentionLeaseRequest = new Request("PUT", String.format(Locale.ROOT, ADD_RETENTION_LEASE_ENDPOINT, indexName));
         final String retentionLeaseId = randomAlphaOfLength(6);
         final String retentionLeaseSource = randomAlphaOfLength(8);
         retentionLeaseRequest.addParameter("id", retentionLeaseId);
@@ -80,7 +80,7 @@ public class RetentionLeaseRestIT extends ESRestTestCase {
 
         assertOK(bulkIndex(indexName, randomIntBetween(10, 20)));
 
-        final Request retentionLeaseRequest = new Request("PUT", String.format(Locale.ROOT, RETENTION_LEASE_ENDPOINT, indexName));
+        final Request retentionLeaseRequest = new Request("PUT", String.format(Locale.ROOT, ADD_RETENTION_LEASE_ENDPOINT, indexName));
 
         final Response response = client().performRequest(retentionLeaseRequest);
         assertOK(response);
@@ -121,7 +121,7 @@ public class RetentionLeaseRestIT extends ESRestTestCase {
         assertOK(createDataStream(dataStreamName));
         assertOK(bulkIndex(dataStreamName, randomIntBetween(10, 20)));
 
-        final Request retentionLeaseRequest = new Request("PUT", String.format(Locale.ROOT, RETENTION_LEASE_ENDPOINT, dataStreamName));
+        final Request retentionLeaseRequest = new Request("PUT", String.format(Locale.ROOT, ADD_RETENTION_LEASE_ENDPOINT, dataStreamName));
         final String retentionLeaseId = randomAlphaOfLength(6);
         final String retentionLeaseSource = randomAlphaOfLength(8);
         retentionLeaseRequest.addParameter("id", retentionLeaseId);
@@ -149,7 +149,7 @@ public class RetentionLeaseRestIT extends ESRestTestCase {
 
         assertOK(bulkIndex(aliasName, randomIntBetween(10, 20)));
 
-        final Request retentionLeaseRequest = new Request("PUT", String.format(Locale.ROOT, RETENTION_LEASE_ENDPOINT, aliasName));
+        final Request retentionLeaseRequest = new Request("PUT", String.format(Locale.ROOT, ADD_RETENTION_LEASE_ENDPOINT, aliasName));
         final String retentionLeaseId = randomAlphaOfLength(6);
         final String retentionLeaseSource = randomAlphaOfLength(8);
         retentionLeaseRequest.addParameter("id", retentionLeaseId);
@@ -166,7 +166,10 @@ public class RetentionLeaseRestIT extends ESRestTestCase {
         final String missingIndexName = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         assertFalse(indexExists(missingIndexName));
 
-        final Request retentionLeaseRequest = new Request("PUT", String.format(Locale.ROOT, RETENTION_LEASE_ENDPOINT, missingIndexName));
+        final Request retentionLeaseRequest = new Request(
+            "PUT",
+            String.format(Locale.ROOT, ADD_RETENTION_LEASE_ENDPOINT, missingIndexName)
+        );
         final ResponseException exception = assertThrows(ResponseException.class, () -> client().performRequest(retentionLeaseRequest));
         assertResponseException(exception, RestStatus.BAD_REQUEST, "Error adding retention lease for [" + missingIndexName + "]");
     }
@@ -180,7 +183,7 @@ public class RetentionLeaseRestIT extends ESRestTestCase {
         assertTrue(indexExists(indexName));
         assertOK(bulkIndex(indexName, randomIntBetween(10, 20)));
 
-        final Request retentionLeaseRequest = new Request("PUT", String.format(Locale.ROOT, RETENTION_LEASE_ENDPOINT, indexName));
+        final Request retentionLeaseRequest = new Request("PUT", String.format(Locale.ROOT, ADD_RETENTION_LEASE_ENDPOINT, indexName));
         retentionLeaseRequest.addParameter("id", null);
         retentionLeaseRequest.addParameter("source", randomBoolean() ? UUIDs.randomBase64UUID() : "test-source");
 
@@ -199,7 +202,7 @@ public class RetentionLeaseRestIT extends ESRestTestCase {
 
         int numberOfLeases = randomIntBetween(2, 5);
         for (int i = 0; i < numberOfLeases; i++) {
-            final Request retentionLeaseRequest = new Request("PUT", String.format(Locale.ROOT, RETENTION_LEASE_ENDPOINT, indexName));
+            final Request retentionLeaseRequest = new Request("PUT", String.format(Locale.ROOT, ADD_RETENTION_LEASE_ENDPOINT, indexName));
             retentionLeaseRequest.addParameter("id", "lease-" + i);
             retentionLeaseRequest.addParameter("source", "test-source-" + i);
 

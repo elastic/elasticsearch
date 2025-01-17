@@ -1,12 +1,12 @@
 org.elasticsearch.security:
   - set_https_connection_properties # for CommandLineHttpClient
-  - write_properties:
-      properties:
-        # evil tests only?
-        #- javax.security.auth.useSubjectCredsOnly
-        #- java.security.krb5.conf
-        #- sun.security.krb5.debug
-        #- sun.security.spnego.debug
+#  # evil tests only?
+#  - write_properties:
+#      properties:
+#        - javax.security.auth.useSubjectCredsOnly
+#        - java.security.krb5.conf
+#        - sun.security.krb5.debug
+#        - sun.security.spnego.debug
 org.opensaml.xmlsec.impl:
   - write_properties:
       properties:

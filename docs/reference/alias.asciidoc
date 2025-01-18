@@ -5,9 +5,8 @@
 An alias is a secondary name for a group of data streams or indices. Most {es}
 APIs accept an alias in place of a data stream or index name.
 
-You can change the data streams or indices of an alias at any time. If you use
-aliases in your application's {es} requests, you can reindex data with no
-downtime or changes to your app's code.
+If you use aliases in your application's {es} requests instead of directly using indices, you can update or change the backing data with **no
+downtime** or changes to your app's code. This is a big advantage in production systems. Pointing to different data streams or indices of an alias is instantaneous and can be done at any time. 
 
 [discrete]
 [[alias-types]]

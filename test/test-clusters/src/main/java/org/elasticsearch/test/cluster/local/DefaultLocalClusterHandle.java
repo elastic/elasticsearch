@@ -135,7 +135,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
 
     @Override
     public List<String> getAvailableTransportEndpoints() {
-        final var results = new ArrayList<String>(nodes.size() * 2);
+        final var results = new ArrayList<String>(nodes.size() * 2); // *2 because each node has both IPv4 and IPv6 addresses
         for (final var node : nodes) {
             try {
                 results.addAll(node.getAvailableTransportEndpoints());
@@ -267,7 +267,9 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         execute(() -> nodes.parallelStream().forEach(node -> {
             try {
                 if (node.getSpec().getPlugins().containsKey("discovery-ec2")) {
-                    // TODO find a better way to do this
+                    // If we're using (i.e. testing) a discovery plugin then suppress the file-based discovery mechanism, to make sure the
+                    // test does not pass spuriously by using file-based discovery.
+                    // TODO find a way to do this without just hard-coding the plugin name here.
                     LOGGER.info("Skipping writing unicast hosts file for node {}", node.getName());
                     return;
                 }

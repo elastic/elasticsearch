@@ -41,6 +41,14 @@ public class Alias implements Writeable, ToXContentFragment {
     private static final ParseField SEARCH_ROUTING = new ParseField("search_routing", "searchRouting", "search-routing");
     private static final ParseField IS_WRITE_INDEX = new ParseField("is_write_index");
     private static final ParseField IS_HIDDEN = new ParseField("is_hidden");
+    private static final Set<String> KNOWN_FIELDS = Set.of(
+        FILTER.getPreferredName(),
+        ROUTING.getPreferredName(),
+        INDEX_ROUTING.getPreferredName(),
+        SEARCH_ROUTING.getPreferredName(),
+        IS_WRITE_INDEX.getPreferredName(),
+        IS_HIDDEN.getPreferredName()
+    );
 
     private String name;
 
@@ -233,23 +241,15 @@ public class Alias implements Writeable, ToXContentFragment {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
                 // check if there are any unknown fields
-                Set<String> knownFieldNames = Set.of(
-                    FILTER.getPreferredName(),
-                    ROUTING.getPreferredName(),
-                    INDEX_ROUTING.getPreferredName(),
-                    SEARCH_ROUTING.getPreferredName(),
-                    IS_WRITE_INDEX.getPreferredName(),
-                    IS_HIDDEN.getPreferredName()
-                );
-                if (knownFieldNames.contains(currentFieldName) == false) {
+                if (KNOWN_FIELDS.contains(currentFieldName) == false) {
                     throw new IllegalArgumentException("Unknown field [" + currentFieldName + "] in alias [" + alias.name + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (FILTER.match(currentFieldName, parser.getDeprecationHandler())) {
-                    Map<String, Object> filter = parser.mapOrdered();
-                    alias.filter(filter);
+                    alias.filter(parser.mapOrdered());
                 }
-            } else if (token == XContentParser.Token.VALUE_STRING) {
+            } else if (token.isValue()) {
+                System.out.println(currentFieldName+" : "+ parser.text());
                 if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.routing(parser.text());
                 } else if (INDEX_ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -257,7 +257,6 @@ public class Alias implements Writeable, ToXContentFragment {
                 } else if (SEARCH_ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.searchRouting(parser.text());
                 }
-            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if (IS_WRITE_INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.writeIndex(parser.booleanValue());
                 } else if (IS_HIDDEN.match(currentFieldName, parser.getDeprecationHandler())) {

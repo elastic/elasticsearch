@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -34,11 +36,16 @@ import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionCreator;
+import org.elasticsearch.xpack.inference.external.elastic.ElasticInferenceServiceResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ElasticInferenceServiceUnifiedCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.elastic.ElasticInferenceServiceAclRequest;
+import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceAclResponseEntity;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -52,8 +59,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Request.DEFAULT_TIMEOUT;
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
@@ -70,31 +79,110 @@ public class ElasticInferenceService extends SenderService {
     public static final String NAME = "elastic";
     public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
 
-    private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
-
-    // The task types exposed via the _inference/_services API
-    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES_FOR_SERVICES_API = EnumSet.of(
-        TaskType.SPARSE_EMBEDDING,
-        TaskType.CHAT_COMPLETION
-    );
+    private static final Logger logger = LogManager.getLogger(ElasticInferenceService.class);
+    private static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION);
     private static final String SERVICE_NAME = "Elastic";
+    private static final ResponseHandler aclResponseHandler = createAclResponseHandler();
+
     /**
      * The task types that the {@link InferenceAction.Request} can accept.
      */
     private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(TaskType.SPARSE_EMBEDDING);
 
+    private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
+    private Configuration configuration;
+    private EnumSet<TaskType> enabledTaskTypes;
+    private final ModelRegistry modelRegistry;
+
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
-        ElasticInferenceServiceComponents elasticInferenceServiceComponents
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+        ModelRegistry modelRegistry
     ) {
         super(factory, serviceComponents);
-        this.elasticInferenceServiceComponents = elasticInferenceServiceComponents;
+        this.elasticInferenceServiceComponents = Objects.requireNonNull(elasticInferenceServiceComponents);
+        this.modelRegistry = Objects.requireNonNull(modelRegistry);
+
+        enabledTaskTypes = EnumSet.noneOf(TaskType.class);
+        configuration = new Configuration(enabledTaskTypes);
+
+        init();
+
+        getAcl(elasticInferenceServiceComponents.elasticInferenceServiceUrl());
+    }
+
+    // TODO consider removing this should only be used for testing maybe mock getAcl instead?
+    ElasticInferenceService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+        ModelRegistry modelRegistry,
+        ElasticInferenceServiceACL acl
+    ) {
+        super(factory, serviceComponents);
+        this.elasticInferenceServiceComponents = Objects.requireNonNull(elasticInferenceServiceComponents);
+        this.modelRegistry = Objects.requireNonNull(modelRegistry);
+
+        setEnabledTaskTypes(acl);
+    }
+
+    private void getAcl(String baseEISUrl) {
+        ActionListener<InferenceServiceResults> listener = ActionListener.wrap(results -> {
+            if (results instanceof ElasticInferenceServiceAclResponseEntity aclResponseEntity) {
+                setEnabledTaskTypes(ElasticInferenceServiceACL.of(aclResponseEntity));
+            } else {
+                logger.warn(
+                    Strings.format(
+                        "Failed to retrieve ACL information for the Elastic Inference Service gateway. "
+                            + "Received an invalid response type: %s",
+                        results.getClass().getSimpleName()
+                    )
+                );
+            }
+        }, e -> logger.warn(Strings.format("Failed to retrieve ACL information for the Elastic Inference Service gateway: %s", e)));
+
+        var request = new ElasticInferenceServiceAclRequest(baseEISUrl, getCurrentTraceInfo());
+
+        getSender().sendWithoutQueuing(logger, request, aclResponseHandler, DEFAULT_TIMEOUT, listener);
+    }
+
+    private static ResponseHandler createAclResponseHandler() {
+        return new ElasticInferenceServiceResponseHandler(
+            String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),
+            ElasticInferenceServiceAclResponseEntity::fromResponse
+        );
+    }
+
+    private synchronized void setEnabledTaskTypes(ElasticInferenceServiceACL acl) {
+        enabledTaskTypes = filterTaskTypesByAcl(acl);
+        configuration = new Configuration(enabledTaskTypes);
+
+        defaultConfigIds().forEach(modelRegistry::addDefaultIds);
+    }
+
+    private static EnumSet<TaskType> filterTaskTypesByAcl(ElasticInferenceServiceACL acl) {
+        var implementedTaskTypes = EnumSet.copyOf(IMPLEMENTED_TASK_TYPES);
+        implementedTaskTypes.retainAll(acl.enabledTaskTypes());
+        return implementedTaskTypes;
     }
 
     @Override
-    public Set<TaskType> supportedStreamingTasks() {
-        return EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY);
+    public synchronized Set<TaskType> supportedStreamingTasks() {
+        var enabledStreamingTaskTypes = EnumSet.of(TaskType.CHAT_COMPLETION);
+        enabledStreamingTaskTypes.retainAll(enabledTaskTypes);
+
+        if (enabledStreamingTaskTypes.isEmpty() == false) {
+            enabledStreamingTaskTypes.add(TaskType.ANY);
+        }
+
+        return enabledStreamingTaskTypes;
+    }
+
+    @Override
+    public synchronized List<DefaultConfigId> defaultConfigIds() {
+        // TODO once we have the enabledTaskTypes figure out which default endpoints we should expose
+        return List.of();
     }
 
     @Override
@@ -221,13 +309,18 @@ public class ElasticInferenceService extends SenderService {
     }
 
     @Override
-    public InferenceServiceConfiguration getConfiguration() {
-        return Configuration.get();
+    public synchronized InferenceServiceConfiguration getConfiguration() {
+        return configuration.get();
     }
 
     @Override
-    public EnumSet<TaskType> supportedTaskTypes() {
-        return SUPPORTED_TASK_TYPES_FOR_SERVICES_API;
+    public synchronized EnumSet<TaskType> supportedTaskTypes() {
+        return enabledTaskTypes;
+    }
+
+    @Override
+    public synchronized boolean hideFromConfigurationApi() {
+        return enabledTaskTypes.isEmpty();
     }
 
     private static ElasticInferenceServiceModel createModel(
@@ -369,12 +462,17 @@ public class ElasticInferenceService extends SenderService {
     }
 
     public static class Configuration {
-        public static InferenceServiceConfiguration get() {
-            return configuration.getOrCompute();
+
+        private final EnumSet<TaskType> enabledTaskTypes;
+        private final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration;
+
+        public Configuration(EnumSet<TaskType> enabledTaskTypes) {
+            this.enabledTaskTypes = enabledTaskTypes;
+            configuration = initConfiguration();
         }
 
-        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
-            () -> {
+        private LazyInitializable<InferenceServiceConfiguration, RuntimeException> initConfiguration() {
+            return new LazyInitializable<>(() -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 
                 configurationMap.put(
@@ -407,10 +505,14 @@ public class ElasticInferenceService extends SenderService {
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(SUPPORTED_TASK_TYPES_FOR_SERVICES_API)
+                    .setTaskTypes(enabledTaskTypes)
                     .setConfigurations(configurationMap)
                     .build();
-            }
-        );
+            });
+        }
+
+        public InferenceServiceConfiguration get() {
+            return configuration.getOrCompute();
+        }
     }
 }

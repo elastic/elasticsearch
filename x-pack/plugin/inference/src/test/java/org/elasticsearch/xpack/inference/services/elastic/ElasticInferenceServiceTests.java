@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
@@ -47,6 +49,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -296,12 +299,13 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testCheckModelConfig_ReturnsNewModelReference() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
         try (
             var service = new ElasticInferenceService(
                 senderFactory,
                 createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(getUrl(webServer))
+                new ElasticInferenceServiceComponents(getUrl(webServer)),
+                mockModelRegistry(),
+                ElasticInferenceServiceACLTests.createEnabledAcl()
             )
         ) {
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer));
@@ -325,7 +329,9 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var service = new ElasticInferenceService(
                 factory,
                 createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(null)
+                new ElasticInferenceServiceComponents(null),
+                mockModelRegistry(),
+                ElasticInferenceServiceACLTests.createEnabledAcl()
             )
         ) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -355,6 +361,12 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
+    private ModelRegistry mockModelRegistry() {
+        var client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        return new ModelRegistry(client);
+    }
+
     public void testInfer_ThrowsErrorWhenTaskTypeIsNotValid() throws IOException {
         var sender = mock(Sender.class);
 
@@ -367,7 +379,9 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var service = new ElasticInferenceService(
                 factory,
                 createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(null)
+                new ElasticInferenceServiceComponents(null),
+                mockModelRegistry(),
+                ElasticInferenceServiceACLTests.createEnabledAcl()
             )
         ) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -412,7 +426,9 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var service = new ElasticInferenceService(
                 factory,
                 createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(null)
+                new ElasticInferenceServiceComponents(null),
+                mockModelRegistry(),
+                ElasticInferenceServiceACLTests.createEnabledAcl()
             )
         ) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -455,7 +471,9 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var service = new ElasticInferenceService(
                 senderFactory,
                 createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(eisGatewayUrl)
+                new ElasticInferenceServiceComponents(eisGatewayUrl),
+                mockModelRegistry(),
+                ElasticInferenceServiceACLTests.createEnabledAcl()
             )
         ) {
             String responseJson = """
@@ -512,7 +530,9 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var service = new ElasticInferenceService(
                 senderFactory,
                 createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(eisGatewayUrl)
+                new ElasticInferenceServiceComponents(eisGatewayUrl),
+                mockModelRegistry(),
+                ElasticInferenceServiceACLTests.createEnabledAcl()
             )
         ) {
             String responseJson = """
@@ -568,8 +588,38 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         }
     }
 
+    public void testHideFromConfigurationApi_ReturnsTrue_WithNoAvailableModels() throws Exception {
+        try (var service = createServiceWithMockSender(ElasticInferenceServiceACL.newDisabledService())) {
+            assertTrue(service.hideFromConfigurationApi());
+        }
+    }
+
+    public void testHideFromConfigurationApi_ReturnsTrue_WithModelTaskTypesThatAreNotImplemented() throws Exception {
+        try (
+            var service = createServiceWithMockSender(
+                new ElasticInferenceServiceACL(Map.of("model-1", EnumSet.of(TaskType.TEXT_EMBEDDING)))
+            )
+        ) {
+            assertTrue(service.hideFromConfigurationApi());
+        }
+    }
+
+    public void testHideFromConfigurationApi_ReturnsFalse_WithAvailableModels() throws Exception {
+        try (
+            var service = createServiceWithMockSender(
+                new ElasticInferenceServiceACL(Map.of("model-1", EnumSet.of(TaskType.CHAT_COMPLETION)))
+            )
+        ) {
+            assertFalse(service.hideFromConfigurationApi());
+        }
+    }
+
     public void testGetConfiguration() throws Exception {
-        try (var service = createServiceWithMockSender()) {
+        try (
+            var service = createServiceWithMockSender(
+                new ElasticInferenceServiceACL(Map.of("model-1", EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)))
+            )
+        ) {
             String content = XContentHelper.stripWhitespace("""
                 {
                        "service": "elastic",
@@ -621,11 +671,128 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         }
     }
 
+    public void testGetConfiguration_WithoutSupportedTaskTypes() throws Exception {
+        try (var service = createServiceWithMockSender(ElasticInferenceServiceACL.newDisabledService())) {
+            String content = XContentHelper.stripWhitespace("""
+                {
+                       "service": "elastic",
+                       "name": "Elastic",
+                       "task_types": [],
+                       "configurations": {
+                           "rate_limit.requests_per_minute": {
+                               "description": "Minimize the number of rate limit errors.",
+                               "label": "Rate Limit",
+                               "required": false,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "int"
+                           },
+                           "model_id": {
+                               "description": "The name of the model to use for the inference task.",
+                               "label": "Model ID",
+                               "required": true,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "str"
+                           },
+                           "max_input_tokens": {
+                               "description": "Allows you to specify the maximum number of tokens per input.",
+                               "label": "Maximum Input Tokens",
+                               "required": false,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "int"
+                           }
+                       }
+                   }
+                """);
+            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+                new BytesArray(content),
+                XContentType.JSON
+            );
+            boolean humanReadable = true;
+            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            assertToXContentEquivalent(
+                originalBytes,
+                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
+                XContentType.JSON
+            );
+        }
+    }
+
+    public void testGetConfiguration_WithoutSupportedTaskTypes_WhenModelsReturnTaskOutsideOfImplementation() throws Exception {
+        try (
+            var service = createServiceWithMockSender(
+                // this service doesn't yet support text embedding so we should still have no task types
+                new ElasticInferenceServiceACL(Map.of("model-1", EnumSet.of(TaskType.TEXT_EMBEDDING)))
+            )
+        ) {
+            String content = XContentHelper.stripWhitespace("""
+                {
+                       "service": "elastic",
+                       "name": "Elastic",
+                       "task_types": [],
+                       "configurations": {
+                           "rate_limit.requests_per_minute": {
+                               "description": "Minimize the number of rate limit errors.",
+                               "label": "Rate Limit",
+                               "required": false,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "int"
+                           },
+                           "model_id": {
+                               "description": "The name of the model to use for the inference task.",
+                               "label": "Model ID",
+                               "required": true,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "str"
+                           },
+                           "max_input_tokens": {
+                               "description": "Allows you to specify the maximum number of tokens per input.",
+                               "label": "Maximum Input Tokens",
+                               "required": false,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "int"
+                           }
+                       }
+                   }
+                """);
+            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+                new BytesArray(content),
+                XContentType.JSON
+            );
+            boolean humanReadable = true;
+            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            assertToXContentEquivalent(
+                originalBytes,
+                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
+                XContentType.JSON
+            );
+        }
+    }
+
     private ElasticInferenceService createServiceWithMockSender() {
         return new ElasticInferenceService(
             mock(HttpRequestSender.Factory.class),
             createWithEmptySettings(threadPool),
-            new ElasticInferenceServiceComponents(null)
+            new ElasticInferenceServiceComponents(null),
+            mockModelRegistry(),
+            ElasticInferenceServiceACLTests.createEnabledAcl()
+        );
+    }
+
+    private ElasticInferenceService createServiceWithMockSender(ElasticInferenceServiceACL acl) {
+        return new ElasticInferenceService(
+            mock(HttpRequestSender.Factory.class),
+            createWithEmptySettings(threadPool),
+            new ElasticInferenceServiceComponents(null),
+            mockModelRegistry(),
+            acl
         );
     }
 }

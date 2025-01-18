@@ -7,16 +7,19 @@
 
 package org.elasticsearch.xpack.inference.external.amazonbedrock;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.io.IOException;
@@ -90,6 +93,17 @@ public class AmazonBedrockMockRequestSender implements Sender {
                 throw new RuntimeException("Unknown result type: " + resultObject.getClass());
             }
         }
+    }
+
+    @Override
+    public void sendWithoutQueuing(
+        Logger logger,
+        Request request,
+        ResponseHandler responseHandler,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        throw new UnsupportedOperationException("not supported");
     }
 
     @Override

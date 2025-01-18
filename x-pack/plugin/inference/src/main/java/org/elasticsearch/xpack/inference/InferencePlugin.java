@@ -46,6 +46,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -123,6 +124,7 @@ import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
+import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -282,14 +284,17 @@ public class InferencePlugin extends Plugin
 
             ElasticInferenceServiceSettings inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
             String elasticInferenceUrl = this.getElasticInferenceServiceUrl(inferenceServiceSettings);
-            elasticInferenceServiceComponents.set(new ElasticInferenceServiceComponents(elasticInferenceUrl));
+            elasticInferenceServiceComponents.set(new ElasticInferenceServiceComponents(elasticInferenceUrl
+            // new ElasticInferenceServiceACL(Map.of("model-abc", EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)))
+            ));
 
             inferenceServices.add(
                 () -> List.of(
                     context -> new ElasticInferenceService(
                         elasicInferenceServiceFactory.get(),
                         serviceComponents.get(),
-                        elasticInferenceServiceComponents.get()
+                        elasticInferenceServiceComponents.get(),
+                        modelRegistry
                     )
                 )
             );
@@ -318,6 +323,13 @@ public class InferencePlugin extends Plugin
         var stats = new PluginComponentBinding<>(InferenceStats.class, InferenceStats.create(meterRegistry));
 
         return List.of(modelRegistry, registry, httpClientManager, stats);
+    }
+
+    private TraceContext getCurrentTraceInfo() {
+        var traceParent = threadPoolSetOnce.get().getThreadContext().getHeader(Task.TRACE_PARENT);
+        var traceState = threadPoolSetOnce.get().getThreadContext().getHeader(Task.TRACE_STATE);
+
+        return new TraceContext(traceParent, traceState);
     }
 
     @Override

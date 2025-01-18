@@ -78,8 +78,8 @@ public interface InferenceService extends Closeable {
      * Whether this service should be hidden from the API. Should be used for services
      * that are not ready to be used.
      */
-    default Boolean hideFromConfigurationApi() {
-        return Boolean.FALSE;
+    default boolean hideFromConfigurationApi() {
+        return false;
     }
 
     /**

@@ -68,6 +68,24 @@ public class PolicyParserTests extends ESTestCase {
         assertEquals(expected, parsedPolicy);
     }
 
+    public void testParseNetworkIllegalAction() throws IOException {
+        var ex = expectThrows(PolicyParserException.class, () -> new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - network:
+                  actions:
+                    - listen
+                    - doesnotexist
+                    - connect
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy());
+        assertThat(
+            ex.getMessage(),
+            equalTo(
+                "[2:5] policy parsing error for [test-policy.yaml] in scope [entitlement-module-name] for entitlement type [network]: "
+                    + "unknown network action [doesnotexist]"
+            )
+        );
+    }
+
     public void testParseCreateClassloader() throws IOException {
         Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:

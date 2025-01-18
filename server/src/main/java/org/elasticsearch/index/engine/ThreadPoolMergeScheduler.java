@@ -20,6 +20,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimitedIndexOutput;
 import org.apache.lucene.store.RateLimiter;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
@@ -28,27 +29,50 @@ import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-public class ExecutorMergeScheduler extends MergeScheduler implements ElasticsearchMergeScheduler {
+public class ThreadPoolMergeScheduler extends MergeScheduler implements ElasticsearchMergeScheduler {
+    /**
+     * Floor for IO write rate limit (we will never go any lower than this)
+     */
+    private static final double MIN_MERGE_MB_PER_SEC = 5.0;
+    /**
+     * Ceiling for IO write rate limit (we will never go any higher than this)
+     */
+    private static final double MAX_MERGE_MB_PER_SEC = 10240.0;
+    /**
+     * Initial value for IO write rate limit when doAutoIOThrottle is true
+     */
+    private static final double START_MB_PER_SEC = 20.0;
+    /**
+     * Current IO write throttle rate, for all merge, across all merge schedulers (shards) on the node
+     */
+    private static volatile double targetMBPerSec = START_MB_PER_SEC;
+    /**
+     * The set of all active merges, across all merge schedulers (i.e. across all shards), on the local node.
+     * This is used to implement auto IO throttling that's the same across all merge schedulers.
+     */
+    private static final Set<MergeTask> activeThrottledMergeTasksAcrossSchedulersSet = new HashSet<>();
 
     private final MergeSchedulerConfig config;
     private final Logger logger;
     private final MergeTracking mergeTracking;
-    private final ExecutorService executorService;
+    private final ThreadPoolExecutor threadPoolExecutor;
     private final ThreadLocal<MergeRateLimiter> onGoingMergeRateLimiter = new ThreadLocal<>();
 
-    public ExecutorMergeScheduler(ShardId shardId, IndexSettings indexSettings, ExecutorService executorService) {
+    public ThreadPoolMergeScheduler(ShardId shardId, IndexSettings indexSettings, ThreadPool threadPool) {
         this.config = indexSettings.getMergeSchedulerConfig();
         this.logger = Loggers.getLogger(getClass(), shardId);
-        // TODO: use real IO rate here
-        this.mergeTracking = new MergeTracking(logger, () -> Double.POSITIVE_INFINITY);
-        this.executorService = executorService;
+        this.mergeTracking = new MergeTracking(logger, () -> this.config.isAutoThrottle() ? targetMBPerSec : Double.POSITIVE_INFINITY);
+        // all merge schedulers must use the same thread pool
+        this.threadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.MERGE);
     }
 
     @Override
@@ -75,7 +99,7 @@ public class ExecutorMergeScheduler extends MergeScheduler implements Elasticsea
     public void merge(MergeSource mergeSource, MergeTrigger trigger) throws IOException {
         MergePolicy.OneMerge merge = mergeSource.getNextMerge();
         if (merge != null) {
-            submitNewMergeTask(mergeSource, merge);
+            submitNewMergeTask(mergeSource, merge, trigger);
         }
     }
 
@@ -89,7 +113,7 @@ public class ExecutorMergeScheduler extends MergeScheduler implements Elasticsea
      */
     protected void afterMerge(OnGoingMerge merge) {}
 
-    public synchronized int getMaxMergeCount() {
+    public int getMaxMergeCount() {
         return config.getMaxMergeCount();
     }
 
@@ -100,39 +124,52 @@ public class ExecutorMergeScheduler extends MergeScheduler implements Elasticsea
         return this;
     }
 
-    protected void handleMergeException(Throwable exc) {
-        if (exc instanceof MergePolicy.MergeException mergeException) {
-            throw mergeException;
-        } else {
-            throw new MergePolicy.MergeException(exc);
+    protected void handleMergeException(Throwable t) {
+        throw new MergePolicy.MergeException(t);
+    }
+
+    private void submitNewMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
+        MergeTask mergeTask = newMergeTask(mergeSource, merge, mergeTrigger);
+        if (mergeTask.isAutoThrottle) {
+            trackNewActiveThrottledMergeTask(mergeTask, threadPoolExecutor.getMaximumPoolSize());
         }
+        threadPoolExecutor.execute(mergeTask);
     }
 
-    private void submitNewMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge) {
-        MergeTask mergeTask = mergeTask(mergeSource, merge);
-        executorService.execute(mergeTask);
+    private static double maybeUpdateTargetMBPerSec(int poolSize) {
+        if (activeThrottledMergeTasksAcrossSchedulersSet.size() < poolSize * 2 && targetMBPerSec > MIN_MERGE_MB_PER_SEC) {
+            return Math.max(MIN_MERGE_MB_PER_SEC, targetMBPerSec / 1.1);
+        } else if (activeThrottledMergeTasksAcrossSchedulersSet.size() > poolSize * 4 && targetMBPerSec < MAX_MERGE_MB_PER_SEC) {
+            return Math.min(MAX_MERGE_MB_PER_SEC, targetMBPerSec * 1.1);
+        }
+        return targetMBPerSec;
     }
 
-    private MergeTask mergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge) {
-        return new MergeTask(mergeSource, merge, "TODO");
-    }
-
-    @Override
-    /** Overridden to route messages to our logger too, in addition to the {@link org.apache.lucene.util.InfoStream} that lucene uses. */
-    protected boolean verbose() {
-        if (logger.isTraceEnabled()) {
+    private synchronized static boolean trackNewActiveThrottledMergeTask(MergeTask newMergeTask, int poolSize) {
+        assert newMergeTask.isAutoThrottle : "only tracking throttled merge tasks";
+        if (activeThrottledMergeTasksAcrossSchedulersSet.add(newMergeTask)) {
+            double newTargetMBPerSec = maybeUpdateTargetMBPerSec(poolSize);
+            if (newTargetMBPerSec != targetMBPerSec) {
+                targetMBPerSec = newTargetMBPerSec;
+                for (MergeTask mergeTask : activeThrottledMergeTasksAcrossSchedulersSet) {
+                    mergeTask.rateLimiter.setMBPerSec(targetMBPerSec);
+                }
+            }
             return true;
         }
-        return super.verbose();
+        return false;
     }
 
-    @Override
-    /** Overridden to route messages to our logger too, in addition to the {@link org.apache.lucene.util.InfoStream} that lucene uses. */
-    protected void message(String message) {
-        if (logger.isTraceEnabled()) {
-            logger.trace("{}", message);
-        }
-        super.message(message);
+    private synchronized static boolean removeFromActiveThrottledMergeTasks(MergeTask doneMergeTask) {
+        assert doneMergeTask.isAutoThrottle : "only tracking throttled merge tasks";
+        return activeThrottledMergeTasksAcrossSchedulersSet.remove(doneMergeTask);
+    }
+
+    private MergeTask newMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
+        boolean isAutoThrottle = config.isAutoThrottle()
+            && mergeTrigger != MergeTrigger.CLOSING
+            && merge.getStoreMergeInfo().mergeMaxNumSegments() == -1; // i.e. is NOT a force merge
+        return new MergeTask(mergeSource, merge, isAutoThrottle, "TODO");
     }
 
     /**
@@ -164,17 +201,26 @@ public class ExecutorMergeScheduler extends MergeScheduler implements Elasticsea
         };
     }
 
-    protected class MergeTask extends AbstractRunnable implements Comparable<MergeTask> {
+    final class MergeTask extends AbstractRunnable implements Comparable<MergeTask> {
+        private final String name;
+        private final SetOnce<Long> mergeStartTimeNS;
         private final MergeSource mergeSource;
         private final OnGoingMerge onGoingMerge;
         private final MergeRateLimiter rateLimiter;
-        private final String name;
+        private final boolean isAutoThrottle;
 
-        public MergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, String name) {
+        MergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, boolean isAutoThrottle, String name) {
+            this.name = name;
+            this.mergeStartTimeNS = new SetOnce<>();
             this.mergeSource = mergeSource;
             this.onGoingMerge = new OnGoingMerge(merge);
             this.rateLimiter = new MergeRateLimiter(merge.getMergeProgress());
-            this.name = name;
+            this.isAutoThrottle = isAutoThrottle;
+            if (isAutoThrottle) {
+                this.rateLimiter.setMBPerSec(targetMBPerSec);
+            } else {
+                this.rateLimiter.setMBPerSec(Double.POSITIVE_INFINITY);
+            }
         }
 
         @Override
@@ -184,8 +230,10 @@ public class ExecutorMergeScheduler extends MergeScheduler implements Elasticsea
         }
 
         @Override
-        public void doRun() {
-            final long startTimeNS = System.nanoTime();
+        public void doRun() throws Exception {
+            assert isAutoThrottle == false || activeThrottledMergeTasksAcrossSchedulersSet.contains(this)
+                : "a running throttled merge should already count as an 'active' merge";
+            mergeStartTimeNS.set(System.nanoTime());
             try {
                 onGoingMergeRateLimiter.set(this.rateLimiter);
                 beforeMerge(onGoingMerge);
@@ -204,57 +252,80 @@ public class ExecutorMergeScheduler extends MergeScheduler implements Elasticsea
                             getSegmentName(onGoingMerge.getMerge()),
                             bytesToMB(onGoingMerge.getMerge().estimatedMergeBytes),
                             bytesToMB(rateLimiter.getTotalBytesWritten()),
-                            nsToSec(System.nanoTime() - startTimeNS),
+                            nsToSec(System.nanoTime() - mergeStartTimeNS.get()),
                             nsToSec(rateLimiter.getTotalStoppedNS()),
                             nsToSec(rateLimiter.getTotalPausedNS()),
                             rateToString(rateLimiter.getMBPerSec())
                         )
                     );
                 }
-                if (verbose()) {
-                    message(String.format(Locale.ROOT, "merge task %s end", getName()));
-                }
-            } catch (Throwable exc) {
-                if (exc instanceof MergePolicy.MergeAbortedException) {
+            } catch (Throwable t) {
+                if (t instanceof MergePolicy.MergeAbortedException) {
                     // OK to ignore. This is what Lucene's ConcurrentMergeScheduler does
+                } else if (t instanceof Exception == false) {
+                    // onFailure and onAfter should better be called for Errors too
+                    throw new RuntimeException(t);
                 } else {
-                    handleMergeException(exc);
-                }
-            } finally {
-                try {
-                    afterMerge(onGoingMerge);
-                } finally {
-                    onGoingMergeRateLimiter.remove();
-                    long tookMS = TimeValue.nsecToMSec(System.nanoTime() - startTimeNS);
-                    mergeTracking.mergeFinished(onGoingMerge.getMerge(), onGoingMerge, tookMS);
+                    throw t;
                 }
             }
         }
 
         @Override
         public void onAfter() {
-            MergePolicy.OneMerge nextMerge;
+            assert isAutoThrottle == false || activeThrottledMergeTasksAcrossSchedulersSet.contains(this)
+                : "onAfter should always be invoked on active (and run) merges";
+            assert this.mergeStartTimeNS.get() != null : "onAfter should always be invoked after doRun";
             try {
-                nextMerge = mergeSource.getNextMerge();
-            } catch (IllegalStateException e) {
                 if (verbose()) {
-                    message("merge task poll failed, likely that index writer is failed");
+                    message(String.format(Locale.ROOT, "merge task %s end", getName()));
                 }
-                return; // ignore exception, we expect the IW failure to be logged elsewhere
-            }
-            if (nextMerge != null) {
-                submitNewMergeTask(mergeSource, nextMerge);
+                afterMerge(onGoingMerge);
+            } finally {
+                onGoingMergeRateLimiter.remove();
+                long tookMS = TimeValue.nsecToMSec(System.nanoTime() - mergeStartTimeNS.get());
+                try {
+                    mergeTracking.mergeFinished(onGoingMerge.getMerge(), onGoingMerge, tookMS);
+                } finally {
+                    if (isAutoThrottle) {
+                        removeFromActiveThrottledMergeTasks(this);
+                    }
+                    // kick-off next merge, if any
+                    MergePolicy.OneMerge nextMerge = null;
+                    try {
+                        nextMerge = mergeSource.getNextMerge();
+                    } catch (IllegalStateException e) {
+                        if (verbose()) {
+                            message("merge task poll failed, likely that index writer is failed");
+                        }
+                        // ignore exception, we expect the IW failure to be logged elsewhere
+                    }
+                    if (nextMerge != null) {
+                        submitNewMergeTask(mergeSource, nextMerge, MergeTrigger.MERGE_FINISHED);
+                    }
+                }
             }
         }
 
         @Override
         public void onFailure(Exception e) {
-            // doRun already handles exceptions, this is just to be extra defensive from any future code modifications
+            if (isAutoThrottle) {
+                removeFromActiveThrottledMergeTasks(this);
+            }
+            // most commonly the merge should've already be aborted by now,
+            // plus the engine is probably going to be failed when any merge fails,
+            // but keep this in case something believes calling `MergeTask#onFailure` is a sane way to abort a merge
+            abortOnGoingMerge();
             handleMergeException(e);
         }
 
         @Override
         public void onRejection(Exception e) {
+            assert isAutoThrottle == false || activeThrottledMergeTasksAcrossSchedulersSet.contains(this)
+                : "only an 'active' merge can be rejected by the thread pool";
+            if (isAutoThrottle) {
+                removeFromActiveThrottledMergeTasks(this);
+            }
             if (verbose()) {
                 message(String.format(Locale.ROOT, "merge task [%s] rejected by thread pool, aborting", onGoingMerge.getId()));
             }
@@ -273,6 +344,24 @@ public class ExecutorMergeScheduler extends MergeScheduler implements Elasticsea
         private String getName() {
             return name;
         }
+    }
+
+    @Override
+    /* Overridden to route messages to our logger too, in addition to the {@link org.apache.lucene.util.InfoStream} that lucene uses. */
+    protected boolean verbose() {
+        if (logger.isTraceEnabled()) {
+            return true;
+        }
+        return super.verbose();
+    }
+
+    @Override
+    /* Overridden to route messages to our logger too, in addition to the {@link org.apache.lucene.util.InfoStream} that lucene uses. */
+    protected void message(String message) {
+        if (logger.isTraceEnabled()) {
+            logger.trace("{}", message);
+        }
+        super.message(message);
     }
 
     private static double nsToSec(long ns) {

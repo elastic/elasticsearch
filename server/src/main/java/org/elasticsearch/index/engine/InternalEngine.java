@@ -2825,7 +2825,7 @@ public class InternalEngine extends Engine {
 
     protected ElasticsearchMergeScheduler createMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
         // return new EngineMergeScheduler(shardId, indexSettings);
-        return new ExecutorMergeScheduler(shardId, indexSettings, engineConfig.getThreadPool().executor(ThreadPool.Names.MERGE)) {
+        return new ThreadPoolMergeScheduler(shardId, indexSettings, engineConfig.getThreadPool()) {
             private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
             private final AtomicBoolean isThrottling = new AtomicBoolean();
 

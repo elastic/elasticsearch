@@ -145,7 +145,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         return targetMBPerSec;
     }
 
-    private synchronized static boolean trackNewActiveThrottledMergeTask(MergeTask newMergeTask, int poolSize) {
+    private static synchronized boolean trackNewActiveThrottledMergeTask(MergeTask newMergeTask, int poolSize) {
         assert newMergeTask.isAutoThrottle : "only tracking throttled merge tasks";
         if (activeThrottledMergeTasksAcrossSchedulersSet.add(newMergeTask)) {
             double newTargetMBPerSec = maybeUpdateTargetMBPerSec(poolSize);
@@ -160,7 +160,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         return false;
     }
 
-    private synchronized static boolean removeFromActiveThrottledMergeTasks(MergeTask doneMergeTask) {
+    private static synchronized boolean removeFromActiveThrottledMergeTasks(MergeTask doneMergeTask) {
         assert doneMergeTask.isAutoThrottle : "only tracking throttled merge tasks";
         return activeThrottledMergeTasksAcrossSchedulersSet.remove(doneMergeTask);
     }

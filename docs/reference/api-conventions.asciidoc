@@ -254,6 +254,16 @@ as they contain data essential to the operation of the system.
 IMPORTANT: Direct access to system indices is deprecated and
 will no longer be allowed in a future major version.
 
+To view system indices within cluster:
+
+[source,console]
+--------------------------------------------------
+GET _cluster/state/metadata?filter_path=metadata.indices.*.system
+--------------------------------------------------
+
+WARNING: When overwriting current cluster state, system indices should be restored
+as part of their {ref}/snapshot-restore.html#feature-state[feature state].
+
 [discrete]
 [[api-conventions-parameters]]
 === Parameters

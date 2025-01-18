@@ -64,18 +64,10 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         checker.registerUpdateCheck(
             topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "stored").endObject()),
             topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject()),
-            dm -> {
-                assertTrue(dm.metadataMapper(SourceFieldMapper.class).isSynthetic());
-            }
+            dm -> {}
         );
         checker.registerConflictCheck("includes", b -> b.array("includes", "foo*"));
         checker.registerConflictCheck("excludes", b -> b.array("excludes", "foo*"));
-        checker.registerConflictCheck(
-            "mode",
-            topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject()),
-            topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "stored").endObject()),
-            d -> {}
-        );
     }
 
     public void testNoFormat() throws Exception {
@@ -219,31 +211,25 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             """);
         SourceFieldMapper mapper = mapperService.documentMapper().sourceMapper();
         assertTrue(mapper.enabled());
-        assertTrue(mapper.isSynthetic());
+        assertFalse("mode is a noop parameter", mapper.isSynthetic());
 
         merge(mapperService, """
             { "_doc" : { "_source" : { "mode" : "synthetic" } } }
             """);
         mapper = mapperService.documentMapper().sourceMapper();
         assertTrue(mapper.enabled());
-        assertTrue(mapper.isSynthetic());
+        assertFalse("mode is a noop parameter", mapper.isSynthetic());
 
         ParsedDocument doc = mapperService.documentMapper().parse(source("{}"));
         assertNull(doc.rootDoc().get(SourceFieldMapper.NAME));
-
-        Exception e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, """
-            { "_doc" : { "_source" : { "mode" : "stored" } } }
-            """));
-
-        assertThat(e.getMessage(), containsString("Cannot update parameter [mode] from [synthetic] to [stored]"));
 
         merge(mapperService, """
             { "_doc" : { "_source" : { "mode" : "disabled" } } }
             """);
 
         mapper = mapperService.documentMapper().sourceMapper();
-        assertFalse(mapper.enabled());
-        assertFalse(mapper.isSynthetic());
+        assertTrue("mode is a noop parameter", mapper.enabled());
+        assertFalse("mode is a noop parameter", mapper.isSynthetic());
     }
 
     public void testSyntheticSourceInTimeSeries() throws IOException {

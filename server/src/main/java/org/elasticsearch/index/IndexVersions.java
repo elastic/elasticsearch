@@ -142,6 +142,7 @@ public class IndexVersions {
     public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY = def(9_004_00_0, Version.LUCENE_10_0_0);
     public static final IndexVersion INFERENCE_METADATA_FIELDS = def(9_005_00_0, Version.LUCENE_10_0_0);
     public static final IndexVersion LOGSB_OPTIONAL_SORTING_ON_HOST_NAME = def(9_006_00_0, Version.LUCENE_10_0_0);
+    public static final IndexVersion SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP = def(9_007_00_0, Version.LUCENE_10_0_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

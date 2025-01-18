@@ -67,7 +67,6 @@ public class ArchivePatcher {
                 override.getValue().apply("").transferTo(output);
                 output.closeEntry();
             }
-            ;
 
             output.flush();
             output.finish();

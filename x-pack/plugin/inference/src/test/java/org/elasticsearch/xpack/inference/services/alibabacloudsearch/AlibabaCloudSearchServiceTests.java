@@ -331,7 +331,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool))) {
-            var model = OpenAiChatCompletionModelTests.createChatCompletionModel(
+            var model = OpenAiChatCompletionModelTests.createCompletionModel(
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
@@ -448,7 +448,8 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                            "required": true,
                            "sensitive": false,
                            "updatable": false,
-                           "type": "str"
+                           "type": "str",
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "api_key": {
                            "description": "A valid API key for the AlibabaCloud AI Search API.",
@@ -456,7 +457,8 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                            "required": true,
                            "sensitive": true,
                            "updatable": true,
-                           "type": "str"
+                           "type": "str",
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "service_id": {
                            "description": "The name of the model service to use for the {infer} task.",
@@ -464,7 +466,8 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                            "required": true,
                            "sensitive": false,
                            "updatable": false,
-                           "type": "str"
+                           "type": "str",
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "host": {
                            "description": "The name of the host address used for the {infer} task. You can find the host address at https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[ the API keys section] of the documentation.",
@@ -472,7 +475,8 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                            "required": true,
                            "sensitive": false,
                            "updatable": false,
-                           "type": "str"
+                           "type": "str",
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "rate_limit.requests_per_minute": {
                            "description": "Minimize the number of rate limit errors.",
@@ -480,7 +484,8 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                            "required": false,
                            "sensitive": false,
                            "updatable": false,
-                           "type": "int"
+                           "type": "int",
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "http_schema": {
                            "description": "",
@@ -488,7 +493,8 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                            "required": true,
                            "sensitive": false,
                            "updatable": false,
-                           "type": "str"
+                           "type": "str",
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          }
                        }
                     }

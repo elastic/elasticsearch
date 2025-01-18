@@ -410,10 +410,10 @@ public class EqlSearchIT extends ESRestTestCase {
 
         StringBuilder payload = new StringBuilder("{\"query\":\"" + query + "\"");
         if (randomBoolean()) {
-            payload.append(", \"allow_partial_search_results\": true");
+            payload.append(", \"allow_partial_search_results\": " + randomBoolean());
         }
         if (randomBoolean()) {
-            payload.append(", \"allow_partial_sequence_results\": true");
+            payload.append(", \"allow_partial_sequence_results\": " + randomBoolean());
         }
         payload.append("}");
         request.setJsonEntity(payload.toString());

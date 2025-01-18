@@ -30,6 +30,7 @@ import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 import static org.hamcrest.Matchers.empty;
@@ -227,6 +228,33 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                     "index [test] is a frozen index. The frozen indices feature is deprecated and will be removed in a future version",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/frozen-indices.html",
                     "Frozen indices no longer offer any advantages. Consider cold or frozen tiers in place of frozen indices.",
+                    false,
+                    null
+                )
+            )
+        );
+    }
+
+    public void testLegacyTierRouting() {
+        Settings.Builder settings = settings(IndexVersion.current());
+        String dataValue = randomAlphanumericOfLength(10);
+        settings.put(INDEX_ROUTING_INCLUDE_GROUP_PREFIX + ".data", dataValue);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            INDEX_SETTINGS_CHECKS,
+            c -> c.apply(indexMetadata, ClusterState.EMPTY_STATE)
+        );
+        assertThat(
+            issues,
+            contains(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
+                    "index [test] has configured 'index.routing.allocation.require.data: "
+                        + dataValue
+                        + "'. This setting is not recommended to be used for setting tiers.",
+                    "https://ela.st/es-deprecation-7-node-attr-data-setting",
+                    "One or more of your indices is configured with index.routing.allocation.require.data settings. This is"
+                        + " typically used to create a hot/warm or tiered architecture, based on legacy guidelines. Data tiers are a recommended replacement for tiered architecture clusters.",
                     false,
                     null
                 )

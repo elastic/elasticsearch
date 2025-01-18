@@ -94,7 +94,6 @@ public class IndexResolver {
     public IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         if (fieldCapsResponse.getIndexResponses().isEmpty()) {
-            // TODO in follow-on PR, handle the case where remotes were specified with non-existent indices, according to skip_unavailable
             return IndexResolution.notFound(indexPattern);
         }
 

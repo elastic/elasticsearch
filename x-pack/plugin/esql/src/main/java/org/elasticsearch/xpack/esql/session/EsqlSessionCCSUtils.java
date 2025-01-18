@@ -199,15 +199,13 @@ class EsqlSessionCCSUtils {
 
         /**
          * Rules enforced at planning time around non-matching indices
-         * P1. fail query if no matching indices on any cluster (VerificationException) - that is handled elsewhere (TODO: document where)
-         * P2. fail query if a skip_unavailable:false cluster has no matching indices (the local cluster already has this rule
-         *     enforced at planning time)
-         * P3. fail query if the local cluster has no matching indices and a concrete index was specified
+         * 1. fail query if no matching indices on any cluster (VerificationException) - that is handled elsewhere
+         * 2. fail query if a cluster has no matching indices *and* a concrete index was specified - handled here
          */
         String fatalErrorMessage = null;
         /*
          * These are clusters in the original request that are not present in the field-caps response. They were
-         * specified with an index expression matched no indices, so the search on that cluster is done.
+         * specified with an index expression that matched no indices, so the search on that cluster is done.
          * Mark it as SKIPPED with 0 shards searched and took=0.
          */
         for (String c : clustersWithNoMatchingIndices) {
@@ -216,7 +214,7 @@ class EsqlSessionCCSUtils {
                 continue;
             }
             final String indexExpression = executionInfo.getCluster(c).getIndexExpression();
-            if (missingIndicesIsFatal(c, executionInfo)) {
+            if (concreteIndexRequested(executionInfo.getCluster(c).getIndexExpression())) {
                 String error = Strings.format(
                     "Unknown index [%s]",
                     (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? indexExpression : c + ":" + indexExpression)
@@ -227,10 +225,11 @@ class EsqlSessionCCSUtils {
                     fatalErrorMessage += "; " + error;
                 }
             } else {
-                // handles local cluster (when no concrete indices requested) and skip_unavailable=true clusters
+                // no matching indices and no concrete index requested - just skip it, no error
                 EsqlExecutionInfo.Cluster.Status status;
                 ShardSearchFailure failure;
                 if (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                    // never mark local cluster as SKIPPED
                     status = EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
                     failure = null;
                 } else {
@@ -257,15 +256,7 @@ class EsqlSessionCCSUtils {
     }
 
     // visible for testing
-    static boolean missingIndicesIsFatal(String clusterAlias, EsqlExecutionInfo executionInfo) {
-        // missing indices on local cluster is fatal only if a concrete index requested
-        if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-            return concreteIndexRequested(executionInfo.getCluster(clusterAlias).getIndexExpression());
-        }
-        return executionInfo.getCluster(clusterAlias).isSkipUnavailable() == false;
-    }
-
-    private static boolean concreteIndexRequested(String indexExpression) {
+    static boolean concreteIndexRequested(String indexExpression) {
         if (Strings.isNullOrBlank(indexExpression)) {
             return false;
         }

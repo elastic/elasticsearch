@@ -18,6 +18,7 @@
 * <<esql-to_cartesianshape>>
 * experimental:[] <<esql-to_dateperiod>>
 * <<esql-to_datetime>>
+* <<esql-to_date_nanos>>
 * <<esql-to_degrees>>
 * <<esql-to_double>>
 * <<esql-to_geopoint>>
@@ -37,6 +38,7 @@ include::layout/to_cartesianpoint.asciidoc[]
 include::layout/to_cartesianshape.asciidoc[]
 include::layout/to_dateperiod.asciidoc[]
 include::layout/to_datetime.asciidoc[]
+include::layout/to_date_nanos.asciidoc[]
 include::layout/to_degrees.asciidoc[]
 include::layout/to_double.asciidoc[]
 include::layout/to_geopoint.asciidoc[]

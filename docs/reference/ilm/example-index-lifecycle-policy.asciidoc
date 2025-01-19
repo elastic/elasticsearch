@@ -1,8 +1,8 @@
 [[example-using-index-lifecycle-policy]]
-=== Tutorial: Customize built-in {ilm-init} policies
+=== Tutorial: Customize agent data stream {ilm-init} policies
 
 ++++
-<titleabbrev>Tutorial: Customize built-in policies</titleabbrev>
+<titleabbrev>Tutorial: Customize agent data stream ilm policies</titleabbrev>
 ++++
 
 {es} includes the following built-in {ilm-init} policies:
@@ -13,7 +13,7 @@
 
 {agent} uses these policies to manage backing indices for its data streams.
 This tutorial shows you how to use {kib}’s **Index Lifecycle Policies** to
-customize these policies based on your application's performance, resilience,
+customize these data streams' policies based on your application's performance, resilience,
 and retention requirements.
 
 

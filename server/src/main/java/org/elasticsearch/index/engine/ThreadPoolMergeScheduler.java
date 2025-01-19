@@ -186,7 +186,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     private void maybeDeactivateThrottling() {
         int numActiveMerges = activeMergeTasksExecutingOnLocalSchedulerList.size();
-        if (numActiveMerges <= config.getMaxMergeCount() && isThrottling.getAndSet(false) == true) {
+        if (numActiveMerges <= config.getMaxMergeCount() && isThrottling.getAndSet(false)) {
             deactivateThrottling(numActiveMerges);
         }
     }

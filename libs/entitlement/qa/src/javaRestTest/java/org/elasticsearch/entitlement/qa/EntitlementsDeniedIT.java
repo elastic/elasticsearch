@@ -13,26 +13,20 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
 
 import java.io.IOException;
-import java.util.stream.Stream;
 
-import static org.elasticsearch.entitlement.qa.EntitlementsUtil.ALLOWED_ENTITLEMENTS;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
 public class EntitlementsDeniedIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("test-plugin", spec ->
-            EntitlementsUtil.setupEntitlements(spec, true, null)
-        )
+        .module("test-plugin", spec -> EntitlementsUtil.setupEntitlements(spec, true, null))
         .systemProperty("es.entitlements.enabled", "true")
         .setting("xpack.security.enabled", "false")
         // Logs in libs/entitlement/qa/build/test-results/javaRestTest/TEST-org.elasticsearch.entitlement.qa.EntitlementsDeniedIT.xml
@@ -52,8 +46,7 @@ public class EntitlementsDeniedIT extends ESRestTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> data() {
-        return RestEntitlementsCheckAction.getAllCheckActions().stream().map(action -> new Object[] { action })
-            .toList();
+        return RestEntitlementsCheckAction.getAllCheckActions().stream().map(action -> new Object[] { action }).toList();
     }
 
     public void testCheckThrows() {

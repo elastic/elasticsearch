@@ -19,7 +19,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 class EntitlementsUtil {
 
@@ -58,10 +57,10 @@ class EntitlementsUtil {
 
         if (modular == false) {
             spec.withPropertiesOverride(old -> {
-                    String props = old.replace("modulename=org.elasticsearch.entitlement.qa.test", "");
-                    System.out.println("Using plugin properties:\n" + props);
-                    return Resource.fromString(props);
-                });
+                String props = old.replace("modulename=org.elasticsearch.entitlement.qa.test", "");
+                System.out.println("Using plugin properties:\n" + props);
+                return Resource.fromString(props);
+            });
         }
     }
 

@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
@@ -75,6 +76,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -1118,18 +1120,22 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
                                 state.hasResponse.compareAndExchangeRelease(false, true);
                                 state.consumeResult(searchPhaseResult.queryResult());
                                 state.queryPhaseResultConsumer.consumeResult(searchPhaseResult, state.onDone);
-                            } catch (Throwable e) {
-                                throw new AssertionError(e);
+                            } catch (Exception e) {
+                                setFailure(state, dataNodeLocalIdx, e);
                             } finally {
                                 maybeNext();
                             }
                         }
 
+                        private void setFailure(QueryPerNodeState state, int dataNodeLocalIdx, Exception e) {
+                            state.failures.put(dataNodeLocalIdx, e);
+                            state.onDone.run();
+                        }
+
                         @Override
                         public void onFailure(Exception e) {
                             try {
-                                state.failures.put(dataNodeLocalIdx, e);
-                                state.onDone.run();
+                                setFailure(state, dataNodeLocalIdx, e);
                                 maybeNext();
                             } catch (Throwable expected) {
                                 expected.addSuppressed(e);
@@ -1247,13 +1253,40 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
                                 assert results[i] != null;
                             }
                         }
+                        final QueryPhaseResultConsumer.MergeResult mergeResult;
+                        try {
+                            mergeResult = Objects.requireNonNullElse(
+                                queryPhaseResultConsumer.consumePartialResult(),
+                                EMPTY_PARTIAL_MERGE_RESULT
+                            );
+                        } catch (Exception e) {
+                            channelListener.onFailure(failure);
+                            return;
+                        }
+                        // translate shard indices to those on the coordinator so that it can interpret the merge result without adjustments
+                        final Set<Integer> relevantShardIndices = new HashSet<>();
+                        for (ScoreDoc scoreDoc : mergeResult.reducedTopDocs().scoreDocs) {
+                            final int localIndex = scoreDoc.shardIndex;
+                            scoreDoc.shardIndex = searchRequest.shards.get(localIndex).shardIndex;
+                            relevantShardIndices.add(localIndex);
+                        }
+                        for (Object result : results) {
+                            if (result instanceof QuerySearchResult q
+                                && q.getContextId() != null
+                                && relevantShardIndices.contains(q.getShardIndex()) == false
+                                && q.hasSuggestHits() == false
+                                && q.getRankShardResult() == null
+                                && searchRequest.searchRequest.scroll() == null
+                                && (AbstractSearchAsyncAction.isPartOfPIT(null, searchRequest.searchRequest, q.getContextId()) == false)) {
+                                if (dependencies.searchService.freeReaderContext(q.getContextId())) {
+                                    q.clearContextId();
+                                }
+                            }
+                        }
+
                         ActionListener.respondAndRelease(
                             channelListener,
-                            new NodeQueryResponse(
-                                Objects.requireNonNullElse(queryPhaseResultConsumer.consumePartialResult(), EMPTY_PARTIAL_MERGE_RESULT),
-                                results,
-                                queryPhaseResultConsumer.topDocsStats
-                            )
+                            new NodeQueryResponse(mergeResult, results, queryPhaseResultConsumer.topDocsStats)
                         );
                         queryPhaseResultConsumer.buffer = null;
                     } catch (Throwable e) {

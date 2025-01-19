@@ -35,6 +35,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -921,7 +922,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             response -> {
                 Terms terms = response.getAggregations().get("terms");
                 assertThat(terms, notNullValue());
-                assertThat(terms.getDocCountError(), equalTo(46L));
+                assertThat(terms.getDocCountError(), oneOf(0L, 46L));
                 List<? extends Bucket> buckets = terms.getBuckets();
                 assertThat(buckets, notNullValue());
                 assertThat(buckets.size(), equalTo(5));

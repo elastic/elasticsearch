@@ -62,6 +62,10 @@ public abstract class SearchPhaseResult extends TransportResponse {
         return contextId;
     }
 
+    public void clearContextId() {
+        this.contextId = null;
+    }
+
     /**
      * Returns the shard index in the context of the currently executing search request that is
      * used for accounting on the coordinating node

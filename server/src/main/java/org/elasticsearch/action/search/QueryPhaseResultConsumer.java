@@ -11,7 +11,6 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -173,8 +172,16 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     public MergeResult consumePartialResult() {
         var mergeResult = this.mergeResult;
         this.mergeResult = null;
-        if (runningTask.get() != null) {
-            throw new AssertionError();
+        assert runningTask.get() == null;
+        final List<QuerySearchResult> buffer;
+        synchronized (this) {
+            buffer = this.buffer;
+        }
+        if (buffer != null && buffer.isEmpty() == false) {
+            this.buffer = null;
+            buffer.sort(RESULT_COMPARATOR);
+            mergeResult = partialReduce(buffer, emptyResults, topDocsStats, mergeResult, numReducePhases++);
+            emptyResults = null;
         }
         return mergeResult;
     }
@@ -343,7 +350,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 }
             }
             // we have to merge here in the same way we collect on a shard
-            newTopDocs = topDocsList == null ? null : mergeTopDocs(topDocsList, topNSize, 0);
+            newTopDocs = topDocsList == null ? Lucene.EMPTY_TOP_DOCS : mergeTopDocs(topDocsList, topNSize, 0);
             newAggs = aggsList == null
                 ? null
                 : InternalAggregations.topLevelReduceDelayable(aggsList, aggReduceContextBuilder.forPartialReduction());
@@ -414,7 +421,14 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             result.consumeAll();
             next.run();
         } else if (result.isNull() || result.isReduced()) {
-            result.consumeAll();
+            if (result.isReduced()) {
+                if (result.hasConsumedTopDocs() == false) {
+                    result.consumeTopDocs();
+                }
+                result.releaseAggs();
+            } else {
+                result.consumeAll();
+            }
             SearchShardTarget target = result.getSearchShardTarget();
             SearchShard searchShard = new SearchShard(target.getClusterAlias(), target.getShardId());
             synchronized (this) {
@@ -594,7 +608,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         static MergeResult readFrom(StreamInput in) throws IOException {
             return new MergeResult(
                 in.readCollectionAsImmutableList(i -> new SearchShard(i.readOptionalString(), new ShardId(i))),
-                new TopDocs(Lucene.readTotalHits(in), in.readArray(Lucene::readScoreDocWithShardIndex, ScoreDoc[]::new)),
+                Lucene.readTopDocsOnly(in),
                 in.readOptionalWriteable(InternalAggregations::readFrom),
                 in.readVLong()
             );
@@ -606,8 +620,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 o.writeOptionalString(s.clusterAlias());
                 s.shardId().writeTo(o);
             });
-            Lucene.writeTotalHits(out, reducedTopDocs.totalHits);
-            out.writeArray(Lucene::writeScoreDocWithShardIndex, reducedTopDocs.scoreDocs);
+            Lucene.writeTopDocsIncludingShardIndex(out, reducedTopDocs);
             out.writeOptionalWriteable(reducedAggs);
             out.writeVLong(estimatedSize);
         }

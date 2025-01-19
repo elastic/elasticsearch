@@ -194,4 +194,9 @@ public class ReaderContext implements Releasable {
     public long getStartTimeInNano() {
         return startTimeInNano;
     }
+
+    @Override
+    public String toString() {
+        return "ReaderContext{" + id + " }";
+    }
 }

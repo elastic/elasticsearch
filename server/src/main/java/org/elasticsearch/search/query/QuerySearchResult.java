@@ -94,7 +94,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
         super(in);
         isNull = in.readBoolean();
         if (isNull == false) {
-            ShardSearchContextId id = new ShardSearchContextId(in);
+            ShardSearchContextId id = in.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION)
+                ? in.readOptionalWriteable(ShardSearchContextId::new)
+                : new ShardSearchContextId(in);
             readFromWithId(id, in, delayedAggregations);
         }
         refCounted = null;
@@ -445,7 +447,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
         out.writeBoolean(isNull);
         if (isNull == false) {
-            contextId.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION)) {
+                out.writeOptionalWriteable(contextId);
+            } else {
+                contextId.writeTo(out);
+            }
             writeToNoId(out);
         }
     }

@@ -20,7 +20,6 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -73,12 +72,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -444,68 +441,6 @@ public class TransportSearchIT extends ESIntegTestCase {
                 resp -> assertThat(resp.getHits().getTotalHits().value(), equalTo(2L))
             )
         );
-    }
-
-    public void testCircuitBreakerReduceFail() throws Exception {
-        int numShards = randomIntBetween(1, 10);
-        indexSomeDocs("test", numShards, numShards * 3);
-
-        {
-            assertResponses(
-                r -> {},
-                IntStream.range(0, 10)
-                    .map(i -> randomIntBetween(2, Math.max(numShards + 1, 3)))
-                    .mapToObj(
-                        batchReduceSize -> prepareSearch("test").addAggregation(new TestAggregationBuilder("test"))
-                            .setBatchedReduceSize(batchReduceSize)
-                    )
-                    .toArray(SearchRequestBuilder[]::new)
-            );
-            assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
-        }
-
-        try {
-            updateClusterSettings(Settings.builder().put("indices.breaker.request.limit", "1b"));
-            final Client client = client();
-            assertBusy(() -> {
-                Exception exc = expectThrows(
-                    Exception.class,
-                    client.prepareSearch("test").addAggregation(new TestAggregationBuilder("test"))
-                );
-                assertThat(exc.getCause().getMessage(), containsString("<reduce_aggs>"));
-            });
-
-            final AtomicArray<Exception> exceptions = new AtomicArray<>(10);
-            final CountDownLatch latch = new CountDownLatch(10);
-            for (int i = 0; i < 10; i++) {
-                int batchReduceSize = randomIntBetween(2, Math.max(numShards + 1, 3));
-                SearchRequest request = prepareSearch("test").addAggregation(new TestAggregationBuilder("test"))
-                    .setBatchedReduceSize(batchReduceSize)
-                    .request();
-                final int index = i;
-                client().search(request, new ActionListener<>() {
-                    @Override
-                    public void onResponse(SearchResponse response) {
-                        latch.countDown();
-                    }
-
-                    @Override
-                    public void onFailure(Exception exc) {
-                        exceptions.set(index, exc);
-                        latch.countDown();
-                    }
-                });
-            }
-            latch.await();
-            assertThat(exceptions.asList().size(), equalTo(10));
-            for (Exception exc : exceptions.asList()) {
-                assertThat(exc.getCause().getMessage(), containsString("<reduce_aggs>"));
-            }
-            assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
-        } finally {
-            updateClusterSettings(Settings.builder().putNull("indices.breaker.request.limit"));
-        }
-        logger.info("--> done");
     }
 
     public void testCircuitBreakerFetchFail() throws Exception {

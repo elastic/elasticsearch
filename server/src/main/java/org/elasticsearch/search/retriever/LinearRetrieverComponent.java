@@ -76,6 +76,11 @@ public class LinearRetrieverComponent implements ToXContentObject {
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "Unsupported token [" + parser.currentToken() + "]");
                     }
+                } else {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unexpected token [" + parser.currentToken() + "] for linear retriever."
+                    );
                 }
             } else {
                 throw new ParsingException(

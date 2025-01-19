@@ -90,9 +90,10 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
         if (min > max) {
             throw new IllegalArgumentException("[min=" + min + "] must be less than [max=" + max + "]");
         }
+        boolean minEqualsMax = min.equals(max);
         for (int i = 0; i < docs.length; i++) {
             float score;
-            if (min.equals(max)) {
+            if (minEqualsMax) {
                 score = min;
             } else {
                 score = correction + (docs[i].score - min) / (max - min);

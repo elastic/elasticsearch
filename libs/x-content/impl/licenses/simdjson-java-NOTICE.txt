@@ -1,0 +1,6 @@
+simdjson-java
+=============
+
+A Java version of [simdjson](https://github.com/simdjson/simdjson) - a JSON parser using SIMD instructions,
+based on the paper [Parsing Gigabytes of JSON per Second](https://arxiv.org/abs/1902.08318)
+by Geoff Langdale and Daniel Lemire.

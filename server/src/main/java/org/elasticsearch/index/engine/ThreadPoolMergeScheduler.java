@@ -32,8 +32,11 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -67,6 +70,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final ExecutorService executorService;
     private final int maxThreadPoolSize;
     private final ThreadLocal<MergeRateLimiter> onGoingMergeRateLimiter = new ThreadLocal<>();
+    private final PriorityQueue<MergeTask> activeMergeTasksLocalSchedulerQueue = new PriorityQueue<>();
+    private final List<MergeTask> activeMergeTasksExecutingOnLocalSchedulerList = new ArrayList<>();
 
     public ThreadPoolMergeScheduler(ShardId shardId, IndexSettings indexSettings, ThreadPool threadPool) {
         this.config = indexSettings.getMergeSchedulerConfig();
@@ -134,6 +139,32 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         MergeTask mergeTask = newMergeTask(mergeSource, merge, mergeTrigger);
         if (mergeTask.isAutoThrottle) {
             trackNewActiveThrottledMergeTask(mergeTask, maxThreadPoolSize);
+        }
+        synchronized (this) {
+            activeMergeTasksLocalSchedulerQueue.add(mergeTask);
+        }
+        maybeExecuteNextMerge();
+    }
+
+    private void mergeDone(MergeTask mergeTask) {
+        synchronized (this) {
+            activeMergeTasksExecutingOnLocalSchedulerList.remove(mergeTask);
+        }
+        maybeExecuteNextMerge();
+    }
+
+    private void maybeExecuteNextMerge() {
+        MergeTask mergeTask;
+        synchronized (this) {
+            if (activeMergeTasksExecutingOnLocalSchedulerList.size() >= config.getMaxThreadCount()) {
+                return;
+            }
+            mergeTask = activeMergeTasksLocalSchedulerQueue.poll();
+            if (mergeTask == null) {
+                // no more merges to execute
+                return;
+            }
+            activeMergeTasksExecutingOnLocalSchedulerList.add(mergeTask);
         }
         executorService.execute(mergeTask);
     }
@@ -293,6 +324,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                     if (isAutoThrottle) {
                         removeFromActiveThrottledMergeTasks(this);
                     }
+                    mergeDone(this);
                     // kick-off next merge, if any
                     MergePolicy.OneMerge nextMerge = null;
                     try {
@@ -319,6 +351,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             // plus the engine is probably going to be failed when any merge fails,
             // but keep this in case something believes calling `MergeTask#onFailure` is a sane way to abort a merge
             abortOnGoingMerge();
+            mergeDone(this);
             handleMergeException(e);
         }
 
@@ -333,6 +366,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 message(String.format(Locale.ROOT, "merge task [%s] rejected by thread pool, aborting", onGoingMerge.getId()));
             }
             abortOnGoingMerge();
+            mergeDone(this);
         }
 
         private void abortOnGoingMerge() {

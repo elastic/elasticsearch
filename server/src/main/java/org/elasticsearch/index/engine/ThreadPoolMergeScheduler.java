@@ -154,6 +154,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             if (newTargetMBPerSec != targetMBPerSec) {
                 targetMBPerSec = newTargetMBPerSec;
                 for (MergeTask mergeTask : activeThrottledMergeTasksAcrossSchedulersSet) {
+                    assert mergeTask.isAutoThrottle;
                     mergeTask.rateLimiter.setMBPerSec(targetMBPerSec);
                 }
             }

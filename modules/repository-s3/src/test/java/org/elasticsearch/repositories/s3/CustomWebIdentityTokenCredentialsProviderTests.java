@@ -222,6 +222,42 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
         }
     }
 
+    @SuppressForbidden(reason = "HTTP server is used for testing")
+    public void testWebIdentityTokenCredentialsProviderRecoversWhenInternalHttpClientIsClosed() throws Exception {
+        var httpServer = getHttpServer(s -> assertEquals("YXdzLXdlYi1pZGVudGl0eS10b2tlbi1maWxl", s));
+        var environment = getEnvironment();
+        var environmentVariables = environmentVariables();
+        var systemProperties = getSystemProperties(httpServer);
+        var webIdentityTokenCredentialsProvider = new S3Service.CustomWebIdentityTokenCredentialsProvider(
+            environment,
+            environmentVariables::get,
+            systemProperties::getOrDefault,
+            Clock.fixed(Instant.ofEpochMilli(1651084775908L), ZoneOffset.UTC),
+            resourceWatcherService
+        );
+        try {
+            var awsCredentialsProvider = S3Service.buildCredentials(
+                LogManager.getLogger(S3Service.class),
+                S3ClientSettings.getClientSettings(Settings.EMPTY, randomAlphaOfLength(8)),
+                webIdentityTokenCredentialsProvider
+            );
+            var credentials = awsCredentialsProvider.getCredentials();
+            assertCredentials(credentials);
+
+            // Simulate arbitrary closing of AWSSecurityTokenServiceClient's HTTP client due to an OOM / recoverable JVM error.
+            // See https://github.com/aws/aws-sdk-java/issues/2337. Check we can recover from that and generate new credentials.
+            webIdentityTokenCredentialsProvider.closeStsClient();
+
+            awsCredentialsProvider.refresh(); // Need to call refresh to trigger the error, because the credentials are cached
+            var newCredentials = awsCredentialsProvider.getCredentials();
+            assertCredentials(newCredentials);
+            assertNotSame(newCredentials, credentials);
+        } finally {
+            webIdentityTokenCredentialsProvider.shutdown();
+            httpServer.stop(0);
+        }
+    }
+
     public void testSupportRegionalizedEndpoints() throws Exception {
         Map<String, String> environmentVariables = Map.of(
             "AWS_WEB_IDENTITY_TOKEN_FILE",

@@ -864,8 +864,8 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
             }
 
             if (results.hasResult(shardIndex)) {
+                assert done.get() : "should only be called by subsequent phases, not during query";
                 assert failure == null : "shard failed before but shouldn't: " + failure;
-                outstandingShards.add(shardIndex);
                 successfulOps.decrementAndGet(); // if this shard was successful before (initial phase) we have to adjust the counter
             }
         }

@@ -143,7 +143,7 @@ nor search requests that only include the <<search-suggesters,suggest section>>.
 WARNING: By default, {es} doesn't allow to store an async search response
 larger than 10Mb, and an attempt to do this results in an error. The maximum
 allowed size for a stored async search response can be set by changing the
-`search.max_async_search_response_size` cluster level setting.
+`search.max_async_search_response_size` (<<dynamic-cluster-setting,Dynamic>>) cluster level setting.
 
 [[get-async-search]]
 ==== Get async search

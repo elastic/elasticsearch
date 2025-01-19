@@ -2828,12 +2828,24 @@ public class InternalEngine extends Engine {
         return new ThreadPoolMergeScheduler(shardId, indexSettings, engineConfig.getThreadPool()) {
 
             @Override
-            protected synchronized void activateThrottling(int numActiveMerges) {
+            protected synchronized void activateThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {
+                logger.info(
+                    "now throttling indexing: numRunningMerges={}, numQueuedMerges={}, maxNumMergesConfigured={}",
+                    numRunningMerges,
+                    numQueuedMerges,
+                    configuredMaxMergeCount
+                );
                 InternalEngine.this.activateThrottling();
             }
 
             @Override
-            protected synchronized void deactivateThrottling(int numActiveMerges) {
+            protected synchronized void deactivateThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {
+                logger.info(
+                    "stop throttling indexing: numRunningMerges={}, numQueuedMerges={}, maxNumMergesConfigured={}",
+                    numRunningMerges,
+                    numQueuedMerges,
+                    configuredMaxMergeCount
+                );
                 InternalEngine.this.deactivateThrottling();
             }
 

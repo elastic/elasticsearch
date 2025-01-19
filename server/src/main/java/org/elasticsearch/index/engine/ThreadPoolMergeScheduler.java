@@ -122,13 +122,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
      */
     protected void afterMerge(OnGoingMerge merge) {}
 
-    protected void activateThrottling(int numActiveMerges) {}
+    protected void activateThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {}
 
-    protected void deactivateThrottling(int numActiveMerges) {}
-
-    public int getMaxMergeCount() {
-        return config.getMaxMergeCount();
-    }
+    protected void deactivateThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {}
 
     @Override
     public MergeScheduler clone() {
@@ -178,18 +174,22 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     }
 
     private void maybeActivateThrottling() {
+        int numRunningMerges = activeMergeTasksExecutingOnLocalSchedulerList.size();
+        int numQueuedMerges = activeMergeTasksLocalSchedulerQueue.size();
+        int configuredMaxMergeCount = config.getMaxMergeCount();
         // both currently running and enqueued count as "active" for throttling purposes
-        int numActiveMerges = activeMergeTasksExecutingOnLocalSchedulerList.size() + activeMergeTasksLocalSchedulerQueue.size();
-        if (numActiveMerges > config.getMaxMergeCount() && isThrottling.getAndSet(true) == false) {
-            activateThrottling(numActiveMerges);
+        if (numRunningMerges + numQueuedMerges > configuredMaxMergeCount && isThrottling.getAndSet(true) == false) {
+            activateThrottling(numRunningMerges, numQueuedMerges, configuredMaxMergeCount);
         }
     }
 
     private void maybeDeactivateThrottling() {
+        int numRunningMerges = activeMergeTasksExecutingOnLocalSchedulerList.size();
+        int numQueuedMerges = activeMergeTasksLocalSchedulerQueue.size();
+        int configuredMaxMergeCount = config.getMaxMergeCount();
         // both currently running and enqueued count as "active" for throttling purposes
-        int numActiveMerges = activeMergeTasksExecutingOnLocalSchedulerList.size() + activeMergeTasksLocalSchedulerQueue.size();
-        if (numActiveMerges <= config.getMaxMergeCount() && isThrottling.getAndSet(false)) {
-            deactivateThrottling(numActiveMerges);
+        if (numRunningMerges + numQueuedMerges <= configuredMaxMergeCount && isThrottling.getAndSet(false)) {
+            deactivateThrottling(numRunningMerges, numQueuedMerges, configuredMaxMergeCount);
         }
     }
 

@@ -61,7 +61,7 @@ public class RolloverStep extends AsyncActionStep {
         final boolean targetFailureStore;
         DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream != null) {
-            boolean isFailureStoreWriteIndex = indexMetadata.getIndex().equals(dataStream.getFailureStoreWriteIndex());
+            boolean isFailureStoreWriteIndex = indexMetadata.getIndex().equals(dataStream.getWriteFailureIndex());
             targetFailureStore = dataStream.isFailureStoreIndex(indexMetadata.getIndex().getName());
             if (isFailureStoreWriteIndex == false && dataStream.getWriteIndex().equals(indexMetadata.getIndex()) == false) {
                 logger.warn(

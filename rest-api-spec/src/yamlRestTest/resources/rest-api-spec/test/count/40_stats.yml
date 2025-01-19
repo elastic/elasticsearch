@@ -1,0 +1,36 @@
+setup:
+  - do:
+      indices.create:
+        index:  test
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:   { foo: bar }
+  - do:
+      indices.refresh:
+        index: [test]
+
+---
+"count with single stat":
+  - do:
+      count:
+        index: test
+        body:
+          query:
+            match_all: {}
+          stats: ["stat_1"]
+
+  - match: {count : 1}
+
+---
+"count with multiple stats":
+  - do:
+      count:
+        index: test
+        body:
+          query:
+            match_all: {}
+          stats: ["stat_1","stat_2"]
+
+  - match: {count : 1}

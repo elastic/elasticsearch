@@ -21,7 +21,6 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimitedIndexOutput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
@@ -37,7 +36,6 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 public class ThreadPoolMergeScheduler extends MergeScheduler implements ElasticsearchMergeScheduler {

@@ -514,7 +514,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
         var metadata = Metadata.builder().put(project).build();
         var clusterState = mock(ClusterState.class);
         when(clusterState.blocks()).thenReturn(clusterBlocks);
-        when(clusterState.getMetadata()).thenReturn(metadata);
+        when(clusterState.metadata()).thenReturn(metadata);
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
         return clusterService;

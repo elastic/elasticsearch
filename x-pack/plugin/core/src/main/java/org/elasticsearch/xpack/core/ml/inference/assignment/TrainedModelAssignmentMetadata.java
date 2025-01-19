@@ -71,10 +71,11 @@ public class TrainedModelAssignmentMetadata implements Metadata.ProjectCustom {
         return Builder.fromMetadata(fromState(clusterState));
     }
 
+    @Deprecated(forRemoval = true)
     public static TrainedModelAssignmentMetadata fromState(ClusterState clusterState) {
-        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = clusterState.getMetadata().getProject().custom(NAME);
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = clusterState.metadata().getSingleProjectCustom(NAME);
         if (trainedModelAssignmentMetadata == null) {
-            trainedModelAssignmentMetadata = clusterState.getMetadata().getProject().custom(DEPRECATED_NAME);
+            trainedModelAssignmentMetadata = clusterState.metadata().getSingleProjectCustom(DEPRECATED_NAME);
         }
         return trainedModelAssignmentMetadata == null ? EMPTY : trainedModelAssignmentMetadata;
     }

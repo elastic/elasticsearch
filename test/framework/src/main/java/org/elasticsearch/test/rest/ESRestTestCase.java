@@ -120,6 +120,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -415,6 +416,10 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected List<HttpHost> parseClusterHosts(String hostsString) {
+        return parseClusterHosts(hostsString, this::buildHttpHost);
+    }
+
+    public static List<HttpHost> parseClusterHosts(String hostsString, BiFunction<String, Integer, HttpHost> httpHostSupplier) {
         String[] stringUrls = hostsString.split(",");
         List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
         for (String stringUrl : stringUrls) {
@@ -424,7 +429,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             String host = stringUrl.substring(0, portSeparator);
             int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
-            hosts.add(buildHttpHost(host, port));
+            hosts.add(httpHostSupplier.apply(host, port));
         }
         return unmodifiableList(hosts);
     }

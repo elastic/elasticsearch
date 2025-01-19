@@ -236,6 +236,8 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
 +
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-similarity]
 
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-rescore-vector]
+
 ===== Restrictions
 
 The parameters `query_vector` and `query_vector_builder` cannot be used together.

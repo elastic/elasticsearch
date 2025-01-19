@@ -40,6 +40,7 @@ import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ThreadPoolMergeScheduler extends MergeScheduler implements ElasticsearchMergeScheduler {
     /**
@@ -72,6 +73,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final ThreadLocal<MergeRateLimiter> onGoingMergeRateLimiter = new ThreadLocal<>();
     private final PriorityQueue<MergeTask> activeMergeTasksLocalSchedulerQueue = new PriorityQueue<>();
     private final List<MergeTask> activeMergeTasksExecutingOnLocalSchedulerList = new ArrayList<>();
+    private final AtomicBoolean isThrottling = new AtomicBoolean();
 
     public ThreadPoolMergeScheduler(ShardId shardId, IndexSettings indexSettings, ThreadPool threadPool) {
         this.config = indexSettings.getMergeSchedulerConfig();
@@ -120,6 +122,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
      */
     protected void afterMerge(OnGoingMerge merge) {}
 
+    protected void activateThrottling(int numActiveMerges) {}
+
+    protected void deactivateThrottling(int numActiveMerges) {}
+
     public int getMaxMergeCount() {
         return config.getMaxMergeCount();
     }
@@ -144,6 +150,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             activeMergeTasksLocalSchedulerQueue.add(mergeTask);
         }
         maybeExecuteNextMerge();
+        maybeActivateThrottling();
     }
 
     private void mergeDone(MergeTask mergeTask) {
@@ -151,6 +158,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             activeMergeTasksExecutingOnLocalSchedulerList.remove(mergeTask);
         }
         maybeExecuteNextMerge();
+        maybeDeactivateThrottling();
     }
 
     private void maybeExecuteNextMerge() {
@@ -167,6 +175,20 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             activeMergeTasksExecutingOnLocalSchedulerList.add(mergeTask);
         }
         executorService.execute(mergeTask);
+    }
+
+    private void maybeActivateThrottling() {
+        int numActiveMerges = activeMergeTasksExecutingOnLocalSchedulerList.size();
+        if (numActiveMerges > config.getMaxMergeCount() && isThrottling.getAndSet(true) == false) {
+            activateThrottling(numActiveMerges);
+        }
+    }
+
+    private void maybeDeactivateThrottling() {
+        int numActiveMerges = activeMergeTasksExecutingOnLocalSchedulerList.size();
+        if (numActiveMerges <= config.getMaxMergeCount() && isThrottling.getAndSet(false) == true) {
+            deactivateThrottling(numActiveMerges);
+        }
     }
 
     private static double maybeUpdateTargetMBPerSec(int poolSize) {

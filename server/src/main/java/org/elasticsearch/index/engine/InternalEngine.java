@@ -2826,29 +2826,19 @@ public class InternalEngine extends Engine {
     protected ElasticsearchMergeScheduler createMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
         // return new EngineMergeScheduler(shardId, indexSettings);
         return new ThreadPoolMergeScheduler(shardId, indexSettings, engineConfig.getThreadPool()) {
-            private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
-            private final AtomicBoolean isThrottling = new AtomicBoolean();
 
             @Override
-            public synchronized void beforeMerge(OnGoingMerge merge) {
-                int maxNumMerges = getMaxMergeCount();
-                if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
-                    if (isThrottling.getAndSet(true) == false) {
-                        logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
-                        activateThrottling();
-                    }
-                }
+            protected synchronized void activateThrottling(int numActiveMerges) {
+                InternalEngine.this.activateThrottling();
+            }
+
+            @Override
+            protected synchronized void deactivateThrottling(int numActiveMerges) {
+                InternalEngine.this.deactivateThrottling();
             }
 
             @Override
             public synchronized void afterMerge(OnGoingMerge merge) {
-                int maxNumMerges = getMaxMergeCount();
-                if (numMergesInFlight.decrementAndGet() < maxNumMerges) {
-                    if (isThrottling.getAndSet(false)) {
-                        logger.info("stop throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
-                        deactivateThrottling();
-                    }
-                }
                 if (indexWriter.hasPendingMerges() == false
                     && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
                     // NEVER do this on a merge thread since we acquire some locks blocking here and if we concurrently rollback the writer

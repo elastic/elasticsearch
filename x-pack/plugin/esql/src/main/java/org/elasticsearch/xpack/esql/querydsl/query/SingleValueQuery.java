@@ -168,7 +168,7 @@ public class SingleValueQuery extends Query {
 
         @Override
         protected org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
-            MappedFieldType ft = context.getFieldType(field);
+            MappedFieldType ft = context.getFieldType(field, QueryRewriteContext.UnmappedType.KEYWORD);
             if (ft == null) {
                 return new MatchNoDocsQuery("missing field [" + field + "]");
             }

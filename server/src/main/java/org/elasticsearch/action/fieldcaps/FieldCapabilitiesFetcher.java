@@ -57,6 +57,7 @@ class FieldCapabilitiesFetcher {
         CancellableTask task,
         ShardId shardId,
         Predicate<String> fieldNameFilter,
+        String[] fields,
         String[] filters,
         String[] fieldTypes,
         QueryBuilder indexFilter,
@@ -78,6 +79,7 @@ class FieldCapabilitiesFetcher {
                 task,
                 shardId,
                 fieldNameFilter,
+                fields,
                 filters,
                 fieldTypes,
                 indexFilter,
@@ -93,6 +95,7 @@ class FieldCapabilitiesFetcher {
         CancellableTask task,
         ShardId shardId,
         Predicate<String> fieldNameFilter,
+        String[] fields,
         String[] filters,
         String[] fieldTypes,
         QueryBuilder indexFilter,
@@ -143,6 +146,18 @@ class FieldCapabilitiesFetcher {
             indicesService.getShardOrNull(shardId),
             includeEmptyFields
         );
+
+        // lie about unmapped fields:
+        for (String field : fields) {
+            if (field.endsWith(".keyword")) {
+                responseMap.put(field, new IndexFieldCapabilities(field, "keyword", false, true, true, false, null, Map.of()));
+            } else if (field.endsWith(".long")) {
+                responseMap.put(field, new IndexFieldCapabilities(field, "long", false, true, true, false, null, Map.of()));
+            } else if (field.endsWith(".double")) {
+                responseMap.put(field, new IndexFieldCapabilities(field, "double", false, true, true, false, null, Map.of()));
+            }
+        }
+
         if (indexMappingHash != null) {
             indexMappingHashToResponses.put(indexMappingHash, responseMap);
         }

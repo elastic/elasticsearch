@@ -205,7 +205,7 @@ public class EsRelation extends LeafPlan {
         }
     }
 
-    public EsRelation withAttributes(List<Attribute> concat) {
-        return new EsRelation(source(), index, concat, indexMode, frozen);
+    public EsRelation withAttributes(List<Attribute> newAttributes) {
+        return new EsRelation(source(), index, newAttributes, indexMode, frozen);
     }
 }

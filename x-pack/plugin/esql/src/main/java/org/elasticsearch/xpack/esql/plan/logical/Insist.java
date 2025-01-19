@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plan.InsistParameters;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,11 +26,11 @@ import java.util.OptionalInt;
 public class Insist extends UnaryPlan {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "INSIST", Insist::new);
 
-    private final InsistParameters parameters;
+    private final String insistIdentifier;
 
-    public Insist(Source source, InsistParameters parameters, LogicalPlan child) {
+    public Insist(Source source, String insistIdentifier, LogicalPlan child) {
         super(source, child);
-        this.parameters = parameters;
+        this.insistIdentifier = insistIdentifier;
     }
 
     private @Nullable List<Attribute> lazyOutput = null;
@@ -46,25 +45,21 @@ public class Insist extends UnaryPlan {
 
     private List<Attribute> computeOutput() {
         var result = new ArrayList<>(child().output());
-        OptionalInt index = CollectionUtils.findIndex(child().output(), c -> c.name().equals(parameters.identifier()));
+        OptionalInt index = CollectionUtils.findIndex(child().output(), c -> c.name().equals(insistIdentifier));
         index.ifPresentOrElse(i -> {
             var field = ((FieldAttribute) child().output().get(i)).field();
-            result.set(i, new FieldAttribute(source(), parameters.identifier(), PotentiallyUnmappedEsField.fromField(field)));
-        },
-            () -> result.add(
-                new FieldAttribute(source(), parameters.identifier(), PotentiallyUnmappedEsField.fromStandalone(parameters.identifier()))
-            )
-        );
+            result.set(i, new FieldAttribute(source(), insistIdentifier, PotentiallyUnmappedEsField.fromField(field)));
+        }, () -> result.add(new FieldAttribute(source(), insistIdentifier, PotentiallyUnmappedEsField.fromStandalone(insistIdentifier))));
         return result;
     }
 
-    public InsistParameters parameters() {
-        return parameters;
+    public String getInsistIdentifier() {
+        return insistIdentifier;
     }
 
     @Override
     public Insist replaceChild(LogicalPlan newChild) {
-        return new Insist(source(), parameters, newChild);
+        return new Insist(source(), insistIdentifier, newChild);
     }
 
     @Override
@@ -79,18 +74,18 @@ public class Insist extends UnaryPlan {
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Insist::new, parameters(), child());
+        return NodeInfo.create(this, Insist::new, insistIdentifier, child());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        out.writeWriteable(parameters());
+        out.writeString(insistIdentifier);
         out.writeNamedWriteable(child());
     }
 
     private Insist(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), InsistParameters.readFrom(in), in.readNamedWriteable(LogicalPlan.class));
+        this(Source.readFrom((PlanStreamInput) in), in.readString(), in.readNamedWriteable(LogicalPlan.class));
     }
 
     @Override
@@ -100,11 +95,11 @@ public class Insist extends UnaryPlan {
 
     @Override
     public int hashCode() {
-        return super.hashCode() + 31 * parameters.hashCode();
+        return super.hashCode() + 31 * insistIdentifier.hashCode();
     }
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && ((Insist) obj).parameters.equals(parameters);
+        return super.equals(obj) && ((Insist) obj).insistIdentifier.equals(insistIdentifier);
     }
 }

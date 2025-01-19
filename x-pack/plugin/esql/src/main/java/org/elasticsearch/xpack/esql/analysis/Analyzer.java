@@ -1554,25 +1554,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static Attribute checkUnresolved(FieldAttribute fa) {
             if (fa.field() instanceof InvalidMappedField imf) {
-                return unsupportedAttributeFromInvalidMappedField(fa, imf);
+                return unsupportedAttribute(fa, imf);
             } else if (fa.field() instanceof PotentiallyUnmappedEsField unmapped
                 && unmapped.getState() instanceof PotentiallyUnmappedEsField.Invalid invalid) {
-                    return unsupportedAttributeFromInvalidMappedField(fa, invalid.invalidMappedField());
+                    return unsupportedAttribute(fa, invalid.invalidMappedField());
                 } else if (fa.field() instanceof PotentiallyUnmappedEsField unmapped
                     && unmapped.getState() instanceof PotentiallyUnmappedEsField.SimpleConflict sf) {
                         var format = "Cannot use field [%s] due to ambiguities caused by INSIST. "
-                            + "unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to type [%s]";
+                            + "Unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to type [%s].";
                         String unresolvedMessage = Strings.format(format, fa.name(), sf.otherType());
-                        return unsupportedAttributeFromInvalidMappedField(fa, new InvalidMappedField(fa.name(), unresolvedMessage));
+                        return unsupportedAttribute(fa, new InvalidMappedField(fa.name(), unresolvedMessage), unresolvedMessage);
                     }
             return fa;
         }
 
-        private static UnsupportedAttribute unsupportedAttributeFromInvalidMappedField(FieldAttribute fa, InvalidMappedField imf) {
+        private static UnsupportedAttribute unsupportedAttribute(FieldAttribute fa, InvalidMappedField imf) {
             String unresolvedMessage = "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
+            return unsupportedAttribute(fa, imf, unresolvedMessage);
+        }
+
+        private static UnsupportedAttribute unsupportedAttribute(FieldAttribute fa, InvalidMappedField imf, String message) {
             String types = imf.getTypesToIndices().keySet().stream().collect(Collectors.joining(","));
             UnsupportedEsField field = new UnsupportedEsField(imf.getName(), types);
-            return new UnsupportedAttribute(fa.source(), fa.name(), field, unresolvedMessage, fa.id());
+            return new UnsupportedAttribute(fa.source(), fa.name(), field, message, fa.id());
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {

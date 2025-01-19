@@ -2620,7 +2620,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testPushdownInsist_multiIndexFieldExistsWithSingleTypeButIsNotKeywordAndMissingCast_failsWithInsistMessage() {
         var msg = assertThrows(VerificationException.class, () -> planMultiIndex("FROM multi_index | INSIST emp_no | SORT emp_no"));
         String substring = "Cannot use field [emp_no] due to ambiguities caused by INSIST. "
-            + "unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to type [INTEGER]";
+            + "Unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to type [INTEGER]";
         assertThat(msg.getMessage(), containsString(substring));
     }
 

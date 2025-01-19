@@ -102,8 +102,11 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     }
 
     @Override
-    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
+    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean isExplain) {
         Map<RankDoc.RankKey, LinearRankDoc> docsToRankResults = Maps.newMapWithExpectedSize(rankWindowSize);
+        final String[] normalizerNames = false == isExplain
+            ? null
+            : Arrays.stream(normalizers).map(ScoreNormalizer::getName).toArray(String[]::new);
         for (int result = 0; result < rankResults.size(); result++) {
             ScoreDoc[] originalScoreDocs = rankResults.get(result);
             ScoreDoc[] normalizedScoreDocs = normalizers[result].normalizeScores(originalScoreDocs);
@@ -118,11 +121,13 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                                 originalScoreDocs[finalScoreIndex].doc,
                                 0f,
                                 originalScoreDocs[finalScoreIndex].shardIndex,
-                                weights,
-                                Arrays.stream(normalizers).map(ScoreNormalizer::getName).toArray(String[]::new)
+                                false == isExplain ? null : weights,
+                                normalizerNames
                             );
                         }
-                        value.normalizedScores[finalResult] = normalizedScoreDocs[finalScoreIndex].score;
+                        if (isExplain) {
+                            value.normalizedScores[finalResult] = normalizedScoreDocs[finalScoreIndex].score;
+                        }
                         value.score += weights[finalResult] * normalizedScoreDocs[finalScoreIndex].score;
                         return value;
                     }

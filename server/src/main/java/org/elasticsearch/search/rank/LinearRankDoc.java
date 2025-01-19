@@ -32,15 +32,19 @@ public class LinearRankDoc extends RankDoc {
         super(doc, score, shardIndex);
         this.weights = weights;
         this.normalizers = normalizers;
-        this.normalizedScores = new float[normalizers.length];
-        Arrays.fill(normalizedScores, 0f);
+        if (normalizers == null) {
+            this.normalizedScores = null;
+        } else {
+            this.normalizedScores = new float[normalizers.length];
+            Arrays.fill(normalizedScores, 0f);
+        }
     }
 
     public LinearRankDoc(StreamInput in) throws IOException {
         super(in);
-        weights = in.readFloatArray();
-        normalizedScores = in.readFloatArray();
-        normalizers = in.readStringArray();
+        weights = in.readOptionalFloatArray();
+        normalizedScores = in.readOptionalFloatArray();
+        normalizers = in.readOptionalStringArray();
     }
 
     @Override
@@ -87,16 +91,22 @@ public class LinearRankDoc extends RankDoc {
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeFloatArray(weights);
-        out.writeFloatArray(normalizedScores);
-        out.writeStringArray(normalizers);
+        out.writeOptionalFloatArray(weights);
+        out.writeOptionalFloatArray(normalizedScores);
+        out.writeOptionalStringArray(normalizers);
     }
 
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("weights", weights);
-        builder.field("normalizedScores", normalizedScores);
-        builder.field("normalizers", normalizers);
+        if (weights != null) {
+            builder.field("weights", weights);
+        }
+        if (normalizedScores != null) {
+            builder.field("normalizedScores", normalizedScores);
+        }
+        if (normalizers != null) {
+            builder.field("normalizers", normalizers);
+        }
     }
 
     @Override

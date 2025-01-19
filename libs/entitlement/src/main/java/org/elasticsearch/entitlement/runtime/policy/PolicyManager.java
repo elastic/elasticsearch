@@ -114,8 +114,8 @@ public class PolicyManager {
     }
 
     private void neverEntitled(Class<?> callerClass, String operationDescription) {
-        var requestingModule = requestingClass(callerClass);
-        if (isTriviallyAllowed(requestingModule)) {
+        var requestingClass = requestingClass(callerClass);
+        if (isTriviallyAllowed(requestingClass)) {
             return;
         }
 
@@ -123,7 +123,7 @@ public class PolicyManager {
             Strings.format(
                 "Not entitled: caller [%s], module [%s], operation [%s]",
                 callerClass,
-                requestingModule.getName(),
+                requestingClass.getModule() == null ? "<none>" : requestingClass.getModule().getName(),
                 operationDescription
             )
         );
@@ -134,8 +134,8 @@ public class PolicyManager {
      *                            therefore, its performance is not a major concern.
      */
     private void neverEntitled(Class<?> callerClass, Supplier<String> operationDescription) {
-        var requestingModule = requestingClass(callerClass);
-        if (isTriviallyAllowed(requestingModule)) {
+        var requestingClass = requestingClass(callerClass);
+        if (isTriviallyAllowed(requestingClass)) {
             return;
         }
 
@@ -143,7 +143,7 @@ public class PolicyManager {
             Strings.format(
                 "Not entitled: caller [%s], module [%s], operation [%s]",
                 callerClass,
-                requestingModule.getName(),
+                requestingClass.getModule() == null ? "<none>" : requestingClass.getModule().getName(),
                 operationDescription.get()
             )
         );
@@ -206,7 +206,7 @@ public class PolicyManager {
                 () -> Strings.format(
                     "Entitled: class [%s], module [%s], entitlement [network], actions [%s]",
                     requestingClass,
-                    requestingClass.getModule().getName(),
+                    requestingClass.getModule() == null ? "<none>" : requestingClass.getModule().getName(),
                     NetworkEntitlement.printActions(actions)
                 )
             );
@@ -216,7 +216,7 @@ public class PolicyManager {
             Strings.format(
                 "Missing entitlement: class [%s], module [%s], entitlement [network], actions [%s]",
                 requestingClass,
-                requestingClass.getModule().getName(),
+                requestingClass.getModule() == null ? "<none>" : requestingClass.getModule().getName(),
                 NetworkEntitlement.printActions(actions)
             )
         );

@@ -109,7 +109,8 @@ public class EntitlementInitialization {
                         new NetworkEntitlement(LISTEN_ACTION | CONNECT_ACTION | ACCEPT_ACTION)
                     )
                 ),
-                new Scope("org.apache.httpcomponents.httpclient", List.of(new NetworkEntitlement(CONNECT_ACTION)))
+                new Scope("org.apache.httpcomponents.httpclient", List.of(new NetworkEntitlement(CONNECT_ACTION))),
+                new Scope("io.netty.transport", List.of(new NetworkEntitlement(LISTEN_ACTION)))
             )
         );
         // agents run without a module, so this is a special hack for the apm agent

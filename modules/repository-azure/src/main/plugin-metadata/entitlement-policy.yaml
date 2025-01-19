@@ -1,0 +1,4 @@
+io.netty.common:
+  - network:
+      actions:
+        - connect

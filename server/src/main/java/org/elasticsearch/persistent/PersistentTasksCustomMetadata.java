@@ -132,11 +132,12 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         );
     }
 
+    @Deprecated(forRemoval = true)
     public static PersistentTasksCustomMetadata getPersistentTasksCustomMetadata(ClusterState clusterState) {
-        return clusterState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
+        return get(clusterState.metadata().getProject());
     }
 
-    public static PersistentTasksCustomMetadata getPersistentTasksCustomMetadata(ProjectMetadata projectMetadata) {
+    public static PersistentTasksCustomMetadata get(ProjectMetadata projectMetadata) {
         return projectMetadata.custom(PersistentTasksCustomMetadata.TYPE);
     }
 
@@ -259,7 +260,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
     }
 
     private static ProjectMetadata disassociateDeadNodesForProject(ProjectState projectState) {
-        PersistentTasksCustomMetadata tasks = getPersistentTasksCustomMetadata(projectState.metadata());
+        PersistentTasksCustomMetadata tasks = get(projectState.metadata());
         if (tasks == null) {
             return projectState.metadata();
         }

@@ -1,0 +1,5 @@
+pr: 118607
+summary: Adding block for `max_page_search_size` in `PivotConfig` of new transforms
+area: Machine Learning
+type: enhancement
+issues: []

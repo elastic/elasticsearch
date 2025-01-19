@@ -13,25 +13,21 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
 
 import java.io.IOException;
-import java.util.stream.Stream;
 
-import static org.elasticsearch.entitlement.qa.EntitlementsUtil.ALLOWED_ENTITLEMENTS;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
-public class EntitlementsDeniedIT extends ESRestTestCase {
+public class EntitlementsDeniedNonModularIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("test-plugin", spec ->
-            EntitlementsUtil.setupEntitlements(spec, true, null)
+            EntitlementsUtil.setupEntitlements(spec, false, null)
         )
         .systemProperty("es.entitlements.enabled", "true")
         .setting("xpack.security.enabled", "false")
@@ -46,7 +42,7 @@ public class EntitlementsDeniedIT extends ESRestTestCase {
 
     private final String actionName;
 
-    public EntitlementsDeniedIT(@Name("actionName") String actionName) {
+    public EntitlementsDeniedNonModularIT(@Name("actionName") String actionName) {
         this.actionName = actionName;
     }
 

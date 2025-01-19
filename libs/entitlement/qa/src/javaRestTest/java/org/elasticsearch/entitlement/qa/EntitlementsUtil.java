@@ -1,0 +1,69 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.entitlement.qa;
+
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.test.cluster.local.PluginInstallSpec;
+import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.yaml.YamlXContent;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+
+class EntitlementsUtil {
+
+    @FunctionalInterface
+    interface IOConsumer<T> {
+        void accept(T var1) throws IOException;
+    }
+
+    static final IOConsumer<XContentBuilder> ALLOWED_ENTITLEMENTS = builder -> {
+        builder.value("create_class_loader");
+        builder.value("set_https_connection_properties");
+        builder.value(Map.of("network", Map.of("actions", List.of("listen", "accept", "connect"))));
+    };
+
+    static void setupEntitlements(PluginInstallSpec spec, boolean modular, IOConsumer<XContentBuilder> policyBuilder) {
+        String moduleName = modular ? "org.elasticsearch.entitlement.qa.test" : "ALL-UNNAMED";
+        if (policyBuilder != null) {
+            try {
+                try (var builder = YamlXContent.contentBuilder()) {
+                    builder.startObject();
+                    builder.field(moduleName);
+                    builder.startArray();
+                    policyBuilder.accept(builder);
+                    builder.endArray();
+                    builder.endObject();
+
+                    String policy = Strings.toString(builder);
+                    System.out.println("Using entitlement policy:\n" + policy);
+                    spec.withEntitlementsOverride(old -> Resource.fromString(policy));
+                }
+
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        if (modular == false) {
+            spec.withPropertiesOverride(old -> {
+                    String props = old.replace("modulename=org.elasticsearch.entitlement.qa.test", "");
+                    System.out.println("Using plugin properties:\n" + props);
+                    return Resource.fromString(props);
+                });
+        }
+    }
+
+    private EntitlementsUtil() {}
+}

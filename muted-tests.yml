@@ -64,9 +64,6 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
   issue: https://github.com/elastic/elasticsearch/issues/112731
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testInferDeploysDefaultE5
-  issue: https://github.com/elastic/elasticsearch/issues/115361
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/115528

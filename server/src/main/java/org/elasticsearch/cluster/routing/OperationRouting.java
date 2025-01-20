@@ -86,7 +86,7 @@ public class OperationRouting {
         // If it is stateless, only route promotable shards. This is a temporary workaround until a more cohesive solution can be
         // implemented for search shards.
         if (isStateless && shards != null) {
-            return new PlainShardIterator(
+            return new ShardIterator(
                 shards.shardId(),
                 shards.getShardRoutings().stream().filter(ShardRouting::isPromotableToPrimary).collect(Collectors.toList())
             );
@@ -124,7 +124,7 @@ public class OperationRouting {
                 nodeCounts
             );
             if (iterator != null) {
-                set.add(PlainShardIterator.allSearchableShards(iterator));
+                set.add(ShardIterator.allSearchableShards(iterator));
             }
         }
         return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));

@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -306,7 +305,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
             ) {
                 final List<ShardIterator> shardIterators = new ArrayList<>(targetShards.size());
                 for (Map.Entry<ShardId, List<ShardRouting>> e : targetShards.entrySet()) {
-                    shardIterators.add(new PlainShardIterator(e.getKey(), e.getValue()));
+                    shardIterators.add(new ShardIterator(e.getKey(), e.getValue()));
                 }
                 return new GroupShardsIterator<>(shardIterators);
             }

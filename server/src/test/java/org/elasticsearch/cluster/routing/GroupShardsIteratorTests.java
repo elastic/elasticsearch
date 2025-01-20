@@ -43,21 +43,21 @@ public class GroupShardsIteratorTests extends ESTestCase {
         Index index = new Index("foo", "na");
         {
             ShardId shardId = new ShardId(index, 0);
-            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId, 2)));
+            list.add(new ShardIterator(shardId, randomShardRoutings(shardId, 2)));
         }
-        list.add(new PlainShardIterator(new ShardId(index, 1), Collections.emptyList()));
+        list.add(new ShardIterator(new ShardId(index, 1), Collections.emptyList()));
         {
             ShardId shardId = new ShardId(index, 2);
-            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId, 0)));
+            list.add(new ShardIterator(shardId, randomShardRoutings(shardId, 0)));
         }
         index = new Index("foo_1", "na");
         {
             ShardId shardId = new ShardId(index, 0);
-            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId, 0)));
+            list.add(new ShardIterator(shardId, randomShardRoutings(shardId, 0)));
         }
         {
             ShardId shardId = new ShardId(index, 1);
-            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId, 0)));
+            list.add(new ShardIterator(shardId, randomShardRoutings(shardId, 0)));
         }
         GroupShardsIterator<ShardIterator> iter = new GroupShardsIterator<>(list);
         assertEquals(7, iter.totalSizeWith1ForEmpty());
@@ -70,29 +70,29 @@ public class GroupShardsIteratorTests extends ESTestCase {
         Index index = new Index("foo", "na");
         {
             ShardId shardId = new ShardId(index, 0);
-            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId)));
+            list.add(new ShardIterator(shardId, randomShardRoutings(shardId)));
         }
-        list.add(new PlainShardIterator(new ShardId(index, 1), Collections.emptyList()));
+        list.add(new ShardIterator(new ShardId(index, 1), Collections.emptyList()));
         {
             ShardId shardId = new ShardId(index, 2);
-            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId)));
+            list.add(new ShardIterator(shardId, randomShardRoutings(shardId)));
         }
         {
             ShardId shardId = new ShardId(index, 0);
-            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId)));
+            list.add(new ShardIterator(shardId, randomShardRoutings(shardId)));
         }
         {
             ShardId shardId = new ShardId(index, 1);
-            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId)));
+            list.add(new ShardIterator(shardId, randomShardRoutings(shardId)));
         }
         index = new Index("foo_2", "na");
         {
             ShardId shardId = new ShardId(index, 0);
-            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId)));
+            list.add(new ShardIterator(shardId, randomShardRoutings(shardId)));
         }
         {
             ShardId shardId = new ShardId(index, 1);
-            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId)));
+            list.add(new ShardIterator(shardId, randomShardRoutings(shardId)));
         }
 
         Collections.shuffle(list, random());

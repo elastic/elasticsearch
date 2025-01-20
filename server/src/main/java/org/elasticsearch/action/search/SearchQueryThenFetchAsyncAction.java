@@ -1259,7 +1259,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
                                 EMPTY_PARTIAL_MERGE_RESULT
                             );
                         } catch (Exception e) {
-                            channelListener.onFailure(failure);
+                            channelListener.onFailure(e);
                             return;
                         }
                         // translate shard indices to those on the coordinator so that it can interpret the merge result without adjustments

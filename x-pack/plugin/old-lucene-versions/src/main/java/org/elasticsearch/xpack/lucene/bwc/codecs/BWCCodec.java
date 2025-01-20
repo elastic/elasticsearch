@@ -7,10 +7,6 @@
 
 package org.elasticsearch.xpack.lucene.bwc.codecs;
 
-import org.apache.lucene.backward_codecs.lucene80.Lucene80Codec;
-import org.apache.lucene.backward_codecs.lucene84.Lucene84Codec;
-import org.apache.lucene.backward_codecs.lucene86.Lucene86Codec;
-import org.apache.lucene.backward_codecs.lucene87.Lucene87Codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.FieldsConsumer;
@@ -160,16 +156,15 @@ public abstract class BWCCodec extends Codec {
     // Special handling for Lucene8xCodecs (which are currently bundled with Lucene)
     // Use BWCLucene8xCodec instead as that one extends BWCCodec (similar to all other older codecs)
     private static Codec getBackwardCompatibleCodec(Codec codec) {
-        if (codec instanceof Lucene80Codec) {
-            codec = new BWCLucene80Codec();
-        } else if (codec instanceof Lucene84Codec) {
-            codec = new BWCLucene84Codec();
-        } else if (codec instanceof Lucene86Codec) {
-            codec = new BWCLucene86Codec();
-        } else if (codec instanceof Lucene87Codec) {
-            codec = new BWCLucene87Codec();
-        }
-        return codec;
+        if (codec == null) return null;
+
+        return switch (codec.getClass().getSimpleName()) {
+            case "Lucene80Codec" -> new BWCLucene80Codec();
+            case "Lucene84Codec" -> new BWCLucene84Codec();
+            case "Lucene86Codec" -> new BWCLucene86Codec();
+            case "Lucene87Codec" -> new BWCLucene87Codec();
+            default -> codec;
+        };
     }
 
     /**

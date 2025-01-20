@@ -81,7 +81,16 @@ teardown:
       security.query_role:
         body: >
           {
-            "query": { "match_all": {} }, "sort": ["name"]
+            "query": {
+              "bool": {
+                "must_not": {
+                  "term": {
+                    "metadata._reserved": true
+                  }
+                }
+              }
+            },
+          "sort": ["name"]
           }
   - match: { total: 2 }
   - match: { count: 2 }

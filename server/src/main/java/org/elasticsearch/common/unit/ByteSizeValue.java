@@ -10,6 +10,7 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,6 +26,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.TransportVersions.BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1;
+import static org.elasticsearch.TransportVersions.REVERT_BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1;
 import static org.elasticsearch.common.unit.ByteSizeUnit.BYTES;
 import static org.elasticsearch.common.unit.ByteSizeUnit.GB;
 import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
@@ -111,8 +113,8 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     public static ByteSizeValue readFrom(StreamInput in) throws IOException {
         long size = in.readZLong();
         ByteSizeUnit unit = ByteSizeUnit.readFrom(in);
-        // BYTE_SIZE_VALUE_ALWAYS_USES_BYTES was later reverted, so we use equals
-        if (in.getTransportVersion().equals(BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1)) {
+        TransportVersion tv = in.getTransportVersion();
+        if (tv.onOrAfter(BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1) && tv.before(REVERT_BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1)) {
             return newByteSizeValue(size, unit);
         } else {
             return of(size, unit);
@@ -121,8 +123,8 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // BYTE_SIZE_VALUE_ALWAYS_USES_BYTES was later reverted, so we use equals
-        if (out.getTransportVersion().equals(BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1)) {
+        TransportVersion tv = out.getTransportVersion();
+        if (tv.onOrAfter(BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1) && tv.before(REVERT_BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1)) {
             out.writeZLong(sizeInBytes);
         } else {
             out.writeZLong(Math.divideExact(sizeInBytes, desiredUnit.toBytes(1)));

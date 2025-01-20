@@ -158,10 +158,10 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
         createIndex.setJsonEntity(Strings.toString(settingsBuilder));
         createIndex.setOptions(
-                expectWarnings(
-                        "[index.mapper.dynamic] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                                + "See the breaking changes documentation for the next major version."
-                )
+            expectWarnings(
+                "[index.mapper.dynamic] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                    + "See the breaking changes documentation for the next major version."
+            )
         );
         assertOK(oldEs.performRequest(createIndex));
 

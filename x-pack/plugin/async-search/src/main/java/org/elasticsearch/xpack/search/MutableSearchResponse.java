@@ -39,10 +39,6 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreRe
  * run concurrently to 1 and ensures that we pause the search progress when an {@link AsyncSearchResponse} is built.
  */
 class MutableSearchResponse implements Releasable {
-    private final int totalShards;
-    private final int skippedShards;
-    private final Clusters clusters;
-    private final AtomicArray<ShardSearchFailure> queryFailures;
     private final ThreadContext threadContext;
 
     private boolean isPartial;
@@ -82,17 +78,9 @@ class MutableSearchResponse implements Releasable {
     /**
      * Creates a new mutable search response.
      *
-     * @param totalShards The number of shards that participate in the request, or -1 to indicate a failure.
-     * @param skippedShards The number of skipped shards, or -1 to indicate a failure.
-     * @param clusters The remote clusters statistics.
      * @param threadContext The thread context to retrieve the final response headers.
      */
-    MutableSearchResponse(int totalShards, int skippedShards, Clusters clusters, ThreadContext threadContext) {
-        this.totalShards = totalShards;
-        this.skippedShards = skippedShards;
-
-        this.clusters = clusters;
-        this.queryFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards - skippedShards);
+    MutableSearchResponse(ThreadContext threadContext) {
         this.isPartial = true;
         this.threadContext = threadContext;
         this.totalHits = Lucene.TOTAL_HITS_GREATER_OR_EQUAL_TO_ZERO;
@@ -103,6 +91,7 @@ class MutableSearchResponse implements Releasable {
      * Updates the response with the result of a partial reduction.
      *
      * @param successfulShards
+     * @param skippedShards
      * @param totalHits
      * @param reducedAggs is a strategy for producing the reduced aggs
      * @param reducePhase
@@ -110,6 +99,7 @@ class MutableSearchResponse implements Releasable {
     @SuppressWarnings("HiddenField")
     synchronized void updatePartialResponse(
         int successfulShards,
+        int skippedShards,
         TotalHits totalHits,
         Supplier<InternalAggregations> reducedAggs,
         int reducePhase
@@ -131,11 +121,11 @@ class MutableSearchResponse implements Releasable {
      * Updates the response with the final {@link SearchResponse} once the
      * search is complete.
      */
-    synchronized void updateFinalResponse(SearchResponse response, boolean ccsMinimizeRoundtrips) {
+    synchronized void updateFinalResponse(int totalShards, int skippedShards, SearchResponse response, boolean ccsMinimizeRoundtrips) {
         failIfFrozen();
 
-        assert shardsInResponseMatchExpected(response, ccsMinimizeRoundtrips)
-            : getShardsInResponseMismatchInfo(response, ccsMinimizeRoundtrips);
+        assert shardsInResponseMatchExpected(totalShards, skippedShards, response, ccsMinimizeRoundtrips)
+            : getShardsInResponseMismatchInfo(totalShards, skippedShards, response, ccsMinimizeRoundtrips);
 
         this.responseHeaders = threadContext.getResponseHeaders();
         response.mustIncRef();
@@ -191,14 +181,14 @@ class MutableSearchResponse implements Releasable {
     /**
      * Adds a shard failure concurrently (non-blocking).
      */
-    void addQueryFailure(int shardIndex, ShardSearchFailure shardSearchFailure) {
+    void addQueryFailure(int shardIndex, ShardSearchFailure shardSearchFailure, AtomicArray<ShardSearchFailure> queryFailures) {
         synchronized (this) {
             failIfFrozen();
         }
         queryFailures.set(shardIndex, shardSearchFailure);
     }
 
-    private SearchResponse buildResponse(long taskStartTimeNanos, InternalAggregations reducedAggs) {
+    private SearchResponse buildResponse(AsyncSearchTask.ShardsInfo shardsInfo, long taskStartTimeNanos, InternalAggregations reducedAggs) {
         long tookInMillis = TimeValue.timeValueNanos(System.nanoTime() - taskStartTimeNanos).getMillis();
         return new SearchResponse(
             SearchHits.empty(totalHits, Float.NaN),
@@ -209,12 +199,12 @@ class MutableSearchResponse implements Releasable {
             null,
             reducePhase,
             null,
-            totalShards,
+            shardsInfo.getTotalShards(),
             successfulShards,
-            skippedShards,
+            shardsInfo.getSkippedShards(),
             tookInMillis,
-            buildQueryFailures(),
-            clusters
+            shardsInfo.buildQueryFailures(),
+            shardsInfo.getClusters()
         );
     }
 
@@ -229,12 +219,13 @@ class MutableSearchResponse implements Releasable {
             restoreResponseHeadersContext(threadContext, responseHeaders);
         }
 
+        AsyncSearchTask.ShardsInfo shardsInfo = task.getShardsInfo();
         SearchResponse searchResponse;
         if (finalResponse != null) {
             // We have a final response, use it.
             searchResponse = finalResponse;
             searchResponse.mustIncRef();
-        } else if (clusters == null) {
+        } else if (shardsInfo.getClusters() == null) {
             // An error occurred before we got the shard list
             searchResponse = null;
         } else {
@@ -251,7 +242,7 @@ class MutableSearchResponse implements Releasable {
                      */
                     InternalAggregations reducedAggs = reducedAggsSource.get();
                     reducedAggsSource = () -> reducedAggs;
-                    searchResponse = buildResponse(task.getStartTimeNanos(), reducedAggs);
+                    searchResponse = buildResponse(shardsInfo, task.getStartTimeNanos(), reducedAggs);
                 } else if (localClusterComplete == false) {
                     /*
                      * For CCS MRT=true and the local cluster has reported back only partial results
@@ -260,15 +251,15 @@ class MutableSearchResponse implements Releasable {
                      */
                     InternalAggregations reducedAggs = reducedAggsSource.get();
                     reducedAggsSource = () -> reducedAggs;
-                    SearchResponse partialAggsSearchResponse = buildResponse(task.getStartTimeNanos(), reducedAggs);
+                    SearchResponse partialAggsSearchResponse = buildResponse(shardsInfo, task.getStartTimeNanos(), reducedAggs);
                     try {
-                        searchResponse = getMergedResponse(searchResponseMerger, partialAggsSearchResponse);
+                        searchResponse = getMergedResponse(shardsInfo.getClusters(), searchResponseMerger, partialAggsSearchResponse);
                     } finally {
                         partialAggsSearchResponse.decRef();
                     }
                 } else {
                     // For CCS MRT=true when the local cluster has reported back full results (via updateResponseMinimizeRoundtrips)
-                    searchResponse = getMergedResponse(searchResponseMerger);
+                    searchResponse = getMergedResponse(shardsInfo.getClusters(), searchResponseMerger);
                 }
             } finally {
                 if (searchResponseMerger != null) {
@@ -312,11 +303,11 @@ class MutableSearchResponse implements Releasable {
         return task.getSearchResponseMergerSupplier().get();
     }
 
-    private SearchResponse getMergedResponse(SearchResponseMerger merger) {
-        return getMergedResponse(merger, null);
+    private SearchResponse getMergedResponse(Clusters c, SearchResponseMerger merger) {
+        return getMergedResponse(c, merger, null);
     }
 
-    private SearchResponse getMergedResponse(SearchResponseMerger merger, SearchResponse localPartialAggsOnly) {
+    private SearchResponse getMergedResponse(Clusters clusters, SearchResponseMerger merger, SearchResponse localPartialAggsOnly) {
         if (clusterResponses != null) {
             for (SearchResponse response : clusterResponses) {
                 merger.add(response);
@@ -331,13 +322,20 @@ class MutableSearchResponse implements Releasable {
     /**
      * Creates an {@link AsyncStatusResponse} -- status of an async response.
      * Response is created based on the current state of the mutable response or based on {@code finalResponse} if it is available.
+     * @param shardsInfo - shard info such as number of total shards, skipped shards, etc.
      * @param asyncExecutionId – id of async search request
      * @param startTime – start time of task
      * @param expirationTime – expiration time of async search request
      * @return response representing the status of async search
      */
-    synchronized AsyncStatusResponse toStatusResponse(String asyncExecutionId, long startTime, long expirationTime) {
+    synchronized AsyncStatusResponse toStatusResponse(
+        AsyncSearchTask.ShardsInfo shardsInfo,
+        String asyncExecutionId,
+        long startTime,
+        long expirationTime
+    ) {
         SearchResponse.Clusters clustersInStatus = null;
+        Clusters clusters = shardsInfo.getClusters();
         if (clusters != null && clusters.getTotal() > 0) {
             // include clusters in the status if present and not Clusters.EMPTY (the case for local searches only)
             clustersInStatus = clusters;
@@ -358,6 +356,7 @@ class MutableSearchResponse implements Releasable {
                 clustersInStatus
             );
         }
+        AtomicArray<ShardSearchFailure> queryFailures = shardsInfo.getQueryFailures();
         if (failure != null) {
             return new AsyncStatusResponse(
                 asyncExecutionId,
@@ -366,9 +365,9 @@ class MutableSearchResponse implements Releasable {
                 startTime,
                 expirationTime,
                 null,
-                totalShards,
+                shardsInfo.getTotalShards(),
                 successfulShards,
-                skippedShards,
+                shardsInfo.getSkippedShards(),
                 queryFailures == null ? 0 : queryFailures.nonNullLength(),
                 ExceptionsHelper.status(ExceptionsHelper.unwrapCause(failure)),
                 clustersInStatus
@@ -381,9 +380,9 @@ class MutableSearchResponse implements Releasable {
             startTime,
             expirationTime,
             null,
-            totalShards,
+            shardsInfo.getTotalShards(),
             successfulShards,
-            skippedShards,
+            shardsInfo.getSkippedShards(),
             queryFailures == null ? 0 : queryFailures.nonNullLength(),
             null,  // for a still running search, completion status is null
             clustersInStatus
@@ -391,6 +390,7 @@ class MutableSearchResponse implements Releasable {
     }
 
     synchronized AsyncSearchResponse toAsyncSearchResponse(
+        AsyncSearchTask.ShardsInfo shardsInfo,
         AsyncSearchTask task,
         long expirationTime,
         ElasticsearchException reduceException
@@ -398,7 +398,7 @@ class MutableSearchResponse implements Releasable {
         if (this.failure != null) {
             reduceException.addSuppressed(this.failure);
         }
-        var response = buildResponse(task.getStartTimeNanos(), null);
+        var response = buildResponse(shardsInfo, task.getStartTimeNanos(), null);
         try {
             return new AsyncSearchResponse(
                 task.getExecutionId().getEncoded(),
@@ -420,21 +420,12 @@ class MutableSearchResponse implements Releasable {
         }
     }
 
-    private ShardSearchFailure[] buildQueryFailures() {
-        if (queryFailures == null) {
-            return ShardSearchFailure.EMPTY_ARRAY;
-        }
-        List<ShardSearchFailure> failures = new ArrayList<>();
-        for (int i = 0; i < queryFailures.length(); i++) {
-            ShardSearchFailure shardSearchFailure = queryFailures.get(i);
-            if (shardSearchFailure != null) {
-                failures.add(shardSearchFailure);
-            }
-        }
-        return failures.toArray(ShardSearchFailure[]::new);
-    }
-
-    private boolean shardsInResponseMatchExpected(SearchResponse response, boolean ccsMinimizeRoundtrips) {
+    private boolean shardsInResponseMatchExpected(
+        int totalShards,
+        int skippedShards,
+        SearchResponse response,
+        boolean ccsMinimizeRoundtrips
+    ) {
         if (ccsMinimizeRoundtrips) {
             return response.getTotalShards() >= totalShards && response.getSkippedShards() >= skippedShards;
         } else {
@@ -442,7 +433,12 @@ class MutableSearchResponse implements Releasable {
         }
     }
 
-    private String getShardsInResponseMismatchInfo(SearchResponse response, boolean ccsMinimizeRoundtrips) {
+    private String getShardsInResponseMismatchInfo(
+        int totalShards,
+        int skippedShards,
+        SearchResponse response,
+        boolean ccsMinimizeRoundtrips
+    ) {
         if (ccsMinimizeRoundtrips) {
             if (response.getTotalShards() < totalShards) {
                 return Strings.format(

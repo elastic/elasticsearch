@@ -23,6 +23,7 @@ public class SearchTask extends CancellableTask {
     private final Supplier<String> descriptionSupplier;
     private SearchProgressListener progressListener = SearchProgressListener.NOOP;
     private Supplier<SearchResponseMerger> searchResponseMergerSupplier;  // used for CCS minimize_roundtrips=true
+    private SearchResponse.Clusters clusters;
 
     public SearchTask(
         long id,
@@ -64,11 +65,25 @@ public class SearchTask extends CancellableTask {
     }
 
     /**
+     * Return the {@link SearchResponse.Clusters} associated with this search request.
+     */
+    public SearchResponse.Clusters getResponseClusters() {
+        return clusters;
+    }
+
+    /**
      * @param supplier Attach a Supplier of {@link SearchResponseMerger} to this task.
      *                 For use with CCS minimize_roundtrips=true
      */
     public void setSearchResponseMergerSupplier(Supplier<SearchResponseMerger> supplier) {
         this.searchResponseMergerSupplier = supplier;
+    }
+
+    /**
+     * @param clusters Attach the {@link SearchResponse.Clusters} relevant to this search request.
+     */
+    public void setResponseClusters(SearchResponse.Clusters clusters) {
+        this.clusters = clusters;
     }
 
     /**

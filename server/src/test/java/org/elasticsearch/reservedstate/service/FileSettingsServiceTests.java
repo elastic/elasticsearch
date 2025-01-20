@@ -220,6 +220,9 @@ public class FileSettingsServiceTests extends ESTestCase {
         // wait until the watcher thread has started, and it has discovered the file
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
+        // Note: the name "processFileOnServiceStart" is a bit misleading because it is not
+        // referring to fileSettingsService.start(). Rather, it is referring to the initialization
+        // of the watcher thread itself, which occurs asynchronously when clusterChanged is first called.
         verify(fileSettingsService, times(1)).processFile(eq(watchedFile), eq(true));
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
 
@@ -334,7 +337,7 @@ public class FileSettingsServiceTests extends ESTestCase {
             } finally {
                 awaitOrBust(fileChangeBarrier);
             }
-        }).when(fileSettingsService).processFileChanges(eq(watchedFile));
+        }).when(fileSettingsService).onProcessFileChangesException(eq(watchedFile), any());
         writeTestFile(watchedFile, "test_invalid_JSON");
         awaitOrBust(fileChangeBarrier);
 
@@ -348,10 +351,6 @@ public class FileSettingsServiceTests extends ESTestCase {
             eq(watchedFile),
             argThat(e -> unwrapException(e) instanceof XContentParseException)
         );
-
-        // Note: the name "processFilesOnServiceStart" is a bit misleading because it is not
-        // referring to fileSettingsService.start(). Rather, it is referring to the initialization
-        // of the watcher thread itself, which occurs asynchronously when clusterChanged is first called.
 
         assertEquals(YELLOW, healthIndicatorService.calculate(false, null).status());
         verify(healthIndicatorService, Mockito.atLeast(1)).failureOccurred(contains(XContentParseException.class.getName()));

@@ -516,7 +516,7 @@ public class AuthorizationService {
                 requestInfo,
                 authzInfo,
                 resolvedIndicesAsyncSupplier,
-                projectMetadata.getIndicesLookup(),
+                projectMetadata,
                 wrapPreservingContext(
                     new AuthorizationResultListener<>(
                         result -> handleIndexActionAuthorizationResult(
@@ -591,7 +591,7 @@ public class AuthorizationService {
                         ResolvedIndices withAliases = new ResolvedIndices(aliasesAndIndices, Collections.emptyList());
                         l.onResponse(withAliases);
                     })),
-                    projectMetadata.getIndicesLookup(),
+                    projectMetadata,
                     wrapPreservingContext(
                         new AuthorizationResultListener<>(
                             authorizationResult -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener),
@@ -872,7 +872,7 @@ public class AuthorizationService {
                     bulkItemInfo,
                     authzInfo,
                     ril -> ril.onResponse(new ResolvedIndices(new ArrayList<>(indices), Collections.emptyList())),
-                    projectMetadata.getIndicesLookup(),
+                    projectMetadata,
                     groupedActionListener.delegateFailureAndWrap(
                         (l, indexAuthorizationResult) -> l.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult))
                     )

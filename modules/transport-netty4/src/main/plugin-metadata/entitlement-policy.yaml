@@ -1,0 +1,9 @@
+io.netty.transport:
+  - network:
+      actions:
+        - listen
+io.netty.common:
+  - network:
+      actions:
+        - connect
+        - accept

@@ -167,7 +167,7 @@ public class MetadataDeleteIndexService {
             IndexMetadata im = project.getIndexSafe(index);
             DataStream parent = project.getIndicesLookup().get(im.getIndex().getName()).getParentDataStream();
             if (parent != null) {
-                boolean isFailureStoreWriteIndex = im.getIndex().equals(parent.getFailureStoreWriteIndex());
+                boolean isFailureStoreWriteIndex = im.getIndex().equals(parent.getWriteFailureIndex());
                 if (isFailureStoreWriteIndex || im.getIndex().equals(parent.getWriteIndex())) {
                     throw new IllegalArgumentException(
                         "index ["

@@ -74,7 +74,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createChatCompletionModel;
+import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createCompletionModel;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettingsTests.getServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettingsTests.getTaskSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
@@ -1084,16 +1084,16 @@ public class OpenAiServiceTests extends ESTestCase {
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        var result = streamChatCompletion();
+        var result = streamCompletion();
 
         InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
             {"completion":[{"delta":"hello, world"}]}""");
     }
 
-    private InferenceServiceResults streamChatCompletion() throws IOException {
+    private InferenceServiceResults streamCompletion() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
-            var model = OpenAiChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "org", "secret", "model", "user");
+            var model = OpenAiChatCompletionModelTests.createCompletionModel(getUrl(webServer), "org", "secret", "model", "user");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -1122,7 +1122,7 @@ public class OpenAiServiceTests extends ESTestCase {
             }""";
         webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
-        var result = streamChatCompletion();
+        var result = streamCompletion();
 
         InferenceEventsAssertion.assertThat(result)
             .hasFinishedStream()
@@ -1527,7 +1527,7 @@ public class OpenAiServiceTests extends ESTestCase {
 
     public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
         try (var service = createOpenAiService()) {
-            var model = createChatCompletionModel(
+            var model = createCompletionModel(
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
@@ -1749,7 +1749,8 @@ public class OpenAiServiceTests extends ESTestCase {
                                     "required": true,
                                     "sensitive": true,
                                     "updatable": true,
-                                    "type": "str"
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                 },
                                 "organization_id": {
                                     "description": "The unique identifier of your organization.",
@@ -1757,7 +1758,8 @@ public class OpenAiServiceTests extends ESTestCase {
                                     "required": false,
                                     "sensitive": false,
                                     "updatable": false,
-                                    "type": "str"
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                 },
                                 "rate_limit.requests_per_minute": {
                                     "description": "Default number of requests allowed per minute. For text_embedding is 3000. For completion is 500.",
@@ -1765,7 +1767,8 @@ public class OpenAiServiceTests extends ESTestCase {
                                     "required": false,
                                     "sensitive": false,
                                     "updatable": false,
-                                    "type": "int"
+                                    "type": "int",
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                 },
                                 "model_id": {
                                     "description": "The name of the model to use for the inference task.",
@@ -1773,7 +1776,8 @@ public class OpenAiServiceTests extends ESTestCase {
                                     "required": true,
                                     "sensitive": false,
                                     "updatable": false,
-                                    "type": "str"
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                 },
                                 "url": {
                                     "default_value": "https://api.openai.com/v1/chat/completions",
@@ -1782,7 +1786,8 @@ public class OpenAiServiceTests extends ESTestCase {
                                     "required": true,
                                     "sensitive": false,
                                     "updatable": false,
-                                    "type": "str"
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                 }
                             }
                         }

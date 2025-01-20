@@ -140,7 +140,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             protected SearchPhase getNextPhase() {
                 return new SearchPhase("test") {
                     @Override
-                    public void run() {
+                    protected void run() {
                         assertTrue(searchPhaseDidRun.compareAndSet(false, true));
                         latch.countDown();
                     }
@@ -255,7 +255,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 protected SearchPhase getNextPhase() {
                     return new SearchPhase("test") {
                         @Override
-                        public void run() {
+                        protected void run() {
                             assertTrue(searchPhaseDidRun.compareAndSet(false, true));
                             latch.countDown();
                         }
@@ -363,7 +363,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 protected SearchPhase getNextPhase() {
                     return new SearchPhase("test") {
                         @Override
-                        public void run() {
+                        protected void run() {
                             for (int i = 0; i < results.getNumShards(); i++) {
                                 TestSearchPhaseResult result = results.getAtomicArray().get(i);
                                 assertEquals(result.node.getId(), result.getSearchShardTarget().getNodeId());
@@ -497,7 +497,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 protected SearchPhase getNextPhase() {
                     return new SearchPhase("test") {
                         @Override
-                        public void run() {
+                        protected void run() {
                             throw new RuntimeException("boom");
                         }
                     };
@@ -608,7 +608,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 protected SearchPhase getNextPhase() {
                     return new SearchPhase("test") {
                         @Override
-                        public void run() {
+                        protected void run() {
                             assertTrue(searchPhaseDidRun.compareAndSet(false, true));
                             latch.countDown();
                         }
@@ -688,7 +688,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             protected SearchPhase getNextPhase() {
                 return new SearchPhase("test") {
                     @Override
-                    public void run() {
+                    protected void run() {
                         assertTrue(searchPhaseDidRun.compareAndSet(false, true));
                         latch.countDown();
                     }

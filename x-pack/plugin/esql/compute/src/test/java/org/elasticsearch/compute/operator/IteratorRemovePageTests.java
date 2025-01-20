@@ -9,6 +9,8 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.core.ReleasableIterator;
 import org.hamcrest.Matcher;
 

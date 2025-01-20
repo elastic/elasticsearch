@@ -18,10 +18,6 @@ import java.net.http.HttpResponse;
 class VersionSpecificNetworkChecks {
     static void createInetAddressResolverProvider() {}
 
-    static void httpClientBuilderBuild() {
-        HttpClient.newBuilder().build();
-    }
-
     static void httpClientSend() throws InterruptedException {
         HttpClient httpClient = HttpClient.newBuilder().build();
         try {

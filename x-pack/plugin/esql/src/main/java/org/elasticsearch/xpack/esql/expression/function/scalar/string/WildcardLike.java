@@ -12,9 +12,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
@@ -22,13 +26,18 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
-public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike implements EvaluatorMapper {
+public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike
+    implements
+        EvaluatorMapper,
+        TranslationAware.SingleValueTranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "WildcardLike",
@@ -113,5 +122,27 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
             // The empty pattern will accept the empty string
             pattern().pattern().length() == 0 ? Automata.makeEmptyString() : pattern().createAutomaton()
         );
+    }
+
+    @Override
+    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+        return pushdownPredicates.isPushableAttribute(field());
+    }
+
+    @Override
+    public Query asQuery(TranslatorHandler handler) {
+        var field = field();
+        LucenePushdownPredicates.checkIsPushableAttribute(field);
+        return translateField(handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field));
+    }
+
+    // TODO: see whether escaping is needed
+    private Query translateField(String targetFieldName) {
+        return new WildcardQuery(source(), targetFieldName, pattern().asLuceneWildcard(), caseInsensitive());
+    }
+
+    @Override
+    public Expression singleValueField() {
+        return field();
     }
 }

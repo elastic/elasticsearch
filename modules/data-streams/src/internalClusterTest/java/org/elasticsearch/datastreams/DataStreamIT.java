@@ -1925,7 +1925,7 @@ public class DataStreamIT extends ESIntegTestCase {
                     DataStream original = currentState.getMetadata().dataStreams().get(dataStreamName);
                     DataStream broken = original.copy()
                         .setBackingIndices(
-                            original.getBackingIndices()
+                            original.getDataComponent()
                                 .copy()
                                 .setIndices(
                                     List.of(new Index(original.getIndices().get(0).getName(), "broken"), original.getIndices().get(1))

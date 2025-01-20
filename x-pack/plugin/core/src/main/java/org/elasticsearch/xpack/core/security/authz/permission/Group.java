@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -183,7 +184,9 @@ public class Group {
                         final DataStream ds = resource.getParentDataStream();
 
                         if (ds != null) { // This index is owned by a data stream
-                            boolean isFailureStoreIndex = ds.getFailureIndices().containsIndex(resource.getName());
+                            // Since this is a concrete index, the write index is the index itself
+                            Index indexObj = resource.getWriteIndex();
+                            boolean isFailureStoreIndex = indexObj != null && ds.getFailureIndices().contains(indexObj);
 
                             if (isReadAction) {
                                 // If we're trying to read a failure store index, we need to have read_failures for the data stream

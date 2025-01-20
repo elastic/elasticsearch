@@ -79,8 +79,10 @@ GET my-index-000001/_search
 <3> The second document contains no arrays, but can be indexed into the same fields.
 <4> The query looks for `elasticsearch` in the `tags` field, and matches both documents.
 
-
-Updating or appending an array is best done with a script using the <<update-api-example,update API>>.
+[TIP]
+====
+You can modify arrays using the <<update-api-example,update API>>.
+====
 
 
 

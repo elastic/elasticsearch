@@ -335,12 +335,8 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
         ClusterState returnedState = PersistentTasksCustomMetadata.disassociateDeadNodes(originalState);
         assertThat(originalState, sameInstance(returnedState));
 
-        PersistentTasksCustomMetadata originalTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
-            originalState.metadata().getProject(projectId)
-        );
-        PersistentTasksCustomMetadata returnedTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
-            returnedState.metadata().getProject(projectId)
-        );
+        PersistentTasksCustomMetadata originalTasks = PersistentTasksCustomMetadata.get(originalState.metadata().getProject(projectId));
+        PersistentTasksCustomMetadata returnedTasks = PersistentTasksCustomMetadata.get(returnedState.metadata().getProject(projectId));
         assertEquals(originalTasks, returnedTasks);
     }
 
@@ -377,12 +373,8 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
         ClusterState returnedState = PersistentTasksCustomMetadata.disassociateDeadNodes(originalState);
         assertThat(originalState, not(sameInstance(returnedState)));
 
-        PersistentTasksCustomMetadata originalTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
-            originalState.metadata().getProject(projectId)
-        );
-        PersistentTasksCustomMetadata returnedTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
-            returnedState.metadata().getProject(projectId)
-        );
+        PersistentTasksCustomMetadata originalTasks = PersistentTasksCustomMetadata.get(originalState.metadata().getProject(projectId));
+        PersistentTasksCustomMetadata returnedTasks = PersistentTasksCustomMetadata.get(returnedState.metadata().getProject(projectId));
         assertNotEquals(originalTasks, returnedTasks);
 
         assertEquals(originalTasks.getTask("assigned-task"), returnedTasks.getTask("assigned-task"));

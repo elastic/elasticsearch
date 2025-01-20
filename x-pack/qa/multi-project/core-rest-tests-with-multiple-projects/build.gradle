@@ -54,7 +54,6 @@ tasks.named("yamlRestTest").configure {
     '^data_stream/150_tsdb/*',
     '^data_stream/170_modify_data_stream/*',
     '^data_stream/180_simulate_existing_data_stream/*',
-    '^delete_by_query/50_wait_for_active_shards/*',
     '^health/10_basic/*',
     '^health/40_diagnosis/*',
     '^indices.get_alias/10_basic/Get alias against closed indices', // Does NOT work with security enabled, see also core-rest-tests-with-security
@@ -85,13 +84,16 @@ tasks.named("yamlRestTest").configure {
     '^snapshot.status/*/*',
     '^synonyms/*/*',
     '^tsdb/30_snapshot/*',
-    '^update_by_query/50_consistency/*',
-    '^update_by_query/80_scripting/Update all docs with one deletion and one noop using a stored script',
+    '^update_by_query/80_scripting/Update all docs with one deletion and one noop using a stored script', // scripting is not project aware yet
 
     // The following tests are muted because the functionality that they are testing is not available in a multi-project setup
 
     // The node removal prevalidation is only available for a Stateful deployment.
     '^cluster.prevalidate_node_removal/*/*',
+
+    // These tests assume we are running on a single node
+    '^delete_by_query/50_wait_for_active_shards/can override wait_for_active_shards',
+    '^update_by_query/50_consistency/can override wait_for_active_shards',
 
     // Reindex from remote is not supported on Serverless and required additional testing setup
     '^reindex/60_wait_for_active_shards/can override wait_for_active_shards', // <- Requires a single shard

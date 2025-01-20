@@ -665,7 +665,7 @@ public class SecurityTests extends ESTestCase {
                 )
             )
             .put(
-                ApiKeyService.CREDENTIAL_HASHING_ALGORITHM.getKey(),
+                ApiKeyService.STORED_HASH_ALGO_SETTING.getKey(),
                 randomFrom(
                     Hasher.getAvailableAlgoStoredPasswordHash()
                         .stream()
@@ -696,7 +696,7 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testValidateForFipsNonFipsCompliantStoredHashAlgoWarningLog() throws IllegalAccessException {
-        String key = randomFrom(ApiKeyService.CREDENTIAL_HASHING_ALGORITHM, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM).getKey();
+        String key = randomFrom(ApiKeyService.STORED_HASH_ALGO_SETTING, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM).getKey();
         final Settings settings = Settings.builder()
             .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
             .put(key, randomNonFipsCompliantStoredHash())

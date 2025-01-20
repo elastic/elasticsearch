@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SecureRandomHolder;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -159,9 +158,9 @@ public class ApiKeyService implements Closeable {
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ApiKeyService.class);
 
-    public static final Setting<String> CREDENTIAL_HASHING_ALGORITHM = XPackSettings.defaultStoredSecureTokenHashAlgorithmSetting(
+    public static final Setting<String> STORED_HASH_ALGO_SETTING = XPackSettings.defaultStoredSecureTokenHashAlgorithmSetting(
         "xpack.security.authc.api_key.hashing.algorithm",
-        (s) -> Hasher.PBKDF2.name()
+        (s) -> Hasher.SSHA256.name()
     );
     public static final Setting<TimeValue> DELETE_TIMEOUT = Setting.timeSetting(
         "xpack.security.authc.api_key.delete.timeout",
@@ -182,7 +181,7 @@ public class ApiKeyService implements Closeable {
     );
     public static final Setting<String> CACHE_HASH_ALGO_SETTING = Setting.simpleString(
         "xpack.security.authc.api_key.cache.hash_algo",
-        "ssha256",
+        Hasher.SSHA256.name(),
         Setting.Property.NodeScope
     );
     public static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting(
@@ -218,9 +217,8 @@ public class ApiKeyService implements Closeable {
     private final ThreadPool threadPool;
     private final ApiKeyDocCache apiKeyDocCache;
 
-    // The API key secret is a Base64 encoded v4 UUID without padding. The UUID is 128 bits, i.e. 16 byte,
-    // which requires 22 digits of Base64 characters for encoding without padding.
-    // See also UUIDs.randomBase64UUIDSecureString
+    // The API key secret is a Base64 encoded string of 128 random bits.
+    // See getBase64SecureRandomString()
     private static final int API_KEY_SECRET_LENGTH = 22;
     private static final long EVICTION_MONITOR_INTERVAL_SECONDS = 300L; // 5 minutes
     private static final long EVICTION_MONITOR_INTERVAL_NANOS = EVICTION_MONITOR_INTERVAL_SECONDS * 1_000_000_000L;
@@ -246,7 +244,7 @@ public class ApiKeyService implements Closeable {
         this.securityIndex = securityIndex;
         this.clusterService = clusterService;
         this.enabled = XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(settings);
-        this.hasher = Hasher.resolve(CREDENTIAL_HASHING_ALGORITHM.get(settings));
+        this.hasher = Hasher.resolve(STORED_HASH_ALGO_SETTING.get(settings));
         this.settings = settings;
         this.inactiveApiKeysRemover = new InactiveApiKeysRemover(settings, client, clusterService);
         this.threadPool = threadPool;
@@ -267,7 +265,9 @@ public class ApiKeyService implements Closeable {
                     if (apiKeyDocCache != null) {
                         apiKeyDocCache.invalidate(keys);
                     }
-                    keys.forEach(apiKeyAuthCache::invalidate);
+                    if (apiKeyAuthCache != null) {
+                        keys.forEach(apiKeyAuthCache::invalidate);
+                    }
                 }
 
                 @Override
@@ -275,7 +275,9 @@ public class ApiKeyService implements Closeable {
                     if (apiKeyDocCache != null) {
                         apiKeyDocCache.invalidateAll();
                     }
-                    apiKeyAuthCache.invalidateAll();
+                    if (apiKeyAuthCache != null) {
+                        apiKeyAuthCache.invalidateAll();
+                    }
                 }
             });
             cacheInvalidatorRegistry.registerCacheInvalidator("api_key_doc", new CacheInvalidatorRegistry.CacheInvalidator() {
@@ -542,7 +544,7 @@ public class ApiKeyService implements Closeable {
     ) {
         final Instant created = clock.instant();
         final Instant expiration = getApiKeyExpiration(created, request.getExpiration());
-        final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
+        final SecureString apiKey = getBase64SecureRandomString();
         assert ApiKey.Type.CROSS_CLUSTER != request.getType() || API_KEY_SECRET_LENGTH == apiKey.length()
             : "Invalid API key (name=[" + request.getName() + "], type=[" + request.getType() + "], length=[" + apiKey.length() + "])";
 
@@ -590,9 +592,11 @@ public class ApiKeyService implements Closeable {
                                     + "])";
                             assert indexResponse.getResult() == DocWriteResponse.Result.CREATED
                                 : "Index response was [" + indexResponse.getResult() + "]";
-                            final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
-                            listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
-                            apiKeyAuthCache.put(request.getId(), listenableFuture);
+                            if (apiKeyAuthCache != null) {
+                                final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
+                                listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
+                                apiKeyAuthCache.put(request.getId(), listenableFuture);
+                            }
                             listener.onResponse(new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
                         }, listener::onFailure))
                     )
@@ -2661,11 +2665,11 @@ public class ApiKeyService implements Closeable {
         return DiscoveryNode.isStateless(settings) ? RefreshPolicy.IMMEDIATE : RefreshPolicy.WAIT_UNTIL;
     }
 
-    static SecureString getBase64SecureRandomString(int randomBytesCount) {
+    private static SecureString getBase64SecureRandomString() {
         byte[] randomBytes = null;
         byte[] encodedBytes = null;
         try {
-            randomBytes = new byte[randomBytesCount];
+            randomBytes = new byte[16];
             SecureRandomHolder.INSTANCE.nextBytes(randomBytes);
             encodedBytes = Base64.getUrlEncoder().withoutPadding().encode(randomBytes);
             return new SecureString(CharArrays.utf8BytesToChars(encodedBytes));

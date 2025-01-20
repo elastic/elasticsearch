@@ -1306,15 +1306,17 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limitValues = new int[] { randomIntBetween(10, 99), randomIntBetween(100, 1000) };
         var firstLimit = randomBoolean() ? 0 : 1;
         var secondLimit = firstLimit == 0 ? 1 : 0;
-        var oneLimit = new Limit(EMPTY, L(limitValues[firstLimit]), emptySource());
-        var anotherLimit = new Limit(EMPTY, L(limitValues[secondLimit]), oneLimit);
+        var oneLimit = new Limit(EMPTY, L(limitValues[firstLimit]), emptySource(), true);
+        var anotherLimit = new Limit(EMPTY, L(limitValues[secondLimit]), oneLimit, true);
         assertEquals(
-            new Limit(EMPTY, L(Math.min(limitValues[0], limitValues[1])), emptySource()),
+            new Limit(EMPTY, L(Math.min(limitValues[0], limitValues[1])), emptySource(), true),
             new PushDownAndCombineLimits().rule(anotherLimit, logicalOptimizerCtx)
         );
     }
 
     public void testPushdownLimitsPastLeftJoin() {
+        var rule = new PushDownAndCombineLimits();
+
         var leftChild = emptySource();
         var rightChild = new LocalRelation(Source.EMPTY, List.of(fieldAttribute()), LocalSupplier.EMPTY);
         assertNotEquals(leftChild, rightChild);
@@ -1327,11 +1329,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             default -> throw new IllegalArgumentException();
         };
 
-        var limit = new Limit(EMPTY, L(10), join);
+        var limit = new Limit(EMPTY, L(10), join, true);
 
-        var optimizedPlan = new PushDownAndCombineLimits().rule(limit, logicalOptimizerCtx);
+        var optimizedPlan = rule.apply(limit, logicalOptimizerCtx);
 
-        assertEquals(join.replaceChildren(limit.replaceChild(join.left()), join.right()), optimizedPlan);
+        assertEquals(
+            new Limit(limit.source(), limit.limit(), join.replaceChildren(limit.replaceChild(join.left()), join.right()), false),
+            optimizedPlan
+        );
+
+        var optimizedTwice = rule.apply(optimizedPlan, logicalOptimizerCtx);
+        // We mustn't create the limit after the JOIN multiple times when the rule is applied multiple times, that'd lead to infinite loops.
+        assertEquals(optimizedPlan, optimizedTwice);
     }
 
     public void testMultipleCombineLimits() {
@@ -1345,9 +1354,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         for (int i = 0; i < numberOfLimits; i++) {
             var value = i == limitWithMinimum ? minimum : randomIntBetween(100, 1000);
-            plan = new Limit(EMPTY, L(value), plan);
+            plan = new Limit(EMPTY, L(value), plan, true);
         }
-        assertEquals(new Limit(EMPTY, L(minimum), relation), logicalOptimizer.optimize(plan));
+        assertEquals(new Limit(EMPTY, L(minimum), relation, true), logicalOptimizer.optimize(plan));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/115311")
@@ -4930,7 +4939,17 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references [salary"));
     }
 
-    public void testPlanSanityCheckWithBinaryPlans() throws Exception {
+    /**
+     * Expects
+     * Limit[1000[INTEGER],false]
+     * \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#17]]
+     *   |_EsqlProject[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, lang
+     * uages{f}#9 AS language_code, last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
+     *   | \_Limit[1000[INTEGER],true]
+     *   |   \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#17, language_name{f}#18]
+     */
+    public void testPlanSanityCheckWithBinaryPlans() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
 
         var plan = optimizedPlan("""
@@ -4939,7 +4958,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | LOOKUP JOIN languages_lookup ON language_code
             """);
 
-        var join = as(plan, Join.class);
+        var upperLimit = as(plan, Limit.class);
+        var join = as(upperLimit.child(), Join.class);
 
         var joinWithInvalidLeftPlan = join.replaceChildren(join.right(), join.right());
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> logicalOptimizer.optimize(joinWithInvalidLeftPlan));
@@ -5995,15 +6015,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     /**
      * Filter on join keys should be pushed down
      * Expects
-     * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
-     * uage_code{r}#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
-     *   \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
-     *     |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
+     *
+     * Limit[1000[INTEGER],false]
+     * \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
+     *   |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
      * uages{f}#10 AS language_code, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
-     *     | \_Limit[1000[INTEGER]]
-     *     |  \_Filter[languages{f}#10 > 1[INTEGER]]
-     *     |    \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
+     *   | \_Limit[1000[INTEGER],true]
+     *   |   \_Filter[languages{f}#10 > 1[INTEGER]]
+     *   |     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testLookupJoinPushDownFilterOnJoinKeyWithRename() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
@@ -6016,7 +6036,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             """;
         var plan = optimizedPlan(query);
 
-        var join = as(plan, Join.class);
+        var upperLimit = as(plan, Limit.class);
+        var join = as(upperLimit.child(), Join.class);
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
         var project = as(join.left(), Project.class);
         var limit = as(project.child(), Limit.class);
@@ -6037,15 +6058,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     /**
      * Filter on on left side fields (outside the join key) should be pushed down
      * Expects
-     * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
-     * uage_code{r}#4, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_name{f}#19]]
-     *   \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
-     *     |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
+     * Limit[1000[INTEGER],false]
+     * \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
+     *   |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
      * uages{f}#10 AS language_code, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
-     *     | \_Limit[1000[INTEGER]]
-     *     |  \_Filter[emp_no{f}#7 > 1[INTEGER]]
-     *     |    \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
+     *   | \_Limit[1000[INTEGER],true]
+     *   |   \_Filter[emp_no{f}#7 > 1[INTEGER]]
+     *   |     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testLookupJoinPushDownFilterOnLeftSideField() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
@@ -6059,7 +6079,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var plan = optimizedPlan(query);
 
-        var join = as(plan, Join.class);
+        var upperLimit = as(plan, Limit.class);
+        var join = as(upperLimit.child(), Join.class);
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
         var project = as(join.left(), Project.class);
 

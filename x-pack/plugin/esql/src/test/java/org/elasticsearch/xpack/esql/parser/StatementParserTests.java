@@ -774,7 +774,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testSubqueryWithPipe() {
         assertEquals(
-            new Limit(EMPTY, integer(10), new Explain(EMPTY, PROCESSING_CMD_INPUT)),
+            new Limit(EMPTY, integer(10), new Explain(EMPTY, PROCESSING_CMD_INPUT), true),
             statement("explain [ row a = 1 ] | limit 10")
         );
     }
@@ -784,7 +784,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
             new Limit(
                 EMPTY,
                 integer(10),
-                new Explain(EMPTY, new Limit(EMPTY, integer(5), new Explain(EMPTY, new Limit(EMPTY, integer(1), PROCESSING_CMD_INPUT))))
+                new Explain(
+                    EMPTY,
+                    new Limit(EMPTY, integer(5), new Explain(EMPTY, new Limit(EMPTY, integer(1), PROCESSING_CMD_INPUT, true)), true)
+                ),
+                true
             ),
             statement("explain [ explain [ row a = 1 | limit 1 ] | limit 5 ] | limit 10")
         );
@@ -1586,7 +1590,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     EMPTY,
                     new Eval(EMPTY, relation("test"), List.of(new Alias(EMPTY, "x", function("toString", List.of(attribute("f1.")))))),
                     new Equals(EMPTY, attribute("f1."), attribute("f.2"))
-                )
+                ),
+                true
             ),
             statement(
                 """
@@ -1613,7 +1618,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     EMPTY,
                     new Eval(EMPTY, relation("test"), List.of(new Alias(EMPTY, "x", function("toString", List.of(attribute("f1..f.2")))))),
                     new Equals(EMPTY, attribute("f3.*.f.4."), attribute("f.5.*.f.*.6"))
-                )
+                ),
+                true
             ),
             statement(
                 """

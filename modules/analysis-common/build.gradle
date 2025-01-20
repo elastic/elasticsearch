@@ -39,7 +39,7 @@ tasks.named("yamlRestCompatTestTransform").configure { task ->
 }
 
 tasks.named("yamlRestTest").configure {
-  if (buildParams.getRuntimeJavaVersion().map{ it.majorVersion.toInteger() }.get() >= 24 ||
+  if (buildParams.getRuntimeJavaVersion().get().isCompatibleWith(JavaVersion.VERSION_24) ||
     "-Des.entitlements.enabled=true".equals(System.getProperty("tests.jvm.argline"))) {
     systemProperty 'tests.rest.blacklist',
       [

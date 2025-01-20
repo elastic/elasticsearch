@@ -133,15 +133,6 @@ The following request lists all roles, sorted by the role name:
 ----
 POST /_security/_query/role
 {
-    "query": {
-      "bool": {
-        "must_not": {
-          "term": {
-            "metadata._reserved": true
-          }
-        }
-      }
-    },
     "sort": ["name"]
 }
 ----

@@ -147,6 +147,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
         XContentBuilder settingsBuilder = XContentFactory.jsonBuilder().startObject().startObject("settings");
         settingsBuilder.field("index.number_of_shards", numberOfShards);
+        settingsBuilder.field("index.mapper.dynamic", true);
 
         // 6.5.0 started using soft-deletes, but it was only enabled by default on 7.0
         if (oldVersion.onOrAfter(Version.fromString("6.5.0")) && oldVersion.before(Version.fromString("7.0.0")) && randomBoolean()) {
@@ -156,6 +157,12 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         settingsBuilder.endObject().endObject();
 
         createIndex.setJsonEntity(Strings.toString(settingsBuilder));
+        createIndex.setOptions(
+                expectWarnings(
+                        "[index.mapper.dynamic] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                                + "See the breaking changes documentation for the next major version."
+                )
+        );
         assertOK(oldEs.performRequest(createIndex));
 
         for (int i = 0; i < numDocs + extraDocs; i++) {

@@ -15,7 +15,7 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
@@ -102,7 +102,7 @@ public class FullTextFunctionMapperPreprocessor implements MappingPreProcessor {
             this.queryBuilderMap = new HashMap<>();
 
             for (FullTextFunction func : functions) {
-                queryBuilderMap.put(func, func.asQuery(PlannerUtils.TRANSLATOR_HANDLER).asBuilder());
+                queryBuilderMap.put(func, func.asQuery(TranslatorHandler.TRANSLATOR_HANDLER).asBuilder());
             }
         }
 

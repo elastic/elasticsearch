@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.List;
@@ -537,7 +536,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     /**
      * @see TransportVersions#REVERT_BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1
      */
-    @Ignore("Transport changes have been temporarily reverted")
+    @AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-10585")
     public void testTwoDigitTransportRoundTrips() throws IOException {
         TransportVersion tv = TransportVersion.current();
         for (var desiredUnit : ByteSizeUnit.values()) {

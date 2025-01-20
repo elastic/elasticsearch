@@ -37,11 +37,11 @@ public class EsSourceExec extends LeafExec {
     private final String indexPattern;
     private final IndexMode indexMode;
     private final Map<String, IndexMode> indexNameWithModes;
-    private final QueryBuilder query;
     private final List<Attribute> attributes;
+    private final QueryBuilder query;
 
     public EsSourceExec(EsRelation relation) {
-        this(relation.source(), relation.indexPattern(), relation.indexMode(), relation.indexNameWithModes(), null, relation.output());
+        this(relation.source(), relation.indexPattern(), relation.indexMode(), relation.indexNameWithModes(), relation.output(), null);
     }
 
     public EsSourceExec(
@@ -49,15 +49,15 @@ public class EsSourceExec extends LeafExec {
         String indexPattern,
         IndexMode indexMode,
         Map<String, IndexMode> indexNameWithModes,
-        QueryBuilder query,
-        List<Attribute> attributes
+        List<Attribute> attributes,
+        QueryBuilder query
     ) {
         super(source);
         this.indexPattern = indexPattern;
         this.indexMode = indexMode;
         this.indexNameWithModes = indexNameWithModes;
-        this.query = query;
         this.attributes = attributes;
+        this.query = query;
     }
 
     private static EsSourceExec readFrom(StreamInput in) throws IOException {
@@ -75,7 +75,7 @@ public class EsSourceExec extends LeafExec {
         var attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         var query = in.readOptionalNamedWriteable(QueryBuilder.class);
         var indexMode = EsRelation.readIndexMode(in);
-        return new EsSourceExec(source, indexPattern, indexMode, indexNameWithModes, query, attributes);
+        return new EsSourceExec(source, indexPattern, indexMode, indexNameWithModes, attributes, query);
     }
 
     @Override
@@ -120,12 +120,12 @@ public class EsSourceExec extends LeafExec {
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, EsSourceExec::new, indexPattern, indexMode, indexNameWithModes, query, attributes);
+        return NodeInfo.create(this, EsSourceExec::new, indexPattern, indexMode, indexNameWithModes, attributes, query);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern, indexMode, indexNameWithModes, query, attributes);
+        return Objects.hash(indexPattern, indexMode, indexNameWithModes, attributes, query);
     }
 
     @Override
@@ -142,8 +142,8 @@ public class EsSourceExec extends LeafExec {
         return Objects.equals(indexPattern, other.indexPattern)
             && Objects.equals(indexMode, other.indexMode)
             && Objects.equals(indexNameWithModes, other.indexNameWithModes)
-            && Objects.equals(query, other.query)
-            && Objects.equals(attributes, other.attributes);
+            && Objects.equals(attributes, other.attributes)
+            && Objects.equals(query, other.query);
     }
 
     @Override

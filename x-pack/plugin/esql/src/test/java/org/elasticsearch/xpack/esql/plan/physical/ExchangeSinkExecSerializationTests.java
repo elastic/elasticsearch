@@ -154,7 +154,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      */
     public void testIndexPatternTargetingMultipleIndices() throws IOException {
         /*
-         * History: 4996
+         * History: 4996b - initial
          */
 
         var index = new EsIndex(

@@ -43,7 +43,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
         }
     }
 
-    private final String indexName;
+    private final String indexPattern;
     private final QueryBuilder query;
     private final Expression limit;
     private final List<Attribute> attrs;
@@ -51,14 +51,14 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
 
     public EsStatsQueryExec(
         Source source,
-        String indexName,
+        String indexPattern,
         QueryBuilder query,
         Expression limit,
         List<Attribute> attributes,
         List<Stat> stats
     ) {
         super(source);
-        this.indexName = indexName;
+        this.indexPattern = indexPattern;
         this.query = query;
         this.limit = limit;
         this.attrs = attributes;
@@ -77,7 +77,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<EsStatsQueryExec> info() {
-        return NodeInfo.create(this, EsStatsQueryExec::new, indexName, query, limit, attrs, stats);
+        return NodeInfo.create(this, EsStatsQueryExec::new, indexPattern, query, limit, attrs, stats);
     }
 
     public QueryBuilder query() {
@@ -108,7 +108,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexName, query, limit, attrs, stats);
+        return Objects.hash(indexPattern, query, limit, attrs, stats);
     }
 
     @Override
@@ -122,7 +122,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
         }
 
         EsStatsQueryExec other = (EsStatsQueryExec) obj;
-        return Objects.equals(indexName, other.indexName)
+        return Objects.equals(indexPattern, other.indexPattern)
             && Objects.equals(attrs, other.attrs)
             && Objects.equals(query, other.query)
             && Objects.equals(limit, other.limit)
@@ -133,7 +133,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
     public String nodeString() {
         return nodeName()
             + "["
-            + indexName
+            + indexPattern
             + "], stats"
             + stats
             + "], query["

@@ -51,10 +51,10 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     private final String indexPattern;
     private final IndexMode indexMode;
     private final Map<String, IndexMode> indexNameWithModes;
+    private final List<Attribute> attrs;
     private final QueryBuilder query;
     private final Expression limit;
     private final List<Sort> sorts;
-    private final List<Attribute> attrs;
 
     /**
      * Estimate of the number of bytes that'll be loaded per position before
@@ -137,8 +137,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         this.indexPattern = indexPattern;
         this.indexMode = indexMode;
         this.indexNameWithModes = indexNameWithModes;
-        this.query = query;
         this.attrs = attrs;
+        this.query = query;
         this.limit = limit;
         this.sorts = sorts;
         this.estimatedRowSize = estimatedRowSize;

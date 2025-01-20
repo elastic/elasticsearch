@@ -197,8 +197,8 @@ public class PlannerUtils {
                         query.indexPattern(),
                         query.indexMode(),
                         query.indexNameWithModes(),
-                        filter,
-                        query.output()
+                        query.output(),
+                        filter
                     )
                 );
             }

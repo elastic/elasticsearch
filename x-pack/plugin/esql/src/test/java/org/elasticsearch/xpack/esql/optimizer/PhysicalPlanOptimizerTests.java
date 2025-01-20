@@ -2610,8 +2610,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 node.indexPattern(),
                 IndexMode.STANDARD,
                 node.indexNameWithModes(),
-                node.query(),
-                List.of()
+                List.of(),
+                node.query()
             )
         );
 

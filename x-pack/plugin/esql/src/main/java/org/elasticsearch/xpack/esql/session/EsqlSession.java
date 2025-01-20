@@ -543,6 +543,10 @@ public class EsqlSession {
         }
     }
 
+    /**
+     * Get the field names from the parsed plan combined with the ENRICH match fields from the ENRICH policy
+     * and the JOIN ON keys.
+     */
     static PreAnalysisResult fieldNames(LogicalPlan parsed, Set<String> enrichPolicyMatchFields, PreAnalysisResult result) {
         if (false == parsed.anyMatch(plan -> plan instanceof Aggregate || plan instanceof Project)) {
             // no explicit columns selection, for example "from employees"
@@ -635,17 +639,16 @@ public class EsqlSession {
         // remove valid metadata attributes because they will be filtered out by the IndexResolver anyway
         // otherwise, in some edge cases, we will fail to ask for "*" (all fields) instead
         references.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.name()));
-        Set<String> fieldNames = references.names();
 
-        if (fieldNames.isEmpty() && enrichPolicyMatchFields.isEmpty()) {
-            // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
-            return result.withFieldNames(IndexResolver.INDEX_METADATA_FIELD);
-        } else {
-            fieldNames.addAll(subfields(fieldNames));
-            fieldNames.addAll(enrichPolicyMatchFields);
-            fieldNames.addAll(subfields(enrichPolicyMatchFields));
-            return result.withFieldNames(fieldNames);
-        }
+        Set<String> fieldNames = references.names();
+        fieldNames.addAll(subfields(fieldNames));
+        fieldNames.addAll(enrichPolicyMatchFields);
+        fieldNames.addAll(subfields(enrichPolicyMatchFields));
+        // We add the "_index" field because it's light, and there must always be some field matching the indices.
+        // Originally, this was used only when no fields were found, but ENRICH/LOOKUP fields can't currently
+        // be distinguished from fields of the original index, so we always add it as a safety measure.
+        fieldNames.addAll(IndexResolver.INDEX_METADATA_FIELD);
+        return result.withFieldNames(fieldNames);
     }
 
     private static boolean matchByName(Attribute attr, String other, boolean skipIfPattern) {

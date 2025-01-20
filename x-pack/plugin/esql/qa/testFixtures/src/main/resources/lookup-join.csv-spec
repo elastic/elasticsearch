@@ -242,6 +242,29 @@ emp_no:integer
 10001
 ;
 
+dropAllOriginalIndexFields
+required_capability: join_lookup_v11
+required_capability: fix_field_names_enrich_lookup_no_valid_fields
+
+FROM employees
+| LIMIT 2
+| EVAL language_code = 1
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| SORT language_name, country
+| KEEP language_name, country
+;
+
+language_name:keyword | country:text
+English               | Canada
+English               | Canada
+English               | United States of America
+English               | United States of America
+English               | null
+English               | null
+null                  | United Kingdom
+null                  | United Kingdom
+;
+
 ###############################################
 # Filtering tests with languages_lookup index
 ###############################################

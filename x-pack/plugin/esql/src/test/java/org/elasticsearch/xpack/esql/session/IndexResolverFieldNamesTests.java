@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -1321,15 +1322,14 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from employees
             | enrich languages_policy
             | keep emp_no""", Set.of("language_name"));
-        assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "language_name", "language_name.*")));
+        assertThat(fieldNames, equalTo(expectedFieldNames(Set.of("emp_no", "emp_no.*", "language_name", "language_name.*"))));
     }
 
     public void testDissectOverwriteName() {
-        Set<String> fieldNames = fieldNames("""
+        assertFieldNames("""
             from employees
             | dissect first_name "%{first_name} %{more}"
-            | keep emp_no, first_name, more""", Set.of());
-        assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "first_name", "first_name.*")));
+            | keep emp_no, first_name, more""", Set.of("emp_no", "emp_no.*", "first_name", "first_name.*"));
     }
 
     public void testEnrichOnDefaultField() {
@@ -1346,20 +1346,17 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("line 1:1: mismatched input 'METRICS' expecting {"));
             return;
         }
-        Set<String> fieldNames = fieldNames(query, Set.of());
-        assertThat(
-            fieldNames,
-            equalTo(
-                Set.of(
-                    "@timestamp",
-                    "@timestamp.*",
-                    "network.total_bytes_in",
-                    "network.total_bytes_in.*",
-                    "network.total_cost",
-                    "network.total_cost.*",
-                    "cluster",
-                    "cluster.*"
-                )
+        assertFieldNames(
+            query,
+            Set.of(
+                "@timestamp",
+                "@timestamp.*",
+                "network.total_bytes_in",
+                "network.total_bytes_in.*",
+                "network.total_cost",
+                "network.total_cost.*",
+                "cluster",
+                "cluster.*"
             )
         );
     }
@@ -1575,6 +1572,15 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         );
     }
 
+    public void testLookupJoinWithEvalKey() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assertFieldNames("""
+            FROM some_index
+            | EVAL key = 5
+            | LOOKUP JOIN some_lookup ON key
+            | KEEP test""", Set.of("test", "test.*", "key", "key.*"));
+    }
+
     private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {
         var preAnalysisResult = new EsqlSession.PreAnalysisResult(null);
         return EsqlSession.fieldNames(parser.createStatement(query), enrichPolicyMatchFields, preAnalysisResult).fieldNames();
@@ -1582,12 +1588,20 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
 
     private void assertFieldNames(String query, Set<String> expected) {
         Set<String> fieldNames = fieldNames(query, Collections.emptySet());
-        assertThat(fieldNames, equalTo(expected));
+        assertThat(fieldNames, equalTo(expectedFieldNames(expected)));
     }
 
     private void assertFieldNames(String query, Set<String> expected, Set<String> wildCardIndices) {
         var preAnalysisResult = EsqlSession.fieldNames(parser.createStatement(query), Set.of(), new EsqlSession.PreAnalysisResult(null));
-        assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expected));
+        assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expectedFieldNames(expected)));
         assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices(), equalTo(wildCardIndices));
+    }
+
+    private Set<String> expectedFieldNames(Set<String> expected) {
+        if (expected.size() == 1 && expected.contains("*")) {
+            return expected;
+        }
+
+        return Sets.union(expected, IndexResolver.INDEX_METADATA_FIELD);
     }
 }

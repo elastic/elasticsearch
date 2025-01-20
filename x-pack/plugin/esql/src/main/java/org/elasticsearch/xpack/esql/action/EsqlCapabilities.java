@@ -736,6 +736,13 @@ public class EsqlCapabilities {
         SEMANTIC_TEXT_FIELD_CAPS,
 
         /**
+         * Fix for https://github.com/elastic/elasticsearch/issues/120272.
+         * When there's an ENRICH/LOOKUP, and all fields from the original indices are discarded,
+         * field-caps wasn't asking for any existing field.
+         */
+        FIX_FIELD_NAMES_ENRICH_LOOKUP_NO_VALID_FIELDS,
+
+        /**
          * Support named argument for function in map format.
          */
         OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION(Build.current().isSnapshot());

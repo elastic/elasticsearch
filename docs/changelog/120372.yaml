@@ -1,0 +1,6 @@
+pr: 120372
+summary: Ask for correct field names if only LOOKUP/ENRICH fields are kept
+area: ES|QL
+type: bug
+issues:
+ - 120272

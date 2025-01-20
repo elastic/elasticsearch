@@ -2,3 +2,6 @@ ALL-UNNAMED:
   - network:
       actions:
         - connect
+  - write_properties:
+      properties:
+        - hadoop.home.dir

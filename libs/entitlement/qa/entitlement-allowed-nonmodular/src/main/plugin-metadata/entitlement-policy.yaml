@@ -6,3 +6,7 @@ ALL-UNNAMED:
         - listen
         - accept
         - connect
+  - write_properties:
+      properties:
+        - es.entitlements.checkSetSystemProperty
+        - es.entitlements.checkClearSystemProperty

@@ -222,6 +222,47 @@ public class PolicyManager {
         );
     }
 
+    public void checkWriteProperty(Class<?> callerClass, String property) {
+        var requestingClass = requestingClass(callerClass);
+        if (isTriviallyAllowed(requestingClass)) {
+            return;
+        }
+
+        // FIXME: Having to pass the entitlement class here for logging purposes seems wrong.
+        // This API suggests it's doing something else than what it actually does. This looks like a filter, but isn't!
+        ModuleEntitlements entitlements = getEntitlements(requestingClass, Entitlement.class);
+        if (entitlements.hasEntitlement(WriteAllPropertiesEntitlement.class)) {
+            logger.debug(
+                () -> Strings.format(
+                    "Entitled: class [%s], module [%s], entitlement [write_all_properties], property [%s]",
+                    requestingClass,
+                    requestingClass.getModule().getName(),
+                    property
+                )
+            );
+            return;
+        }
+        if (entitlements.getEntitlements(WritePropertiesEntitlement.class).anyMatch(e -> e.properties().contains(property))) {
+            logger.debug(
+                () -> Strings.format(
+                    "Entitled: class [%s], module [%s], entitlement [write_properties], property [%s]",
+                    requestingClass,
+                    requestingClass.getModule().getName(),
+                    property
+                )
+            );
+            return;
+        }
+        throw new NotEntitledException(
+            Strings.format(
+                "Missing entitlement: class [%s], module [%s], entitlement [write_properties], property [%s]",
+                requestingClass,
+                requestingClass.getModule().getName(),
+                property
+            )
+        );
+    }
+
     private void checkEntitlementPresent(Class<?> callerClass, Class<? extends Entitlement> entitlementClass) {
         var requestingClass = requestingClass(callerClass);
         if (isTriviallyAllowed(requestingClass)) {

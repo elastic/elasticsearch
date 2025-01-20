@@ -124,6 +124,10 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("timeZoneNameProvider", alwaysDenied(RestEntitlementsCheckAction::timeZoneNameProvider$)),
         entry("logManager", alwaysDenied(RestEntitlementsCheckAction::logManager$)),
 
+        entry("system_setProperty", forPlugins(WritePropertiesCheckActions::setSystemProperty)),
+        entry("system_clearProperty", forPlugins(WritePropertiesCheckActions::clearSystemProperty)),
+        entry("system_setSystemProperties", alwaysDenied(WritePropertiesCheckActions::setSystemProperties)),
+
         // This group is a bit nasty: if entitlements don't prevent these, then networking is
         // irreparably borked for the remainder of the test run.
         entry(

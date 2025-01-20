@@ -1,0 +1,5 @@
+pr: 120453
+summary: Support boolean strings for alias defination in CreateIndex API
+area: Indices APIs
+type: bug
+issues: []

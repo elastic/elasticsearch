@@ -50,8 +50,12 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
     private static final String READ_SECURITY_USER_AUTH_HEADER = "Basic cmVhZF9zZWN1cml0eV91c2VyOnJlYWQtc2VjdXJpdHktcGFzc3dvcmQ=";
 
     public void testSimpleQueryAllRoles() throws IOException {
-        assertQuery("""
-            {"query": { "bool": { "must_not": { "term": { "metadata._reserved": true}}}}}""", 0, roles -> assertThat(roles, emptyIterable()));
+        assertQuery(
+            """
+                {"query": { "bool": { "must_not": { "term": { "metadata._reserved": true}}}}}""",
+            0,
+            roles -> assertThat(roles, emptyIterable())
+        );
         RoleDescriptor createdRole = createRandomRole();
         assertQuery("""
             {"query": { "bool": { "must_not": { "term": { "metadata._reserved": true}}}}}""", 1, roles -> {

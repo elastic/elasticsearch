@@ -698,6 +698,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
             return new SingletonOrdinalsBuilder(factory, ordinals, count);
         }
+
+        @Override
+        public BlockLoader.AggregateDoubleMetricBuilder aggregateDoubleMetricBuilder(int count) {
+            return factory.newAggregatedDoubleMetricBlockBuilder(count);
+        }
     }
 
     // TODO tests that mix source loaded fields and doc values in the same block

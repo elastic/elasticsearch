@@ -10,6 +10,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
@@ -27,6 +28,8 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -288,7 +291,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         public AggregateDoubleMetricFieldType(String name, Map<String, String> meta, MetricType metricType) {
-            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.metricType = metricType;
         }
 
@@ -506,6 +509,117 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
+        }
+
+        public class AggregateDoubleMetricBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+            NumberFieldMapper.NumberFieldType minFieldType = metricFields.get(Metric.min);
+            NumberFieldMapper.NumberFieldType maxFieldType = metricFields.get(Metric.max);
+            NumberFieldMapper.NumberFieldType sumFieldType = metricFields.get(Metric.sum);
+            NumberFieldMapper.NumberFieldType countFieldType = metricFields.get(Metric.value_count);
+
+            private AggregateDoubleMetricBlockLoader() {}
+
+            static NumericDocValues getNumericDocValues(NumberFieldMapper.NumberFieldType field, LeafReader leafReader) throws IOException {
+                if (field == null) {
+                    return null;
+                }
+                String fieldName = field.name();
+                var values = leafReader.getNumericDocValues(fieldName);
+                if (values != null) {
+                    return values;
+                }
+
+                var sortedValues = leafReader.getSortedNumericDocValues(fieldName);
+                return DocValues.unwrapSingleton(sortedValues);
+            }
+
+            @Override
+            public AllReader reader(LeafReaderContext context) throws IOException {
+                NumericDocValues minValues = getNumericDocValues(minFieldType, context.reader());
+                NumericDocValues maxValues = getNumericDocValues(maxFieldType, context.reader());
+                NumericDocValues sumValues = getNumericDocValues(sumFieldType, context.reader());
+                NumericDocValues valueCountValues = getNumericDocValues(countFieldType, context.reader());
+
+                if (minValues == null || maxValues == null || sumValues == null || valueCountValues == null) {
+                    throw new UnsupportedOperationException("Must have all subfields to use aggregate double metric in ESQL");
+                }
+                return new BlockDocValuesReader() {
+
+                    private int docID = -1;
+
+                    @Override
+                    protected int docId() {
+                        return docID;
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "BlockDocValuesReader.AggregatedDoubleMetrics";
+                    }
+
+                    @Override
+                    public Block read(BlockFactory factory, Docs docs) throws IOException {
+                        try (var builder = factory.aggregateDoubleMetricBuilder(docs.count())) {
+                            int lastDoc = -1;
+                            for (int i = 0; i < docs.count(); i++) {
+                                int doc = docs.get(i);
+                                if (doc < lastDoc) {
+                                    throw new IllegalStateException("docs within same block must be in order");
+                                }
+                                if (minValues.advanceExact(doc)) {
+                                    boolean found = maxValues.advanceExact(doc);
+                                    assert found;
+                                    found = sumValues.advanceExact(doc);
+                                    assert found;
+                                    found = valueCountValues.advanceExact(doc);
+                                    assert found;
+                                    double min = NumericUtils.sortableLongToDouble(minValues.longValue());
+                                    double max = NumericUtils.sortableLongToDouble(maxValues.longValue());
+                                    double sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
+                                    int count = Math.toIntExact(valueCountValues.longValue());
+                                    builder.append(min, max, sum, count);
+                                } else {
+                                    builder.appendNull();
+                                }
+                                lastDoc = doc;
+                                this.docID = doc;
+                            }
+                            return builder.build();
+                        }
+                    }
+
+                    @Override
+                    public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+                        this.docID = docId;
+                        var blockBuilder = (BlockLoader.AggregateDoubleMetricBuilder) builder;
+                        if (minValues.advanceExact(this.docID)) {
+                            boolean found = maxValues.advanceExact(this.docID);
+                            assert found;
+                            found = sumValues.advanceExact(this.docID);
+                            assert found;
+                            found = valueCountValues.advanceExact(this.docID);
+                            assert found;
+                            double min = NumericUtils.sortableLongToDouble(minValues.longValue());
+                            double max = NumericUtils.sortableLongToDouble(maxValues.longValue());
+                            double sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
+                            int count = Math.toIntExact(valueCountValues.longValue());
+                            blockBuilder.append(min, max, sum, count);
+                        } else {
+                            blockBuilder.appendNull();
+                        }
+                    }
+                };
+            }
+
+            @Override
+            public Builder builder(BlockFactory factory, int expectedCount) {
+                return factory.aggregateDoubleMetricBuilder(expectedCount);
+            }
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            return new AggregateDoubleMetricBlockLoader();
         }
 
         /**

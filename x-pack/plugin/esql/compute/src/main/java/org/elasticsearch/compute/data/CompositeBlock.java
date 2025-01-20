@@ -86,22 +86,30 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
 
     @Override
     public int getTotalValueCount() {
-        throw new UnsupportedOperationException("Composite block");
+        // TODO: this works for aggregate metric double fields, because the four blocks are guarenteed to have the same length / positions.
+        // So check just for one sub block is sufficient.
+        return blocks[0].getTotalValueCount();
     }
 
     @Override
     public int getFirstValueIndex(int position) {
-        throw new UnsupportedOperationException("Composite block");
+        // TODO: this works for aggregate metric double fields, because the four blocks are guarenteed to have the same length / positions.
+        // So check just for one sub block is sufficient.
+        return blocks[0].getFirstValueIndex(position);
     }
 
     @Override
     public int getValueCount(int position) {
-        throw new UnsupportedOperationException("Composite block");
+        // TODO: this works for aggregate metric double fields, because the four blocks are guarenteed to have the same length / positions.
+        // So check just for one sub block is sufficient.
+        return blocks[0].getValueCount(position);
     }
 
     @Override
     public boolean isNull(int position) {
-        throw new UnsupportedOperationException("Composite block");
+        // TODO: this works for aggregate metric double fields, because the four blocks are guarenteed to have the same length / positions.
+        // So check just for one sub block is sufficient.
+        return blocks[0].isNull(position);
     }
 
     @Override

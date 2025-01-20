@@ -765,9 +765,8 @@ public final class EsqlTestUtils {
                     throw new UncheckedIOException(e);
                 }
             }
-            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
-                "can't make random values for [" + type.typeName() + "]"
-            );
+            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE ->
+                throw new IllegalArgumentException("can't make random values for [" + type.typeName() + "]");
         }, type);
     }
 

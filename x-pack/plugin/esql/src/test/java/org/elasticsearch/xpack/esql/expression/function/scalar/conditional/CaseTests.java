@@ -59,7 +59,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             DataType.NULL
         ).collect(Collectors.toList());
         if (Build.current().isSnapshot()) {
-            t.addAll(DataType.UNDER_CONSTRUCTION.keySet());
+            t.addAll(DataType.UNDER_CONSTRUCTION.keySet().stream().filter(type -> type != DataType.AGGREGATE_METRIC_DOUBLE).toList());
         }
         TYPES = unmodifiableList(t);
     }

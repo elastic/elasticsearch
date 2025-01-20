@@ -115,6 +115,7 @@ public class NestedObjectMapper extends ObjectMapper {
             NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(
                 context.buildFullName(leafName()),
                 context.isSourceSynthetic(),
+                sourceKeepMode.orElseGet(context::sourceKeepMode),
                 context.isDataStream(),
                 context.parentObjectContainsDimensions(),
                 nestedTypeFilter,
@@ -181,6 +182,7 @@ public class NestedObjectMapper extends ObjectMapper {
         NestedMapperBuilderContext(
             String path,
             boolean isSourceSynthetic,
+            Mapper.SourceKeepMode sourceKeepMode,
             boolean isDataStream,
             boolean parentObjectContainsDimensions,
             Query nestedTypeFilter,
@@ -188,16 +190,17 @@ public class NestedObjectMapper extends ObjectMapper {
             Dynamic dynamic,
             MapperService.MergeReason mergeReason
         ) {
-            super(path, isSourceSynthetic, isDataStream, parentObjectContainsDimensions, dynamic, mergeReason, true);
+            super(path, isSourceSynthetic, sourceKeepMode, isDataStream, parentObjectContainsDimensions, dynamic, mergeReason, true);
             this.parentIncludedInRoot = parentIncludedInRoot;
             this.nestedTypeFilter = nestedTypeFilter;
         }
 
         @Override
-        public MapperBuilderContext createChildContext(String name, Dynamic dynamic) {
+        public MapperBuilderContext createChildContext(String name, Dynamic dynamic, Optional<Mapper.SourceKeepMode> sourceKeepMode) {
             return new NestedMapperBuilderContext(
                 buildFullName(name),
                 isSourceSynthetic(),
+                sourceKeepMode.orElseGet(this::sourceKeepMode),
                 isDataStream(),
                 parentObjectContainsDimensions(),
                 nestedTypeFilter,
@@ -398,6 +401,7 @@ public class NestedObjectMapper extends ObjectMapper {
             new NestedMapperBuilderContext(
                 mapperBuilderContext.buildFullName(name),
                 mapperBuilderContext.isSourceSynthetic(),
+                sourceKeepMode.orElseGet(mapperBuilderContext::sourceKeepMode),
                 mapperBuilderContext.isDataStream(),
                 mapperBuilderContext.parentObjectContainsDimensions(),
                 nestedTypeFilter,

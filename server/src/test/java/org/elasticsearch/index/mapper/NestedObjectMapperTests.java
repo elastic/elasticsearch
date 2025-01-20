@@ -31,6 +31,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
@@ -1854,7 +1855,12 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         boolean parentContainsDimensions = randomBoolean();
         MergeReason mergeReason = randomFrom(MergeReason.values());
         MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason);
-        mapperBuilderContext = mapperBuilderContext.createChildContext("name", parentContainsDimensions, randomFrom(Dynamic.values()));
+        mapperBuilderContext = mapperBuilderContext.createChildContext(
+            "name",
+            parentContainsDimensions,
+            randomFrom(Dynamic.values()),
+            Optional.empty()
+        );
         NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder("name", IndexVersion.current(), query -> null, null);
         builder.add(new Mapper.Builder("name") {
             @Override
@@ -1890,7 +1896,8 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             MapperBuilderContext childMapperBuilderContext = mapperBuilderContext.createChildContext(
                 "name",
                 parentContainsDimensions,
-                randomFrom(Dynamic.values())
+                randomFrom(Dynamic.values()),
+                Optional.empty()
             );
             MapperMergeContext childMergeContext = mapperMergeContext.createChildContext(childMapperBuilderContext);
             MapperBuilderContext nestedBuilderContext = childMergeContext.getMapperBuilderContext();
@@ -1906,7 +1913,12 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         boolean parentContainsDimensions = randomBoolean();
         MergeReason mergeReason = randomFrom(MergeReason.values());
         MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason);
-        mapperBuilderContext = mapperBuilderContext.createChildContext("name", parentContainsDimensions, randomFrom(Dynamic.values()));
+        mapperBuilderContext = mapperBuilderContext.createChildContext(
+            "name",
+            parentContainsDimensions,
+            randomFrom(Dynamic.values()),
+            Optional.empty()
+        );
         NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder("name", IndexVersion.current(), query -> null, null);
         NestedObjectMapper nestedObjectMapper = builder.build(mapperBuilderContext);
 
@@ -1922,6 +1934,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         NestedObjectMapper.NestedMapperBuilderContext context = new NestedObjectMapper.NestedMapperBuilderContext(
             "nested_path",
             false,
+            Mapper.SourceKeepMode.NONE,
             false,
             false,
             null,
@@ -1931,7 +1944,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         );
         assertTrue(context.isInNestedContext());
 
-        MapperBuilderContext childContext = context.createChildContext("child", false, Dynamic.FALSE);
+        MapperBuilderContext childContext = context.createChildContext("child", false, Dynamic.FALSE, Optional.empty());
         assertTrue(childContext.isInNestedContext());
     }
 }

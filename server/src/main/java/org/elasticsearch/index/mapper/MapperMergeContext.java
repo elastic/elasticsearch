@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
+import java.util.Optional;
+
 /**
  * Holds context used when merging mappings.
  * As the merge process also involves building merged {@link Mapper.Builder}s,
@@ -29,6 +31,19 @@ public final class MapperMergeContext {
     /**
      * The root context, to be used when merging a tree of mappers
      */
+    public static MapperMergeContext root(
+        boolean isSourceSynthetic,
+        Mapper.SourceKeepMode sourceKeepMode,
+        boolean isDataStream,
+        MergeReason mergeReason,
+        long newFieldsBudget
+    ) {
+        return new MapperMergeContext(
+            MapperBuilderContext.root(isSourceSynthetic, sourceKeepMode, isDataStream, mergeReason),
+            NewFieldsBudget.of(newFieldsBudget)
+        );
+    }
+
     public static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream, MergeReason mergeReason, long newFieldsBudget) {
         return new MapperMergeContext(
             MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason),
@@ -52,8 +67,12 @@ public final class MapperMergeContext {
      * @param name the name of the child context
      * @return a new {@link MapperMergeContext} with this context as its parent
      */
-    public MapperMergeContext createChildContext(String name, ObjectMapper.Dynamic dynamic) {
-        return createChildContext(mapperBuilderContext.createChildContext(name, dynamic));
+    public MapperMergeContext createChildContext(
+        String name,
+        ObjectMapper.Dynamic dynamic,
+        Optional<Mapper.SourceKeepMode> sourceKeepMode
+    ) {
+        return createChildContext(mapperBuilderContext.createChildContext(name, dynamic, sourceKeepMode));
     }
 
     /**

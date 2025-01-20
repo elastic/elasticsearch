@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordScriptFieldType;
 import org.elasticsearch.index.mapper.LongScriptFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -387,7 +388,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false, false).setSynthetic().build();
         RootObjectMapper root = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
             new KeywordFieldMapper.Builder("cat", IndexVersion.current()).ignoreAbove(100)
-        ).build(MapperBuilderContext.root(true, false));
+        ).build(MapperBuilderContext.root(true, Mapper.SourceKeepMode.NONE, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
         MappingLookup lookup = MappingLookup.fromMapping(mapping);
 

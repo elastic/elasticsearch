@@ -22,6 +22,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RoutingPathFields;
@@ -193,7 +194,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
     private MappedFieldType dimensionField(String name) {
         return new KeywordFieldMapper.Builder(name, IndexVersion.current()).dimension(true)
             .docValues(true)
-            .build(MapperBuilderContext.root(true, true))
+            .build(MapperBuilderContext.root(true, Mapper.SourceKeepMode.NONE, true))
             .fieldType();
     }
 

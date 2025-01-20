@@ -115,7 +115,7 @@ public class RootObjectMapper extends ObjectMapper {
                 subobjects,
                 sourceKeepMode,
                 dynamic,
-                buildMappers(context.createChildContext(null, dynamic)),
+                buildMappers(context.createChildContext(null, dynamic, sourceKeepMode)),
                 new HashMap<>(runtimeFields),
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
@@ -221,7 +221,7 @@ public class RootObjectMapper extends ObjectMapper {
     @Override
     protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
         assert Objects.equals(mapperMergeContext.getMapperBuilderContext().buildFullName("foo"), "foo");
-        return mapperMergeContext.createChildContext(null, dynamic);
+        return mapperMergeContext.createChildContext(null, dynamic, sourceKeepMode);
     }
 
     @Override
@@ -369,7 +369,8 @@ public class RootObjectMapper extends ObjectMapper {
                     validate(
                         template,
                         dynamicType,
-                        (name, mapping) -> typeParser.parse(name, mapping, parserContext).build(MapperBuilderContext.root(false, false))
+                        (name, mapping) -> typeParser.parse(name, mapping, parserContext)
+                            .build(MapperBuilderContext.root(false, SourceKeepMode.NONE, false))
                     );
                 }
                 lastError = null; // ok, the template is valid for at least one type

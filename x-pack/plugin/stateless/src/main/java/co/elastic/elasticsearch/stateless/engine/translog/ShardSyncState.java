@@ -236,15 +236,19 @@ class ShardSyncState {
         final ArrayList<ActionListener<Void>> toComplete;
         isClosed = true;
         synchronized (translogFiles) {
+            // The relocation hand-off forces a flush while holding the operation permits to a clean relocation should fully release the
+            // files. If we get here and there are still referenced files we must mark them as unsafe for delete. This is because this shard
+            // may be closed exceptionally and the files will still be necessary for a recovery.
+            translogFiles.tailMap(markedTranslogStartFile, true).forEach((ignored, blobTranslogFile) -> {
+                blobTranslogFile.markUnsafeForDelete(shardId);
+                blobTranslogFile.decRef();
+            });
             translogFiles.clear();
         }
         synchronized (listeners) {
             toComplete = new ArrayList<>(listeners);
             listeners.clear();
         }
-
-        // The relocation hand-off forces a flush while holding the operation permits to a clean relocation should fully release the files
-        // TODO: Not dec-ing files on close will cause them to leak in the translog replicator list. Clean-up in follow-up.
 
         ActionListener.onFailure(toComplete, alreadyClosedException(shardId));
     }

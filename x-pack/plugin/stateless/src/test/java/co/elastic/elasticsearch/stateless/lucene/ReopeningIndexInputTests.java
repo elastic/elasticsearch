@@ -91,7 +91,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
             .put(
                 SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
-                pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
+                pageAligned(ByteSizeValue.of(randomIntBetween(4, 1024), ByteSizeUnit.KB))
             )
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .putList(Environment.PATH_DATA_SETTING.getKey(), dataPath.toAbsolutePath().toString())
@@ -162,7 +162,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
             .put(
                 SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
-                pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
+                pageAligned(ByteSizeValue.of(randomIntBetween(4, 1024), ByteSizeUnit.KB))
             )
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .putList(Environment.PATH_DATA_SETTING.getKey(), dataPath.toAbsolutePath().toString())

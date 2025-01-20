@@ -15,6 +15,7 @@ import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -65,6 +66,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         scriptExecutions.set(0);
     }
 
+    @SuppressForbidden(reason = "just a test")
     @Repeat(iterations = 100)
     public void testTopHitsTimeout() {
         SearchRequestBuilder searchRequestBuilder = prepareSearch("test").setTimeout(new TimeValue(100, TimeUnit.MILLISECONDS))
@@ -80,6 +82,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         });
     }
 
+    @SuppressForbidden(reason = "just a test")
     @Repeat(iterations = 100)
     public void testAggsTimeout() {
         SearchRequestBuilder searchRequestBuilder = prepareSearch("test").setTimeout(new TimeValue(100, TimeUnit.MILLISECONDS))

@@ -63,6 +63,7 @@ public abstract class SearchPhaseResult extends TransportResponse {
     }
 
     public void clearContextId() {
+        this.shardSearchRequest = null;
         this.contextId = null;
     }
 

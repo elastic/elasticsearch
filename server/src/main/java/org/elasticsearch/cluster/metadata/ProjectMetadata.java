@@ -1805,7 +1805,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             assert parent == null
                 || parent.getIndices().stream().anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName()))
                 || (DataStream.isFailureStoreFeatureFlagEnabled()
-                    && parent.getFailureIndices()
+                    && parent.getFailureComponent()
                         .getIndices()
                         .stream()
                         .anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName())))
@@ -1831,7 +1831,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                     indexToDataStreamLookup.put(i.getName(), dataStream);
                 }
                 if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                    for (Index i : dataStream.getFailureIndices().getIndices()) {
+                    for (Index i : dataStream.getFailureIndices()) {
                         indexToDataStreamLookup.put(i.getName(), dataStream);
                     }
                 }
@@ -1847,7 +1847,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             return new IndexAbstraction.Alias(
                 alias,
                 alias.getDataStreams().stream().flatMap(name -> dataStreams.get(name).getIndices().stream()).toList(),
-                writeIndexOfWriteDataStream
+                writeIndexOfWriteDataStream,
+                alias.getDataStreams()
             );
         }
 

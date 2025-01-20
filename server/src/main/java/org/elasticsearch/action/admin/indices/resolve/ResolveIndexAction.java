@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -643,7 +644,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         );
                     }
                     case ALIAS -> {
-                        String[] indexNames = getAliasIndexStream(resolvedExpression, ia, indicesLookup).map(Index::getName)
+                        String[] indexNames = getAliasIndexStream(resolvedExpression, ia, projectState.metadata()).map(Index::getName)
                             .toArray(String[]::new);
                         Arrays.sort(indexNames);
                         aliases.add(new ResolvedAlias(ia.getName(), indexNames));
@@ -653,11 +654,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         Stream<Index> dataStreamIndices = resolvedExpression.selector() == null
                             ? dataStream.getIndices().stream()
                             : switch (resolvedExpression.selector()) {
-                                case DATA -> dataStream.getBackingIndices().getIndices().stream();
-                                case FAILURES -> dataStream.getFailureIndices().getIndices().stream();
+                                case DATA -> dataStream.getDataComponent().getIndices().stream();
+                                case FAILURES -> dataStream.getFailureIndices().stream();
                                 case ALL_APPLICABLE -> Stream.concat(
-                                    dataStream.getBackingIndices().getIndices().stream(),
-                                    dataStream.getFailureIndices().getIndices().stream()
+                                    dataStream.getIndices().stream(),
+                                    dataStream.getFailureIndices().stream()
                                 );
                             };
                         String[] backingIndices = dataStreamIndices.map(Index::getName).toArray(String[]::new);
@@ -671,7 +672,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private static Stream<Index> getAliasIndexStream(
             ResolvedExpression resolvedExpression,
             IndexAbstraction ia,
-            SortedMap<String, IndexAbstraction> indicesLookup
+            ProjectMetadata metadata
         ) {
             Stream<Index> aliasIndices;
             if (resolvedExpression.selector() == null) {
@@ -681,30 +682,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     case DATA -> ia.getIndices().stream();
                     case FAILURES -> {
                         assert ia.isDataStreamRelated() : "Illegal selector [failures] used on non data stream alias";
-                        yield ia.getIndices()
-                            .stream()
-                            .map(Index::getName)
-                            .map(indicesLookup::get)
-                            .map(IndexAbstraction::getParentDataStream)
-                            .filter(Objects::nonNull)
-                            .distinct()
-                            .map(DataStream::getFailureIndices)
-                            .flatMap(failureIndices -> failureIndices.getIndices().stream());
+                        yield ia.getFailureIndices(metadata).stream();
                     }
                     case ALL_APPLICABLE -> {
                         if (ia.isDataStreamRelated()) {
-                            yield Stream.concat(
-                                ia.getIndices().stream(),
-                                ia.getIndices()
-                                    .stream()
-                                    .map(Index::getName)
-                                    .map(indicesLookup::get)
-                                    .map(IndexAbstraction::getParentDataStream)
-                                    .filter(Objects::nonNull)
-                                    .distinct()
-                                    .map(DataStream::getFailureIndices)
-                                    .flatMap(failureIndices -> failureIndices.getIndices().stream())
-                            );
+                            yield Stream.concat(ia.getIndices().stream(), ia.getFailureIndices(metadata).stream());
                         } else {
                             yield ia.getIndices().stream();
                         }

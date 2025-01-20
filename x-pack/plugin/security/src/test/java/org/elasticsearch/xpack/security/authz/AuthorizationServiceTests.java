@@ -3456,7 +3456,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 RequestInfo requestInfo,
                 AuthorizationInfo authorizationInfo,
                 AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                Map<String, IndexAbstraction> aliasOrIndexLookup,
+                ProjectMetadata metadata,
                 ActionListener<IndexAuthorizationResult> listener
             ) {
                 throw new UnsupportedOperationException("not implemented");

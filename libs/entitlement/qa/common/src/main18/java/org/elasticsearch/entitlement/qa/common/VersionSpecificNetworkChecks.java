@@ -32,10 +32,6 @@ class VersionSpecificNetworkChecks {
         };
     }
 
-    static void httpClientBuilderBuild() {
-        HttpClient.newBuilder().build();
-    }
-
     static void httpClientSend() throws InterruptedException {
         HttpClient httpClient = HttpClient.newBuilder().build();
         try {

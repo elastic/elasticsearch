@@ -246,6 +246,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120444
 - class: org.elasticsearch.xpack.logsdb.seqno.RetentionLeaseRestIT
   issue: https://github.com/elastic/elasticsearch/issues/120434
+- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
+  method: testCheckActionWithPolicyPass {pathPrefix=allowed actionName=create_ldap_cert_store}
+  issue: https://github.com/elastic/elasticsearch/issues/120422
 
 # Examples:
 #

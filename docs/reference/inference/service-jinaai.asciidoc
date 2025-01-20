@@ -1,5 +1,5 @@
 [[infer-service-jinaai]]
-=== JinaAI {infer} service
+=== JinaAI {infer} integration
 
 Creates an {infer} endpoint to perform an {infer} task with the `jinaai` service.
 

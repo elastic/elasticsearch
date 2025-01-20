@@ -1,5 +1,5 @@
 [[infer-service-alibabacloud-ai-search]]
-=== AlibabaCloud AI Search {infer} service
+=== AlibabaCloud AI Search {infer} integration
 
 .New API reference
 [sidebar]

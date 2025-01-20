@@ -42,7 +42,7 @@ include::inference-shared.asciidoc[tag=inference-id]
 include::inference-shared.asciidoc[tag=task-type]
 +
 --
-Refer to the service list in the <<put-inference-api-desc,API description section>> for the available task types.
+Refer to the integration list in the <<put-inference-api-desc,API description section>> for the available task types.
 --
 
 
@@ -54,15 +54,15 @@ The create {infer} API enables you to create an {infer} endpoint and configure a
 
 [IMPORTANT]
 ====
-* When creating an inference endpoint, the associated machine learning model is automatically deployed if it is not already running.
+* When creating an {infer} endpoint, the associated {ml} model is automatically deployed if it is not already running.
 * After creating the endpoint, wait for the model deployment to complete before using it. You can verify the deployment status by using the <<get-trained-models-stats, Get trained model statistics>> API. In the response, look for `"state": "fully_allocated"` and ensure the `"allocation_count"` matches the `"target_allocation_count"`.
 * Avoid creating multiple endpoints for the same model unless required, as each endpoint consumes significant resources.
 ====
 
 
-The following services are available through the {infer} API.
-You can find the available task types next to the service name.
-Click the links to review the configuration details of the services:
+The following integrations are available through the {infer} API.
+You can find the available task types next to the integration name.
+Click the links to review the configuration details of the integrations:
 
 * <<infer-service-alibabacloud-ai-search,AlibabaCloud AI Search>> (`completion`, `rerank`, `sparse_embedding`, `text_embedding`)
 * <<infer-service-amazon-bedrock,Amazon Bedrock>> (`completion`, `text_embedding`)
@@ -80,14 +80,14 @@ Click the links to review the configuration details of the services:
 * <<infer-service-watsonx-ai>> (`text_embedding`)
 * <<infer-service-jinaai,JinaAI>> (`text_embedding`, `rerank`)
 
-The {es} and ELSER services run on a {ml} node in your {es} cluster. The rest of
-the services connect to external providers.
+The {es} and ELSER services run on a {ml} node in your {es} cluster.
+The rest of the integrations connect to external services.
 
 [discrete]
 [[adaptive-allocations-put-inference]]
 ==== Adaptive allocations
 
-Adaptive allocations allow inference services to dynamically adjust the number of model allocations based on the current load.
+Adaptive allocations allow inference endpoints to dynamically adjust the number of model allocations based on the current load.
 
 When adaptive allocations are enabled:
 

@@ -1,5 +1,5 @@
 [[infer-service-elser]]
-=== ELSER {infer} service
+=== ELSER {infer} integration
 
 .New API reference
 [sidebar]

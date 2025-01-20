@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IdentifierContext;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IndexStringContext;
@@ -82,10 +83,18 @@ abstract class IdentifierBuilder extends AbstractBuilder {
             if (clusterString == null) {
                 hasSeenStar.set(indexPattern.contains(WILDCARD) || hasSeenStar.get());
                 validateIndexPattern(indexPattern, c, hasSeenStar.get());
+            } else {
+                validateClusterString(clusterString, c);
             }
             patterns.add(clusterString != null ? clusterString + REMOTE_CLUSTER_INDEX_SEPARATOR + indexPattern : indexPattern);
         });
         return Strings.collectionToDelimitedString(patterns, ",");
+    }
+
+    protected static void validateClusterString(String clusterString, EsqlBaseParser.IndexPatternContext ctx) {
+        if (clusterString.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR) != -1) {
+            throw new ParsingException(source(ctx), "cluster string [{}] must not contain ':'", clusterString);
+        }
     }
 
     private static void validateIndexPattern(String indexPattern, EsqlBaseParser.IndexPatternContext ctx, boolean hasSeenStar) {

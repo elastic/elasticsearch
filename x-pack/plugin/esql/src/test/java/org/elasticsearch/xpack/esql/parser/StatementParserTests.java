@@ -615,7 +615,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testValidQuotingFromIndexPattern() {
+    public void testValidFromIndexPattern() {
         var patterns = randomList(1, 5, () -> {
             String pattern = randomIndexIdentifier();// index or alias
             if (randomBoolean()) {// pattern
@@ -662,6 +662,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     private static char randomCharacterFrom(String str) {
         return str.charAt(randomInt(str.length() - 1));
+    }
+
+    public void testInvalidFromIndexPattern() {
+        expectError("FROM \"remote:\":index", "line 1:6: cluster string [remote:] must not contain ':'");
+        expectError("FROM \"remote:invalid\":index", "line 1:6: cluster string [remote:invalid] must not contain ':'");
     }
 
     public void testInvalidQuotingAsFromIndexPattern() {

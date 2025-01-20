@@ -315,7 +315,6 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
         long absoluteStartMillis,
         boolean hasResponse
     ) {
-        assert aliasFilter != null;
         ShardSearchRequest shardRequest = new ShardSearchRequest(
             originalIndices,
             searchRequest,
@@ -741,7 +740,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
                     shardIndex,
                     shardIt.getSearchContextId(),
                     shardIt.getOriginalIndices(),
-                    aliasFilter.get(indexUUID),
+                    aliasFilter.getOrDefault(indexUUID, AliasFilter.EMPTY),
                     shardIt.getSearchContextKeepAlive(),
                     concreteIndexBoosts.getOrDefault(indexUUID, DEFAULT_INDEX_BOOST),
                     request,
@@ -1095,7 +1094,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
                             shardToQuery.shardIndex,
                             shardToQuery.contextId,
                             shardToQuery.originalIndices,
-                            request.aliasFilters.get(shardToQuery.shardId.getIndex().getUUID()),
+                            request.aliasFilters.getOrDefault(shardToQuery.shardId.getIndex().getUUID(), AliasFilter.EMPTY),
                             pitBuilder == null ? null : pitBuilder.getKeepAlive(),
                             shardToQuery.boost,
                             searchRequest,

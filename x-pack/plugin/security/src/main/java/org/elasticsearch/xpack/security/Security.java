@@ -1471,7 +1471,7 @@ public class Security extends Plugin
         settingsList.add(TokenService.DELETE_INTERVAL);
         settingsList.add(TokenService.DELETE_TIMEOUT);
         settingsList.addAll(SSLConfigurationSettings.getProfileSettings());
-        settingsList.add(ApiKeyService.PASSWORD_HASHING_ALGORITHM);
+        settingsList.add(ApiKeyService.CREDENTIAL_HASHING_ALGORITHM);
         settingsList.add(ApiKeyService.DELETE_TIMEOUT);
         settingsList.add(ApiKeyService.DELETE_INTERVAL);
         settingsList.add(ApiKeyService.DELETE_RETENTION_PERIOD);
@@ -1817,7 +1817,7 @@ public class Security extends Plugin
                     + " ] setting."
             );
         }
-        Stream.of(ApiKeyService.PASSWORD_HASHING_ALGORITHM, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM).forEach((setting) -> {
+        Stream.of(ApiKeyService.CREDENTIAL_HASHING_ALGORITHM, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM).forEach((setting) -> {
             final var storedHashAlgo = setting.get(settings);
             if (storedHashAlgo.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
                 // log instead of validation error for backwards compatibility

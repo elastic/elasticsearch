@@ -159,7 +159,7 @@ public class ApiKeyService implements Closeable {
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ApiKeyService.class);
 
-    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = XPackSettings.defaultStoredSecureTokenHashAlgorithmSetting(
+    public static final Setting<String> CREDENTIAL_HASHING_ALGORITHM = XPackSettings.defaultStoredSecureTokenHashAlgorithmSetting(
         "xpack.security.authc.api_key.hashing.algorithm",
         (s) -> Hasher.PBKDF2.name()
     );
@@ -246,7 +246,7 @@ public class ApiKeyService implements Closeable {
         this.securityIndex = securityIndex;
         this.clusterService = clusterService;
         this.enabled = XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(settings);
-        this.hasher = Hasher.resolve(PASSWORD_HASHING_ALGORITHM.get(settings));
+        this.hasher = Hasher.resolve(CREDENTIAL_HASHING_ALGORITHM.get(settings));
         this.settings = settings;
         this.inactiveApiKeysRemover = new InactiveApiKeysRemover(settings, client, clusterService);
         this.threadPool = threadPool;

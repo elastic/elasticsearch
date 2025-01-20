@@ -37,7 +37,7 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
     }
 
     public static class Builder {
-        final Map<Set<String>, List<IndicesPermission.Group>> remoteIndicesGroups;
+        final Map<Set<String>, List<Group>> remoteIndicesGroups;
 
         public Builder() {
             this.remoteIndicesGroups = new HashMap<>();
@@ -58,7 +58,7 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
                 : "remote indices groups only support up to one FLS field-grant-exclude group";
             remoteIndicesGroups.computeIfAbsent(remoteClusterAliases, k -> new ArrayList<>())
                 .add(
-                    new IndicesPermission.Group(
+                    new Group(
                         privilege,
                         fieldPermissions,
                         query,
@@ -82,9 +82,9 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
     public record RemoteIndicesGroup(
         Set<String> remoteClusterAliases,
         StringMatcher remoteClusterAliasMatcher,
-        List<IndicesPermission.Group> indicesPermissionGroups
+        List<Group> indicesPermissionGroups
     ) {
-        public RemoteIndicesGroup(Set<String> remoteClusterAliases, List<IndicesPermission.Group> indicesPermissionGroups) {
+        public RemoteIndicesGroup(Set<String> remoteClusterAliases, List<Group> indicesPermissionGroups) {
             this(remoteClusterAliases, StringMatcher.of(remoteClusterAliases), indicesPermissionGroups);
         }
 

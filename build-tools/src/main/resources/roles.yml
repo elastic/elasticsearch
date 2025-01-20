@@ -5,7 +5,7 @@ _es_test_root:
   indices:
     - names: [ "*" ]
       allow_restricted_indices: true
-      privileges: [ "ALL" ]
+      privileges: [ "ALL", "read_failures" ]
   run_as: [ "*" ]
   applications:
     - application: "*"

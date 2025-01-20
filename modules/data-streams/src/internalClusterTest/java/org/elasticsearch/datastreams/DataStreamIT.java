@@ -1953,10 +1953,6 @@ public class DataStreamIT extends ESIntegTestCase {
         latch.await();
         var ghostReference = brokenDataStreamHolder.get().getIndices().get(0);
 
-        // Many APIs fail with NPE, because of broken data stream:
-        expectThrows(NullPointerException.class, indicesAdmin().stats(new IndicesStatsRequest()));
-        expectThrows(NullPointerException.class, client().search(new SearchRequest()));
-
         assertAcked(
             client().execute(
                 ModifyDataStreamsAction.INSTANCE,

@@ -43,7 +43,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -435,9 +434,8 @@ class IndicesAndAliasesResolver {
 
         // validate that the concrete index exists, otherwise there is no remapping that we could do
         final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(concreteIndexName);
-        final String resolvedAliasOrIndex;
         if (indexAbstraction == null) {
-            resolvedAliasOrIndex = concreteIndexName;
+            return concreteIndexName;
         } else if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX) {
             throw new IllegalStateException(
                 "concrete index ["
@@ -448,31 +446,28 @@ class IndicesAndAliasesResolver {
             );
         } else if (isAuthorized.test(concreteIndexName)) {
             // user is authorized to put mappings for this index
-            resolvedAliasOrIndex = concreteIndexName;
+            return concreteIndexName;
         } else {
             // the user is not authorized to put mappings for this index, but could have been
             // authorized for a write using an alias that triggered a dynamic mapping update
-            Map<String, List<AliasMetadata>> foundAliases = metadata.findAllAliases(new String[] { concreteIndexName });
-            List<AliasMetadata> aliasMetadata = foundAliases.get(concreteIndexName);
-            if (aliasMetadata != null) {
-                Optional<String> foundAlias = aliasMetadata.stream().map(AliasMetadata::alias).filter(isAuthorized).filter(aliasName -> {
-                    IndexAbstraction alias = metadata.getIndicesLookup().get(aliasName);
-                    List<Index> indices = alias.getIndices();
-                    if (indices.size() == 1) {
-                        return true;
-                    } else {
-                        assert alias.getType() == IndexAbstraction.Type.ALIAS;
-                        Index writeIndex = alias.getWriteIndex();
-                        return writeIndex != null && writeIndex.getName().equals(concreteIndexName);
+            Map<String, AliasMetadata> foundAliases = metadata.index(indexAbstraction.getName()).getAliases();
+            if (foundAliases != null && foundAliases.isEmpty() == false) {
+                for (var aliasMd : foundAliases.values()) {
+                    String aliasName = aliasMd.alias();
+                    IndexAbstraction aliasAbstraction = metadata.getIndicesLookup().get(aliasName);
+                    assert aliasAbstraction.getType() == IndexAbstraction.Type.ALIAS;
+                    Index writeIndex = aliasAbstraction.getWriteIndex();
+                    if (writeIndex != null) {
+                        if (concreteIndexName.equals(writeIndex.getName()) && isAuthorized.test(aliasName)) {
+                            return aliasName;
+                        }
                     }
-                }).findFirst();
-                resolvedAliasOrIndex = foundAlias.orElse(concreteIndexName);
+                }
             } else {
-                resolvedAliasOrIndex = concreteIndexName;
+                return concreteIndexName;
             }
         }
-
-        return resolvedAliasOrIndex;
+        return concreteIndexName;
     }
 
     private static List<String> loadAuthorizedAliases(Supplier<Set<String>> authorizedIndices, Metadata metadata) {

@@ -342,7 +342,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             new RoleDescriptor(
                 "data_stream_test3",
                 null,
-                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("logs*").privileges("all").build() },
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("logs*").privileges("all", "read_failures").build() },
                 null
             )
         );
@@ -1943,6 +1943,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
         putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices::check, metadata);
         assertEquals(index, putMappingIndexOrAlias);
+        assertWarnings(
+            "the index privilege [write] allowed the update mapping action [indices:admin/mapping/put] on "
+                + "index [barbaz], this privilege will not permit mapping updates in the next major release - users who require access to "
+                + "update mappings must be granted explicit privileges"
+        );
     }
 
     public void testWhenAliasToMultipleIndicesAndUserIsAuthorizedUsingAliasReturnsAliasNameForDynamicPutMappingRequestOnWriteIndex() {

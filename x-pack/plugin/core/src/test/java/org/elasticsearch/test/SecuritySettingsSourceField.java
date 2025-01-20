@@ -23,7 +23,7 @@ public final class SecuritySettingsSourceField {
           indices:
             - names: [ "*" ]
               allow_restricted_indices: true
-              privileges: [ "ALL" ]
+              privileges: [ "ALL", "read_failures" ]
           run_as: [ "*" ]
           applications:
             - application: "*"
@@ -35,7 +35,11 @@ public final class SecuritySettingsSourceField {
         "_es_test_root",
         new String[] { "ALL" },
         new RoleDescriptor.IndicesPrivileges[] {
-            RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("ALL").allowRestrictedIndices(true).build() },
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices("*")
+                .privileges("ALL", "read_failures")
+                .allowRestrictedIndices(true)
+                .build() },
         new RoleDescriptor.ApplicationResourcePrivileges[] {
             RoleDescriptor.ApplicationResourcePrivileges.builder().application("*").privileges("*").resources("*").build() },
         null,

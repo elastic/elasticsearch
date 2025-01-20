@@ -33,7 +33,9 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.authz.permission.Group;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
@@ -45,6 +47,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -335,7 +338,7 @@ public class IndicesPermissionTests extends ESTestCase {
         }
         final ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> new IndicesPermission.Group(
+            () -> new Group(
                 IndexPrivilege.ALL,
                 FieldPermissions.DEFAULT,
                 null,
@@ -594,6 +597,11 @@ public class IndicesPermissionTests extends ESTestCase {
                 + TransportAutoPutMappingAction.TYPE.name()
                 + "] on "
                 + "index [test1], this privilege will not permit mapping updates in the next major release - "
+                + "users who require access to update mappings must be granted explicit privileges",
+            "the index privilege [index] allowed the update mapping action ["
+                + TransportAutoPutMappingAction.TYPE.name()
+                + "] on "
+                + "index [test_write1], this privilege will not permit mapping updates in the next major release - "
                 + "users who require access to update mappings must be granted explicit privileges"
         );
 
@@ -659,9 +667,10 @@ public class IndicesPermissionTests extends ESTestCase {
         ).build();
         assertThat(indicesPermission2.hasFieldOrDocumentLevelSecurity(), is(false));
 
-        // IsTotal means NO DLS/FLS even when there is another group that has DLS/FLS
+        // allowsTotalDataIndexAccess means NO DLS/FLS even when there is another group that has DLS/FLS
+        // failure store indices are not considered as
         final IndicesPermission indicesPermission3 = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
-            IndexPrivilege.ALL,
+            IndexPrivilege.get(Set.of("all", "read_failures")),
             FieldPermissions.DEFAULT,
             null,
             true,
@@ -670,55 +679,124 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(indicesPermission3.hasFieldOrDocumentLevelSecurity(), is(false));
     }
 
-    public void testResourceAuthorizedPredicateForDatastreams() {
+    public void testFailureStoreReadAuthorization() {
         String dataStreamName = "logs-datastream";
-        Metadata.Builder mb = Metadata.builder(
-            DataStreamTestHelper.getClusterStateWithDataStreams(
-                List.of(Tuple.tuple(dataStreamName, 1)),
-                List.of(),
-                Instant.now().toEpochMilli(),
-                builder().build(),
-                1
-            ).getMetadata()
-        );
-        DataStream dataStream = mb.dataStream(dataStreamName);
-        IndexAbstraction backingIndex = new IndexAbstraction.ConcreteIndex(
-            DataStreamTestHelper.createBackingIndex(dataStreamName, 1).build(),
-            dataStream
-        );
-        IndexAbstraction concreteIndex = new IndexAbstraction.ConcreteIndex(
-            IndexMetadata.builder("logs-index").settings(indexSettings(IndexVersion.current(), 1, 0)).build()
-        );
-        AliasMetadata aliasMetadata = new AliasMetadata.Builder("logs-alias").build();
-        IndexAbstraction alias = new IndexAbstraction.Alias(
-            aliasMetadata,
-            List.of(
-                IndexMetadata.builder("logs-index").settings(indexSettings(IndexVersion.current(), 1, 0)).putAlias(aliasMetadata).build()
+
+        IndexMetadata backingIndexMd = DataStreamTestHelper.createBackingIndex(dataStreamName, 1).build();
+        IndexMetadata failureIndexMd = DataStreamTestHelper.createFailureStore(dataStreamName, 1).build();
+        IndexMetadata regularIndex = IndexMetadata.builder("logs-index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+
+        Metadata.Builder mb = Metadata.builder()
+            .dataStreams(
+                Map.of(
+                    dataStreamName,
+                    DataStreamTestHelper.newInstance(dataStreamName, List.of(backingIndexMd.getIndex()), List.of(failureIndexMd.getIndex()))
+                ),
+                Map.of()
             )
-        );
-        IndicesPermission.IsResourceAuthorizedPredicate predicate = new IndicesPermission.IsResourceAuthorizedPredicate(
-            StringMatcher.of("other"),
-            StringMatcher.of(dataStreamName, backingIndex.getName(), concreteIndex.getName(), alias.getName())
-        );
-        assertThat(predicate.test(dataStream), is(false));
-        // test authorization for a missing resource with the datastream's name
-        assertThat(predicate.test(dataStream.getName(), null), is(true));
-        assertThat(predicate.test(backingIndex), is(false));
-        // test authorization for a missing resource with the backing index's name
-        assertThat(predicate.test(backingIndex.getName(), null), is(true));
-        assertThat(predicate.test(concreteIndex), is(true));
-        assertThat(predicate.test(alias), is(true));
+            .indices(
+                Map.of(
+                    backingIndexMd.getIndex().getName(),
+                    backingIndexMd,
+                    failureIndexMd.getIndex().getName(),
+                    failureIndexMd,
+                    regularIndex.getIndex().getName(),
+                    regularIndex
+                )
+            );
+        DataStream dataStream = mb.dataStream(dataStreamName);
+
+        IndexAbstraction backingIndex = new IndexAbstraction.ConcreteIndex(backingIndexMd, dataStream);
+        IndexAbstraction failureIndex = new IndexAbstraction.ConcreteIndex(failureIndexMd, dataStream);
+
+        IndexAbstraction concreteIndex = new IndexAbstraction.ConcreteIndex(regularIndex);
+        final IndicesPermission everythingPermission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.get(Set.of("all", "read_failures")),
+            FieldPermissions.DEFAULT,
+            null,
+            true,
+            "logs-data*"
+        ).addGroup(IndexPrivilege.NONE, FieldPermissions.DEFAULT, null, randomBoolean(), "logs-data*").build();
+        final IndicesPermission dataOnlyPermission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.get(Set.of("all")),
+            FieldPermissions.DEFAULT,
+            null,
+            true,
+            "logs-data*"
+        ).addGroup(IndexPrivilege.NONE, FieldPermissions.DEFAULT, null, randomBoolean(), "logs-data*").build();
+        final IndicesPermission failuresOnlyPermission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.get(Set.of("read_failures")),
+            FieldPermissions.DEFAULT,
+            null,
+            true,
+            "logs-data*"
+        ).addGroup(IndexPrivilege.NONE, FieldPermissions.DEFAULT, null, randomBoolean(), "logs-data*").build();
+
+        IsResourceAuthorizedPredicate everythingChecker = everythingPermission.allowedIndicesMatcher("indices:data/read/search");
+        IsResourceAuthorizedPredicate onlyDataChecker = dataOnlyPermission.allowedIndicesMatcher("indices:data/read/search");
+        IsResourceAuthorizedPredicate onlyFailuresChecker = failuresOnlyPermission.allowedIndicesMatcher("indices:data/read/search");
+
+        // Baseline check, nothing should be authorized for the concrete index
+        assertThat(everythingChecker.check(concreteIndex).isDataAuthorized(), is(false));
+        assertThat(onlyDataChecker.check(concreteIndex).isDataAuthorized(), is(false));
+        assertThat(onlyFailuresChecker.check(concreteIndex).isDataAuthorized(), is(false));
+        assertThat(everythingChecker.check(concreteIndex).isFailuresAuthorized(), is(false));
+        assertThat(onlyDataChecker.check(concreteIndex).isFailuresAuthorized(), is(false));
+        assertThat(onlyFailuresChecker.check(concreteIndex).isFailuresAuthorized(), is(false));
+
+        // Check the data stream name directly
+        assertThat(everythingChecker.check(dataStreamName, null).isDataAuthorized(), is(true));
+        assertThat(everythingChecker.check(dataStreamName, null).isFailuresAuthorized(), is(true));
+        assertThat(onlyDataChecker.check(dataStreamName, null).isDataAuthorized(), is(true));
+        assertThat(onlyDataChecker.check(dataStreamName, null).isFailuresAuthorized(), is(false));
+        assertThat(onlyFailuresChecker.check(dataStreamName, null).isDataAuthorized(), is(false));
+        assertThat(onlyFailuresChecker.check(dataStreamName, null).isFailuresAuthorized(), is(true));
+
+        assertThat(everythingChecker.check(concreteIndex).isFailuresAuthorized(), is(false));
+        assertThat(onlyDataChecker.check(concreteIndex).isFailuresAuthorized(), is(false));
+        assertThat(onlyFailuresChecker.check(concreteIndex).isFailuresAuthorized(), is(false));
+
+        // Check data index
+        assertThat(everythingChecker.check(backingIndex).isDataAuthorized(), is(true));
+        assertThat(onlyDataChecker.check(backingIndex).isDataAuthorized(), is(true));
+        assertThat(onlyFailuresChecker.check(backingIndex).isDataAuthorized(), is(false));
+
+        // Check failures index
+        assertThat(everythingChecker.check(failureIndex).isFailuresAuthorized(), is(true));
+        assertThat(onlyDataChecker.check(failureIndex).isFailuresAuthorized(), is(false));
+        assertThat(onlyFailuresChecker.check(failureIndex).isFailuresAuthorized(), is(true));
     }
 
     public void testResourceAuthorizedPredicateAnd() {
-        IndicesPermission.IsResourceAuthorizedPredicate predicate1 = new IndicesPermission.IsResourceAuthorizedPredicate(
-            StringMatcher.of("c", "a"),
-            StringMatcher.of("b", "d")
-        );
-        IndicesPermission.IsResourceAuthorizedPredicate predicate2 = new IndicesPermission.IsResourceAuthorizedPredicate(
-            StringMatcher.of("c", "b"),
-            StringMatcher.of("a", "d")
-        );
+        IsResourceAuthorizedPredicate predicate1 = new IsResourceAuthorizedPredicate() {
+            @Override
+            public IndicesPermission.AuthorizedComponents check(String name, IndexAbstraction abstraction, boolean authByDataStream) {
+                assertTrue(authByDataStream);
+                StringMatcher regularNames = StringMatcher.of("c", "a");
+                StringMatcher nonDatastreamNames = StringMatcher.of("b", "d");
+                if (abstraction.getType() != IndexAbstraction.Type.DATA_STREAM && abstraction.getParentDataStream() == null) {
+                    if (nonDatastreamNames.test(name)) {
+                        return IndicesPermission.AuthorizedComponents.DATA;
+                    }
+                }
+                return regularNames.test(name) ? IndicesPermission.AuthorizedComponents.DATA : IndicesPermission.AuthorizedComponents.NONE;
+            }
+        };
+        IsResourceAuthorizedPredicate predicate2 = new IsResourceAuthorizedPredicate() {
+            @Override
+            public IndicesPermission.AuthorizedComponents check(String name, IndexAbstraction abstraction, boolean authByDataStream) {
+                assertTrue(authByDataStream);
+                StringMatcher regularNames = StringMatcher.of("c", "b");
+                StringMatcher nonDatastreamNames = StringMatcher.of("a", "d");
+                if (abstraction.getType() != IndexAbstraction.Type.DATA_STREAM && abstraction.getParentDataStream() == null) {
+                    if (nonDatastreamNames.test(name)) {
+                        return IndicesPermission.AuthorizedComponents.DATA;
+                    }
+                }
+                return regularNames.test(name) ? IndicesPermission.AuthorizedComponents.DATA : IndicesPermission.AuthorizedComponents.NONE;
+
+            }
+        };
         Metadata.Builder mb = Metadata.builder(
             DataStreamTestHelper.getClusterStateWithDataStreams(
                 List.of(Tuple.tuple("a", 1), Tuple.tuple("b", 1), Tuple.tuple("c", 1), Tuple.tuple("d", 1)),
@@ -736,7 +814,7 @@ public class IndicesPermissionTests extends ESTestCase {
         IndexAbstraction concreteIndexB = concreteIndexAbstraction("b");
         IndexAbstraction concreteIndexC = concreteIndexAbstraction("c");
         IndexAbstraction concreteIndexD = concreteIndexAbstraction("d");
-        IndicesPermission.IsResourceAuthorizedPredicate predicate = predicate1.and(predicate2);
+        IsResourceAuthorizedPredicate predicate = predicate1.alsoRequire(predicate2);
         assertThat(predicate.test(dataStreamA), is(false));
         assertThat(predicate.test(dataStreamB), is(false));
         assertThat(predicate.test(dataStreamC), is(true));

@@ -81,6 +81,9 @@ public final class IndexPrivilege extends Privilege {
         ResolveIndexAction.NAME,
         TransportResolveClusterAction.NAME
     );
+    // This is a special case: read_failures acts like `read` *only* for failure store indices in authorized data streams.
+    // This internal action is not used, but having it makes automaton subset checks work as expected with this privilege.
+    private static final Automaton READ_FAILURES_AUTOMATON = patterns("internal:special/read_failures");
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
         "internal:transport/proxy/indices:data/read/*",
         TransportClusterSearchShardsAction.TYPE.name(),
@@ -178,7 +181,11 @@ public final class IndexPrivilege extends Privilege {
 
     public static final IndexPrivilege NONE = new IndexPrivilege("none", Automatons.EMPTY);
     public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON);
-    public static final IndexPrivilege READ = new IndexPrivilege("read", READ_AUTOMATON);
+    public static final String READ_PRIVILEGE_NAME = "read";
+    public static final IndexPrivilege READ = new IndexPrivilege(READ_PRIVILEGE_NAME, READ_AUTOMATON);
+    public static final String READ_FAILURES_PRIVILEGE_NAME = "read_failures";
+    // read_failures is a special case - it should act like `read`, but adjusted to only allow access to failure indices
+    public static final IndexPrivilege READ_FAILURES = new IndexPrivilege(READ_FAILURES_PRIVILEGE_NAME, READ_FAILURES_AUTOMATON);
     public static final IndexPrivilege READ_CROSS_CLUSTER = new IndexPrivilege("read_cross_cluster", READ_CROSS_CLUSTER_AUTOMATON);
     public static final IndexPrivilege CREATE = new IndexPrivilege("create", CREATE_AUTOMATON);
     public static final IndexPrivilege INDEX = new IndexPrivilege("index", INDEX_AUTOMATON);
@@ -221,6 +228,7 @@ public final class IndexPrivilege extends Privilege {
             entry("create_index", CREATE_INDEX),
             entry("monitor", MONITOR),
             entry("read", READ),
+            entry("read_failures", READ_FAILURES),
             entry("index", INDEX),
             entry("delete", DELETE),
             entry("write", WRITE),

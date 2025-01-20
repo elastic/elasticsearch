@@ -73,8 +73,9 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.authz.permission.Group;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
-import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
+import org.elasticsearch.xpack.core.security.authz.permission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivilegesMap;
@@ -784,13 +785,13 @@ public class RBACEngine implements AuthorizationEngine {
         }
 
         final Set<GetUserPrivilegesResponse.Indices> indices = new LinkedHashSet<>();
-        for (IndicesPermission.Group group : userRole.indices().groups()) {
+        for (Group group : userRole.indices().groups()) {
             indices.add(toIndices(group));
         }
 
         final Set<GetUserPrivilegesResponse.RemoteIndices> remoteIndices = new LinkedHashSet<>();
         for (RemoteIndicesPermission.RemoteIndicesGroup remoteIndicesGroup : userRole.remoteIndices().remoteIndicesGroups()) {
-            for (IndicesPermission.Group group : remoteIndicesGroup.indicesPermissionGroups()) {
+            for (Group group : remoteIndicesGroup.indicesPermissionGroups()) {
                 remoteIndices.add(new GetUserPrivilegesResponse.RemoteIndices(toIndices(group), remoteIndicesGroup.remoteClusterAliases()));
             }
         }
@@ -832,7 +833,7 @@ public class RBACEngine implements AuthorizationEngine {
         );
     }
 
-    private static GetUserPrivilegesResponse.Indices toIndices(final IndicesPermission.Group group) {
+    private static GetUserPrivilegesResponse.Indices toIndices(final Group group) {
         final Set<BytesReference> queries = group.getQuery() == null ? Collections.emptySet() : group.getQuery();
         final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity = getFieldGrantExcludeGroups(group);
         return new GetUserPrivilegesResponse.Indices(
@@ -844,7 +845,7 @@ public class RBACEngine implements AuthorizationEngine {
         );
     }
 
-    private static Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> getFieldGrantExcludeGroups(IndicesPermission.Group group) {
+    private static Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> getFieldGrantExcludeGroups(Group group) {
         if (group.getFieldPermissions().hasFieldLevelSecurity()) {
             final List<FieldPermissionsDefinition> fieldPermissionsDefinitions = group.getFieldPermissions()
                 .getFieldPermissionsDefinitions();
@@ -875,42 +876,47 @@ public class RBACEngine implements AuthorizationEngine {
             // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
             if (includeDataStreams) {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    if (predicate.test(indexAbstraction)) {
+                    IndicesPermission.AuthorizedComponents authResult = predicate.check(indexAbstraction);
+                    if (authResult != null && authResult != IndicesPermission.AuthorizedComponents.NONE) {
                         indicesAndAliases.add(indexAbstraction.getName());
                         if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                            // add data stream and its backing indices for any authorized data streams
-                            for (Index index : indexAbstraction.getIndices()) {
-                                indicesAndAliases.add(index.getName());
+                            if (authResult.isDataAuthorized()) {
+                                for (Index index : indexAbstraction.getIndices()) {
+                                    indicesAndAliases.add(index.getName());
+                                }
                             }
-                            // TODO: We need to limit if a data stream's failure indices should return here.
-                            for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
-                                indicesAndAliases.add(index.getName());
+
+                            if (authResult.isFailuresAuthorized()) {
+                                for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
+                                    indicesAndAliases.add(index.getName());
+                                }
                             }
+
                         }
                     }
                 }
             } else {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM && predicate.test(indexAbstraction)) {
-                        indicesAndAliases.add(indexAbstraction.getName());
+                    if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM) {
+                        IndicesPermission.AuthorizedComponents authResult = predicate.check(
+                            indexAbstraction.getName(),
+                            indexAbstraction,
+                            false
+                        );
+                        if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM
+                            && authResult != null
+                            && authResult.isDataAuthorized()) {
+                            indicesAndAliases.add(indexAbstraction.getName());
+                        }
                     }
+
                 }
             }
             timeChecker.accept(indicesAndAliases);
             return indicesAndAliases;
         }, name -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);
-            if (indexAbstraction == null) {
-                // test access (by name) to a resource that does not currently exist
-                // the action handler must handle the case of accessing resources that do not exist
-                return predicate.test(name, null);
-            } else {
-                // We check the parent data stream first if there is one. For testing requested indices, this is most likely
-                // more efficient than checking the index name first because we recommend grant privileges over data stream
-                // instead of backing indices.
-                return (indexAbstraction.getParentDataStream() != null && predicate.test(indexAbstraction.getParentDataStream()))
-                    || predicate.test(indexAbstraction);
-            }
+            return predicate.check(name, indexAbstraction).isAnyAuthorized();
         });
     }
 

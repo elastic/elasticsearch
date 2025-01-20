@@ -1,0 +1,5 @@
+pr: 119915
+summary: Add `read_failures` privilege for authorizing failure store access
+area: Authorization
+type: enhancement
+issues: []

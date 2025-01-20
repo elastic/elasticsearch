@@ -1698,7 +1698,7 @@ public class IndexNameExpressionResolver {
                     for (int i = 0, n = indexAbstraction.getIndices().size(); i < n; i++) {
                         Index index = indexAbstraction.getIndices().get(i);
                         IndexMetadata indexMetadata = context.state.metadata().index(index);
-                        if (indexMetadata.getState() != excludeState) {
+                        if (indexMetadata != null && indexMetadata.getState() != excludeState) {
                             resources.add(
                                 new ResolvedExpression(
                                     index.getName(),

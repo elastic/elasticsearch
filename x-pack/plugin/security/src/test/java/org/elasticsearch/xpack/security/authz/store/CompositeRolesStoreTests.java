@@ -75,8 +75,9 @@ import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.authz.permission.Group;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
-import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
+import org.elasticsearch.xpack.core.security.authz.permission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
@@ -3237,6 +3238,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         when(mock.getType()).thenReturn(
             randomFrom(IndexAbstraction.Type.CONCRETE_INDEX, IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM)
         );
+        when(mock.getParentDataStream()).thenReturn(null);
         return mock;
     }
 
@@ -3344,7 +3346,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     private void assertHasRemoteIndexGroupsForClusters(
         final RemoteIndicesPermission permission,
         final Set<String> remoteClustersAliases,
-        final Matcher<IndicesPermission.Group>... matchers
+        final Matcher<Group>... matchers
     ) {
         assertThat(
             permission.remoteIndicesGroups()
@@ -3357,11 +3359,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
     }
 
-    private static Matcher<IndicesPermission.Group> indexGroup(final String... indices) {
+    private static Matcher<Group> indexGroup(final String... indices) {
         return indexGroup(IndexPrivilege.READ, false, indices);
     }
 
-    private static Matcher<IndicesPermission.Group> indexGroup(
+    private static Matcher<Group> indexGroup(
         final IndexPrivilege privilege,
         final boolean allowRestrictedIndices,
         final String... indices
@@ -3375,7 +3377,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
     }
 
-    private static Matcher<IndicesPermission.Group> indexGroup(
+    private static Matcher<Group> indexGroup(
         final IndexPrivilege privilege,
         final boolean allowRestrictedIndices,
         @Nullable final String query,
@@ -3385,10 +3387,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         return new BaseMatcher<>() {
             @Override
             public boolean matches(Object o) {
-                if (false == o instanceof IndicesPermission.Group) {
+                if (false == o instanceof Group) {
                     return false;
                 }
-                final IndicesPermission.Group group = (IndicesPermission.Group) o;
+                final Group group = (Group) o;
                 return equalTo(query == null ? null : Set.of(new BytesArray(query))).matches(group.getQuery())
                     && equalTo(privilege).matches(group.privilege())
                     && equalTo(allowRestrictedIndices).matches(group.allowRestrictedIndices())

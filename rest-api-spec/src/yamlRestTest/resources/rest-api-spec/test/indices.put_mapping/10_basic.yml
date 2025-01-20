@@ -197,6 +197,8 @@
             properties:
               user.id:
                 type: long
+              user.name:
+                type: text
 
   - do:
       catch: bad_request
@@ -209,3 +211,60 @@
 
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "mapper [user.id] cannot be changed from type [long] to [keyword]" }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            user.name:
+              type: text
+              fields:
+                raw:
+                  type: keyword
+
+  - is_true: acknowledged
+
+
+---
+"modify nested field type with subobjects:false":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              path:
+                properties:
+                  to:
+                    subobjects: false
+                    properties:
+                      user.id:
+                        type: long
+                      user.name:
+                        type: text
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            path.to.user.id:
+              type: keyword
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "mapper [path.to.user.id] cannot be changed from type [long] to [keyword]" }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            path.to.user.name:
+              type: text
+              fields:
+                raw:
+                  type: keyword
+
+  - is_true: acknowledged

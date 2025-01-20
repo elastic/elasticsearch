@@ -666,10 +666,11 @@ public class ObjectMapper extends Mapper {
                         for (FieldMapper flattenedMapper : flattenedMappers) {
                             if (objectMergeContext.decrementFieldBudgetIfPossible(flattenedMapper.getTotalFieldsCount())) {
                                 var conflict = mergedMappers.get(flattenedMapper.leafName());
-                                if (conflict != null) {
-                                    putMergedMapper(mergedMappers, conflict.merge(flattenedMapper, objectMergeContext));
-                                } else {
+                                if (objectMergeContext.getMapperBuilderContext().getMergeReason() == MergeReason.INDEX_TEMPLATE
+                                    || conflict == null) {
                                     putMergedMapper(mergedMappers, flattenedMapper);
+                                } else {
+                                    putMergedMapper(mergedMappers, conflict.merge(flattenedMapper, objectMergeContext));
                                 }
                             }
                         }

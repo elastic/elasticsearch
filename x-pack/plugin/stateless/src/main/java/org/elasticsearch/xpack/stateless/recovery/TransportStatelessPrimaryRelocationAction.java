@@ -79,8 +79,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction.TYPE;
@@ -272,14 +274,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         }).delegateFailureAndWrap((listener0, preFlushResult) -> {
             final var initialFlushDuration = getTimeSince(beforeInitialFlush);
             final long beforeAcquiringPermits = threadPool.relativeTimeInMillis();
-            Releasable primaryPermits;
-            if (engine instanceof HollowIndexEngine hollowIndexEngine) {
-                assert hollowIndexEngine.arePrimaryPermitsHeld() : "Hollow index engine must hold primary permits before relocation";
-                primaryPermits = hollowIndexEngine.handOffPrimaryPermits();
-            } else {
-                primaryPermits = null;
-            }
-            logger.debug("[{}] acquiring all primary operation permits {} {}", request.shardId(), engine, primaryPermits);
             indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
                 threadDumpListener.onResponse(null);
                 logShardStats("obtained primary context", indexShard, engine);
@@ -289,13 +283,26 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 // Do not wait on flush durability as we will wait at the stateless commit service level for the upload
                 final long beforeFinalFlush = threadPool.relativeTimeInMillis();
 
+                final var shardId = indexShard.shardId();
                 if (engine instanceof IndexEngine indexEngine) {
                     if (hollowShardsService.isHollowableIndexShard(indexShard, false)) {
-                        logger.debug("Flushing hollowable shard {}", indexShard.shardId());
+                        logger.debug(() -> "flushing hollowable shard " + shardId);
+                        // The blocker will be removed when the source shard is successfully relocated and closed,
+                        // or will remain in place if the relocation fails until the shard is unhollowed.
+                        hollowShardsService.installIngestionBlocker(indexShard);
                         indexEngine.flushHollow(ActionListener.noop());
                     } else {
                         indexEngine.flush(false, true, ActionListener.noop());
                     }
+                } else if (engine instanceof HollowIndexEngine) {
+                    assert ((Supplier<Boolean>) () -> {
+                        AtomicBoolean ingestionBlocked = new AtomicBoolean(false);
+                        hollowShardsService.onIngestion(shardId, () -> {
+                            ingestionBlocked.set(true);
+                            return ActionListener.noop();
+                        });
+                        return ingestionBlocked.get();
+                    }).get() : "no ingestion blocker for hollow shard " + shardId;
                 }
                 logShardStats("flush after acquiring primary context completed", indexShard, engine);
                 long lastFlushedGeneration = engine.getLastCommittedSegmentInfos().getGeneration();
@@ -386,7 +393,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         try {
                             handoffCompleteListener.onFailure(e);
                             // TODO ES-10573
-                            // Switch to a hollow engine in case of a relocation failure
+                            // In case the source IndexEngine was flushed as hollow, switch to a hollow engine in case of a relocation
+                            // failure and check if there was any lingering ingestion in order to initiate unhollowing which will remove
+                            // the ingestion blocker.
+                            // Alternatively we can discuss about unhollowing the existing IndexEngine and removing the ingestion blocker.
                         } finally {
                             handoffResultListener.onFailure(e);
                         }
@@ -417,7 +427,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         new ActionListenerResponseHandler<>(finalHandoffListener, in -> TransportResponse.Empty.INSTANCE, recoveryExecutor)
                     );
                 }), recoveryExecutor, threadContext);
-            }, listener0, primaryPermits);
+            }, listener0);
         }), recoveryExecutor, threadContext);
     }
 

@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -129,11 +128,7 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
         assertThat(
             (String) nodeSettings.get("details"),
-            allOf(
-                containsString(SourceFieldMapper.DEPRECATION_WARNING),
-                containsString("Affected indexes: [.ds-logs-custom-dev-"),
-                containsString("Affected component templates: [logs@custom]")
-            )
+            containsString(SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [logs@custom]")
         );
     }
 
@@ -215,11 +210,7 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
         assertThat(
             (String) nodeSettings.get("details"),
-            allOf(
-                containsString(SourceFieldMapper.DEPRECATION_WARNING),
-                containsString("Affected indexes: [.ds-logs-custom-dev-"),
-                containsString("Affected component templates: [logs@custom]")
-            )
+            containsString(SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [logs@custom]")
         );
     }
 

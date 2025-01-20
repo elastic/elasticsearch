@@ -89,7 +89,7 @@ public class DeprecationChecks {
                 NodeDeprecationChecks::checkNodeAttrData,
                 NodeDeprecationChecks::checkWatcherBulkConcurrentRequestsSetting,
                 NodeDeprecationChecks::checkTracingApmSettings,
-                NodeDeprecationChecks::checkSourceModeInMappingsAndTemplates
+                NodeDeprecationChecks::checkSourceModeInComponentTemplates
             );
 
     static List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(

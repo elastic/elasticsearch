@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
@@ -1017,27 +1016,12 @@ public class NodeDeprecationChecks {
         );
     }
 
-    static DeprecationIssue checkSourceModeInMappingsAndTemplates(
+    static DeprecationIssue checkSourceModeInComponentTemplates(
         final Settings settings,
         final PluginsAndModules pluginsAndModules,
         final ClusterState clusterState,
         final XPackLicenseState licenseState
     ) {
-        List<String> indexes = new ArrayList<>();
-        for (String indexName : clusterState.metadata().getIndices().keySet()) {
-            IndexMetadata indexMetadata = clusterState.metadata().getIndices().get(indexName);
-            if (SourceFieldMapper.onOrAfterDeprecateModeVersion(indexMetadata.getCreationVersion())) {
-                if (indexMetadata.mapping() != null) {
-                    Map<String, Object> sourceAsMap = indexMetadata.mapping().sourceAsMap();
-                    Object source = sourceAsMap.get("_source");
-                    if (source instanceof Map<?, ?> sourceMap) {
-                        if (sourceMap.containsKey("mode")) {
-                            indexes.add(indexName);
-                        }
-                    }
-                }
-            }
-        }
         List<String> templates = new ArrayList<>();
         var templateNames = clusterState.metadata().componentTemplates().keySet();
         for (String templateName : templateNames) {
@@ -1057,27 +1041,16 @@ public class NodeDeprecationChecks {
             }
 
         }
-        if (indexes.isEmpty() == false || templates.isEmpty() == false) {
-            var details = new StringBuilder(SourceFieldMapper.DEPRECATION_WARNING);
-            if (indexes.isEmpty() == false) {
-                details.append(" Affected indexes: [");
-                details.append(String.join(", ", indexes));
-                details.append("]");
-            }
-            if (templates.isEmpty() == false) {
-                details.append(" Affected component templates: [");
-                details.append(String.join(", ", templates));
-                details.append("]");
-            }
-            return new DeprecationIssue(
-                DeprecationIssue.Level.CRITICAL,
-                SourceFieldMapper.DEPRECATION_WARNING,
-                "https://github.com/elastic/elasticsearch/pull/117172",
-                details.toString(),
-                false,
-                null
-            );
+        if (templates.isEmpty()) {
+            return null;
         }
-        return null;
+        return new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            SourceFieldMapper.DEPRECATION_WARNING,
+            "https://github.com/elastic/elasticsearch/pull/117172",
+            SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [" + String.join(", ", templates) + "]",
+            false,
+            null
+        );
     }
 }

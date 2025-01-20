@@ -119,6 +119,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 () -> false,
                 searchProgressListener,
                 10,
+                -1,
                 e -> onPartialMergeFailure.accumulateAndGet(e, (prev, curr) -> {
                     curr.addSuppressed(prev);
                     return curr;

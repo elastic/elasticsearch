@@ -190,7 +190,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
-        SearchTransportService.registerRequestHandler(transportService, searchService);
+        SearchTransportService.registerRequestHandler(searchTransportService, searchService);
+        SearchQueryThenFetchAsyncAction.registerNodeSearchAction(searchTransportService, searchService);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.searchService = searchService;
@@ -266,7 +267,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
             AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, index.getName(), indicesAndAliases);
             assert aliasFilter != null;
-            aliasFilterMap.put(index.getUUID(), aliasFilter);
+            if (aliasFilter != AliasFilter.EMPTY) {
+                aliasFilterMap.put(index.getUUID(), aliasFilter);
+            }
         }
         return aliasFilterMap;
     }
@@ -1087,7 +1090,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 // add the cluster name to the remote index names for indices disambiguation
                 // this ends up in the hits returned with the search response
                 ShardId shardId = searchShardsGroup.shardId();
-                AliasFilter aliasFilter = aliasFilterMap.get(shardId.getIndex().getUUID());
+                AliasFilter aliasFilter = aliasFilterMap.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY);
                 String[] aliases = aliasFilter.getAliases();
                 String clusterAlias = entry.getKey();
                 String[] finalIndices = aliases.length == 0 ? new String[] { shardId.getIndexName() } : aliases;
@@ -1469,7 +1472,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (preFilter) {
                 // only for aggs we need to contact shards even if there are no matches
                 boolean requireAtLeastOneMatch = searchRequest.source() != null && searchRequest.source().aggregations() != null;
-                new CanMatchPreFilterSearchPhase(
+                CanMatchPreFilterSearchPhase.execute(
                     logger,
                     searchTransportService,
                     connectionLookup,
@@ -1482,8 +1485,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     task,
                     requireAtLeastOneMatch,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
-                    listener.delegateFailureAndWrap((l, iters) -> {
-                        runNewSearchPhase(
+                    listener.delegateFailureAndWrap(
+                        (l, iters) -> runNewSearchPhase(
                             task,
                             searchRequest,
                             executor,
@@ -1496,9 +1499,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             false,
                             threadPool,
                             clusters
-                        );
-                    })
-                ).start();
+                        )
+                    )
+                );
                 return;
             }
             // for synchronous CCS minimize_roundtrips=false, use the CCSSingleCoordinatorSearchProgressListener
@@ -1516,13 +1519,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 task.getProgressListener(),
                 searchRequest,
                 shardIterators.size(),
-                exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]")
+                exc -> searchTransportService.cancelSearchTask(task.getId(), "failed to merge result [" + exc.getMessage() + "]")
             );
             boolean success = false;
             try {
-                final AbstractSearchAsyncAction<?> searchPhase;
                 if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
-                    searchPhase = new SearchDfsQueryThenFetchAsyncAction(
+                    var searchPhase = new SearchDfsQueryThenFetchAsyncAction(
                         logger,
                         namedWriteableRegistry,
                         searchTransportService,
@@ -1540,10 +1542,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusters,
                         client
                     );
+                    success = true;
+                    searchPhase.start();
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
-                    searchPhase = new SearchQueryThenFetchAsyncAction(
-                        logger,
+                    var searchPhase = new SearchQueryThenFetchAsyncAction(
                         namedWriteableRegistry,
                         searchTransportService,
                         connectionLookup,
@@ -1560,9 +1563,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusters,
                         client
                     );
+                    success = true;
+                    searchPhase.start();
                 }
-                success = true;
-                searchPhase.start();
             } finally {
                 if (success == false) {
                     queryResultConsumer.close();

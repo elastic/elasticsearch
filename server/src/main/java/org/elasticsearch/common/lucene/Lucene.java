@@ -410,11 +410,92 @@ public class Lucene {
         return new ScoreDoc(in.readVInt(), in.readFloat());
     }
 
+    public static ScoreDoc readScoreDocWithShardIndex(StreamInput in) throws IOException {
+        var res = new ScoreDoc(in.readVInt(), in.readFloat());
+        res.shardIndex = in.readVInt();
+        return res;
+    }
+
     private static final Class<?> GEO_DISTANCE_SORT_TYPE_CLASS = LatLonDocValuesField.newDistanceSort("some_geo_field", 0, 0).getClass();
 
     public static void writeTotalHits(StreamOutput out, TotalHits totalHits) throws IOException {
         out.writeVLong(totalHits.value());
         out.writeEnum(totalHits.relation());
+    }
+
+    public static void writeTopDocsIncludingShardIndex(StreamOutput out, TopDocs topDocs) throws IOException {
+        if (topDocs instanceof TopFieldGroups topFieldGroups) {
+            out.writeByte((byte) 2);
+            writeTotalHits(out, topDocs.totalHits);
+            out.writeString(topFieldGroups.field);
+            out.writeArray(Lucene::writeSortField, topFieldGroups.fields);
+            out.writeVInt(topDocs.scoreDocs.length);
+            for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+                ScoreDoc doc = topFieldGroups.scoreDocs[i];
+                writeFieldDoc(out, (FieldDoc) doc);
+                writeSortValue(out, topFieldGroups.groupValues[i]);
+                out.writeVInt(doc.shardIndex);
+            }
+        } else if (topDocs instanceof TopFieldDocs topFieldDocs) {
+            out.writeByte((byte) 1);
+            writeTotalHits(out, topDocs.totalHits);
+            out.writeArray(Lucene::writeSortField, topFieldDocs.fields);
+            out.writeArray((o, doc) -> {
+                o.writeArray(Lucene::writeSortValue, ((FieldDoc) doc).fields);
+                o.writeVInt(doc.doc);
+                o.writeFloat(doc.score);
+                o.writeVInt(doc.shardIndex);
+            }, topFieldDocs.scoreDocs);
+        } else {
+            out.writeByte((byte) 0);
+            writeTotalHits(out, topDocs.totalHits);
+            out.writeArray(Lucene::writeScoreDocWithShardIndex, topDocs.scoreDocs);
+        }
+    }
+
+    public static TopDocs readTopDocsOnly(StreamInput in) throws IOException {
+        byte type = in.readByte();
+        if (type == 0) {
+            TotalHits totalHits = readTotalHits(in);
+
+            final int scoreDocCount = in.readVInt();
+            final ScoreDoc[] scoreDocs;
+            if (scoreDocCount == 0) {
+                scoreDocs = EMPTY_SCORE_DOCS;
+            } else {
+                scoreDocs = new ScoreDoc[scoreDocCount];
+                for (int i = 0; i < scoreDocs.length; i++) {
+                    scoreDocs[i] = readScoreDocWithShardIndex(in);
+                }
+            }
+            return new TopDocs(totalHits, scoreDocs);
+        } else if (type == 1) {
+            TotalHits totalHits = readTotalHits(in);
+            SortField[] fields = in.readArray(Lucene::readSortField, SortField[]::new);
+            FieldDoc[] fieldDocs = new FieldDoc[in.readVInt()];
+            for (int i = 0; i < fieldDocs.length; i++) {
+                var fieldDoc = readFieldDoc(in);
+                fieldDoc.shardIndex = in.readVInt();
+                fieldDocs[i] = fieldDoc;
+            }
+            return new TopFieldDocs(totalHits, fieldDocs, fields);
+        } else if (type == 2) {
+            TotalHits totalHits = readTotalHits(in);
+            String field = in.readString();
+            SortField[] fields = in.readArray(Lucene::readSortField, SortField[]::new);
+            int size = in.readVInt();
+            Object[] collapseValues = new Object[size];
+            FieldDoc[] fieldDocs = new FieldDoc[size];
+            for (int i = 0; i < fieldDocs.length; i++) {
+                var doc = readFieldDoc(in);
+                collapseValues[i] = readSortValue(in);
+                doc.shardIndex = in.readVInt();
+                fieldDocs[i] = doc;
+            }
+            return new TopFieldGroups(field, totalHits, fieldDocs, fields, collapseValues);
+        } else {
+            throw new IllegalStateException("Unknown type " + type);
+        }
     }
 
     public static void writeTopDocs(StreamOutput out, TopDocsAndMaxScore topDocs) throws IOException {
@@ -524,6 +605,15 @@ public class Lucene {
         }
         out.writeVInt(scoreDoc.doc);
         out.writeFloat(scoreDoc.score);
+    }
+
+    public static void writeScoreDocWithShardIndex(StreamOutput out, ScoreDoc scoreDoc) throws IOException {
+        if (scoreDoc.getClass().equals(ScoreDoc.class) == false) {
+            throw new IllegalArgumentException("This method can only be used to serialize a ScoreDoc, not a " + scoreDoc.getClass());
+        }
+        out.writeVInt(scoreDoc.doc);
+        out.writeFloat(scoreDoc.score);
+        out.writeVInt(scoreDoc.shardIndex);
     }
 
     // LUCENE 4 UPGRADE: We might want to maintain our own ordinal, instead of Lucene's ordinal

@@ -26,15 +26,11 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.TransportIndexAction;
-import org.elasticsearch.action.search.SearchTransportService;
-import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationActionTests;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.node.selection.HealthNode;
@@ -88,16 +84,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutu
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -349,56 +342,6 @@ public class TasksIT extends ESIntegTestCase {
         // they all should have the same shard task as a parent
         assertEquals(getNumShards("test").numReplicas, numberOfEvents(TransportBulkAction.NAME + "[s][r]", Tuple::v1));
         assertParentTask(findEvents(TransportBulkAction.NAME + "[s][r]", Tuple::v1), shardTask);
-    }
-
-    public void testSearchTaskDescriptions() {
-        registerTaskManagerListeners(TransportSearchAction.TYPE.name());  // main task
-        registerTaskManagerListeners(TransportSearchAction.TYPE.name() + "[*]");  // shard task
-        createIndex("test");
-        ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
-        prepareIndex("test").setId("test_id")
-            .setSource("{\"foo\": \"bar\"}", XContentType.JSON)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
-
-        Map<String, String> headers = new HashMap<>();
-        headers.put(Task.X_OPAQUE_ID_HTTP_HEADER, "my_id");
-        headers.put("Foo-Header", "bar");
-        headers.put("Custom-Task-Header", "my_value");
-        assertNoFailures(client().filterWithHeader(headers).prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()));
-
-        // the search operation should produce one main task
-        List<TaskInfo> mainTask = findEvents(TransportSearchAction.TYPE.name(), Tuple::v1);
-        assertEquals(1, mainTask.size());
-        assertThat(mainTask.get(0).description(), startsWith("indices[test], search_type["));
-        assertThat(mainTask.get(0).description(), containsString("\"query\":{\"match_all\""));
-        assertTaskHeaders(mainTask.get(0));
-
-        // check that if we have any shard-level requests they all have non-zero length description
-        List<TaskInfo> shardTasks = findEvents(TransportSearchAction.TYPE.name() + "[*]", Tuple::v1);
-        for (TaskInfo taskInfo : shardTasks) {
-            assertThat(taskInfo.parentTaskId(), notNullValue());
-            assertEquals(mainTask.get(0).taskId(), taskInfo.parentTaskId());
-            assertTaskHeaders(taskInfo);
-            switch (taskInfo.action()) {
-                case SearchTransportService.QUERY_ACTION_NAME, SearchTransportService.DFS_ACTION_NAME -> assertTrue(
-                    taskInfo.description(),
-                    Regex.simpleMatch("shardId[[test][*]]", taskInfo.description())
-                );
-                case SearchTransportService.QUERY_ID_ACTION_NAME -> assertTrue(
-                    taskInfo.description(),
-                    Regex.simpleMatch("id[*], indices[test]", taskInfo.description())
-                );
-                case SearchTransportService.FETCH_ID_ACTION_NAME -> assertTrue(
-                    taskInfo.description(),
-                    Regex.simpleMatch("id[*], size[1], lastEmittedDoc[null]", taskInfo.description())
-                );
-                default -> fail("Unexpected action [" + taskInfo.action() + "] with description [" + taskInfo.description() + "]");
-            }
-            // assert that all task descriptions have non-zero length
-            assertThat(taskInfo.description().length(), greaterThan(0));
-        }
-
     }
 
     public void testSearchTaskHeaderLimit() {

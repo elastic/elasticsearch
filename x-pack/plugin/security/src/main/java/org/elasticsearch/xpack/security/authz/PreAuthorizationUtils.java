@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authz;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.search.SearchQueryThenFetchAsyncAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -46,7 +47,8 @@ public final class PreAuthorizationUtils {
             SearchTransportService.QUERY_ID_ACTION_NAME,
             SearchTransportService.FETCH_ID_ACTION_NAME,
             SearchTransportService.RANK_FEATURE_SHARD_ACTION_NAME,
-            SearchTransportService.QUERY_CAN_MATCH_NODE_NAME
+            SearchTransportService.QUERY_CAN_MATCH_NODE_NAME,
+            SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME
         )
     );
 

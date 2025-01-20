@@ -8,13 +8,17 @@
 package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.search.SearchQueryThenFetchAsyncAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessageListener;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
@@ -38,12 +42,41 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         return List.of(AsyncSearch.class);
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        // TODO: this can be removed once we consistently use the Threadpool provided timestamps in search code. Currently, there is
+        // a mix of the threadpool timestamps and System.currentTimeMillis etc. in the codebase so we need to force the threadpool to be
+        // consistent with those APIs.
+        return super.nodeSettings(
+            nodeOrdinal,
+            Settings.builder().put(otherSettings).put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0).build()
+        );
+    }
+
     private AtomicBoolean transportMessageHasStackTrace;
 
     @Before
     private void setupMessageListener() {
         internalCluster().getDataNodeInstances(TransportService.class).forEach(ts -> {
             ts.addMessageListener(new TransportMessageListener() {
+
+                @Override
+                public void onResponseSent(long requestId, String action, TransportResponse response) {
+                    if (SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME.equals(action)) {
+                        Object[] res = asInstanceOf(SearchQueryThenFetchAsyncAction.NodeQueryResponse.class, response).getResults();
+                        boolean hasStackTraces = true;
+                        boolean hasException = false;
+                        for (Object r : res) {
+                            if (r instanceof Exception e) {
+                                hasException = true;
+                                hasStackTraces &= ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t.getStackTrace().length > 0)
+                                    .isPresent();
+                            }
+                        }
+                        transportMessageHasStackTrace.set(hasException && hasStackTraces);
+                    }
+                }
+
                 @Override
                 public void onResponseSent(long requestId, String action, Exception error) {
                     TransportMessageListener.super.onResponseSent(requestId, action, error);

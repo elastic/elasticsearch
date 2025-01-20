@@ -64,6 +64,13 @@ class CountOnlyQueryPhaseResultConsumer extends SearchPhaseResults<SearchPhaseRe
         next.run();
     }
 
+    public void reduce(boolean terminatedEarly, boolean timedOut, long totalHits, TotalHits.Relation totalHitsRelation) {
+        relationAtomicReference.compareAndSet(TotalHits.Relation.EQUAL_TO, totalHitsRelation);
+        this.totalHits.add(totalHits);
+        this.terminatedEarly.set(terminatedEarly);
+        this.timedOut.set(timedOut);
+    }
+
     @Override
     boolean hasResult(int shardIndex) {
         return results.contains(shardIndex);

@@ -182,11 +182,11 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 task::isCancelled,
                 task.getProgressListener(),
                 shardsIter.size(),
+                -1,
                 exc -> {}
             )
         ) {
             SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
-                logger,
                 null,
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),

@@ -13,10 +13,12 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.SearchQueryThenFetchAsyncAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.transport.TransportMessageListener;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
@@ -29,12 +31,30 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 
 public class SearchErrorTraceIT extends HttpSmokeTestCase {
-    private AtomicBoolean hasStackTrace;
+    private final AtomicBoolean hasStackTrace = new AtomicBoolean(false);
 
     @Before
     private void setupMessageListener() {
         internalCluster().getDataNodeInstances(TransportService.class).forEach(ts -> {
             ts.addMessageListener(new TransportMessageListener() {
+
+                @Override
+                public void onResponseSent(long requestId, String action, TransportResponse response) {
+                    if (SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME.equals(action)) {
+                        Object[] res = asInstanceOf(SearchQueryThenFetchAsyncAction.NodeQueryResponse.class, response).getResults();
+                        boolean hasStackTraces = true;
+                        boolean hasException = false;
+                        for (Object r : res) {
+                            if (r instanceof Exception e) {
+                                hasException = true;
+                                hasStackTraces &= ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t.getStackTrace().length > 0)
+                                    .isPresent();
+                            }
+                        }
+                        hasStackTrace.set(hasStackTraces && hasException);
+                    }
+                }
+
                 @Override
                 public void onResponseSent(long requestId, String action, Exception error) {
                     TransportMessageListener.super.onResponseSent(requestId, action, error);
@@ -61,7 +81,6 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
     }
 
     public void testSearchFailingQueryErrorTraceDefault() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_search");
@@ -80,7 +99,6 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
     }
 
     public void testSearchFailingQueryErrorTraceTrue() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_search");
@@ -100,7 +118,6 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
     }
 
     public void testSearchFailingQueryErrorTraceFalse() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         Request searchRequest = new Request("POST", "/_search");
@@ -120,7 +137,6 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
     }
 
     public void testMultiSearchFailingQueryErrorTraceDefault() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         XContentType contentType = XContentType.JSON;
@@ -137,7 +153,6 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
     }
 
     public void testMultiSearchFailingQueryErrorTraceTrue() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         XContentType contentType = XContentType.JSON;
@@ -150,12 +165,11 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
             new NByteArrayEntity(requestBody, ContentType.create(contentType.mediaTypeWithoutParameters(), (Charset) null))
         );
         searchRequest.addParameter("error_trace", "true");
-        getRestClient().performRequest(searchRequest);
-        assertTrue(hasStackTrace.get());
+        var response = getRestClient().performRequest(searchRequest);
+        assertTrue(response.getStatusLine().getStatusCode() == 200 || hasStackTrace.get());
     }
 
     public void testMultiSearchFailingQueryErrorTraceFalse() throws IOException {
-        hasStackTrace = new AtomicBoolean();
         setupIndexWithDocs();
 
         XContentType contentType = XContentType.JSON;

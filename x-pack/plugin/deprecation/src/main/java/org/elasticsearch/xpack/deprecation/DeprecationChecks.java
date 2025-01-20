@@ -98,8 +98,7 @@ public class DeprecationChecks {
         IndexDeprecationChecks::checkIndexDataPath,
         IndexDeprecationChecks::storeTypeSettingCheck,
         IndexDeprecationChecks::frozenIndexSettingCheck,
-        IndexDeprecationChecks::deprecatedCamelCasePattern,
-        IndexDeprecationChecks::checkSourceModeInMapping
+        IndexDeprecationChecks::deprecatedCamelCasePattern
     );
 
     static List<BiFunction<DataStream, ClusterState, DeprecationIssue>> DATA_STREAM_CHECKS = List.of(

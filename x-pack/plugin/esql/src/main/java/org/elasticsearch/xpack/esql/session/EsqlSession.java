@@ -145,9 +145,9 @@ public class EsqlSession {
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planningMetrics = planningMetrics;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
-        this.mapperPreprocessorExecutor = new MapperPreprocessorExecutor(services);
-
-        mapperPreprocessorExecutor.addPreprocessor(new FullTextFunctionMapperPreprocessor());
+        this.mapperPreprocessorExecutor = new MapperPreprocessorExecutor(services).addPreprocessor(
+            new FullTextFunctionMapperPreprocessor()
+        );
     }
 
     public String sessionId() {
@@ -184,21 +184,13 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         ActionListener<Result> listener
     ) {
-        mapperPreprocessorExecutor.execute(optimizedPlan, new ActionListener<>() {
-            @Override
-            public void onResponse(LogicalPlan preprocessedPlan) {
-                PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(preprocessedPlan, request);
-                // TODO: this could be snuck into the underlying listener
-                EsqlSessionCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
-                // execute any potential subplans
-                executeSubPlans(physicalPlan, planRunner, executionInfo, request, listener);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        mapperPreprocessorExecutor.execute(optimizedPlan, listener.delegateFailureAndWrap((l, p) -> {
+            PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(p, request);
+            // TODO: this could be snuck into the underlying listener
+            EsqlSessionCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
+            // execute any potential subplans
+            executeSubPlans(physicalPlan, planRunner, executionInfo, request, l);
+        }));
     }
 
     private record PlanTuple(PhysicalPlan physical, LogicalPlan logical) {}

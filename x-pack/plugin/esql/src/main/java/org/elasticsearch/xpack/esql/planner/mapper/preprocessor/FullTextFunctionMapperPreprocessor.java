@@ -44,25 +44,14 @@ public class FullTextFunctionMapperPreprocessor implements MappingPreProcessor {
         }
         QueryRewriteContext ctx = queryRewriteContext(services, indexNames);
         FullTextFunctionsRewritable rewritable = new FullTextFunctionsRewritable(unresolved);
-        Rewriteable.rewriteAndFetch(rewritable, ctx, new ActionListener<>() {
-            @Override
-            public void onResponse(FullTextFunctionsRewritable fullTextFunctionsRewritable) {
-                try {
-                    LogicalPlan newPlan = planWithResolvedQueryBuilders(plan, fullTextFunctionsRewritable.results());
-                    listener.onResponse(newPlan);
-                } catch (Exception e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        Rewriteable.rewriteAndFetch(
+            rewritable,
+            ctx,
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(updateQueryBuilders(plan, r.results())))
+        );
     }
 
-    public LogicalPlan planWithResolvedQueryBuilders(LogicalPlan plan, Map<FullTextFunction, QueryBuilder> newQueryBuilders) {
+    public LogicalPlan updateQueryBuilders(LogicalPlan plan, Map<FullTextFunction, QueryBuilder> newQueryBuilders) {
         LogicalPlan newPlan = plan.transformExpressionsDown(FullTextFunction.class, m -> {
             if (newQueryBuilders.containsKey(m)) {
                 return m.replaceQueryBuilder(newQueryBuilders.get(m));

@@ -41,19 +41,8 @@ public class MapperPreprocessorExecutor {
     private void execute(LogicalPlan plan, int index, ActionListener<LogicalPlan> listener) {
         if (index == proprocessors.size()) {
             listener.onResponse(plan);
-            return;
+        } else {
+            proprocessors.get(index).preprocess(plan, services, listener.delegateFailureAndWrap((l, p) -> execute(p, index + 1, l)));
         }
-
-        proprocessors.get(index).preprocess(plan, services, new ActionListener<>() {
-            @Override
-            public void onResponse(LogicalPlan p) {
-                execute(p, index + 1, listener);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
     }
 }

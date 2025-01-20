@@ -175,7 +175,7 @@ matches the DNS or IP address. See the
 . Complete the previous steps for each node in your cluster.
 
 . On *every* node in your cluster, start {es}. The method for
-<<starting-elasticsearch,starting>> and <<starting-elasticsearch,stopping>> {es}
+<<starting-elasticsearch,starting>> and <<stopping-elasticsearch,stopping>> {es}
 varies depending on how you installed it.
 +
 For example, if you installed {es} with an archive distribution

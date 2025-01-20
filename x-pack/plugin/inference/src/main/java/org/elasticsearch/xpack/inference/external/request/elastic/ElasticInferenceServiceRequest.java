@@ -9,4 +9,8 @@ package org.elasticsearch.xpack.inference.external.request.elastic;
 
 import org.elasticsearch.xpack.inference.external.request.Request;
 
-public interface ElasticInferenceServiceRequest extends Request {}
+public interface ElasticInferenceServiceRequest extends Request {
+
+    String IS_TRIAL_LICENSE_HEADER = "X-Elastic-Is-Trial-License";
+
+}

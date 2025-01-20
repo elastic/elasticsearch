@@ -85,6 +85,8 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("search.vectors/110_knn_query_with_filter/PRE_FILTER: pre-filter across multiple aliases", "waiting for #118774 backport")
   task.skipTest("search.vectors/160_knn_query_missing_params/kNN search in a dis_max query - missing num_candidates", "waiting for #118774 backport")
   task.skipTest("search.highlight/30_max_analyzed_offset/Plain highlighter with max_analyzed_offset < 0 should FAIL", "semantics of test has changed")
+  task.skipTest("update/100_synthetic_source/stored text", "After introducing #114618 _recovery_source field does not exist anymore when using synthetic source")
+  task.skipTest("update/100_synthetic_source/keyword", "After introducing #114618 _recovery_source field does not exist anymore when using synthetic source")
   task.skipTest("indices.create/10_basic/Create lookup index", "default auto_expand_replicas was removed")
   task.skipTest("indices.create/10_basic/Create lookup index with one shard", "default auto_expand_replicas was removed")
 })

@@ -879,7 +879,8 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                                    "required": true,
                                    "sensitive": true,
                                    "updatable": true,
-                                   "type": "str"
+                                   "type": "str",
+                                   "supported_task_types": ["text_embedding", "rerank"]
                                },
                                "project_id": {
                                    "description": "The GCP Project ID which has Vertex AI API(s) enabled. For more information on the URL, refer to the {geminiVertexAIDocs}.",
@@ -887,7 +888,8 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                                    "required": true,
                                    "sensitive": false,
                                    "updatable": false,
-                                   "type": "str"
+                                   "type": "str",
+                                   "supported_task_types": ["text_embedding", "rerank"]
                                },
                                "location": {
                                    "description": "Please provide the GCP region where the Vertex AI API(s) is enabled. For more information, refer to the {geminiVertexAIDocs}.",
@@ -895,7 +897,8 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                                    "required": true,
                                    "sensitive": false,
                                    "updatable": false,
-                                   "type": "str"
+                                   "type": "str",
+                                   "supported_task_types": ["text_embedding", "rerank"]
                                },
                                "rate_limit.requests_per_minute": {
                                    "description": "Minimize the number of rate limit errors.",
@@ -903,7 +906,8 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                                    "required": false,
                                    "sensitive": false,
                                    "updatable": false,
-                                   "type": "int"
+                                   "type": "int",
+                                   "supported_task_types": ["text_embedding", "rerank"]
                                },
                                "model_id": {
                                    "description": "ID of the LLM you're using.",
@@ -911,7 +915,8 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                                    "required": true,
                                    "sensitive": false,
                                    "updatable": false,
-                                   "type": "str"
+                                   "type": "str",
+                                   "supported_task_types": ["text_embedding", "rerank"]
                                }
                            }
                        }

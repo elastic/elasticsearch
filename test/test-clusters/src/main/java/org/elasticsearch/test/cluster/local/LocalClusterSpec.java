@@ -91,7 +91,7 @@ public class LocalClusterSpec implements ClusterSpec {
         private final Map<String, String> settings;
         private final List<EnvironmentProvider> environmentProviders;
         private final Map<String, String> environment;
-        private final Set<String> modules;
+        private final Map<String, DefaultPluginInstallSpec> modules;
         private final Map<String, DefaultPluginInstallSpec> plugins;
         private final DistributionType distributionType;
         private final Set<FeatureFlag> features;
@@ -113,7 +113,7 @@ public class LocalClusterSpec implements ClusterSpec {
             Map<String, String> settings,
             List<EnvironmentProvider> environmentProviders,
             Map<String, String> environment,
-            Set<String> modules,
+            Map<String, DefaultPluginInstallSpec> modules,
             Map<String, DefaultPluginInstallSpec> plugins,
             DistributionType distributionType,
             Set<FeatureFlag> features,
@@ -175,7 +175,7 @@ public class LocalClusterSpec implements ClusterSpec {
             return distributionType;
         }
 
-        public Set<String> getModules() {
+        public Map<String, DefaultPluginInstallSpec> getModules() {
             return modules;
         }
 

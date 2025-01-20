@@ -659,11 +659,20 @@ public class ObjectMapper extends Mapper {
                     if (subobjects.isPresent()
                         && subobjects.get() == Subobjects.DISABLED
                         && mergeWithMapper instanceof ObjectMapper objectMapper) {
-                        // An existing mapping that has set `subobjects: false` is merged with a mapping with sub-objects
-                        objectMapper.asFlattenedFieldMappers(objectMergeContext.getMapperBuilderContext())
-                            .stream()
-                            .filter(m -> objectMergeContext.decrementFieldBudgetIfPossible(m.getTotalFieldsCount()))
-                            .forEach(m -> putMergedMapper(mergedMappers, m));
+                        // An existing mapping that has set `subobjects: false` is merged with a mapping with sub-objects.
+                        List<FieldMapper> flattenedMappers = objectMapper.asFlattenedFieldMappers(
+                            objectMergeContext.getMapperBuilderContext()
+                        );
+                        for (FieldMapper flattenedMapper : flattenedMappers) {
+                            if (objectMergeContext.decrementFieldBudgetIfPossible(flattenedMapper.getTotalFieldsCount())) {
+                                var conflict = mergedMappers.get(flattenedMapper.leafName());
+                                if (conflict != null) {
+                                    putMergedMapper(mergedMappers, conflict.merge(flattenedMapper, objectMergeContext));
+                                } else {
+                                    putMergedMapper(mergedMappers, flattenedMapper);
+                                }
+                            }
+                        }
                     } else if (objectMergeContext.decrementFieldBudgetIfPossible(mergeWithMapper.getTotalFieldsCount())) {
                         putMergedMapper(mergedMappers, mergeWithMapper);
                     } else if (mergeWithMapper instanceof ObjectMapper om) {

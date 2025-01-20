@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.operator;
+package org.elasticsearch.compute.test;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -22,10 +22,14 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockTestUtils;
-import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.TestBlockFactory;
+import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.DriverRunner;
+import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.operator.SinkOperator;
+import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;

@@ -13,10 +13,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -350,6 +352,38 @@ public class SearchTransportService {
         }
     }
 
+    static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
+        private final OriginalIndices originalIndices;
+
+        SearchFreeContextRequest(StreamInput in) throws IOException {
+            super(in);
+            originalIndices = OriginalIndices.readOriginalIndices(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            OriginalIndices.writeOriginalIndices(originalIndices, out);
+        }
+
+        @Override
+        public String[] indices() {
+            if (originalIndices == null) {
+                return null;
+            }
+            return originalIndices.indices();
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            if (originalIndices == null) {
+                return null;
+            }
+            return originalIndices.indicesOptions();
+        }
+
+    }
+
     public static class SearchFreeContextResponse extends TransportResponse {
 
         private static final SearchFreeContextResponse FREED = new SearchFreeContextResponse(true);
@@ -400,12 +434,13 @@ public class SearchTransportService {
         );
 
         // TODO: remove this handler once the lowest compatible version stops using it
-        transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, freeContextExecutor, in -> {
-            var res = new ScrollFreeContextRequest(in);
-            // this handler exists for BwC purposes only, we don't need the original indices to free the context
-            OriginalIndices.readOriginalIndices(in);
-            return res;
-        }, freeContextHandler);
+        // this handler exists for BwC purposes only, we don't need the original indices to free the context
+        transportService.registerRequestHandler(
+            FREE_CONTEXT_ACTION_NAME,
+            freeContextExecutor,
+            SearchFreeContextRequest::new,
+            freeContextHandler
+        );
         TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, false, SearchFreeContextResponse::readFrom);
 
         transportService.registerRequestHandler(

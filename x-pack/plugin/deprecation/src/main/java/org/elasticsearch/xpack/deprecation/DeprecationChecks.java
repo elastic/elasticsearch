@@ -36,9 +36,10 @@ public class DeprecationChecks {
     private DeprecationChecks() {}
 
     static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS = List.of(
-        ClusterDeprecationChecks::legacyTierRoutingInIlmPoliciesCheck,
-        ClusterDeprecationChecks::legacyTierRoutingInLegacyTemplatesCheck,
-        ClusterDeprecationChecks::legacyTierRoutingInTemplatesCheck
+        LegacyTiersDeprecationChecks::checkIlmPolicies,
+        LegacyTiersDeprecationChecks::checkTemplatesV1,
+        LegacyTiersDeprecationChecks::checkTemplatesV2,
+        LegacyTiersDeprecationChecks::checkComponentTemplates
     );
 
     static final List<
@@ -90,7 +91,7 @@ public class DeprecationChecks {
                 NodeDeprecationChecks::checkEnforceDefaultTierPreferenceSetting,
                 NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
                 NodeDeprecationChecks::checkEqlEnabledSetting,
-                NodeDeprecationChecks::checkNodeAttrData,
+                LegacyTiersDeprecationChecks::checkNodeAttrData,
                 NodeDeprecationChecks::checkWatcherBulkConcurrentRequestsSetting,
                 NodeDeprecationChecks::checkTracingApmSettings
             );
@@ -103,7 +104,7 @@ public class DeprecationChecks {
         IndexDeprecationChecks::frozenIndexSettingCheck,
         IndexDeprecationChecks::deprecatedCamelCasePattern,
         IndexDeprecationChecks::checkSourceModeInMapping,
-        IndexDeprecationChecks::legacyTierRoutingCheck
+        LegacyTiersDeprecationChecks::checkIndexSettings
     );
 
     static List<BiFunction<DataStream, ClusterState, DeprecationIssue>> DATA_STREAM_CHECKS = List.of(

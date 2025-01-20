@@ -127,8 +127,11 @@ public class PerFieldFormatSupplier {
 
     private boolean excludeFields(String fieldName) {
         // Avoid using tsdb codec for fields like _seq_no, _primary_term.
-        // But _tsid and _ts_routing_hash should always use the tsdb codec.
-        return fieldName.startsWith("_") && fieldName.equals("_tsid") == false && fieldName.equals("_ts_routing_hash") == false;
+        // But _tsid, _ts_routing_hash, and _ts_metric_name_hash should always use the tsdb codec.
+        return fieldName.startsWith("_")
+            && fieldName.equals("_tsid") == false
+            && fieldName.equals("_ts_routing_hash") == false
+            && fieldName.equals("_ts_metric_name_hash") == false;
     }
 
     private boolean isTimeSeriesModeIndex() {

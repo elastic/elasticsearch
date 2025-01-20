@@ -25,7 +25,7 @@ public class MapperFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(BWC_WORKAROUND_9_0);
+        return Set.of(BWC_WORKAROUND_9_0, TimeSeriesMetricNamesHashFieldMapper.TS_METRIC_NAMES_HASH);
     }
 
     public static final NodeFeature CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX = new NodeFeature(

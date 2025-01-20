@@ -593,6 +593,10 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         // if field value is malformed.
         XContentBuilder malformedDataForSyntheticSource = null;
 
+        if (metricType != null) {
+            context.getRoutingFields().addMetricName(fullPath());
+        }
+
         try {
             token = context.parser().currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {

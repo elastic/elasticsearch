@@ -45,6 +45,8 @@ public interface RoutingFields {
 
     RoutingFields addBoolean(String fieldName, boolean value);
 
+    RoutingFields addMetricName(String metricName);
+
     /**
      * Noop implementation that doesn't perform validations on routing fields
      */
@@ -79,6 +81,11 @@ public interface RoutingFields {
 
         @Override
         public RoutingFields addBoolean(String fieldName, boolean value) {
+            return this;
+        }
+
+        @Override
+        public RoutingFields addMetricName(String metricName) {
             return this;
         }
     }

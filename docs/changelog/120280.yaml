@@ -1,0 +1,6 @@
+pr: 120280
+summary: Don't reject docs as duplicates if they have different metrics
+area: TSDB
+type: bug
+issues:
+ - 99123

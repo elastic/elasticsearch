@@ -1983,6 +1983,9 @@ public class NumberFieldMapper extends FieldMapper {
         if (dimension && numericValue != null) {
             context.getRoutingFields().addLong(fieldType().name(), numericValue.longValue());
         }
+        if (metricType != null) {
+            context.getRoutingFields().addMetricName(fullPath());
+        }
         fieldType().type.addFields(context.doc(), fieldType().name(), numericValue, indexed, hasDocValues, stored);
 
         if (false == allowMultipleValues && (indexed || hasDocValues || stored)) {

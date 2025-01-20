@@ -27,6 +27,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
 
@@ -40,6 +41,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class IdLoaderTests extends ESTestCase {
 
@@ -50,9 +52,9 @@ public class IdLoaderTests extends ESTestCase {
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         List<Doc> docs = List.of(
-            new Doc(startTime, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx"))),
-            new Doc(startTime + 1, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy"))),
-            new Doc(startTime + 2, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "xxx")))
+            new Doc(startTime, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx")), List.of("metric")),
+            new Doc(startTime + 1, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy")), List.of("metric")),
+            new Doc(startTime + 2, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "xxx")), List.of("metric"))
         );
         CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
             assertThat(indexReader.leaves(), hasSize(1));
@@ -67,27 +69,45 @@ public class IdLoaderTests extends ESTestCase {
         prepareIndexReader(indexAndForceMerge(docs, routingHash), verify, false);
     }
 
+    public void testSynthesizeIdDifferentMetricName() throws Exception {
+        var idLoader = IdLoader.createTsIdLoader(null, null);
+
+        long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
+        List<Doc> docs = List.of(
+            new Doc(startTime, List.of(new Dimension("dim1", "aaa")), List.of("metric1")),
+            new Doc(startTime, List.of(new Dimension("dim1", "aaa")), List.of("metric2"))
+        );
+        CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
+            assertThat(indexReader.leaves(), hasSize(1));
+            LeafReader leafReader = indexReader.leaves().get(0).reader();
+            assertThat(leafReader.numDocs(), equalTo(2));
+            var leaf = idLoader.leaf(null, leafReader, new int[] { 0, 1 });
+            assertThat(leaf.getId(0), not(equalTo(leaf.getId(1))));
+        };
+        prepareIndexReader(indexAndForceMerge(docs, routingHash), verify, false);
+    }
+
     public void testSynthesizeIdMultipleSegments() throws Exception {
         var idLoader = IdLoader.createTsIdLoader(null, null);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         List<Doc> docs1 = List.of(
-            new Doc(startTime, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx"))),
-            new Doc(startTime - 1, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx"))),
-            new Doc(startTime - 2, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx"))),
-            new Doc(startTime - 3, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx")))
+            new Doc(startTime, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx")), List.of("metric")),
+            new Doc(startTime - 1, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx")), List.of("metric")),
+            new Doc(startTime - 2, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx")), List.of("metric")),
+            new Doc(startTime - 3, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx")), List.of("metric"))
         );
         List<Doc> docs2 = List.of(
-            new Doc(startTime, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy"))),
-            new Doc(startTime - 1, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy"))),
-            new Doc(startTime - 2, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy"))),
-            new Doc(startTime - 3, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy")))
+            new Doc(startTime, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy")), List.of("metric")),
+            new Doc(startTime - 1, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy")), List.of("metric")),
+            new Doc(startTime - 2, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy")), List.of("metric")),
+            new Doc(startTime - 3, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy")), List.of("metric"))
         );
         List<Doc> docs3 = List.of(
-            new Doc(startTime, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "yyy"))),
-            new Doc(startTime - 1, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "yyy"))),
-            new Doc(startTime - 2, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "yyy"))),
-            new Doc(startTime - 3, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "yyy")))
+            new Doc(startTime, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "yyy")), List.of("metric")),
+            new Doc(startTime - 1, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "yyy")), List.of("metric")),
+            new Doc(startTime - 2, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "yyy")), List.of("metric")),
+            new Doc(startTime - 3, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "yyy")), List.of("metric"))
         );
         CheckedConsumer<IndexWriter, IOException> buildIndex = writer -> {
             for (Doc doc : docs1) {
@@ -157,9 +177,14 @@ public class IdLoaderTests extends ESTestCase {
                 }
                 dimensions.add(new Dimension(fieldName, value));
             }
+            int numberOfMerics = randomIntBetween(1, 6);
+            List<String> metricNames = new ArrayList<>(numberOfMerics);
+            for (int j = 1; j <= numberOfDimensions; j++) {
+                metricNames.add(randomAlphaOfLength(4));
+            }
             int numberOfSamples = randomIntBetween(1, 16);
             for (int j = 0; j < numberOfSamples; j++) {
-                Doc doc = new Doc(startTime++, dimensions);
+                Doc doc = new Doc(startTime++, dimensions, metricNames);
                 randomDocs.add(doc);
                 expectedIDs.add(expectedId(doc, routingHash));
             }
@@ -229,6 +254,9 @@ public class IdLoaderTests extends ESTestCase {
                 fields.add(new SortedSetDocValuesField(dimension.field, new BytesRef(dimension.value.toString())));
             }
         }
+        for (String metricName : doc.metricNames) {
+            routingFields.addMetricName(metricName);
+        }
         BytesRef tsid = routingFields.buildHash().toBytesRef();
         fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, tsid));
         fields.add(
@@ -237,6 +265,9 @@ public class IdLoaderTests extends ESTestCase {
                 Uid.encodeId(TimeSeriesRoutingHashFieldMapper.encode(routingHash))
             )
         );
+        byte[] metricNamesHashBytes = new byte[8];
+        ByteUtils.writeLongLE(routingFields.buildMetricNamesHash(), metricNamesHashBytes, 0);
+        fields.add(new SortedDocValuesField(TimeSeriesMetricNamesHashFieldMapper.NAME, new BytesRef(metricNamesHashBytes)));
         iw.addDocument(fields);
     }
 
@@ -249,10 +280,18 @@ public class IdLoaderTests extends ESTestCase {
                 routingFields.addString(dimension.field, dimension.value.toString());
             }
         }
-        return TsidExtractingIdFieldMapper.createId(routingHash, routingFields.buildHash().toBytesRef(), doc.timestamp);
+        for (String metricName : doc.metricNames()) {
+            routingFields.addMetricName(metricName);
+        }
+        return TsidExtractingIdFieldMapper.createId(
+            routingHash,
+            routingFields.buildHash().toBytesRef(),
+            routingFields.buildMetricNamesHash(),
+            doc.timestamp
+        );
     }
 
-    record Doc(long timestamp, List<Dimension> dimensions) {}
+    record Doc(long timestamp, List<Dimension> dimensions, List<String> metricNames) {}
 
     record Dimension(String field, Object value) {}
 

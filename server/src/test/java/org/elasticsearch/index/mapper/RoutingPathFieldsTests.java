@@ -17,6 +17,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
+
 public class RoutingPathFieldsTests extends ESTestCase {
 
     public void testWithBuilder() throws Exception {
@@ -86,6 +88,12 @@ public class RoutingPathFieldsTests extends ESTestCase {
         routingPathFields.addUnsignedLong("path.unsigned_long_name", randomLongBetween(0, Long.MAX_VALUE));
         current = routingPathFields.buildHash();
         assertTrue(current.length() > previous.length());
+
+        routingPathFields.addMetricName("metrics.foo");
+        current = routingPathFields.buildHash();
+        assertArrayEquals(current.array(), routingPathFields.buildHash().array());
+        assertFalse(Arrays.equals(current.array(), previous.array()));
+
         assertArrayEquals(current.array(), routingPathFields.buildHash().array());
     }
 }

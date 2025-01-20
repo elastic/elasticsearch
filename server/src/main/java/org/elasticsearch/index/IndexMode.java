@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.RoutingFields;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesMetricNamesHashFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 
@@ -99,6 +100,12 @@ public enum IndexMode {
         @Override
         public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
             // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
+            return null;
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesMetricNamesHashFieldMapper() {
+            // non time-series indices must not have a TimeSeriesMetricNamesHashFieldMapper
             return null;
         }
 
@@ -200,6 +207,11 @@ public enum IndexMode {
             return TimeSeriesRoutingHashFieldMapper.INSTANCE;
         }
 
+        @Override
+        public MetadataFieldMapper timeSeriesMetricNamesHashFieldMapper() {
+            return TimeSeriesMetricNamesHashFieldMapper.INSTANCE;
+        }
+
         public IdFieldMapper idFieldMapperWithoutFieldData() {
             return TsidExtractingIdFieldMapper.INSTANCE;
         }
@@ -293,6 +305,12 @@ public enum IndexMode {
         }
 
         @Override
+        public MetadataFieldMapper timeSeriesMetricNamesHashFieldMapper() {
+            // non time-series indices must not have a TimeSeriesMetricNamesHashFieldMapper
+            return null;
+        }
+
+        @Override
         public RoutingFields buildRoutingFields(IndexSettings settings) {
             return RoutingFields.Noop.INSTANCE;
         }
@@ -360,6 +378,12 @@ public enum IndexMode {
         @Override
         public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
             // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
+            return null;
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesMetricNamesHashFieldMapper() {
+            // non time-series indices must not have a TimeSeriesMetricNamesHashFieldMapper
             return null;
         }
 
@@ -530,6 +554,13 @@ public enum IndexMode {
      * field mappers for the index.
      */
     public abstract MetadataFieldMapper timeSeriesRoutingHashFieldMapper();
+
+    /**
+     * Return an instance of the {@link TimeSeriesMetricNamesHashFieldMapper} that generates
+     * the _ts_metric_names_hash field. The field mapper will be added to the list of the metadata
+     * field mappers for the index.
+     */
+    public abstract MetadataFieldMapper timeSeriesMetricNamesHashFieldMapper();
 
     /**
      * How {@code time_series_dimension} fields are handled by indices in this mode.

@@ -707,8 +707,9 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     ) {
         if (target instanceof InetSocketAddress isa && isa.getAddress().isMulticastAddress()) {
             policyManager.checkAllNetworkAccess(callerClass);
+        } else {
+            policyManager.checkOutboundNetworkAccess(callerClass);
         }
-        policyManager.checkOutboundNetworkAccess(callerClass);
     }
 
     @Override

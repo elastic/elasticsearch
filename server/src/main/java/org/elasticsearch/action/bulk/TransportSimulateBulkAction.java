@@ -34,7 +34,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
@@ -193,8 +192,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             XContentMeteringParserDecorator.NOOP
         );
 
-        @FixForMultiProject // get the right project
-        ProjectMetadata project = clusterService.state().metadata().getProject();
+        ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
         Exception mappingValidationException = null;
         Collection<String> ignoredFields = List.of();
         IndexAbstraction indexAbstraction = project.getIndicesLookup().get(request.index());
@@ -302,11 +300,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                          * The index matched no templates of any kind, including the substitutions. But it might have a mapping. So we
                          * merge in the mapping addition if it exists, and validate.
                          */
-                        MappingMetadata mappingFromIndex = clusterService.state()
-                            .metadata()
-                            .getProject()
-                            .index(indexAbstraction.getName())
-                            .mapping();
+                        MappingMetadata mappingFromIndex = project.index(indexAbstraction.getName()).mapping();
                         CompressedXContent currentIndexCompressedXContent = mappingFromIndex == null ? null : mappingFromIndex.source();
                         CompressedXContent combinedMappings = mergeMappings(currentIndexCompressedXContent, mappingAddition);
                         ignoredFields = validateUpdatedMappings(null, combinedMappings, request, sourceToParse);

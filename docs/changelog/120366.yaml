@@ -1,0 +1,6 @@
+pr: 120366
+summary: "[9.0] Deprecate legacy tiers using the `node.attr.data` in templates, index\
+  \ settings and ILM policies"
+area: "Indices APIs, ILM+SLM"
+type: enhancement
+issues: []

@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -34,7 +33,8 @@ import java.util.Set;
 
 /**
  * A {@link Role} limited by another role.<br>
- * The effective permissions returned on {@link #authorize(String, Set, Metadata, FieldPermissionsCache)} call would be limited by the
+ * The effective permissions returned on
+ * {@link #authorize(String, Set, ProjectMetadata, FieldPermissionsCache)} call would be limited by the
  * provided role.
  */
 public final class LimitedRole implements Role {

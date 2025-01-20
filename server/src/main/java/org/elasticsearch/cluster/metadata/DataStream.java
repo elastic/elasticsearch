@@ -260,7 +260,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     @Override
-    public List<Index> getFailureIndices(Metadata ignored) {
+    public List<Index> getFailureIndices(ProjectMetadata ignored) {
         return failureIndices.indices;
     }
 
@@ -282,7 +282,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * @return the write failure index if the failure store is enabled and there is already at least one failure, null otherwise
      */
     @Override
-    public Index getWriteFailureIndex(Metadata metadata) {
+    public Index getWriteFailureIndex(ProjectMetadata metadata) {
         return getWriteFailureIndex();
     }
 

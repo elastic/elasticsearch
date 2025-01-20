@@ -565,7 +565,7 @@ public class SynonymsManagementAPIService {
     static Settings settings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), SYNONYMS_INDEX_FORMAT)
             .build();
     }

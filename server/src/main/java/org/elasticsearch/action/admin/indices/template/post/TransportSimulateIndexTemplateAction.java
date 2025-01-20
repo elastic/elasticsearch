@@ -12,8 +12,8 @@ package org.elasticsearch.action.admin.indices.template.post;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -65,7 +66,7 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.re
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveLifecycle;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 
-public class TransportSimulateIndexTemplateAction extends TransportLocalClusterStateAction<
+public class TransportSimulateIndexTemplateAction extends TransportLocalProjectMetadataAction<
     SimulateIndexTemplateRequest,
     SimulateIndexTemplateResponse> {
 
@@ -92,14 +93,16 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalClusterS
         NamedXContentRegistry xContentRegistry,
         IndicesService indicesService,
         SystemIndices systemIndices,
-        IndexSettingProviders indexSettingProviders
+        IndexSettingProviders indexSettingProviders,
+        ProjectResolver projectResolver
     ) {
         super(
             SimulateIndexTemplateAction.NAME,
             actionFilters,
             transportService.getTaskManager(),
             clusterService,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            projectResolver
         );
         this.indexTemplateService = indexTemplateService;
         this.xContentRegistry = xContentRegistry;
@@ -123,7 +126,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalClusterS
     protected void localClusterStateOperation(
         Task task,
         SimulateIndexTemplateRequest request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<SimulateIndexTemplateResponse> listener
     ) throws Exception {
         ProjectMetadata projectWithTemplate;
@@ -132,13 +135,13 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalClusterS
             String simulateTemplateToAdd = "simulate_index_template_" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
             // Perform validation for things like typos in component template names
             MetadataIndexTemplateService.validateV2TemplateRequest(
-                state.metadata().getProject(),
+                state.metadata(),
                 simulateTemplateToAdd,
                 request.getIndexTemplateRequest().indexTemplate()
             );
             projectWithTemplate = removeExistingAbstractions(
                 indexTemplateService.addIndexTemplateV2(
-                    state.metadata().getProject(),
+                    state.metadata(),
                     request.getIndexTemplateRequest().create(),
                     simulateTemplateToAdd,
                     request.getIndexTemplateRequest().indexTemplate()
@@ -146,7 +149,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalClusterS
                 request.getIndexName()
             );
         } else {
-            projectWithTemplate = removeExistingAbstractions(state.metadata().getProject(), request.getIndexName());
+            projectWithTemplate = removeExistingAbstractions(state.metadata(), request.getIndexName());
         }
 
         String matchingTemplate = findV2Template(projectWithTemplate, request.getIndexName(), false);
@@ -195,7 +198,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalClusterS
     }
 
     @Override
-    protected ClusterBlockException checkBlock(SimulateIndexTemplateRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(SimulateIndexTemplateRequest request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 

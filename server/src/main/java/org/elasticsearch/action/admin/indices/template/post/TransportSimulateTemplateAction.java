@@ -12,8 +12,8 @@ package org.elasticsearch.action.admin.indices.template.post;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -21,11 +21,11 @@ import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -50,7 +50,7 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.fi
  * Handles simulating an index template either by name (looking it up in the
  * cluster state), or by a provided template configuration
  */
-public class TransportSimulateTemplateAction extends TransportLocalClusterStateAction<
+public class TransportSimulateTemplateAction extends TransportLocalProjectMetadataAction<
     SimulateTemplateAction.Request,
     SimulateIndexTemplateResponse> {
 
@@ -77,14 +77,16 @@ public class TransportSimulateTemplateAction extends TransportLocalClusterStateA
         NamedXContentRegistry xContentRegistry,
         IndicesService indicesService,
         SystemIndices systemIndices,
-        IndexSettingProviders indexSettingProviders
+        IndexSettingProviders indexSettingProviders,
+        ProjectResolver projectResolver
     ) {
         super(
             SimulateTemplateAction.NAME,
             actionFilters,
             transportService.getTaskManager(),
             clusterService,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            projectResolver
         );
         this.indexTemplateService = indexTemplateService;
         this.xContentRegistry = xContentRegistry;
@@ -108,13 +110,11 @@ public class TransportSimulateTemplateAction extends TransportLocalClusterStateA
     protected void localClusterStateOperation(
         Task task,
         SimulateTemplateAction.Request request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<SimulateIndexTemplateResponse> listener
     ) throws Exception {
         String uuid = UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
         final String temporaryIndexName = "simulate_template_index_" + uuid;
-        @FixForMultiProject // actually get the project
-        ProjectMetadata project = state.metadata().getProject();
         final ProjectMetadata projectWithTemplate;
         final String simulateTemplateToAdd;
 
@@ -127,19 +127,19 @@ public class TransportSimulateTemplateAction extends TransportLocalClusterStateA
             simulateTemplateToAdd = request.getTemplateName() == null ? "simulate_template_" + uuid : request.getTemplateName();
             // Perform validation for things like typos in component template names
             MetadataIndexTemplateService.validateV2TemplateRequest(
-                project,
+                state.metadata(),
                 simulateTemplateToAdd,
                 request.getIndexTemplateRequest().indexTemplate()
             );
             projectWithTemplate = indexTemplateService.addIndexTemplateV2(
-                project,
+                state.metadata(),
                 request.getIndexTemplateRequest().create(),
                 simulateTemplateToAdd,
                 request.getIndexTemplateRequest().indexTemplate()
             );
         } else {
             simulateTemplateToAdd = null;
-            projectWithTemplate = project;
+            projectWithTemplate = state.metadata();
         }
 
         // We also need the name of the template we're going to resolve, so if they specified a
@@ -199,7 +199,7 @@ public class TransportSimulateTemplateAction extends TransportLocalClusterStateA
     }
 
     @Override
-    protected ClusterBlockException checkBlock(SimulateTemplateAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(SimulateTemplateAction.Request request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

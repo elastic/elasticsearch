@@ -53,7 +53,6 @@ tasks.named("yamlRestTest").configure {
     '^data_stream/140_data_stream_aliases/*',
     '^data_stream/150_tsdb/*',
     '^data_stream/170_modify_data_stream/*',
-    '^data_stream/180_simulate_existing_data_stream/*',
     '^health/10_basic/*',
     '^health/40_diagnosis/*',
     '^indices.get_alias/10_basic/Get alias against closed indices', // Does NOT work with security enabled, see also core-rest-tests-with-security
@@ -61,8 +60,6 @@ tasks.named("yamlRestTest").configure {
     '^indices.resolve_cluster/*/*',
     '^indices.resolve_cluster/*/*/*',
     '^indices.shard_stores/*/*',
-    '^indices.simulate_index_template/*/*',
-    '^indices.simulate_template/*/*',
     '^reindex/30_search/Sorting deprecated wait_for_completion false',
     '^test/ingest/15_info_ingest/*', // uses cluster info API
     '^test/ingest/70_bulk/Test bulk request with default pipeline', // uses stats API
@@ -74,7 +71,6 @@ tasks.named("yamlRestTest").configure {
     '^search.vectors/60_dense_vector_dynamic_mapping/Fields mapped as dense_vector without dims or docs have correct cluster stats values',
     '^search.vectors/70_dense_vector_telemetry/Field mapping stats',
     '^search.vectors/70_dense_vector_telemetry/Field mapping stats with field details',
-    '^simulate.ingest/*/*',
     '^snapshot.clone/*/*',
     '^snapshot.create/*/*',
     '^snapshot.delete/*/*',

@@ -1628,20 +1628,6 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * Resolve the given v2 template into a {@link DataStreamLifecycle} object
-     */
-    @Nullable
-    public static DataStreamLifecycle resolveLifecycle(final Metadata metadata, final String templateName) {
-        final ComposableIndexTemplate template = metadata.getProject().templatesV2().get(templateName);
-        assert template != null
-            : "attempted to resolve lifecycle for a template [" + templateName + "] that did not exist in the cluster state";
-        if (template == null) {
-            return null;
-        }
-        return resolveLifecycle(template, metadata.getProject().componentTemplates());
-    }
-
-    /**
      * Resolve the provided v2 template and component templates into a {@link DataStreamLifecycle} object
      */
     @Nullable

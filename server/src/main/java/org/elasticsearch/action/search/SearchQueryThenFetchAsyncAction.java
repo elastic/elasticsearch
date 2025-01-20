@@ -683,7 +683,11 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
 
                     @Override
                     public void handleException(TransportException e) {
-                        onPhaseFailure(NAME, "", ExceptionsHelper.unwrapCause(e));
+                        Exception cause = (Exception) ExceptionsHelper.unwrapCause(e);
+                        if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
+                            queryPhaseResultConsumer.failure.compareAndSet(null, cause);
+                        }
+                        onPhaseFailure(NAME, "", cause);
                     }
                 });
         });

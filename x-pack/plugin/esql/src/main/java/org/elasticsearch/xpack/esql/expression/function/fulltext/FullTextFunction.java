@@ -287,7 +287,7 @@ public abstract class FullTextFunction extends Function implements TranslationAw
      * @param expression expression to check
      * @return true if all children are full text functions or negations of full text functions, false otherwise
      */
-    public static boolean onlyFullTextFunctionsInExpression(Expression expression) {
+    private static boolean onlyFullTextFunctionsInExpression(Expression expression) {
         if (expression instanceof FullTextFunction) {
             return true;
         } else if (expression instanceof Not) {

@@ -75,7 +75,7 @@ public class PasswordToolsTests extends PackagingTestCase {
                 // in our windows images with `openfiles /local on` (which requires a restart, thus needs to be baked into the images).
                 // The following sleep allows time for windows to release the data file locks from Elasticsearch which was stopped in the
                 // previous test.
-                int retries = 50;
+                int retries = 30;
                 Exception failure = null;
                 while (retries-- > 0) {
                     try {

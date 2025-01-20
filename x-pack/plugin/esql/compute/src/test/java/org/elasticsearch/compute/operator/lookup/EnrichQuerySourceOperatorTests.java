@@ -123,7 +123,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         // 4 -> [a1] -> [3]
         // 5 -> [] -> []
         var warnings = Warnings.createWarnings(DriverContext.WarningsMode.IGNORE, 0, 0, "test enrich");
-        EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(blockFactory, 128, queryList, reader, warnings);
+        EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(blockFactory, 128, false, queryList, reader, warnings);
         Page p0 = queryOperator.getOutput();
         assertNotNull(p0);
         assertThat(p0.getPositionCount(), equalTo(6));
@@ -191,7 +191,14 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         var queryList = QueryList.rawTermQueryList(uidField, mock(SearchExecutionContext.class), inputTerms);
         int maxPageSize = between(1, 256);
         var warnings = Warnings.createWarnings(DriverContext.WarningsMode.IGNORE, 0, 0, "test enrich");
-        EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(blockFactory, maxPageSize, queryList, reader, warnings);
+        EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
+            blockFactory,
+            maxPageSize,
+            false,
+            queryList,
+            reader,
+            warnings
+        );
         Map<Integer, Set<Integer>> actualPositions = new HashMap<>();
         while (queryOperator.isFinished() == false) {
             Page page = queryOperator.getOutput();

@@ -60,6 +60,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             bigArrays,
             blockFactory,
             false,
+            true,
             TransportRequest::readFrom
         );
     }

@@ -61,6 +61,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             bigArrays,
             blockFactory,
             true,
+            false,
             TransportRequest::readFrom
         );
     }

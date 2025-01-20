@@ -75,10 +75,12 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
 
     @Override
     public void next() {
-        assert closing == false : "cannot request next chunk on closing stream";
         assert handler != null : "handler must be set before requesting next chunk";
         requestContext = threadContext.newStoredContext();
         channel.eventLoop().submit(() -> {
+            if (closing) {
+                return;
+            }
             activityTracker.startActivity();
             requested = true;
             try {

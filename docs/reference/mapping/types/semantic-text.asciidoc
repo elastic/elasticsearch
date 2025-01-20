@@ -96,6 +96,13 @@ You can update this parameter by using the <<indices-put-mapping, Update mapping
 Use the <<put-inference-api>> to create the endpoint.
 If not specified, the {infer} endpoint defined by `inference_id` will be used at both index and query time.
 
+`index_options`::
+(Optional, string) Specifies configurable index options for indexing documents.
+For dense vector models, the configuration of `index_options` uses the defined <<dense-vector-index-options>> configuration and defaults for dense vectors.
+There are currently no supported index options for sparse models.
+
+WARNING: Specified `index_options` must be compatible with the model type associated with the inference ID attached to the semantic field.
+
 [discrete]
 [[infer-endpoint-validation]]
 ==== {infer-cap} endpoint validation

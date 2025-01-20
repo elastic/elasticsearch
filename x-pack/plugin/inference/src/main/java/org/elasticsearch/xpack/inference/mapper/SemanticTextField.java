@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -79,6 +80,8 @@ public record SemanticTextField(
     static final String DIMENSIONS_FIELD = "dimensions";
     static final String SIMILARITY_FIELD = "similarity";
     static final String ELEMENT_TYPE_FIELD = "element_type";
+    static final String INDEX_OPTIONS_FIELD = "index_options";
+    static final String TYPE_FIELD = "type";
 
     public record InferenceResult(String inferenceId, ModelSettings modelSettings, Map<String, List<Chunk>> chunks) {}
 
@@ -146,19 +149,17 @@ public record SemanticTextField(
             return sb.toString();
         }
 
-        private void validate() {
+        public boolean validate() {
             switch (taskType) {
                 case TEXT_EMBEDDING:
-                    validateFieldPresent(DIMENSIONS_FIELD, dimensions);
-                    validateFieldPresent(SIMILARITY_FIELD, similarity);
-                    validateFieldPresent(ELEMENT_TYPE_FIELD, elementType);
-                    break;
+                    // We allow incomplete interstitial states without throwing, but need all data to eventually be populated to be
+                    // considered valid
+                    return validateFieldPresent(dimensions) && validateFieldPresent(similarity) && validateFieldPresent(elementType);
                 case SPARSE_EMBEDDING:
                     validateFieldNotPresent(DIMENSIONS_FIELD, dimensions);
                     validateFieldNotPresent(SIMILARITY_FIELD, similarity);
                     validateFieldNotPresent(ELEMENT_TYPE_FIELD, elementType);
-                    break;
-
+                    return true;
                 default:
                     throw new IllegalArgumentException(
                         "Wrong ["
@@ -173,10 +174,8 @@ public record SemanticTextField(
             }
         }
 
-        private void validateFieldPresent(String field, Object fieldValue) {
-            if (fieldValue == null) {
-                throw new IllegalArgumentException("required [" + field + "] field is missing for task_type [" + taskType.name() + "]");
-            }
+        private boolean validateFieldPresent(Object fieldValue) {
+            return fieldValue != null;
         }
 
         private void validateFieldNotPresent(String field, Object fieldValue) {
@@ -225,6 +224,26 @@ public record SemanticTextField(
                 XContentType.JSON
             );
             return MODEL_SETTINGS_PARSER.parse(parser, null);
+        } catch (Exception exc) {
+            throw new ElasticsearchException(exc);
+        }
+    }
+
+    static IndexOptions parseIndexOptionsFromMap(String fieldName, Object node) {
+        if (node == null) {
+            return null;
+        }
+        try {
+            Map<String, Object> map = XContentMapValues.nodeMapValue(node, INDEX_OPTIONS_FIELD);
+            Object type = map.remove(TYPE_FIELD);
+            if (type == null) {
+                throw new IllegalArgumentException("Required [" + TYPE_FIELD + "]");
+            }
+            DenseVectorFieldMapper.VectorIndexType vectorIndexType = DenseVectorFieldMapper.VectorIndexType.fromString(
+                XContentMapValues.nodeStringValue(type.toString(), null)
+            ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + " [" + type + "]"));
+
+            return vectorIndexType.parseIndexOptions(fieldName, map);
         } catch (Exception exc) {
             throw new ElasticsearchException(exc);
         }

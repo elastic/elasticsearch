@@ -34,6 +34,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.replication.PendingReplicationActions;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -189,7 +190,6 @@ import static org.elasticsearch.cluster.metadata.DataStream.TIMESERIES_LEAF_READ
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.index.shard.IndexShard.PrimaryPermitCheck.CHECK_PRIMARY_MODE;
 
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
 
@@ -780,27 +780,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final BiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>> consumer,
         final ActionListener<Void> listener
     ) throws IllegalIndexShardStateException, IllegalStateException {
-        relocated(targetNodeId, targetAllocationId, consumer, listener, null);
-    }
-
-    /**
-     * Provides an variant of {@link IndexShard#relocated(String, String, BiConsumer, ActionListener, Releasable)} with an option
-     * to relocate the shard under externally acquired primary permits.
-     *
-     * @param acquiredPrimaryPermits if null, waits until all the primary permits are acquired, otherwise it calls the consumer immediately
-     */
-    public void relocated(
-        final String targetNodeId,
-        final String targetAllocationId,
-        final BiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>> consumer,
-        final ActionListener<Void> listener,
-        @Nullable final Releasable acquiredPrimaryPermits
-    ) throws IllegalIndexShardStateException, IllegalStateException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
-        assert acquiredPrimaryPermits == null || indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED
-            : "external primary permits are provided but not held by the shard";
         try (Releasable forceRefreshes = refreshListeners.forceRefreshes()) {
-            ActionListener<Releasable> onAcquired = new ActionListener<>() {
+            indexShardOperationPermits.blockOperations(new ActionListener<>() {
                 @Override
                 public void onResponse(Releasable releasable) {
                     boolean success = false;
@@ -878,13 +860,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         listener.onFailure(e);
                     }
                 }
-            };
-            if (acquiredPrimaryPermits == null) {
-                // Wait on current thread because this execution is wrapped by CancellableThreads and we want to be able to interrupt it
-                indexShardOperationPermits.blockOperations(onAcquired, 30L, TimeUnit.MINUTES, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-            } else {
-                ActionListener.completeWith(onAcquired, () -> acquiredPrimaryPermits);
-            }
+            }, 30L, TimeUnit.MINUTES, EsExecutors.DIRECT_EXECUTOR_SERVICE); // Wait on current thread because this execution is wrapped by
+                                                                            // CancellableThreads and we want to be able to interrupt it
         }
     }
 
@@ -3593,24 +3570,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Check to run before running the primary permit operation
-     */
-    public enum PrimaryPermitCheck {
-        CHECK_PRIMARY_MODE,
-        /**
-         * IMPORTANT: Currently intented to be used only for acquiring primary permits during the recovery of hollow shards.
-         * Don't disable primary mode checks unless you're really sure.
-         */
-        NONE
-    }
-
-    /**
      * Acquire a primary operation permit whenever the shard is ready for indexing. If a permit is directly available, the provided
      * ActionListener will be called on the calling thread. During relocation hand-off, permit acquisition can be delayed. The provided
      * ActionListener will then be called using the provided executor.
      */
     public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, Executor executorOnDelay) {
-        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, false, CHECK_PRIMARY_MODE);
+        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, false);
     }
 
     public void acquirePrimaryOperationPermit(
@@ -3618,22 +3583,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Executor executorOnDelay,
         boolean forceExecution
     ) {
-        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, forceExecution, CHECK_PRIMARY_MODE);
-    }
-
-    public void acquirePrimaryOperationPermit(
-        ActionListener<Releasable> onPermitAcquired,
-        Executor executorOnDelay,
-        boolean forceExecution,
-        PrimaryPermitCheck primaryPermitCheck
-    ) {
         verifyNotClosed();
         assert shardRouting.primary() : "acquirePrimaryOperationPermit should only be called on primary shard: " + shardRouting;
-        indexShardOperationPermits.acquire(
-            wrapPrimaryOperationPermitListener(primaryPermitCheck, onPermitAcquired),
-            executorOnDelay,
-            forceExecution
-        );
+
+        ActionListener<Releasable> onPermitAcquiredWrapped = onPermitAcquired.delegateFailureAndWrap((delegate, releasable) -> {
+            final ActionListener<Releasable> wrappedListener = indexShardOperationPermits.wrapContextPreservingActionListener(
+                delegate,
+                executorOnDelay,
+                forceExecution
+            );
+            try (var listeners = new RefCountingListener(wrappedListener.map(unused -> releasable))) {
+                indexEventListener.onAcquirePrimaryOperationPermit(this, () -> listeners.acquire());
+            }
+        });
+
+        indexShardOperationPermits.acquire(wrapPrimaryOperationPermitListener(onPermitAcquiredWrapped), executorOnDelay, forceExecution);
     }
 
     public boolean isPrimaryMode() {
@@ -3641,51 +3605,33 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return replicationTracker.isPrimaryMode();
     }
 
-    public void acquireAllPrimaryOperationsPermits(final ActionListener<Releasable> onPermitAcquired, final TimeValue timeout) {
-        acquireAllPrimaryOperationsPermits(onPermitAcquired, timeout, CHECK_PRIMARY_MODE);
-    }
-
     /**
      * Acquire all primary operation permits. Once all permits are acquired, the provided ActionListener is called.
      * It is the responsibility of the caller to close the {@link Releasable}.
      */
-    public void acquireAllPrimaryOperationsPermits(
-        final ActionListener<Releasable> onPermitAcquired,
-        final TimeValue timeout,
-        final PrimaryPermitCheck primaryPermitCheck
-    ) {
+    public void acquireAllPrimaryOperationsPermits(final ActionListener<Releasable> onPermitAcquired, final TimeValue timeout) {
         verifyNotClosed();
         assert shardRouting.primary() : "acquireAllPrimaryOperationsPermits should only be called on primary shard: " + shardRouting;
 
-        asyncBlockOperations(
-            wrapPrimaryOperationPermitListener(primaryPermitCheck, onPermitAcquired),
-            timeout.duration(),
-            timeout.timeUnit()
-        );
+        asyncBlockOperations(wrapPrimaryOperationPermitListener(onPermitAcquired), timeout.duration(), timeout.timeUnit());
     }
 
     /**
-     * Wraps the action to run on a primary after acquiring permit.
+     * Wraps the action to run on a primary after acquiring permit. This wrapping is used to check if the shard is in primary mode before
+     * executing the action.
      *
-     * @param primaryPermitCheck check to run before the primary mode operation
      * @param listener the listener to wrap
      * @return the wrapped listener
      */
-    private ActionListener<Releasable> wrapPrimaryOperationPermitListener(
-        final PrimaryPermitCheck primaryPermitCheck,
-        final ActionListener<Releasable> listener
-    ) {
-        return switch (primaryPermitCheck) {
-            case CHECK_PRIMARY_MODE -> listener.delegateFailure((l, r) -> {
-                if (isPrimaryMode()) {
-                    l.onResponse(r);
-                } else {
-                    r.close();
-                    l.onFailure(new ShardNotInPrimaryModeException(shardId, state));
-                }
-            });
-            case NONE -> listener;
-        };
+    private ActionListener<Releasable> wrapPrimaryOperationPermitListener(final ActionListener<Releasable> listener) {
+        return listener.delegateFailure((l, r) -> {
+            if (isPrimaryMode()) {
+                l.onResponse(r);
+            } else {
+                r.close();
+                l.onFailure(new ShardNotInPrimaryModeException(shardId, state));
+            }
+        });
     }
 
     private void asyncBlockOperations(ActionListener<Releasable> onPermitAcquired, long timeout, TimeUnit timeUnit) {
@@ -3723,7 +3669,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 runnable.run();
             }
         }, onFailure);
-        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, false, CHECK_PRIMARY_MODE);
+        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay);
     }
 
     private <E extends Exception> void bumpPrimaryTerm(

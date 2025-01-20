@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -345,6 +346,18 @@ final class CompositeIndexEventListener implements IndexEventListener {
                 listener.afterFilesRestoredFromRepository(indexShard);
             } catch (Exception e) {
                 logger.warn(() -> "[" + indexShard.shardId() + "] failed to invoke after files restored from repository", e);
+                throw e;
+            }
+        }
+    }
+
+    @Override
+    public void onAcquirePrimaryOperationPermit(IndexShard indexShard, Supplier<ActionListener<Void>> onPermitAcquiredListenerSupplier) {
+        for (IndexEventListener listener : listeners) {
+            try {
+                listener.onAcquirePrimaryOperationPermit(indexShard, onPermitAcquiredListenerSupplier);
+            } catch (Exception e) {
+                logger.warn(() -> "[" + indexShard.shardId() + "] failed to invoke the listener on acquiring a primary permit", e);
                 throw e;
             }
         }

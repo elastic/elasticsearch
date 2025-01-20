@@ -790,21 +790,6 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
             }, TimeValue.timeValueSeconds(30));
             latch.await();
-
-            // It's possible to acquire permits if we skip the primary mode check
-            var permitAcquiredLatch = new CountDownLatch(1);
-            indexShard.acquirePrimaryOperationPermit(ActionListener.wrap(r -> {
-                r.close();
-                permitAcquiredLatch.countDown();
-            }, Assert::assertNotNull), EsExecutors.DIRECT_EXECUTOR_SERVICE, false, IndexShard.PrimaryPermitCheck.NONE);
-            safeAwait(permitAcquiredLatch);
-
-            var allPermitsAcquiredLatch = new CountDownLatch(1);
-            indexShard.acquireAllPrimaryOperationsPermits(ActionListener.wrap(r -> {
-                r.close();
-                allPermitsAcquiredLatch.countDown();
-            }, Assert::assertNotNull), TimeValue.timeValueSeconds(30), IndexShard.PrimaryPermitCheck.NONE);
-            safeAwait(allPermitsAcquiredLatch);
         }
 
         if (Assertions.ENABLED && indexShard.routingEntry().isRelocationTarget() == false) {

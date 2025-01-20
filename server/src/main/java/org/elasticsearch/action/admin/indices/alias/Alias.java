@@ -253,7 +253,6 @@ public class Alias implements Writeable, ToXContentFragment {
                     alias.filter(parser.mapOrdered());
                 }
             } else if (token.isValue()) {
-                System.out.println(currentFieldName+" : "+ parser.text());
                 if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.routing(parser.text());
                 } else if (INDEX_ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {

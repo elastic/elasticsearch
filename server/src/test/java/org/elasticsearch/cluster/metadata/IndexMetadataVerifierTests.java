@@ -291,24 +291,6 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                 )
             );
         }
-        {
-            var idxMetadata = newIndexMeta(
-                "index-mapper-dynamic",
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(6080099))
-                    .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, indexCreated)
-                    .put("index.mapper.dynamic", true)
-                    .build()
-            );
-            IndexMetadata newIndexMetadata = service.verifyIndexMetadata(idxMetadata, IndexVersions.MINIMUM_COMPATIBLE,
-                    IndexVersions.MINIMUM_READONLY_COMPATIBLE);
-            // check setting isn't archived
-            assertNotNull(newIndexMetadata.getSettings().get("index.mapper.dynamic"));
-            assertWarnings(
-                "[index.mapper.dynamic] setting was deprecated in the previous Elasticsearch release and is removed in this release."
-            );
-        }
     }
 
     private IndexMetadataVerifier getIndexMetadataVerifier() {

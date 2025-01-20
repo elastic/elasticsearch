@@ -9,19 +9,11 @@
 
 package org.elasticsearch.lucene;
 
-import io.netty.handler.codec.http.HttpMethod;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.RequestOptions.Builder;
-import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.cluster.util.Version;
-import org.elasticsearch.xcontent.ToXContent;
-
-import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -35,21 +27,6 @@ public class FullClusterRestartSearchableSnapshotIndexCompatibilityIT extends Fu
 
     public FullClusterRestartSearchableSnapshotIndexCompatibilityIT(Version version) {
         super(version);
-    }
-
-    public static final Builder IGNORE_WARNINGS = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE);
-
-    private void createIndexLenient(String indexName, ToXContent settings) throws IOException {
-        final Request createIndex = newXContentRequest(HttpMethod.PUT, "/" + indexName, (builder, params) -> {
-            builder.startObject("settings");
-            settings.toXContent(builder, params);
-            builder.endObject();
-            return builder;
-        });
-
-        createIndex.setOptions(IGNORE_WARNINGS);
-        client().performRequest(createIndex);
-        ensureGreen(indexName);
     }
 
     /**
@@ -66,12 +43,12 @@ public class FullClusterRestartSearchableSnapshotIndexCompatibilityIT extends Fu
             registerRepository(client(), repository, FsRepository.TYPE, true, repositorySettings());
 
             logger.debug("--> creating index [{}]", index);
-            createIndexLenient(
+            createIndex(
+                client(),
                 index,
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put("index.mapper.dynamic", false)
                     .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                     .build()
             );
@@ -104,15 +81,11 @@ public class FullClusterRestartSearchableSnapshotIndexCompatibilityIT extends Fu
             assertThat(indexVersion(mountedIndex), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), mountedIndex, numDocs);
 
-            updateRandomIndexSettings(mountedIndex, IGNORE_WARNINGS.build());
+            updateRandomIndexSettings(mountedIndex);
             updateRandomMappings(mountedIndex);
 
             logger.debug("--> adding replica to test peer-recovery");
-            updateIndexSettingsLenient(
-                mountedIndex,
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build(),
-                IGNORE_WARNINGS.build()
-            );
+            updateIndexSettings(mountedIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
             ensureGreen(mountedIndex);
 
             logger.debug("--> closing index [{}]", mountedIndex);
@@ -120,11 +93,7 @@ public class FullClusterRestartSearchableSnapshotIndexCompatibilityIT extends Fu
             ensureGreen(mountedIndex);
 
             logger.debug("--> adding replica to test peer-recovery for closed shards");
-            updateIndexSettingsLenient(
-                    mountedIndex,
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2).build(),
-                    IGNORE_WARNINGS.build()
-            );
+            updateIndexSettings(mountedIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2));
             ensureGreen(mountedIndex);
 
             logger.debug("--> re-opening index [{}]", mountedIndex);

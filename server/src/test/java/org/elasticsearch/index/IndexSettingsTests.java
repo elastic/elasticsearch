@@ -845,9 +845,7 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testIndexMapperDynamic() {
-        Settings settings = Settings.builder()
-                .put(INDEX_MAPPER_DYNAMIC_SETTING.getKey(), randomBoolean())
-                .build();
+        Settings settings = Settings.builder().put(INDEX_MAPPER_DYNAMIC_SETTING.getKey(), randomBoolean()).build();
 
         INDEX_MAPPER_DYNAMIC_SETTING.get(settings);
         assertWarnings(
@@ -856,19 +854,22 @@ public class IndexSettingsTests extends ESTestCase {
 
         IndexMetadata idxMetaData = newIndexMeta("test", settings);
         IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
-                Settings.EMPTY,
-                null,
-                xContentRegistry(),
-                new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-                null,
-                MapperMetrics.NOOP
+            Settings.EMPTY,
+            null,
+            xContentRegistry(),
+            new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            null,
+            MapperMetrics.NOOP
         );
-        IndexMetadata verifiedMetaData = indexMetadataVerifier.verifyIndexMetadata(idxMetaData, IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersions.MINIMUM_READONLY_COMPATIBLE);
+        IndexMetadata verifiedMetaData = indexMetadataVerifier.verifyIndexMetadata(
+            idxMetaData,
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE
+        );
         assertEquals(idxMetaData, verifiedMetaData);
         assertWarnings(
-                "[index.mapper.dynamic] setting was deprecated in the previous Elasticsearch release and is removed in this release."
+            "[index.mapper.dynamic] setting was deprecated in the previous Elasticsearch release and is removed in this release."
         );
     }
 

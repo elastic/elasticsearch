@@ -9,12 +9,9 @@
 
 package org.elasticsearch.lucene;
 
-import io.netty.handler.codec.http.HttpMethod;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -177,7 +174,6 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
             {"field_0":"%s","field_1":%d,"field_2":"%s"}
             """, indexName, Integer.toString(n), n, randomFrom(Locale.getAvailableLocales()).getDisplayName())));
         request.setJsonEntity(docs.toString());
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         var response = assertOK(client().performRequest(request));
         assertThat(entityAsMap(response).get("errors"), allOf(notNullValue(), is(false)));
     }
@@ -193,7 +189,6 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
               "index": "%s",
               "renamed_index": "%s"
             }""", indexName, renamedIndexName));
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         var responseBody = createFromResponse(client().performRequest(request));
         assertThat(responseBody.evaluate("snapshot.shards.total"), equalTo((int) responseBody.evaluate("snapshot.shards.successful")));
         assertThat(responseBody.evaluate("snapshot.shards.failed"), equalTo(0));
@@ -227,10 +222,6 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
     }
 
     protected static void updateRandomIndexSettings(String indexName) throws IOException {
-        updateRandomIndexSettings(indexName, RequestOptions.DEFAULT);
-    }
-
-    protected static void updateRandomIndexSettings(String indexName, RequestOptions requestOptions) throws IOException {
         final var settings = Settings.builder();
         int updates = randomIntBetween(1, 3);
         for (int i = 0; i < updates; i++) {
@@ -242,13 +233,7 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
                 default -> throw new IllegalStateException();
             }
         }
-        updateIndexSettingsLenient(indexName, settings.build(), requestOptions);
-    }
-
-    protected static void updateIndexSettingsLenient(String indexName, Settings settings, RequestOptions requestOptions) throws IOException {
-        final var request = newXContentRequest(HttpMethod.PUT, "/" + indexName + "/_settings", settings);
-        request.setOptions(requestOptions);
-        assertOK(client().performRequest(request));
+        updateIndexSettings(indexName, settings);
     }
 
     protected static void updateRandomMappings(String indexName) throws Exception {

@@ -402,7 +402,6 @@ public class Constants {
         "cluster:monitor/xpack/info/enterprise_search",
         "cluster:monitor/xpack/info/eql",
         "cluster:monitor/xpack/info/esql",
-        "cluster:monitor/xpack/info/frozen_indices",
         "cluster:monitor/xpack/info/graph",
         "cluster:monitor/xpack/info/ilm",
         "cluster:monitor/xpack/info/logsdb",

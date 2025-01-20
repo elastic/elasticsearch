@@ -1,18 +1,16 @@
 {
-  "template": {
-    "aliases": {
-      ".elastic-connectors":  {}
-    },
-    "mappings": {
+  "settings": {
+    "index": {
+      "number_of_shards": "1",
+      "auto_expand_replicas": "0-1"
+    }
+  },
+  "mappings": {
+    "_doc": {
       "dynamic": "false",
       "_meta": {
-        "pipeline": {
-          "default_name": "search-default-ingestion",
-          "default_extract_binary_content": true,
-          "default_run_ml_inference": true,
-          "default_reduce_whitespace": true
-        },
-        "version": ${xpack.application.connector.template.version}
+        "version": "${elastic-connectors.version}",
+        "managed_index_mappings_version": ${elastic-connectors.managed.index.version}
       },
       "properties": {
         "api_key_id": {
@@ -23,6 +21,9 @@
         },
         "custom_scheduling": {
           "type": "object"
+        },
+        "deleted": {
+          "type": "boolean"
         },
         "description": {
           "type": "text"
@@ -302,18 +303,8 @@
         },
         "sync_now": {
           "type": "boolean"
-        },
-        "deleted": {
-          "type": "boolean"
         }
       }
     }
-  },
-  "_meta": {
-    "description": "Built-in mappings applied by default to elastic-connectors indices",
-    "managed": true
-  },
-  "version": ${xpack.application.connector.template.version}
+  }
 }
-
-

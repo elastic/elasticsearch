@@ -1,12 +1,16 @@
 {
-  "template": {
-    "aliases": {
-      ".elastic-connectors-sync-jobs":  {}
-    },
-    "mappings": {
+  "settings": {
+    "index": {
+      "number_of_shards": "1",
+      "auto_expand_replicas": "0-1"
+    }
+  },
+  "mappings": {
+    "_doc": {
       "dynamic": "false",
       "_meta": {
-        "version": ${xpack.application.connector.template.version}
+        "version": "${elastic-connectors-sync-jobs.version}",
+        "managed_index_mappings_version": ${elastic-connectors-sync-jobs.managed.index.version}
       },
       "properties": {
         "cancelation_requested_at": {
@@ -155,10 +159,5 @@
         }
       }
     }
-  },
-  "_meta": {
-    "description": "Built-in mappings applied by default to elastic-connectors indices",
-    "managed": true
-  },
-  "version": ${xpack.application.connector.template.version}
+  }
 }

@@ -363,6 +363,9 @@ tests:
 - class: org.elasticsearch.gradle.internal.InternalBwcGitPluginFuncTest
   method: can resolve checkout folder as project artifact
   issue: https://github.com/elastic/elasticsearch/issues/119948
+- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
+  method: testOldSourceOnlyRepoAccess
+  issue: https://github.com/elastic/elasticsearch/issues/120471
 
 # Examples:
 #

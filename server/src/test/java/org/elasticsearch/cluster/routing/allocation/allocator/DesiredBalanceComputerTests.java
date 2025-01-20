@@ -685,7 +685,12 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
         var settings = Settings.EMPTY;
 
-        var input = new DesiredBalanceInput(randomInt(), routingAllocationWithDecidersOf(clusterState, clusterInfo, settings), List.of());
+        var input = new DesiredBalanceInput(
+            randomInt(),
+            routingAllocationWithDecidersOf(clusterState, clusterInfo, settings),
+            List.of(),
+            new BalancingRoundStats.Builder()
+        );
         var desiredBalance = createDesiredBalanceComputer(new BalancedShardsAllocator(settings)).compute(
             DesiredBalance.BECOME_MASTER_INITIAL,
             input,
@@ -834,7 +839,12 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
         var desiredBalance = createDesiredBalanceComputer(new BalancedShardsAllocator(settings)).compute(
             initial,
-            new DesiredBalanceInput(randomInt(), routingAllocationWithDecidersOf(clusterState, clusterInfo, settings), List.of()),
+            new DesiredBalanceInput(
+                randomInt(),
+                routingAllocationWithDecidersOf(clusterState, clusterInfo, settings),
+                List.of(),
+                new BalancingRoundStats.Builder()
+            ),
             queue(),
             input -> true
         );
@@ -994,7 +1004,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         );
         var nextDesiredBalance = createDesiredBalanceComputer(new BalancedShardsAllocator()).compute(
             initialDesiredBalance,
-            new DesiredBalanceInput(2, allocation, List.of()),
+            new DesiredBalanceInput(2, allocation, List.of(), new BalancingRoundStats.Builder()),
             queue(),
             input -> true
         );
@@ -1120,7 +1130,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         );
         var nextDesiredBalance = createDesiredBalanceComputer(new BalancedShardsAllocator()).compute(
             initialDesiredBalance,
-            new DesiredBalanceInput(2, allocation, List.of()),
+            new DesiredBalanceInput(2, allocation, List.of(), new BalancingRoundStats.Builder()),
             queue(),
             input -> true
         );
@@ -1379,7 +1389,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     private static DesiredBalanceInput createInput(ClusterState clusterState, ShardRouting... ignored) {
-        return new DesiredBalanceInput(randomInt(), routingAllocationOf(clusterState), List.of(ignored));
+        return new DesiredBalanceInput(randomInt(), routingAllocationOf(clusterState), List.of(ignored), new BalancingRoundStats.Builder());
     }
 
     private static RoutingAllocation routingAllocationOf(ClusterState clusterState) {

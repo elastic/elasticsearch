@@ -20,10 +20,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator.NodeAllocationStatsAndWeight;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics.AllocationStats;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -36,9 +33,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -82,16 +77,8 @@ public class DesiredBalanceReconciler {
     private double undesiredAllocationsLogThreshold;
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
-    private final DesiredBalanceMetrics desiredBalanceMetrics;
-    private final NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator;
 
-    public DesiredBalanceReconciler(
-        ClusterSettings clusterSettings,
-        ThreadPool threadPool,
-        DesiredBalanceMetrics desiredBalanceMetrics,
-        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
-    ) {
-        this.desiredBalanceMetrics = desiredBalanceMetrics;
+    public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(
             threadPool.relativeTimeInMillisSupplier(),
             TimeValue.timeValueMinutes(5)
@@ -101,7 +88,6 @@ public class DesiredBalanceReconciler {
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
             value -> this.undesiredAllocationsLogThreshold = value
         );
-        this.nodeAllocationStatsAndWeightsCalculator = nodeAllocationStatsAndWeightsCalculator;
     }
 
     /**
@@ -110,12 +96,13 @@ public class DesiredBalanceReconciler {
      * @param desiredBalance The new desired cluster shard allocation
      * @param allocation Cluster state information with which to make decisions, contains routing table metadata that will be modified to
      *                   reach the given desired balance.
+     * @param statsBuilder Stats tracker for balancing round reconciliation changes.
      */
-    public void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+    public void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation, BalancingRoundStats.Builder statsBuilder) {
         var nodeIds = allocation.routingNodes().getAllNodeIds();
         allocationOrdering.retainNodes(nodeIds);
         moveOrdering.retainNodes(nodeIds);
-        new Reconciliation(desiredBalance, allocation).run();
+        new Reconciliation(desiredBalance, allocation).run(statsBuilder);
     }
 
     public void clear() {
@@ -135,7 +122,7 @@ public class DesiredBalanceReconciler {
             this.routingNodes = allocation.routingNodes();
         }
 
-        void run() {
+        void run(BalancingRoundStats.Builder statsBuilder) {
             try (var ignored = allocation.withReconcilingFlag()) {
 
                 logger.debug("Reconciling desired balance for [{}]", desiredBalance.lastConvergedIndex());
@@ -165,31 +152,10 @@ public class DesiredBalanceReconciler {
                 moveShards();
                 // 3. move any other shards that are desired elsewhere
                 logger.trace("Reconciler#balance");
-                var allocationStats = balance();
+                balance(statsBuilder);
 
                 logger.debug("Reconciliation is complete");
-
-                updateDesireBalanceMetrics(allocationStats);
             }
-        }
-
-        private void updateDesireBalanceMetrics(AllocationStats allocationStats) {
-            var nodesStatsAndWeights = nodeAllocationStatsAndWeightsCalculator.nodesAllocationStatsAndWeights(
-                allocation.metadata(),
-                allocation.routingNodes(),
-                allocation.clusterInfo(),
-                desiredBalance
-            );
-            Map<DiscoveryNode, NodeAllocationStatsAndWeight> filteredNodeAllocationStatsAndWeights = new HashMap<>(
-                nodesStatsAndWeights.size()
-            );
-            for (var nodeStatsAndWeight : nodesStatsAndWeights.entrySet()) {
-                var node = allocation.nodes().get(nodeStatsAndWeight.getKey());
-                if (node != null) {
-                    filteredNodeAllocationStatsAndWeights.put(node, nodeStatsAndWeight.getValue());
-                }
-            }
-            desiredBalanceMetrics.updateMetrics(allocationStats, desiredBalance.weightsPerNode(), filteredNodeAllocationStatsAndWeights);
         }
 
         private boolean allocateUnassignedInvariant() {
@@ -512,14 +478,13 @@ public class DesiredBalanceReconciler {
             }
         }
 
-        private AllocationStats balance() {
+        private void balance(BalancingRoundStats.Builder statsBuilder) {
             if (allocation.deciders().canRebalance(allocation).type() != Decision.Type.YES) {
-                return DesiredBalanceMetrics.EMPTY_ALLOCATION_STATS;
+                statsBuilder.setNoRebalancing();
+                return;
             }
 
-            int unassignedShards = routingNodes.unassigned().size() + routingNodes.unassigned().ignored().size();
-            int totalAllocations = 0;
-            int undesiredAllocationsExcludingShuttingDownNodes = 0;
+            statsBuilder.setUnassignedShards(routingNodes.unassigned().size() + routingNodes.unassigned().ignored().size());
 
             // Iterate over all started shards and try to move any which are on undesired nodes. In the presence of throttling shard
             // movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the
@@ -527,7 +492,7 @@ public class DesiredBalanceReconciler {
             for (final var iterator = OrderedShardsIterator.createForBalancing(allocation, moveOrdering); iterator.hasNext();) {
                 final var shardRouting = iterator.next();
 
-                totalAllocations++;
+                statsBuilder.incTotalAllocations();
 
                 if (shardRouting.started() == false) {
                     // can only rebalance started shards
@@ -546,7 +511,7 @@ public class DesiredBalanceReconciler {
                 }
 
                 if (allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId()) == false) {
-                    undesiredAllocationsExcludingShuttingDownNodes++;
+                    statsBuilder.incUndesiredAllocationsExcludingShuttingDownNodes();
                 }
 
                 if (allocation.deciders().canRebalance(shardRouting, allocation).type() != Decision.Type.YES) {
@@ -580,12 +545,15 @@ public class DesiredBalanceReconciler {
                 }
             }
 
-            maybeLogUndesiredAllocationsWarning(totalAllocations, undesiredAllocationsExcludingShuttingDownNodes, routingNodes.size());
+            maybeLogUndesiredAllocationsWarning(
+                statsBuilder.getTotalAllocations(),
+                statsBuilder.getUndesiredAllocationsExcludingShuttingDownNodes(),
+                routingNodes.size()
+            );
 
-            return new AllocationStats(unassignedShards, totalAllocations, undesiredAllocationsExcludingShuttingDownNodes);
         }
 
-        private void maybeLogUndesiredAllocationsWarning(int totalAllocations, int undesiredAllocations, int nodeCount) {
+        private void maybeLogUndesiredAllocationsWarning(long totalAllocations, long undesiredAllocations, int nodeCount) {
             // more shards than cluster can relocate with one reroute
             final boolean nonEmptyRelocationBacklog = undesiredAllocations > 2L * nodeCount;
             final boolean warningThresholdReached = undesiredAllocations > undesiredAllocationsLogThreshold * totalAllocations;

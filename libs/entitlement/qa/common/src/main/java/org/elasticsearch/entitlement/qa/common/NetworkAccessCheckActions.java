@@ -17,6 +17,12 @@ import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertStore;
+import java.util.Arrays;
 
 class NetworkAccessCheckActions {
 
@@ -57,6 +63,23 @@ class NetworkAccessCheckActions {
     static void socketConnect() throws IOException {
         try (Socket socket = new DummyImplementations.DummySocket()) {
             socket.connect(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
+        }
+    }
+
+    @SuppressForbidden(reason = "Testing entitlement check on forbidden action")
+    static void urlOpenConnectionWithProxy() throws URISyntaxException, IOException {
+        var url = new URI("http://localhost").toURL();
+        var urlConnection = url.openConnection(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(0)));
+        assert urlConnection != null;
+    }
+
+    static void createLDAPCertStore() throws NoSuchAlgorithmException {
+        try {
+            // We pass down null params to provoke a InvalidAlgorithmParameterException
+            CertStore.getInstance("LDAP", null);
+        } catch (InvalidAlgorithmParameterException ex) {
+            // Assert we actually hit the class we care about, LDAPCertStore (or its impl)
+            assert Arrays.stream(ex.getStackTrace()).anyMatch(e -> e.getClassName().endsWith("LDAPCertStore"));
         }
     }
 }

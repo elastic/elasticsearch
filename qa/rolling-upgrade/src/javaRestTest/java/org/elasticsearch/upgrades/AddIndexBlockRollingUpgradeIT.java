@@ -9,9 +9,9 @@
 
 package org.elasticsearch.upgrades;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import io.netty.handler.codec.http.HttpMethod;
+
+import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.Request;
@@ -21,7 +21,6 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Map;
-
 
 public class AddIndexBlockRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
@@ -52,16 +51,20 @@ public class AddIndexBlockRollingUpgradeIT extends AbstractRollingUpgradeTestCas
     private static void blockWrites() throws IOException {
         client().performRequest(new Request(HttpMethod.PUT.name(), "/" + INDEX_NAME + "/_block/write"));
 
-        expectThrows(ResponseException.class, () -> client().performRequest(newXContentRequest(HttpMethod.PUT, "/" + INDEX_NAME + "/_doc/test",
-            (builder, params) -> builder.field("test", "test"))));
+        expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(
+                newXContentRequest(HttpMethod.PUT, "/" + INDEX_NAME + "/_doc/test", (builder, params) -> builder.field("test", "test"))
+            )
+        );
     }
 
     @SuppressWarnings("unchecked")
     private static String verifiedSettingValue() throws IOException {
         final var settingsRequest = new Request(HttpMethod.GET.name(), "/" + INDEX_NAME + "/_settings?flat_settings");
         final Map<String, Object> settingsResponse = entityAsMap(client().performRequest(settingsRequest));
-//        System.err.println(settingsResponse);
-//        throw new RuntimeException(settingsResponse.toString());
-        return (String) ((Map<String, Object>) ((Map<String, Object>) settingsResponse.get(INDEX_NAME)).get("settings")).get(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey());
+        return (String) ((Map<String, Object>) ((Map<String, Object>) settingsResponse.get(INDEX_NAME)).get("settings")).get(
+            MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey()
+        );
     }
 }

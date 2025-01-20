@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -409,13 +410,25 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
                 driver.cancel(reason);
             });
             var threadContext = transportService.getThreadPool().getThreadContext();
-            Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, listener.map(ignored -> {
-                List<Page> out = collectedPages;
-                if (mergePages && out.isEmpty()) {
-                    out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
+            Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    List<Page> out = collectedPages;
+                    if (mergePages && out.isEmpty()) {
+                        out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
+                    }
+                    listener.onResponse(out);
                 }
-                return out;
-            }));
+
+                @Override
+                public void onFailure(Exception e) {
+                    Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(collectedPages.iterator(), p -> () -> {
+                        p.allowPassingToDifferentDriver();
+                        p.releaseBlocks();
+                    })));
+                    listener.onFailure(e);
+                }
+            });
             started = true;
         } catch (Exception e) {
             listener.onFailure(e);

@@ -1,0 +1,5 @@
+pr: 120271
+summary: Optimize indexing points with index and doc values set to true
+area: Geo
+type: enhancement
+issues: []

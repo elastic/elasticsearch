@@ -25,7 +25,6 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -52,7 +51,6 @@ import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
-import static org.elasticsearch.index.mapper.SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING;
 
 /**
  * This class encapsulates all index level settings and handles settings updates.
@@ -355,7 +353,7 @@ public final class IndexSettings {
          * Prevent the translog from growing over 10GB or 20% of the recommended shard size of 50GB. This helps bound the maximum disk usage
          * overhead of translogs.
          */
-        new ByteSizeValue(10, ByteSizeUnit.GB),
+        ByteSizeValue.of(10, ByteSizeUnit.GB),
         /*
          * An empty translog occupies 55 bytes on disk. If the flush threshold is below this, the flush thread
          * can get stuck in an infinite loop as the shouldPeriodicallyFlush can still be true after flushing.
@@ -387,7 +385,7 @@ public final class IndexSettings {
      */
     public static final Setting<ByteSizeValue> INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
         "index.flush_after_merge",
-        new ByteSizeValue(512, ByteSizeUnit.MB),
+        ByteSizeValue.of(512, ByteSizeUnit.MB),
         ByteSizeValue.ZERO, // always flush after merge
         ByteSizeValue.ofBytes(Long.MAX_VALUE), // never flush after merge
         Property.Dynamic,
@@ -400,7 +398,7 @@ public final class IndexSettings {
      */
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
         "index.translog.generation_threshold_size",
-        new ByteSizeValue(64, ByteSizeUnit.MB),
+        ByteSizeValue.of(64, ByteSizeUnit.MB),
         /*
          * An empty translog occupies 55 bytes on disk. If the generation threshold is
          * below this, the flush thread can get stuck in an infinite loop repeatedly
@@ -655,48 +653,6 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final Setting<Boolean> RECOVERY_USE_SYNTHETIC_SOURCE_SETTING = Setting.boolSetting(
-        "index.recovery.use_synthetic_source",
-        false,
-        new Setting.Validator<>() {
-            @Override
-            public void validate(Boolean value) {}
-
-            @Override
-            public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
-                if (enabled == false) {
-                    return;
-                }
-
-                // Verify if synthetic source is enabled on the index; fail if it is not
-                var indexMode = (IndexMode) settings.get(MODE);
-                if (indexMode.defaultSourceMode() != SourceFieldMapper.Mode.SYNTHETIC) {
-                    var sourceMode = (SourceFieldMapper.Mode) settings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
-                    if (sourceMode != SourceFieldMapper.Mode.SYNTHETIC) {
-                        throw new IllegalArgumentException(
-                            String.format(
-                                Locale.ROOT,
-                                "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
-                                RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(),
-                                INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
-                                SourceFieldMapper.Mode.SYNTHETIC.name(),
-                                sourceMode.name()
-                            )
-                        );
-                    }
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                List<Setting<?>> res = List.of(INDEX_MAPPER_SOURCE_MODE_SETTING, MODE);
-                return res.iterator();
-            }
-        },
-        Property.IndexScope,
-        Property.Final
-    );
-
     /**
      * Returns <code>true</code> if TSDB encoding is enabled. The default is <code>true</code>
      */
@@ -753,6 +709,60 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    public static final Setting<SourceFieldMapper.Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(
+        SourceFieldMapper.Mode.class,
+        settings -> {
+            final IndexMode indexMode = IndexSettings.MODE.get(settings);
+            return indexMode.defaultSourceMode().name();
+        },
+        "index.mapping.source.mode",
+        value -> {},
+        Setting.Property.Final,
+        Setting.Property.IndexScope
+    );
+
+    public static final Setting<Boolean> RECOVERY_USE_SYNTHETIC_SOURCE_SETTING = Setting.boolSetting(
+        "index.recovery.use_synthetic_source",
+        false,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
+                if (enabled == false) {
+                    return;
+                }
+
+                // Verify if synthetic source is enabled on the index; fail if it is not
+                var indexMode = (IndexMode) settings.get(MODE);
+                if (indexMode.defaultSourceMode() != SourceFieldMapper.Mode.SYNTHETIC) {
+                    var sourceMode = (SourceFieldMapper.Mode) settings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
+                    if (sourceMode != SourceFieldMapper.Mode.SYNTHETIC) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
+                                RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(),
+                                INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+                                SourceFieldMapper.Mode.SYNTHETIC.name(),
+                                sourceMode.name()
+                            )
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> res = List.of(INDEX_MAPPER_SOURCE_MODE_SETTING, MODE);
+                return res.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
      * TODO: Remove in 9.0
@@ -805,8 +815,6 @@ public final class IndexSettings {
             return String.valueOf(Integer.MAX_VALUE);
         }
     }
-
-    public static final NodeFeature IGNORE_ABOVE_INDEX_LEVEL_SETTING = new NodeFeature("mapper.ignore_above_index_level_setting", true);
 
     private final Index index;
     private final IndexVersion version;
@@ -1423,7 +1431,7 @@ public final class IndexSettings {
         }
         assert onePercentOfTotalDiskSpace > Translog.DEFAULT_HEADER_SIZE_IN_BYTES;
         if (onePercentOfTotalDiskSpace < flushThresholdSize.getBytes()) {
-            return new ByteSizeValue(onePercentOfTotalDiskSpace, ByteSizeUnit.BYTES);
+            return ByteSizeValue.of(onePercentOfTotalDiskSpace, ByteSizeUnit.BYTES);
         } else {
             return flushThresholdSize;
         }

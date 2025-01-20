@@ -49,20 +49,16 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.URLConnection;
 import java.net.URLStreamHandler;
-import java.net.spi.InetAddressResolver;
-import java.net.spi.InetAddressResolverProvider;
 import java.net.spi.URLStreamHandlerProvider;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.qa.common.RestEntitlementsCheckAction.CheckAction.alwaysDenied;
@@ -76,25 +72,25 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     public static final Thread NO_OP_SHUTDOWN_HOOK = new Thread(() -> {}, "Shutdown hook for testing");
     private final String prefix;
 
-    record CheckAction(CheckedRunnable<Exception> action, boolean isAlwaysDeniedToPlugins) {
+    record CheckAction(CheckedRunnable<Exception> action, boolean isAlwaysDeniedToPlugins, Integer fromJavaVersion) {
         /**
          * These cannot be granted to plugins, so our test plugins cannot test the "allowed" case.
-         * Used both for always-denied entitlements as well as those granted only to the server itself.
+         * Used both for always-denied entitlements and those granted only to the server itself.
          */
         static CheckAction deniedToPlugins(CheckedRunnable<Exception> action) {
-            return new CheckAction(action, true);
+            return new CheckAction(action, true, null);
         }
 
         static CheckAction forPlugins(CheckedRunnable<Exception> action) {
-            return new CheckAction(action, false);
+            return new CheckAction(action, false, null);
         }
 
         static CheckAction alwaysDenied(CheckedRunnable<Exception> action) {
-            return new CheckAction(action, true);
+            return new CheckAction(action, true, null);
         }
     }
 
-    private static final Map<String, CheckAction> checkActions = Map.ofEntries(
+    private static final Map<String, CheckAction> checkActions = Stream.<Map.Entry<String, CheckAction>>of(
         entry("runtime_exit", deniedToPlugins(RestEntitlementsCheckAction::runtimeExit)),
         entry("runtime_halt", deniedToPlugins(RestEntitlementsCheckAction::runtimeHalt)),
         entry("system_exit", deniedToPlugins(RestEntitlementsCheckAction::systemExit)),
@@ -143,18 +139,59 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
 
         entry("proxySelector_setDefault", alwaysDenied(RestEntitlementsCheckAction::setDefaultProxySelector)),
         entry("responseCache_setDefault", alwaysDenied(RestEntitlementsCheckAction::setDefaultResponseCache)),
-        entry("createInetAddressResolverProvider", alwaysDenied(RestEntitlementsCheckAction::createInetAddressResolverProvider)),
+        entry(
+            "createInetAddressResolverProvider",
+            new CheckAction(VersionSpecificNetworkChecks::createInetAddressResolverProvider, true, 18)
+        ),
         entry("createURLStreamHandlerProvider", alwaysDenied(RestEntitlementsCheckAction::createURLStreamHandlerProvider)),
         entry("createURLWithURLStreamHandler", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler)),
         entry("createURLWithURLStreamHandler2", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler2)),
-        entry("sslSessionImpl_getSessionContext", alwaysDenied(RestEntitlementsCheckAction::sslSessionImplGetSessionContext)),
         entry("datagram_socket_bind", forPlugins(RestEntitlementsCheckAction::bindDatagramSocket)),
         entry("datagram_socket_connect", forPlugins(RestEntitlementsCheckAction::connectDatagramSocket)),
         entry("datagram_socket_send", forPlugins(RestEntitlementsCheckAction::sendDatagramSocket)),
         entry("datagram_socket_receive", forPlugins(RestEntitlementsCheckAction::receiveDatagramSocket)),
         entry("datagram_socket_join_group", forPlugins(RestEntitlementsCheckAction::joinGroupDatagramSocket)),
-        entry("datagram_socket_leave_group", forPlugins(RestEntitlementsCheckAction::leaveGroupDatagramSocket))
-    );
+        entry("datagram_socket_leave_group", forPlugins(RestEntitlementsCheckAction::leaveGroupDatagramSocket)),
+
+        entry("create_socket_with_proxy", forPlugins(NetworkAccessCheckActions::createSocketWithProxy)),
+        entry("socket_bind", forPlugins(NetworkAccessCheckActions::socketBind)),
+        entry("socket_connect", forPlugins(NetworkAccessCheckActions::socketConnect)),
+        entry("server_socket_bind", forPlugins(NetworkAccessCheckActions::serverSocketBind)),
+        entry("server_socket_accept", forPlugins(NetworkAccessCheckActions::serverSocketAccept)),
+
+        entry("url_open_connection_proxy", forPlugins(NetworkAccessCheckActions::urlOpenConnectionWithProxy)),
+        entry("http_client_send", forPlugins(NetworkAccessCheckActions::httpClientSend)),
+        entry("http_client_send_async", forPlugins(NetworkAccessCheckActions::httpClientSendAsync)),
+        entry("create_ldap_cert_store", forPlugins(NetworkAccessCheckActions::createLDAPCertStore)),
+
+        entry("server_socket_channel_bind", forPlugins(NetworkAccessCheckActions::serverSocketChannelBind)),
+        entry("server_socket_channel_bind_backlog", forPlugins(NetworkAccessCheckActions::serverSocketChannelBindWithBacklog)),
+        entry("server_socket_channel_accept", forPlugins(NetworkAccessCheckActions::serverSocketChannelAccept)),
+        entry("asynchronous_server_socket_channel_bind", forPlugins(NetworkAccessCheckActions::asynchronousServerSocketChannelBind)),
+        entry(
+            "asynchronous_server_socket_channel_bind_backlog",
+            forPlugins(NetworkAccessCheckActions::asynchronousServerSocketChannelBindWithBacklog)
+        ),
+        entry("asynchronous_server_socket_channel_accept", forPlugins(NetworkAccessCheckActions::asynchronousServerSocketChannelAccept)),
+        entry(
+            "asynchronous_server_socket_channel_accept_with_handler",
+            forPlugins(NetworkAccessCheckActions::asynchronousServerSocketChannelAcceptWithHandler)
+        ),
+        entry("socket_channel_bind", forPlugins(NetworkAccessCheckActions::socketChannelBind)),
+        entry("socket_channel_connect", forPlugins(NetworkAccessCheckActions::socketChannelConnect)),
+        entry("asynchronous_socket_channel_bind", forPlugins(NetworkAccessCheckActions::asynchronousSocketChannelBind)),
+        entry("asynchronous_socket_channel_connect", forPlugins(NetworkAccessCheckActions::asynchronousSocketChannelConnect)),
+        entry(
+            "asynchronous_socket_channel_connect_with_completion",
+            forPlugins(NetworkAccessCheckActions::asynchronousSocketChannelConnectWithCompletion)
+        ),
+        entry("datagram_channel_bind", forPlugins(NetworkAccessCheckActions::datagramChannelBind)),
+        entry("datagram_channel_connect", forPlugins(NetworkAccessCheckActions::datagramChannelConnect)),
+        entry("datagram_channel_send", forPlugins(NetworkAccessCheckActions::datagramChannelSend)),
+        entry("datagram_channel_receive", forPlugins(NetworkAccessCheckActions::datagramChannelReceive))
+    )
+        .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
+        .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
 
     private static void createURLStreamHandlerProvider() {
         var x = new URLStreamHandlerProvider() {
@@ -163,15 +200,6 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                 return null;
             }
         };
-    }
-
-    private static void sslSessionImplGetSessionContext() throws IOException {
-        SSLSocketFactory factory = HttpsURLConnection.getDefaultSSLSocketFactory();
-        try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
-            SSLSession session = socket.getSession();
-
-            session.getSessionContext();
-        }
     }
 
     @SuppressWarnings("deprecation")
@@ -192,20 +220,6 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                 return null;
             }
         });
-    }
-
-    private static void createInetAddressResolverProvider() {
-        var x = new InetAddressResolverProvider() {
-            @Override
-            public InetAddressResolver get(Configuration configuration) {
-                return null;
-            }
-
-            @Override
-            public String name() {
-                return "TEST";
-            }
-        };
     }
 
     private static void setDefaultResponseCache() {

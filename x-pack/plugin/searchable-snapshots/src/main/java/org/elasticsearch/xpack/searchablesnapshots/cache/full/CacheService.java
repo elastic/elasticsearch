@@ -353,6 +353,12 @@ public class CacheService extends AbstractLifecycleComponent {
                         @Override
                         protected void doRun() {
                             processShardEviction(shard);
+                            // try {
+                            // logger.info("Sleeping on " + Thread.currentThread().getName());
+                            // Thread.sleep(10_000);
+                            // } catch (InterruptedException e) {
+                            // Thread.currentThread().interrupt();
+                            // }
                         }
 
                         @Override

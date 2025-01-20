@@ -1,0 +1,10 @@
+pr: 113131
+summary: Emit deprecation warning when executing one of the rollup APIs
+area: Rollup
+type: deprecation
+issues: []
+deprecation:
+  title: Emit deprecation warning when executing one of the rollup APIs
+  area: Rollup
+  details: Rollup is already deprecated since 8.11.0 via documentation and since 8.15.0 it is no longer possible to create new rollup jobs in clusters without rollup usage. This change updates the rollup APIs to emit a deprecation warning.
+  impact: Returning a deprecation warning when using one of the rollup APIs.

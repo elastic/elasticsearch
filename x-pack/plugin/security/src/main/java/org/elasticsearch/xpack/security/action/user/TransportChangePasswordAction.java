@@ -52,12 +52,12 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
         final Hasher requestPwdHashAlgo = Hasher.resolveFromHash(request.passwordHash());
         final Hasher configPwdHashAlgo = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
         if (requestPwdHashAlgo.equals(configPwdHashAlgo) == false
-            && Hasher.getAvailableAlgoStoredHash().contains(requestPwdHashAlgo.name().toLowerCase(Locale.ROOT)) == false) {
+            && Hasher.getAvailableAlgoStoredPasswordHash().contains(requestPwdHashAlgo.name().toLowerCase(Locale.ROOT)) == false) {
             listener.onFailure(
                 new IllegalArgumentException(
                     "The provided password hash is not a hash or it could not be resolved to a supported hash algorithm. "
                         + "The supported password hash algorithms are "
-                        + Hasher.getAvailableAlgoStoredHash().toString()
+                        + Hasher.getAvailableAlgoStoredPasswordHash().toString()
                 )
             );
             return;

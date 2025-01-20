@@ -548,7 +548,7 @@ public class SecurityTests extends ESTestCase {
             .put(
                 XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
                 randomFrom(
-                    Hasher.getAvailableAlgoStoredHash()
+                    Hasher.getAvailableAlgoStoredPasswordHash()
                         .stream()
                         .filter(alg -> alg.startsWith("pbkdf2") == false)
                         .collect(Collectors.toList())
@@ -567,7 +567,10 @@ public class SecurityTests extends ESTestCase {
             .put(
                 XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
                 randomFrom(
-                    Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())
+                    Hasher.getAvailableAlgoStoredPasswordHash()
+                        .stream()
+                        .filter(alg -> alg.startsWith("pbkdf2"))
+                        .collect(Collectors.toList())
                 )
             )
             .build();
@@ -581,7 +584,7 @@ public class SecurityTests extends ESTestCase {
             .put(
                 XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
                 randomFrom(
-                    Hasher.getAvailableAlgoStoredHash()
+                    Hasher.getAvailableAlgoStoredPasswordHash()
                         .stream()
                         .filter(alg -> alg.startsWith("pbkdf2") == false)
                         .collect(Collectors.toList())
@@ -626,7 +629,7 @@ public class SecurityTests extends ESTestCase {
             .put(
                 XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
                 randomFrom(
-                    Hasher.getAvailableAlgoStoredHash()
+                    Hasher.getAvailableAlgoStoredPasswordHash()
                         .stream()
                         .filter(alg -> alg.startsWith("pbkdf2") == false)
                         .collect(Collectors.toList())
@@ -646,19 +649,28 @@ public class SecurityTests extends ESTestCase {
             .put(
                 XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
                 randomFrom(
-                    Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())
+                    Hasher.getAvailableAlgoStoredPasswordHash()
+                        .stream()
+                        .filter(alg -> alg.startsWith("pbkdf2"))
+                        .collect(Collectors.toList())
                 )
             )
             .put(
                 XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.getKey(),
                 randomFrom(
-                    Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())
+                    Hasher.getAvailableAlgoStoredPasswordHash()
+                        .stream()
+                        .filter(alg -> alg.startsWith("pbkdf2"))
+                        .collect(Collectors.toList())
                 )
             )
             .put(
                 ApiKeyService.PASSWORD_HASHING_ALGORITHM.getKey(),
                 randomFrom(
-                    Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())
+                    Hasher.getAvailableAlgoStoredPasswordHash()
+                        .stream()
+                        .filter(alg -> alg.startsWith("pbkdf2"))
+                        .collect(Collectors.toList())
                 )
             )
             .put(
@@ -1137,7 +1149,10 @@ public class SecurityTests extends ESTestCase {
 
     private String randomNonFipsCompliantStoredHash() {
         return randomFrom(
-            Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2") == false).collect(Collectors.toList())
+            Hasher.getAvailableAlgoStoredPasswordHash()
+                .stream()
+                .filter(alg -> alg.startsWith("pbkdf2") == false)
+                .collect(Collectors.toList())
         );
     }
 

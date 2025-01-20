@@ -37,6 +37,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.SecureRandomHolder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -158,9 +159,9 @@ public class ApiKeyService implements Closeable {
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ApiKeyService.class);
 
-    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = XPackSettings.defaultStoredHashAlgorithmSetting(
+    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = XPackSettings.defaultStoredSecureTokenHashAlgorithmSetting(
         "xpack.security.authc.api_key.hashing.algorithm",
-        (s) -> Hasher.SSHA256.name()
+        (s) -> Hasher.PBKDF2.name()
     );
     public static final Setting<TimeValue> DELETE_TIMEOUT = Setting.timeSetting(
         "xpack.security.authc.api_key.delete.timeout",
@@ -2660,6 +2661,24 @@ public class ApiKeyService implements Closeable {
         return DiscoveryNode.isStateless(settings) ? RefreshPolicy.IMMEDIATE : RefreshPolicy.WAIT_UNTIL;
     }
 
+    static SecureString getBase64SecureRandomString(int randomBytesCount) {
+        byte[] randomBytes = null;
+        byte[] encodedBytes = null;
+        try {
+            randomBytes = new byte[randomBytesCount];
+            SecureRandomHolder.INSTANCE.nextBytes(randomBytes);
+            encodedBytes = Base64.getUrlEncoder().withoutPadding().encode(randomBytes);
+            return new SecureString(CharArrays.utf8BytesToChars(encodedBytes));
+        } finally {
+            if (randomBytes != null) {
+                Arrays.fill(randomBytes, (byte) 0);
+            }
+            if (encodedBytes != null) {
+                Arrays.fill(encodedBytes, (byte) 0);
+            }
+        }
+    }
+
     private static final class ApiKeyDocCache {
         private final Cache<String, ApiKeyService.CachedApiKeyDoc> docCache;
         private final Cache<String, BytesReference> roleDescriptorsBytesCache;
@@ -2724,5 +2743,6 @@ public class ApiKeyService implements Closeable {
             docCache.invalidateAll();
             roleDescriptorsBytesCache.invalidateAll();
         }
+
     }
 }

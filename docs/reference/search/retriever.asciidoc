@@ -233,6 +233,8 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
 +
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-similarity]
 
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-rescore-vector]
+
 ===== Restrictions
 
 The parameters `query_vector` and `query_vector_builder` cannot be used together.
@@ -576,7 +578,7 @@ This example demonstrates how to deploy the {ml-docs}/ml-nlp-rerank.html[Elastic
 
 Follow these steps:
 
-. Create an inference endpoint for the `rerank` task using the <<put-inference-api, Create {infer} API>>. 
+. Create an inference endpoint for the `rerank` task using the <<put-inference-api, Create {infer} API>>.
 +
 [source,console]
 ----
@@ -584,7 +586,7 @@ PUT _inference/rerank/my-elastic-rerank
 {
   "service": "elasticsearch",
   "service_settings": {
-    "model_id": ".rerank-v1", 
+    "model_id": ".rerank-v1",
     "num_threads": 1,
     "adaptive_allocations": { <1>
       "enabled": true,
@@ -595,7 +597,7 @@ PUT _inference/rerank/my-elastic-rerank
 }
 ----
 // TEST[skip:uses ML]
-<1> {ml-docs}/ml-nlp-auto-scale.html#nlp-model-adaptive-allocations[Adaptive allocations] will be enabled with the minimum of 1 and the maximum of 10 allocations. 
+<1> {ml-docs}/ml-nlp-auto-scale.html#nlp-model-adaptive-allocations[Adaptive allocations] will be enabled with the minimum of 1 and the maximum of 10 allocations.
 +
 . Define a `text_similarity_rerank` retriever:
 +

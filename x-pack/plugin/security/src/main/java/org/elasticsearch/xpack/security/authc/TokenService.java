@@ -2737,7 +2737,6 @@ public class TokenService {
     }
 
     record Doc(String id, Map<String, Object> sourceAsMap, long seqNo, long primaryTerm) {
-
         Doc(SearchHit searchHit) {
             this(searchHit.getId(), searchHit.getSourceAsMap(), searchHit.getSeqNo(), searchHit.getPrimaryTerm());
         }

@@ -38,7 +38,7 @@ public class TimeField extends AbstractField {
     }
 
     @Override
-    public Object[] value(SearchHit hit) {
+    public Object[] value(SearchHit hit, SourceSupplier source) {
         Object[] value = getFieldValue(hit);
         if (value.length != 1) {
             return value;

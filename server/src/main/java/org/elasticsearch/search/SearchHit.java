@@ -104,8 +104,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     private transient String index;
     private transient String clusterAlias;
 
-    private Map<String, Object> sourceAsMap;
-
     private Map<String, SearchHits> innerHits;
 
     private final RefCounted refCounted;
@@ -142,7 +140,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             null,
             null,
             null,
-            null,
             new HashMap<>(),
             new HashMap<>(),
             refCounted
@@ -166,7 +163,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         SearchShardTarget shard,
         String index,
         String clusterAlias,
-        Map<String, Object> sourceAsMap,
         Map<String, SearchHits> innerHits,
         Map<String, DocumentField> documentFields,
         Map<String, DocumentField> metaFields,
@@ -188,7 +184,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this.shard = shard;
         this.index = index;
         this.clusterAlias = clusterAlias;
-        this.sourceAsMap = sourceAsMap;
         this.innerHits = innerHits;
         this.documentFields = documentFields;
         this.metaFields = metaFields;
@@ -279,7 +274,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             shardTarget,
             index,
             clusterAlias,
-            null,
             innerHits,
             documentFields,
             metaFields,
@@ -447,7 +441,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      */
     public SearchHit sourceRef(BytesReference source) {
         this.source = source;
-        this.sourceAsMap = null;
         return this;
     }
 
@@ -477,18 +470,14 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
 
     /**
      * The source of the document as a map (can be {@code null}).
+     * Note that a new map is created for each call to this method.
      */
     public Map<String, Object> getSourceAsMap() {
         assert hasReferences();
         if (source == null) {
             return null;
         }
-        if (sourceAsMap != null) {
-            return sourceAsMap;
-        }
-
-        sourceAsMap = Source.fromBytes(source).source();
-        return sourceAsMap;
+        return Source.fromBytes(source).source();
     }
 
     /**
@@ -758,7 +747,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             shard,
             index,
             clusterAlias,
-            sourceAsMap,
             innerHits == null
                 ? null
                 : innerHits.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().asUnpooled())),

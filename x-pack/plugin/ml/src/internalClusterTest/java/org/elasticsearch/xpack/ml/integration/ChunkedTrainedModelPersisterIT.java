@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
@@ -95,7 +96,12 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         ChunkedTrainedModelPersister persister = new ChunkedTrainedModelPersister(
             trainedModelProvider,
             analyticsConfig,
-            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class), true),
+            new DataFrameAnalyticsAuditor(
+                client(),
+                getInstanceFromNode(ClusterService.class),
+                TestIndexNameExpressionResolver.newInstance(),
+                true
+            ),
             (ex) -> {
                 throw new ElasticsearchException(ex);
             },
@@ -167,7 +173,12 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         ChunkedTrainedModelPersister persister = new ChunkedTrainedModelPersister(
             trainedModelProvider,
             analyticsConfig,
-            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class), false),
+            new DataFrameAnalyticsAuditor(
+                client(),
+                getInstanceFromNode(ClusterService.class),
+                TestIndexNameExpressionResolver.newInstance(),
+                false
+            ),
             (ex) -> {
                 throw new ElasticsearchException(ex);
             },

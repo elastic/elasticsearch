@@ -25,6 +25,8 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
@@ -66,6 +68,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 assertUpgradedConfigMappings();
                 assertMlLegacyTemplatesDeleted();
                 IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
+                assertNotificationsIndexAliasCreated();
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -235,6 +238,20 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 "boolean",
                 extractValue("mappings.properties.model_plot_config.properties.annotations_enabled.type", indexLevel)
             );
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertNotificationsIndexAliasCreated() throws Exception {
+        assertBusy(() -> {
+            Request getMappings = new Request("GET", "_alias/.ml-notifications-write");
+            Response response = client().performRequest(getMappings);
+            Map<String, Object> responseMap = entityAsMap(response);
+            assertThat(responseMap.entrySet(), hasSize(1));
+            var aliases = (Map<String, Object>) responseMap.get(".ml-notifications-000002");
+            assertThat(aliases.entrySet(), hasSize(1));
+            var writeAlias = (Map<String, Object>) aliases.get("aliases");
+            assertThat(writeAlias, hasEntry(".ml-notifications-write", Map.of("is_hidden", Boolean.TRUE)));
         });
     }
 }

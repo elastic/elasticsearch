@@ -17,18 +17,18 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeTests;
+import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.MockBlockFactory;
+import org.elasticsearch.compute.test.RandomBlock;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -49,6 +49,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -118,7 +119,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
         /**
          * Build a random {@link Block}.
          */
-        BasicBlockTests.RandomBlock randomBlock(int positionCount, int maxValuesPerPosition, int dups);
+        RandomBlock randomBlock(int positionCount, int maxValuesPerPosition, int dups);
     }
 
     private final boolean forcePackedHash;
@@ -163,7 +164,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
     private void test(MockBlockFactory blockFactory) {
         List<Type> types = randomList(groups, groups, () -> randomFrom(allowedTypes));
         List<ElementType> elementTypes = types.stream().map(Type::elementType).toList();
-        BasicBlockTests.RandomBlock[] randomBlocks = new BasicBlockTests.RandomBlock[types.size()];
+        RandomBlock[] randomBlocks = new RandomBlock[types.size()];
         Block[] blocks = new Block[types.size()];
         int pageCount = between(1, groups < 10 ? 10 : 5);
         int positionCount = 100;
@@ -216,7 +217,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
                         if (keyBlock.isNull(p)) {
                             key.add(null);
                         } else {
-                            key.add(BasicBlockTests.valuesAtPositions(keyBlock, p, p + 1).get(0).get(0));
+                            key.add(valuesAtPositions(keyBlock, p, p + 1).get(0).get(0));
                             assertThat(keyBlock.getValueCount(p), equalTo(1));
                         }
                     }
@@ -322,7 +323,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
         List<Object> key = new ArrayList<>(keyBlocks.length);
         for (Block block : keyBlocks) {
             assertThat(block.getValueCount(position), lessThan(2));
-            List<Object> v = BasicBlockTests.valuesAtPositions(block, position, position + 1).get(0);
+            List<Object> v = valuesAtPositions(block, position, position + 1).get(0);
             key.add(v == null ? null : v.get(0));
         }
         return key;
@@ -351,7 +352,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
         List<List<Object>> keys = new ArrayList<>();
         keys.add(List.of());
         for (Block block : keyBlocks) {
-            List<Object> values = BasicBlockTests.valuesAtPositions(block, position, position + 1).get(0);
+            List<Object> values = valuesAtPositions(block, position, position + 1).get(0);
             List<List<Object>> newKeys = new ArrayList<>();
             for (Object v : values == null ? Collections.singletonList(null) : values) {
                 for (List<Object> k : keys) {
@@ -400,18 +401,18 @@ public class BlockHashRandomizedTests extends ESTestCase {
             this.collectsNullLongs = collectsNullLongs;
         }
 
-        void add(BasicBlockTests.RandomBlock[] randomBlocks) {
+        void add(RandomBlock[] randomBlocks) {
             for (int p = 0; p < randomBlocks[0].block().getPositionCount(); p++) {
                 add(randomBlocks, p, List.of());
             }
         }
 
-        void add(BasicBlockTests.RandomBlock[] randomBlocks, int p, List<Object> key) {
+        void add(RandomBlock[] randomBlocks, int p, List<Object> key) {
             if (key.size() == randomBlocks.length) {
                 keys.add(key);
                 return;
             }
-            BasicBlockTests.RandomBlock block = randomBlocks[key.size()];
+            RandomBlock block = randomBlocks[key.size()];
             List<Object> values = block.values().get(p);
             if (values == null) {
                 if (block.block().elementType() != ElementType.LONG || collectsNullLongs) {
@@ -454,8 +455,8 @@ public class BlockHashRandomizedTests extends ESTestCase {
 
     private record Basic(ElementType elementType) implements Type {
         @Override
-        public BasicBlockTests.RandomBlock randomBlock(int positionCount, int maxValuesPerPosition, int dups) {
-            return BasicBlockTests.randomBlock(
+        public RandomBlock randomBlock(int positionCount, int maxValuesPerPosition, int dups) {
+            return RandomBlock.randomBlock(
                 elementType,
                 positionCount,
                 elementType == ElementType.NULL | randomBoolean(),
@@ -474,7 +475,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
         }
 
         @Override
-        public BasicBlockTests.RandomBlock randomBlock(int positionCount, int maxValuesPerPosition, int dups) {
+        public RandomBlock randomBlock(int positionCount, int maxValuesPerPosition, int dups) {
             Map<String, Integer> dictionary = new HashMap<>();
             Set<String> keys = dictionary(maxValuesPerPosition);
             List<List<Object>> values = new ArrayList<>(positionCount);
@@ -510,7 +511,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
                         ordinals.endPositionEntry();
                     }
                 }
-                return new BasicBlockTests.RandomBlock(values, new OrdinalBytesRefBlock(ordinals.build(), bytes.build()));
+                return new RandomBlock(values, new OrdinalBytesRefBlock(ordinals.build(), bytes.build()));
             }
         }
 

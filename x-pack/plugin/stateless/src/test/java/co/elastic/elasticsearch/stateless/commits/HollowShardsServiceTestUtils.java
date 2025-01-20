@@ -15,14 +15,14 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.engine;
+package co.elastic.elasticsearch.stateless.commits;
 
-public class HollowIndexEngineTestUtils {
+import org.elasticsearch.index.shard.ShardId;
 
-    private HollowIndexEngineTestUtils() {}
+public class HollowShardsServiceTestUtils {
 
-    public static void releasePrimaryPermits(HollowIndexEngine hollowIndexEngine) {
-        hollowIndexEngine.releasePrimaryPermits();
+    public static boolean isIngestionBlocked(HollowShardsService hollowShardsService, ShardId shardId) {
+        return hollowShardsService.isIngestionBlocked(shardId);
     }
 
 }

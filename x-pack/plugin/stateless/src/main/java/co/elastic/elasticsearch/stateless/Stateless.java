@@ -1059,6 +1059,7 @@ public class Stateless extends Plugin
                     if (indexShard != null) {
                         statelessCommitService.unregisterCommitNotificationSuccessListener(shardId);
                         statelessCommitService.closeShard(shardId);
+                        hollowShardsService.get().uninstallIngestionBlocker(indexShard);
                     }
                 }
 
@@ -1119,7 +1120,8 @@ public class Stateless extends Plugin
                 objectStoreService.get(),
                 localTranslogReplicator,
                 recoveryCommitRegistrationHandler.get(),
-                sharedBlobCacheWarmingService.get()
+                sharedBlobCacheWarmingService.get(),
+                hollowShardsService.get()
             )
         );
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());

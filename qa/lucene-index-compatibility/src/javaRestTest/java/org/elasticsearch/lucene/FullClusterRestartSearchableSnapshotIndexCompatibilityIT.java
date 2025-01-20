@@ -51,6 +51,7 @@ public class FullClusterRestartSearchableSnapshotIndexCompatibilityIT extends Fu
         client().performRequest(createIndex);
         ensureGreen(indexName);
     }
+
     /**
      * Creates an index and a snapshot on N-2, then mounts the snapshot on N.
      */
@@ -103,29 +104,37 @@ public class FullClusterRestartSearchableSnapshotIndexCompatibilityIT extends Fu
             assertThat(indexVersion(mountedIndex), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), mountedIndex, numDocs);
 
-//            updateRandomIndexSettings(mountedIndex);
-//            updateRandomMappings(mountedIndex);
-//
-//            logger.debug("--> adding replica to test peer-recovery");
-//            updateIndexSettings(mountedIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
-//            ensureGreen(mountedIndex);
-//
-//            logger.debug("--> closing index [{}]", mountedIndex);
-//            closeIndex(mountedIndex);
-//            ensureGreen(mountedIndex);
-//
-//            logger.debug("--> adding replica to test peer-recovery for closed shards");
-//            updateIndexSettings(mountedIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2));
-//            ensureGreen(mountedIndex);
-//
-//            logger.debug("--> re-opening index [{}]", mountedIndex);
-//            openIndex(mountedIndex);
-//            ensureGreen(mountedIndex);
-//
-//            assertDocCount(client(), mountedIndex, numDocs);
-//
-//            logger.debug("--> deleting index [{}]", mountedIndex);
-//            deleteIndex(mountedIndex);
+            updateRandomIndexSettings(mountedIndex, IGNORE_WARNINGS.build());
+            updateRandomMappings(mountedIndex);
+
+            logger.debug("--> adding replica to test peer-recovery");
+            updateIndexSettingsLenient(
+                mountedIndex,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build(),
+                IGNORE_WARNINGS.build()
+            );
+            ensureGreen(mountedIndex);
+
+            logger.debug("--> closing index [{}]", mountedIndex);
+            closeIndex(mountedIndex);
+            ensureGreen(mountedIndex);
+
+            logger.debug("--> adding replica to test peer-recovery for closed shards");
+            updateIndexSettingsLenient(
+                    mountedIndex,
+                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2).build(),
+                    IGNORE_WARNINGS.build()
+            );
+            ensureGreen(mountedIndex);
+
+            logger.debug("--> re-opening index [{}]", mountedIndex);
+            openIndex(mountedIndex);
+            ensureGreen(mountedIndex);
+
+            assertDocCount(client(), mountedIndex, numDocs);
+
+            logger.debug("--> deleting index [{}]", mountedIndex);
+            deleteIndex(mountedIndex);
         }
     }
 

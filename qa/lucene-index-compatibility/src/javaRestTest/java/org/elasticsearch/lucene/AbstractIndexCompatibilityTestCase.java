@@ -9,6 +9,7 @@
 
 package org.elasticsearch.lucene;
 
+import io.netty.handler.codec.http.HttpMethod;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
 import org.elasticsearch.client.Request;
@@ -226,6 +227,10 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
     }
 
     protected static void updateRandomIndexSettings(String indexName) throws IOException {
+        updateRandomIndexSettings(indexName, RequestOptions.DEFAULT);
+    }
+
+    protected static void updateRandomIndexSettings(String indexName, RequestOptions requestOptions) throws IOException {
         final var settings = Settings.builder();
         int updates = randomIntBetween(1, 3);
         for (int i = 0; i < updates; i++) {
@@ -237,7 +242,13 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
                 default -> throw new IllegalStateException();
             }
         }
-        updateIndexSettings(indexName, settings);
+        updateIndexSettingsLenient(indexName, settings.build(), requestOptions);
+    }
+
+    protected static void updateIndexSettingsLenient(String indexName, Settings settings, RequestOptions requestOptions) throws IOException {
+        final var request = newXContentRequest(HttpMethod.PUT, "/" + indexName + "/_settings", settings);
+        request.setOptions(requestOptions);
+        assertOK(client().performRequest(request));
     }
 
     protected static void updateRandomMappings(String indexName) throws Exception {

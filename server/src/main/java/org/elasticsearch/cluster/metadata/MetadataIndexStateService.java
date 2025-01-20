@@ -835,16 +835,11 @@ public class MetadataIndexStateService {
                 TransportVerifyShardIndexBlockAction.TYPE,
                 shardRequest,
                 listener.delegateFailure((delegate, replicationResponse) -> {
-                    final TransportVerifyShardIndexBlockAction.ShardRequest req = new TransportVerifyShardIndexBlockAction.ShardRequest(
-                        shardId,
-                        block,
-                        false,
-                        parentTaskId
-                    );
+                    final var phase2 = new TransportVerifyShardIndexBlockAction.ShardRequest(shardId, block, false, parentTaskId);
                     if (request.ackTimeout() != null) {
-                        req.timeout(request.ackTimeout());
+                        phase2.timeout(request.ackTimeout());
                     }
-                    client.executeLocally(TransportVerifyShardIndexBlockAction.TYPE, req, delegate);
+                    client.executeLocally(TransportVerifyShardIndexBlockAction.TYPE, phase2, delegate);
                 })
             );
         }

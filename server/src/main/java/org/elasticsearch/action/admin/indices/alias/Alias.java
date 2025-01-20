@@ -151,8 +151,12 @@ public class Alias implements Writeable, ToXContentFragment {
      * Associates a routing value to the alias
      */
     public Alias routing(String routing) {
-        this.indexRouting = routing;
-        this.searchRouting = routing;
+        if (this.indexRouting == null) {
+            this.indexRouting = routing;
+        }
+        if (this.searchRouting == null) {
+            this.searchRouting = routing;
+        }
         return this;
     }
 

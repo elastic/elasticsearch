@@ -18,6 +18,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -33,6 +34,7 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
     public TransportUnifiedCompletionInferenceAction(
         TransportService transportService,
         ActionFilters actionFilters,
+        XPackLicenseState licenseState,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
@@ -45,6 +47,7 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
             UnifiedCompletionAction.NAME,
             transportService,
             actionFilters,
+            licenseState,
             modelRegistry,
             serviceRegistry,
             inferenceStats,
@@ -58,7 +61,7 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
 
     @Override
     protected boolean isInvalidTaskTypeForInferenceEndpoint(UnifiedCompletionAction.Request request, UnparsedModel unparsedModel) {
-        return request.getTaskType().isAnyOrSame(TaskType.COMPLETION) == false || unparsedModel.taskType() != TaskType.COMPLETION;
+        return request.getTaskType().isAnyOrSame(TaskType.CHAT_COMPLETION) == false || unparsedModel.taskType() != TaskType.CHAT_COMPLETION;
     }
 
     @Override
@@ -70,7 +73,7 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
             "Incompatible task_type for unified API, the requested type [{}] must be one of [{}]",
             RestStatus.BAD_REQUEST,
             request.getTaskType(),
-            TaskType.COMPLETION.toString()
+            TaskType.CHAT_COMPLETION.toString()
         );
     }
 

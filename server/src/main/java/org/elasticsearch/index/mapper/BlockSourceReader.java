@@ -230,7 +230,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         protected void append(BlockLoader.Builder builder, Object v) {
-            ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(toBytesRef(scratch, (String) v));
+            ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(toBytesRef(scratch, v.toString()));
         }
 
         @Override

@@ -2939,4 +2939,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
             );
         }
     }
+
+    public void testInvalidInsistNotOnTopOfFrom() {
+        expectError("FROM text | EVAL x = 4 | INSIST foo", "INSIST command can only be applied on top of a FROM command");
+    }
+
+    public void testInvalidInsistAsterisk() {
+        expectError("FROM text | EVAL x = 4 | INSIST foo*", "extraneous input '*'");
+    }
+
+    // Note: This is a temporary restriction, as the INSIST command should eventually be able to accept multiple parameters.
+    public void testInvalidInsistMultiParameters() {
+        expectError("FROM text | EVAL x = 4 | INSIST foo, bar", "mismatched input ','");
+    }
 }

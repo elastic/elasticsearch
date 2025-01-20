@@ -44,12 +44,14 @@ import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
+import org.elasticsearch.xpack.esql.CsvTestUtils.PageColumn;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedEsField;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
@@ -63,8 +65,9 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.OptionalInt;
+import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -90,9 +93,14 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         return new TestPhysicalOperationProviders(foldContext, indexPages, createAnalysisRegistry());
     }
 
-    public record IndexPage(String index, Page page, List<String> columnNames) {
-        OptionalInt columnIndex(String columnName) {
-            return IntStream.range(0, columnNames.size()).filter(i -> columnNames.get(i).equals(columnName)).findFirst();
+    public record IndexPage(String index, Page page, List<PageColumn> columns, Set<String> mappedFields) {
+        List<String> columnNames() {
+            return columns.stream().map(PageColumn::name).toList();
+        }
+
+        Optional<Integer> columnIndex(String columnName) {
+            var result = IntStream.range(0, columns.size()).filter(i -> columns.get(i).name().equals(columnName)).findFirst();
+            return result.isPresent() ? Optional.of(result.getAsInt()) : Optional.empty();
         }
     }
 
@@ -263,39 +271,104 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
     private Block getBlock(DocBlock docBlock, Attribute attribute, FieldExtractPreference extractPreference) {
         if (attribute instanceof UnsupportedAttribute) {
-            return docBlock.blockFactory().newConstantNullBlock(docBlock.getPositionCount());
+            return getNullsBlock(docBlock);
         }
-        return extractBlockForColumn(
-            docBlock,
-            attribute.dataType(),
-            extractPreference,
-            attribute instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField multiTypeEsField
-                ? (indexDoc, blockCopier) -> getBlockForMultiType(indexDoc, multiTypeEsField, blockCopier)
-                : (indexDoc, blockCopier) -> extractBlockForSingleDoc(indexDoc, attribute.name(), blockCopier)
-        );
+        BiFunction<DocBlock, TestBlockCopier, Block> blockExtraction = getBlockExtraction(attribute);
+        return extractBlockForColumn(docBlock, attribute.dataType(), extractPreference, blockExtraction);
+    }
+
+    private BiFunction<DocBlock, TestBlockCopier, Block> getBlockExtraction(Attribute attribute) {
+        if (attribute instanceof FieldAttribute fa) {
+            switch (fa.field()) {
+                case MultiTypeEsField m:
+                    return (doc, copier) -> getBlockForMultiType(doc, m, copier);
+                case PotentiallyUnmappedEsField u:
+                    return (doc, copier) -> getBlockForUnmappedType(doc, u, copier);
+                default: // noop
+            }
+        }
+        return (indexDoc, blockCopier) -> extractBlockForSingleDoc(indexDoc, attribute.name(), blockCopier).getOrThrow();
     }
 
     private Block getBlockForMultiType(DocBlock indexDoc, MultiTypeEsField multiTypeEsField, TestBlockCopier blockCopier) {
-        var indexId = indexDoc.asVector().shards().getInt(0);
-        var indexPage = indexPages.get(indexId);
-        var conversion = (AbstractConvertFunction) multiTypeEsField.getConversionExpressionForIndex(indexPage.index);
-        Supplier<Block> nulls = () -> indexDoc.blockFactory().newConstantNullBlock(indexDoc.getPositionCount());
+        var conversion = (AbstractConvertFunction) multiTypeEsField.getConversionExpressionForIndex(getIndexPage(indexDoc).index);
         if (conversion == null) {
-            return nulls.get();
+            return getNullsBlock(indexDoc);
         }
-        var field = (FieldAttribute) conversion.field();
-        return indexPage.columnIndex(field.fieldName()).isEmpty()
-            ? nulls.get()
-            : TypeConverter.fromConvertFunction(conversion).convert(extractBlockForSingleDoc(indexDoc, field.fieldName(), blockCopier));
+        BlockResult result = extractBlockForSingleDoc(indexDoc, ((FieldAttribute) conversion.field()).fieldName(), blockCopier);
+        return result.mapOrNulls(indexDoc, TypeConverter.fromConvertFunction(conversion)::convert);
     }
 
-    private Block extractBlockForSingleDoc(DocBlock docBlock, String columnName, TestBlockCopier blockCopier) {
+    private IndexPage getIndexPage(DocBlock indexDoc) {
+        return indexPages.get(indexDoc.asVector().shards().getInt(0));
+    }
+
+    private Block getBlockForUnmappedType(DocBlock indexDoc, PotentiallyUnmappedEsField field, TestBlockCopier blockCopier) {
+        BlockResult result = extractBlockForSingleDoc(indexDoc, field.getName(), blockCopier);
+        return result.mapOrNulls(indexDoc, block -> castUnmapped(getIndexPage(indexDoc), field, block));
+    }
+
+    private static Block castUnmapped(IndexPage indexPage, PotentiallyUnmappedEsField field, Block block) {
+        return switch (field.getState()) {
+            case PotentiallyUnmappedEsField.SimpleResolution sr -> {
+                var isMapped = indexPage.mappedFields.contains(field.getName());
+                yield TypeConverter.fromConvertFunction(
+                    (AbstractConvertFunction) (isMapped ? sr.mappedConversion() : sr.unmappedConversion())
+                ).convert(block);
+            }
+            case PotentiallyUnmappedEsField.MultiType mt -> {
+                yield TypeConverter.fromConvertFunction(
+                    (AbstractConvertFunction) mt.multiTypeEsField().getConversionExpressionForIndex(indexPage.index)
+                ).convert(block);
+            }
+            case PotentiallyUnmappedEsField.KeywordResolved noConflicts -> block;
+            case PotentiallyUnmappedEsField.Invalid invalid -> throw new AssertionError("Invalid field should have been null");
+            case PotentiallyUnmappedEsField.SimpleConflict simpleConflict -> throw new AssertionError(
+                "Conflicted field should have been null"
+            );
+        };
+    }
+
+    private static Block getNullsBlock(DocBlock indexDoc) {
+        return indexDoc.blockFactory().newConstantNullBlock(indexDoc.getPositionCount());
+    }
+
+    private sealed interface BlockResult {
+        Block mapOrNulls(DocBlock docBlock, Function<Block, Block> cast);
+
+        Block getOrThrow();
+    }
+
+    private record BlockResultSuccess(Block block) implements BlockResult {
+        @Override
+        public Block mapOrNulls(DocBlock docBlock, Function<Block, Block> cast) {
+            return cast.apply(block);
+        }
+
+        @Override
+        public Block getOrThrow() {
+            return block;
+        }
+    }
+
+    private record BlockResultMissing(String columnName, List<String> columnNames) implements BlockResult {
+        @Override
+        public Block mapOrNulls(DocBlock docBlock, Function<Block, Block> cast) {
+            return getNullsBlock(docBlock);
+        }
+
+        @Override
+        public Block getOrThrow() {
+            throw new EsqlIllegalArgumentException("Cannot find column named [{}] in {}", columnName, columnNames);
+        }
+    }
+
+    private BlockResult extractBlockForSingleDoc(DocBlock docBlock, String columnName, TestBlockCopier blockCopier) {
         var indexId = docBlock.asVector().shards().getInt(0);
         var indexPage = indexPages.get(indexId);
-        int columnIndex = indexPage.columnIndex(columnName)
-            .orElseThrow(() -> new EsqlIllegalArgumentException("Cannot find column named [{}] in {}", columnName, indexPage.columnNames));
-        var originalData = indexPage.page.getBlock(columnIndex);
-        return blockCopier.copyBlock(originalData);
+        return indexPage.columnIndex(columnName)
+            .<BlockResult>map(columnIndex -> new BlockResultSuccess(blockCopier.copyBlock(indexPage.page.getBlock(columnIndex))))
+            .orElseGet(() -> new BlockResultMissing(columnName, indexPage.columnNames()));
     }
 
     private static void foreachIndexDoc(DocBlock docBlock, Consumer<DocBlock> indexDocConsumer) {
@@ -410,8 +483,9 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         ) {
             foreachIndexDoc(docBlock, indexDoc -> {
                 TestBlockCopier blockCopier = blockCopier(dataType, extractPreference, indexDoc.asVector().docs());
-                Block blockForIndex = extractBlock.apply(indexDoc, blockCopier);
-                blockBuilder.copyFrom(blockForIndex, 0, blockForIndex.getPositionCount());
+                try (Block blockForIndex = extractBlock.apply(indexDoc, blockCopier)) {
+                    blockBuilder.copyFrom(blockForIndex, 0, blockForIndex.getPositionCount());
+                }
             });
             var result = blockBuilder.build();
             assert result.getPositionCount() == docBlock.getPositionCount()

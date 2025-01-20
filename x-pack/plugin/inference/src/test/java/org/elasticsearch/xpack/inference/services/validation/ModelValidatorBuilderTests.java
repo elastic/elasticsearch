@@ -35,6 +35,8 @@ public class ModelValidatorBuilderTests extends ESTestCase {
             SimpleModelValidator.class,
             TaskType.COMPLETION,
             ChatCompletionModelValidator.class,
+            TaskType.CHAT_COMPLETION,
+            ChatCompletionModelValidator.class,
             TaskType.ANY,
             SimpleModelValidator.class
         );

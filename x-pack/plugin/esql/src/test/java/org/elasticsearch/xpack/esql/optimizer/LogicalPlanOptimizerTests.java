@@ -6931,4 +6931,39 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         EsRelation esRelation = as(limit.child(), EsRelation.class);
         assertEquals(esRelation.index().name(), "test");
     }
+
+    public void testReferencePlanSimple() {
+        var plan = optimizedPlan("""
+            from test
+            """);
+
+        ReferencePlan expected = ReferencePlan.limit()
+            .withChild(ReferencePlan.relation());
+        assertTrue(expected.matches(plan));
+
+        expected = ReferencePlan.limit()
+            .withExpression(new Literal(EMPTY, 1000, INTEGER))
+            .withChild(ReferencePlan.relation());
+        assertTrue(expected.matches(plan));
+    }
+
+    public void testReferencePlanTopN() {
+        var plan = optimizedPlan("""
+            from test
+            | sort salary
+            | limit 1
+            """);
+
+        ReferencePlan expected = ReferencePlan.topN();
+        assertTrue(expected.matches(plan));
+
+        expected = ReferencePlan.topN().withChild(ReferencePlan.relation());
+        assertTrue(expected.matches(plan));
+
+        expected = ReferencePlan.topN().withExpression(new Literal(EMPTY, 1, INTEGER));
+        assertTrue(expected.matches(plan));
+
+        expected = ReferencePlan.topN().withChild(ReferencePlan.relation()).withExpression(new Literal(EMPTY, 1, INTEGER));
+        assertTrue(expected.matches(plan));
+    }
 }

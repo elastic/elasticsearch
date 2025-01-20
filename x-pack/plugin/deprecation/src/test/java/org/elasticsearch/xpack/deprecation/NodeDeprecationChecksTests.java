@@ -843,8 +843,18 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Template template = Template.builder().mappings(CompressedXContent.fromJSON("""
             { "_doc": { "_source": { "mode": "stored"} } }""")).build();
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
+
+        Template template2 = Template.builder().mappings(CompressedXContent.fromJSON("""
+            { "_doc": { "_source": { "enabled": false} } }""")).build();
+        ComponentTemplate componentTemplate2 = new ComponentTemplate(template2, 1L, new HashMap<>());
+
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().componentTemplates(Map.of("my-template", componentTemplate)))
+            .metadata(
+                Metadata.builder()
+                    .componentTemplates(
+                        Map.of("my-template-1", componentTemplate, "my-template-2", componentTemplate, "my-template-3", componentTemplate2)
+                    )
+            )
             .build();
 
         final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
@@ -860,7 +870,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             SourceFieldMapper.DEPRECATION_WARNING,
             "https://github.com/elastic/elasticsearch/pull/117172",
-            SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [my-template]",
+            SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [my-template-1, my-template-2]",
             false,
             null
         );

@@ -1044,6 +1044,7 @@ public class NodeDeprecationChecks {
         if (templates.isEmpty()) {
             return null;
         }
+        Collections.sort(templates);
         return new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             SourceFieldMapper.DEPRECATION_WARNING,

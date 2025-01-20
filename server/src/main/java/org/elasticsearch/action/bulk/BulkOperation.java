@@ -654,7 +654,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      * If so, we'll need to roll it over before we index the failed documents into the failure store.
      */
     private void maybeMarkFailureStoreForRollover(DataStream dataStream) {
-        if (dataStream.getFailureIndices().isRolloverOnWrite() == false) {
+        if (dataStream.getFailureComponent().isRolloverOnWrite() == false) {
             return;
         }
         failureStoresToBeRolledOver.add(dataStream.getName());

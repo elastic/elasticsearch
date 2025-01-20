@@ -105,6 +105,24 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
      * @param nullsExpectedType See {@link #anyNullIsNull(List, ExpectedType, ExpectedEvaluatorToString)}
      * @param evaluatorToString See {@link #anyNullIsNull(List, ExpectedType, ExpectedEvaluatorToString)}
      */
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
+        ExpectedType nullsExpectedType,
+        ExpectedEvaluatorToString evaluatorToString,
+        List<TestCaseSupplier> suppliers
+    ) {
+        return parameterSuppliersFromTypedData(anyNullIsNull(randomizeBytesRefsOffset(suppliers), nullsExpectedType, evaluatorToString));
+    }
+
+    /**
+     * Converts a list of test cases into a list of parameter suppliers.
+     * Also, adds a default set of extra test cases.
+     * <p>
+     *     Use if possible, as this method may get updated with new checks in the future.
+     * </p>
+     *
+     * @param nullsExpectedType See {@link #anyNullIsNull(List, ExpectedType, ExpectedEvaluatorToString)}
+     * @param evaluatorToString See {@link #anyNullIsNull(List, ExpectedType, ExpectedEvaluatorToString)}
+     */
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
         ExpectedType nullsExpectedType,
         ExpectedEvaluatorToString evaluatorToString,
@@ -372,7 +390,11 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             Object result = nullOptimized.fold(FoldContext.small());
             // Decode unsigned longs into BigIntegers
             if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
-                result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+                if (result instanceof List<?> l) {
+                    result = l.stream().map(v -> NumericUtils.unsignedLongAsBigInteger((Long) v)).toList();
+                } else {
+                    result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+                }
             }
             assertThat(result, testCase.getMatcher());
             if (testCase.getExpectedBuildEvaluatorWarnings() != null) {

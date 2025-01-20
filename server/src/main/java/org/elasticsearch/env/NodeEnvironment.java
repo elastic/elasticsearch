@@ -1502,9 +1502,9 @@ public final class NodeEnvironment implements Closeable {
     /**
      * Get a useful version string to direct a user's downgrade operation
      *
-     * <p>If a user is trying to install 9.0 (current major) but has incompatible indices, the user should
-     * downgrade to 8.18.x (last minor of the previous major). We return 8.18.0, unless the user is trying to upgrade from
-     * a 8.18.x release, in which case we return the last installed version.
+     * <p>If a user is trying to install current major N but has incompatible indices, the user should
+     * downgrade to last minor of the previous major (N-1).last. We return (N-1).last, unless the user is trying to upgrade from
+     * a (N-1).last.x release, in which case we return the last installed version.
      * @return Version to downgrade to
      */
     // visible for testing

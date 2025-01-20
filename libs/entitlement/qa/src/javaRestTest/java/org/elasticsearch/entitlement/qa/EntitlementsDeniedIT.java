@@ -13,13 +13,12 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.entitlement.qa.common.RestEntitlementsCheckAction;
+import org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
 
 import java.io.IOException;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -27,8 +26,7 @@ public class EntitlementsDeniedIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .plugin("entitlement-denied")
-        .plugin("entitlement-denied-nonmodular")
+        .module("test-plugin", spec -> EntitlementsUtil.setupEntitlements(spec, true, null))
         .systemProperty("es.entitlements.enabled", "true")
         .setting("xpack.security.enabled", "false")
         // Logs in libs/entitlement/qa/build/test-results/javaRestTest/TEST-org.elasticsearch.entitlement.qa.EntitlementsDeniedIT.xml
@@ -40,25 +38,21 @@ public class EntitlementsDeniedIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    private final String pathPrefix;
     private final String actionName;
 
-    public EntitlementsDeniedIT(@Name("pathPrefix") String pathPrefix, @Name("actionName") String actionName) {
-        this.pathPrefix = pathPrefix;
+    public EntitlementsDeniedIT(@Name("actionName") String actionName) {
         this.actionName = actionName;
     }
 
     @ParametersFactory
     public static Iterable<Object[]> data() {
-        return Stream.of("denied", "denied_nonmodular")
-            .flatMap(path -> RestEntitlementsCheckAction.getAllCheckActions().stream().map(action -> new Object[] { path, action }))
-            .toList();
+        return RestEntitlementsCheckAction.getAllCheckActions().stream().map(action -> new Object[] { action }).toList();
     }
 
     public void testCheckThrows() {
-        logger.info("Executing Entitlement test [{}] for [{}]", pathPrefix, actionName);
+        logger.info("Executing Entitlement test for [{}]", actionName);
         var exception = expectThrows(IOException.class, () -> {
-            var request = new Request("GET", "/_entitlement/" + pathPrefix + "/_check");
+            var request = new Request("GET", "/_entitlement_check");
             request.addParameter("action", actionName);
             client().performRequest(request);
         });

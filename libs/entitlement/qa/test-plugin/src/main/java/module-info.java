@@ -7,11 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
-// Necessary to use tests in Serverless
-apply plugin: 'elasticsearch.internal-test-artifact'
+module org.elasticsearch.entitlement.qa.test {
+    requires org.elasticsearch.server;
+    requires org.elasticsearch.base;
+    requires org.elasticsearch.logging;
 
-dependencies {
-  javaRestTestImplementation project(':libs:entitlement:qa:test-plugin')
-  clusterModules project(':libs:entitlement:qa:test-plugin')
+    // Modules we'll attempt to use in order to exercise entitlements
+    requires java.logging;
+    requires java.net.http;
 }

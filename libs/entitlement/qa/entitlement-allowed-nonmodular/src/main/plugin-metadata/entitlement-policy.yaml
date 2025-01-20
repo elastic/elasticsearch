@@ -1,8 +1,0 @@
-ALL-UNNAMED:
-  - create_class_loader
-  - set_https_connection_properties
-  - network:
-      actions:
-        - listen
-        - accept
-        - connect

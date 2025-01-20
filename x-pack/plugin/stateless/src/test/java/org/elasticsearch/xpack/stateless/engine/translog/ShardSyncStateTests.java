@@ -62,13 +62,16 @@ public class ShardSyncStateTests extends ESTestCase {
 
         shardSyncState.markCommitUploaded(1L);
         shardSyncState.markCommitUploaded(2L);
+        assertTrue(activeTranslogFile.isSafeForDelete());
         assertTrue(activeTranslogFile.hasReferences());
 
         shardSyncState.markCommitUploaded(3L);
+        assertTrue(activeTranslogFile.isSafeForDelete());
         assertFalse(activeTranslogFile.hasReferences());
 
         // Advance again to ensure that an assertion is not thrown from decrementing generation 3 file again
         shardSyncState.markCommitUploaded(4L);
+        assertTrue(activeTranslogFile.isSafeForDelete());
         assertFalse(activeTranslogFile.hasReferences());
     }
 
@@ -145,7 +148,7 @@ public class ShardSyncStateTests extends ESTestCase {
         assertThat(directory3.referencedTranslogFileOffsets(), equalTo(new int[] { 4, 2, 1 }));
     }
 
-    public void testActiveTranslogFileIsNotReleasedAfterShardClose() throws IOException {
+    public void testActiveTranslogFileIsMarkedUnsafeForDeleteAfterShardClose() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(0, 20);
         long generation = randomLongBetween(1, 5);
@@ -163,16 +166,19 @@ public class ShardSyncStateTests extends ESTestCase {
 
         shardSyncState.markSyncStarting(primaryTerm, activeTranslogFile);
 
+        assertTrue(activeTranslogFile.isSafeForDelete());
         assertTrue(activeTranslogFile.hasReferences());
 
         shardSyncState.close();
 
-        assertTrue(activeTranslogFile.hasReferences());
+        assertFalse(activeTranslogFile.isSafeForDelete());
+        assertFalse(activeTranslogFile.hasReferences());
 
         shardSyncState.markCommitUploaded(generation + 1);
 
         // Even if a commit comes in telling us to advance the start file ignore since the shard is closed.
-        assertTrue(activeTranslogFile.hasReferences());
+        assertFalse(activeTranslogFile.isSafeForDelete());
+        assertFalse(activeTranslogFile.hasReferences());
     }
 
     public void testActiveTranslogFileCannotBeQueuedAfterShardClose() throws IOException {

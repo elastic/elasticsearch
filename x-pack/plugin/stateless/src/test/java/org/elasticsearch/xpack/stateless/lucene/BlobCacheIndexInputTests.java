@@ -144,7 +144,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
     public void testSwitchToBlobRegionSizeOnUpload() throws IOException {
         final var fileSize = ByteSizeValue.ofKb(64);
-        final ByteSizeValue cacheSize = new ByteSizeValue(32, ByteSizeUnit.MB);
+        final ByteSizeValue cacheSize = ByteSizeValue.of(32, ByteSizeUnit.MB);
         final var settings = sharedCacheSettings(cacheSize);
         final var rangeSize = SHARED_CACHE_RANGE_SIZE_SETTING.get(settings);
         try (
@@ -576,7 +576,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
     }
 
     private static Settings sharedCacheSettings(ByteSizeValue cacheSize) {
-        return sharedCacheSettings(cacheSize, pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)));
+        return sharedCacheSettings(cacheSize, pageAligned(ByteSizeValue.of(randomIntBetween(4, 1024), ByteSizeUnit.KB)));
     }
 
     private static Settings sharedCacheSettings(ByteSizeValue cacheSize, ByteSizeValue regionSize) {

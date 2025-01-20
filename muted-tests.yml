@@ -249,6 +249,9 @@ tests:
 - class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
   method: testCheckActionWithPolicyPass {pathPrefix=allowed actionName=create_ldap_cert_store}
   issue: https://github.com/elastic/elasticsearch/issues/120422
+- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
+  method: testCheckActionWithPolicyPass {pathPrefix=allowed_nonmodular actionName=create_ldap_cert_store}
+  issue: https://github.com/elastic/elasticsearch/issues/120423
 
 # Examples:
 #

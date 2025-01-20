@@ -34,11 +34,9 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -49,6 +47,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -1717,52 +1716,56 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndexDeletionAllowedPredicate ALWAYS_TRUE = (Index index, IndexSettings indexSettings) -> true;
 
     public AliasFilter buildAliasFilter(ClusterState state, String index, Set<ResolvedExpression> resolvedExpressions) {
-        /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
-         * of dependencies we pass in a function that can perform the parsing. */
-        CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser = bytes -> {
-            try (
-                XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, bytes, XContentHelper.xContentType(bytes))
-            ) {
-                return parseTopLevelQuery(parser);
-            }
-        };
         String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, resolvedExpressions);
         if (aliases == null) {
             return AliasFilter.EMPTY;
         }
 
-        Metadata metadata = state.metadata();
-        IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
-        DataStream dataStream = ia.getParentDataStream();
-        if (dataStream != null) {
-            String dataStreamName = dataStream.getName();
-            List<QueryBuilder> filters = Arrays.stream(aliases)
-                .map(name -> metadata.dataStreamAliases().get(name))
-                .filter(dataStreamAlias -> dataStreamAlias.getFilter(dataStreamName) != null)
-                .map(dataStreamAlias -> {
-                    try {
-                        return filterParser.apply(dataStreamAlias.getFilter(dataStreamName).uncompressed());
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                })
-                .toList();
-            if (filters.isEmpty()) {
-                return AliasFilter.of(null, aliases);
-            } else {
-                if (filters.size() == 1) {
-                    return AliasFilter.of(filters.get(0), aliases);
-                } else {
-                    BoolQueryBuilder bool = new BoolQueryBuilder();
-                    for (QueryBuilder filter : filters) {
-                        bool.should(filter);
-                    }
-                    return AliasFilter.of(bool, aliases);
+        return doBuildAliasFilter(state, index, aliases);
+    }
+
+    private AliasFilter doBuildAliasFilter(ClusterState state, String index, String[] aliases) {
+        DataStream dataStream = state.metadata().getIndicesLookup().get(index).getParentDataStream();
+        if (dataStream == null) {
+            return AliasFilter.of(ShardSearchRequest.parseAliasFilter(this::parseFilter, state.metadata().index(index), aliases), aliases);
+        }
+        var dataStreamAliases = state.metadata().dataStreamAliases();
+        String dataStreamName = dataStream.getName();
+        List<QueryBuilder> filters = Arrays.stream(aliases)
+            .map(dataStreamAliases::get)
+            .filter(dataStreamAlias -> dataStreamAlias.getFilter(dataStreamName) != null)
+            .map(dataStreamAlias -> {
+                try {
+                    return parseFilter(dataStreamAlias.getFilter(dataStreamName));
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
                 }
-            }
-        } else {
-            IndexMetadata indexMetadata = metadata.index(index);
-            return AliasFilter.of(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), aliases);
+            })
+            .toList();
+
+        if (filters.isEmpty()) {
+            return AliasFilter.of(null, aliases);
+        }
+        if (filters.size() == 1) {
+            return AliasFilter.of(filters.get(0), aliases);
+        }
+        BoolQueryBuilder bool = new BoolQueryBuilder();
+        for (QueryBuilder filter : filters) {
+            bool.should(filter);
+        }
+        return AliasFilter.of(bool, aliases);
+    }
+
+    private QueryBuilder parseFilter(CompressedXContent bytes) throws IOException {
+        var uncompressed = bytes.uncompressed();
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                parserConfig,
+                uncompressed,
+                XContentHelper.xContentType(uncompressed)
+            )
+        ) {
+            return parseTopLevelQuery(parser);
         }
     }
 

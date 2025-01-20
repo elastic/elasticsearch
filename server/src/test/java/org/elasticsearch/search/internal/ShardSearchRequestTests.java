@@ -210,7 +210,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     public QueryBuilder aliasFilter(IndexMetadata indexMetadata, String... aliasNames) {
         return ShardSearchRequest.parseAliasFilter(bytes -> {
             try (
-                InputStream inputStream = bytes.streamInput();
+                InputStream inputStream = bytes.uncompressed().streamInput();
                 XContentParser parser = XContentFactory.xContentType(inputStream)
                     .xContent()
                     .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, inputStream)

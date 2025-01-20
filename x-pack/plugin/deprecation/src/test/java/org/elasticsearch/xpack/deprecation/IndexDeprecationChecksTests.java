@@ -116,6 +116,22 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertThat(issues, empty());
     }
 
+    public void testOldIndicesCheckClosedIgnored() {
+        IndexVersion createdWith = IndexVersion.fromId(7170099);
+        Settings.Builder settings = settings(createdWith);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .state(IndexMetadata.State.CLOSE)
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, clusterState));
+        assertThat(issues, empty());
+    }
+
     public void testTranslogRetentionSettings() {
         Settings.Builder settings = settings(IndexVersion.current());
         settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());

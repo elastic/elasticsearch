@@ -24,6 +24,7 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -252,16 +253,27 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         assertOK(client().performRequest(putIndexTemplateRequest));
         bulkLoadData(dataStreamName);
         for (int i = 0; i < numRollovers; i++) {
-            rollover(dataStreamName);
+            String oldIndexName = rollover(dataStreamName);
+            if (randomBoolean()) {
+                closeIndex(oldIndexName);
+            }
             bulkLoadData(dataStreamName);
         }
     }
 
     private void upgradeDataStream(String dataStreamName, int numRolloversOnOldCluster) throws Exception {
         Set<String> indicesNeedingUpgrade = getDataStreamIndices(dataStreamName);
+        Set<String> closedOldIndices = getClosedIndices(dataStreamName);
         final int explicitRolloverOnNewClusterCount = randomIntBetween(0, 2);
         for (int i = 0; i < explicitRolloverOnNewClusterCount; i++) {
-            rollover(dataStreamName);
+            String oldIndexName = rollover(dataStreamName);
+            if (randomBoolean()) {
+                if (i == 0) {
+                    // Since this is the first rollover on the new cluster, the old index came from the old cluster
+                    closedOldIndices.add(oldIndexName);
+                }
+                closeIndex(oldIndexName);
+            }
         }
         Request reindexRequest = new Request("POST", "/_migration/reindex");
         reindexRequest.setJsonEntity(Strings.format("""
@@ -304,12 +316,14 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                  */
                 assertThat(
                     statusResponseMap.get("total_indices_requiring_upgrade"),
-                    equalTo(originalWriteIndex + numRolloversOnOldCluster)
+                    equalTo(originalWriteIndex + numRolloversOnOldCluster - closedOldIndices.size())
                 );
-                assertThat(statusResponseMap.get("successes"), equalTo(numRolloversOnOldCluster + 1));
+                assertThat(statusResponseMap.get("successes"), equalTo(numRolloversOnOldCluster + 1 - closedOldIndices.size()));
                 // We expect all the original indices to have been deleted
                 for (String oldIndex : indicesNeedingUpgrade) {
-                    assertThat(indexExists(oldIndex), equalTo(false));
+                    if (closedOldIndices.contains(oldIndex) == false) {
+                        assertThat(indexExists(oldIndex), equalTo(false));
+                    }
                 }
                 assertThat(getDataStreamIndices(dataStreamName).size(), equalTo(expectedTotalIndicesInDataStream));
             }
@@ -327,6 +341,29 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         Map<String, Object> dataStream = dataStreams.get(0);
         List<Map<String, Object>> indices = (List<Map<String, Object>>) dataStream.get("indices");
         return indices.stream().map(index -> index.get("index_name").toString()).collect(Collectors.toSet());
+    }
+
+    @SuppressWarnings("unchecked")
+    private Set<String> getClosedIndices(String dataStreamName) throws IOException {
+        Set<String> allIndices = getDataStreamIndices(dataStreamName);
+        Set<String> closedIndices = new HashSet<>();
+        Response response = client().performRequest(new Request("GET", "_cluster/state/blocks/indices"));
+        Map<String, Object> responseMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(), false);
+        Map<String, Object> blocks = (Map<String, Object>) responseMap.get("blocks");
+        Map<String, Object> indices = (Map<String, Object>) blocks.get("indices");
+        for (Map.Entry<String, Object> indexEntry : indices.entrySet()) {
+            String indexName = indexEntry.getKey();
+            if (allIndices.contains(indexName)) {
+                Map<String, Object> blocksForIndex = (Map<String, Object>) indexEntry.getValue();
+                for (Map.Entry<String, Object> blockEntry : blocksForIndex.entrySet()) {
+                    Map<String, String> block = (Map<String, String>) blockEntry.getValue();
+                    if ("index closed".equals(block.get("description"))) {
+                        closedIndices.add(indexName);
+                    }
+                }
+            }
+        }
+        return closedIndices;
     }
 
     /*
@@ -370,9 +407,11 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
     }
 
-    private static void rollover(String dataStreamName) throws IOException {
+    private static String rollover(String dataStreamName) throws IOException {
         Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
         Response rolloverResponse = client().performRequest(rolloverRequest);
         assertOK(rolloverResponse);
+        String oldIndexName = (String) entityAsMap(rolloverResponse).get("old_index");
+        return oldIndexName;
     }
 }

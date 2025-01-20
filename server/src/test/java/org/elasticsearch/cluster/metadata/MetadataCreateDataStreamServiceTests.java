@@ -346,7 +346,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(project.dataStreams().get(dataStreamName).isSystem(), is(false));
         assertThat(project.dataStreams().get(dataStreamName).isHidden(), is(false));
         assertThat(project.dataStreams().get(dataStreamName).isReplicated(), is(false));
-        assertThat(project.dataStreams().get(dataStreamName).getFailureIndices().getIndices(), empty());
+        assertThat(project.dataStreams().get(dataStreamName).getFailureIndices(), empty());
         assertThat(project.index(backingIndexName), notNullValue());
         assertThat(project.index(backingIndexName).getSettings().get("index.hidden"), equalTo("true"));
         assertThat(project.index(backingIndexName).isSystem(), is(false));

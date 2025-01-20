@@ -1,4 +1,2 @@
 ALL-UNNAMED:
-  - network:
-      actions:
-        - connect
+  - outbound_network

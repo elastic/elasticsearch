@@ -1,9 +1,6 @@
 io.netty.transport:
-  - network:
-      actions:
-        - listen
+  - inbound_network
+  - outbound_network
 io.netty.common:
-  - network:
-      actions:
-        - connect
-        - accept
+  - inbound_network
+  - outbound_network

@@ -1,4 +1,2 @@
 io.netty.common:
-  - network:
-      actions:
-        - connect
+  - outbound_network

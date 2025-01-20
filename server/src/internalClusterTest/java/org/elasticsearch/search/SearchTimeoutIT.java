@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -54,7 +56,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
         super.setupSuiteScopeCluster();
-        indexRandom(true, "test", randomIntBetween(5, 30));
+        indexRandom(true, "test", randomIntBetween(20, 50));
     }
 
     @Override
@@ -63,6 +65,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         scriptExecutions.set(0);
     }
 
+    @Repeat(iterations = 100)
     public void testTopHitsTimeout() {
         SearchRequestBuilder searchRequestBuilder = prepareSearch("test").setTimeout(new TimeValue(100, TimeUnit.MILLISECONDS))
             .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())));
@@ -77,8 +80,8 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         });
     }
 
+    @Repeat(iterations = 100)
     public void testAggsTimeout() {
-        indexRandom(true, "test", randomIntBetween(5, 30));
         SearchRequestBuilder searchRequestBuilder = prepareSearch("test").setTimeout(new TimeValue(100, TimeUnit.MILLISECONDS))
             .setSize(0)
             .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
@@ -120,7 +123,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
                 // This ensures that one document is always returned before the timeout happens.
                 // Also, don't sleep any further to avoid slowing down the test excessively.
                 // A timeout on a specific slice of a single shard is enough.
-                if (scriptExecutions.incrementAndGet() == 1) {
+                if (scriptExecutions.getAndIncrement() == 1) {
                     try {
                         Thread.sleep(500);
                     } catch (InterruptedException e) {

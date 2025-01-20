@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.application.connector.secrets.action;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -26,14 +26,9 @@ public class PutConnectorSecretResponse extends ActionResponse implements ToXCon
         this.result = result;
     }
 
-    public PutConnectorSecretResponse(StreamInput in) throws IOException {
-        super(in);
-        result = DocWriteResponse.Result.readFrom(in);
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        this.result.writeTo(out);
+        TransportAction.localOnly();
     }
 
     public DocWriteResponse.Result result() {

@@ -63,6 +63,7 @@ import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -70,6 +71,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -627,6 +629,68 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (isStored()) {
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
             }
+
+            if (isSyntheticSource) {
+                var reader = new FallbackSyntheticSourceBlockLoader.Reader<BytesRef>() {
+                    @Override
+                    public void convertValue(Object value, List<BytesRef> accumulator) {
+                        assert value instanceof BytesRef;
+
+                        String stringValue = ((BytesRef) value).utf8ToString();
+                        String adjusted = applyIgnoreAboveAndNormalizer(stringValue);
+                        if (adjusted != null) {
+                            // TODO what if the value didn't change?
+                            accumulator.add(new BytesRef(adjusted));
+                        }
+                    }
+
+                    @Override
+                    public void parse(XContentParser parser, List<BytesRef> accumulator) throws IOException {
+                        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                            return;
+                        }
+
+                        if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                                    continue;
+                                }
+
+                                assert parser.currentToken() == XContentParser.Token.VALUE_STRING;
+
+                                var value = applyIgnoreAboveAndNormalizer(parser.text());
+                                if (value != null) {
+                                    accumulator.add(new BytesRef(value));
+                                }
+                            }
+                            return;
+                        }
+
+                        assert parser.currentToken() == XContentParser.Token.VALUE_STRING : "Unexpected token " + parser.currentToken();
+                        var value = applyIgnoreAboveAndNormalizer(parser.text());
+                        if (value != null) {
+                            accumulator.add(new BytesRef(value));
+                        }
+                    }
+
+                    @Override
+                    public void writeToBlock(List<BytesRef> values, BlockLoader.Builder blockBuilder) {
+                        var bytesRefBuilder = (BlockLoader.BytesRefBuilder) blockBuilder;
+
+                        for (var value : values) {
+                            bytesRefBuilder.appendBytesRef(value);
+                        }
+                    }
+                };
+
+                return new FallbackSyntheticSourceBlockLoader(reader, name()) {
+                    @Override
+                    public Builder builder(BlockFactory factory, int expectedCount) {
+                        return factory.bytesRefs(expectedCount);
+                    }
+                };
+            }
+
             SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
         }
@@ -710,13 +774,17 @@ public final class KeywordFieldMapper extends FieldMapper {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();
-                    if (keywordValue.length() > ignoreAbove) {
-                        return null;
-                    }
-
-                    return normalizeValue(normalizer(), name(), keywordValue);
+                    return applyIgnoreAboveAndNormalizer(keywordValue);
                 }
             };
+        }
+
+        private String applyIgnoreAboveAndNormalizer(String value) {
+            if (value.length() > ignoreAbove) {
+                return null;
+            }
+
+            return normalizeValue(normalizer(), name(), value);
         }
 
         @Override

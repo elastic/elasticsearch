@@ -13,33 +13,37 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
-import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.DocumentGenerator;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.MappingGenerator;
 import org.elasticsearch.logsdb.datageneration.Template;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
+    private final FieldType fieldType;
     private final String fieldName;
-    private final Template template;
     private final MappingGenerator mappingGenerator;
-    private final FieldDataGenerator generator;
+    private final DocumentGenerator documentGenerator;
 
     protected BlockLoaderTestCase(FieldType fieldType) {
+        this.fieldType = fieldType;
         this.fieldName = randomAlphaOfLengthBetween(5, 10);
 
         // Disable all dynamic mapping
@@ -53,42 +57,87 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             }))
             .build();
 
-        this.template = new Template(Map.of(fieldName, new Template.Leaf(fieldName, fieldType)));
         this.mappingGenerator = new MappingGenerator(specification);
-        this.generator = fieldType.generator(fieldName, specification.dataSource());
+        this.documentGenerator = new DocumentGenerator(specification);
     }
 
     public void testBlockLoader() throws IOException {
+        var template = new Template(Map.of(fieldName, new Template.Leaf(fieldName, fieldType)));
+        runTest(template, fieldName);
+    }
+
+    public void testBlockLoaderForFieldInObject() throws IOException {
+        var template = new Template(
+            Map.of("object", new Template.Object("object", false, Map.of(fieldName, new Template.Leaf(fieldName, fieldType))))
+        );
+        runTest(template, "object." + fieldName);
+    }
+
+    private void runTest(Template template, String fieldName) throws IOException {
         var mapping = mappingGenerator.generate(template);
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
 
         var syntheticSource = randomBoolean();
         var mapperService = syntheticSource ? createSytheticSourceMapperService(mappingXContent) : createMapperService(mappingXContent);
 
-        var fieldValue = generator.generateValue();
+        var document = documentGenerator.generate(template, mapping);
+        var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(document);
 
-        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, fieldValue);
-        Object expected = expected(mapping.lookup().get(fieldName), fieldValue, syntheticSource);
+        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, documentXContent, fieldName);
+        Object expected = expected(mapping.lookup().get(fieldName), getFieldValue(document, fieldName), syntheticSource);
         assertEquals(expected, blockLoaderResult);
     }
 
     protected abstract Object expected(Map<String, Object> fieldMapping, Object value, boolean syntheticSource);
 
-    private Object setupAndInvokeBlockLoader(MapperService mapperService, Object fieldValue) throws IOException {
+    private Object getFieldValue(Map<String, Object> document, String fieldName) {
+        if (fieldName.contains(".") == false) {
+            return document.get(fieldName);
+        }
+
+        var parent = document.get(fieldName.split("\\.")[0]);
+        var childName = fieldName.split("\\.")[1];
+        if (parent instanceof Map<?, ?> m) {
+            return m.get(childName);
+        }
+        if (parent instanceof List<?> l) {
+            var results = new ArrayList<>();
+
+            for (var object : l) {
+                var childValue = ((Map<?, ?>) object).get(childName);
+                if (childValue instanceof List<?> cl) {
+                    results.addAll(cl);
+                } else {
+                    results.add(childValue);
+                }
+            }
+
+            return results;
+        }
+
+        throw new IllegalStateException("Unexpected structure of document");
+    }
+
+    private Object setupAndInvokeBlockLoader(MapperService mapperService, XContentBuilder document, String fieldName) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
 
-            LuceneDocument doc = mapperService.documentMapper().parse(source(b -> {
-                b.field(fieldName);
-                b.value(fieldValue);
-            })).rootDoc();
+            var source = new SourceToParse(
+                "1",
+                BytesReference.bytes(document),
+                XContentType.JSON,
+                null,
+                Map.of(),
+                XContentMeteringParserDecorator.NOOP
+            );
+            LuceneDocument doc = mapperService.documentMapper().parse(source).rootDoc();
 
             iw.addDocument(doc);
             iw.close();
 
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 LeafReaderContext context = reader.leaves().get(0);
-                return load(createBlockLoader(mapperService), context, mapperService);
+                return load(createBlockLoader(mapperService, fieldName), context, mapperService);
             }
         }
     }
@@ -122,7 +171,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         return block.get(0);
     }
 
-    private BlockLoader createBlockLoader(MapperService mapperService) {
+    private BlockLoader createBlockLoader(MapperService mapperService, String fieldName) {
         SearchLookup searchLookup = new SearchLookup(mapperService.mappingLookup().fieldTypesLookup()::get, null, null);
 
         return mapperService.fieldType(fieldName).blockLoader(new MappedFieldType.BlockLoaderContext() {

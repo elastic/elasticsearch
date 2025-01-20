@@ -148,7 +148,6 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
                 .map(e -> e.getCurrentTransportVersion(TransportVersions.LATEST_DEFINED))
                 .orElse(TransportVersions.LATEST_DEFINED);
             assert version.onOrAfter(TransportVersions.LATEST_DEFINED);
-            assert version.equals(TransportVersions.BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1) == false : "Not supported";
             return version;
         }
     }

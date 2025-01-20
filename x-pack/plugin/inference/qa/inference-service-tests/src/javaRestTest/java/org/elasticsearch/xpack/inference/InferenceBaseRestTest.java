@@ -58,14 +58,15 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
     @Before
     public void setMlModelRepository() throws IOException {
+        logger.info("setting ML model repository");
         var request = new Request("PUT", "/_cluster/settings");
         request.setJsonEntity(Strings.format("""
             {
               "persistent": {
-                "xpack.ml.model_repository": "http://localhost:%d"
+                "xpack.ml.model_repository": "%s"
               }
-            }""", mlModelServer.getPort()));
-        client().performRequest(request);
+            }""", mlModelServer.getUrl()));
+        assertOK(client().performRequest(request));
     }
 
     @Override

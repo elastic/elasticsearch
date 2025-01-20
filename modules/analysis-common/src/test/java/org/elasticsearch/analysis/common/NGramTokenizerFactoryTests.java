@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -13,21 +14,21 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.Arrays;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntBetween;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
@@ -160,14 +161,14 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         for (int i = 0; i < iters; i++) {
             final Index index = new Index("test", "_na_");
             final String name = "ngr";
-            Version v = VersionUtils.randomVersion(random());
+            IndexVersion v = IndexVersionUtils.randomVersion();
             Builder builder = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3);
             boolean reverse = random().nextBoolean();
             if (reverse) {
                 builder.put("side", "back");
             }
             Settings settings = builder.build();
-            Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetadata.SETTING_VERSION_CREATED, v.id).build();
+            Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetadata.SETTING_VERSION_CREATED, v).build();
             Tokenizer tokenizer = new MockTokenizer();
             tokenizer.setReader(new StringReader("foo bar"));
             TokenStream edgeNGramTokenFilter = new EdgeNGramTokenFilterFactory(
@@ -182,6 +183,9 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
                 assertThat(edgeNGramTokenFilter, instanceOf(EdgeNGramTokenFilter.class));
             }
         }
+        assertWarnings(
+            "The [side] parameter is deprecated and will be removed. Use a [reverse] before and after the [edge_ngram] instead."
+        );
     }
 
     /*`

@@ -11,14 +11,13 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.Arrays;
 
 public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCase<ExplainLifecycleRequest> {
 
     @Override
     protected ExplainLifecycleRequest createTestInstance() {
-        ExplainLifecycleRequest request = new ExplainLifecycleRequest();
+        ExplainLifecycleRequest request = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT);
         if (randomBoolean()) {
             request.indices(generateRandomStringArray(20, 20, false, false));
         }
@@ -45,7 +44,7 @@ public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCas
     }
 
     @Override
-    protected ExplainLifecycleRequest mutateInstance(ExplainLifecycleRequest instance) throws IOException {
+    protected ExplainLifecycleRequest mutateInstance(ExplainLifecycleRequest instance) {
         String[] indices = instance.indices();
         IndicesOptions indicesOptions = instance.indicesOptions();
         boolean onlyErrors = instance.onlyErrors();
@@ -72,7 +71,7 @@ public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCas
             case 3 -> onlyManaged = onlyManaged == false;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        ExplainLifecycleRequest newRequest = new ExplainLifecycleRequest();
+        ExplainLifecycleRequest newRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT);
         newRequest.indices(indices);
         newRequest.indicesOptions(indicesOptions);
         newRequest.onlyErrors(onlyErrors);

@@ -8,11 +8,12 @@ package org.elasticsearch.xpack.security.rest.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,6 +28,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestAuthenticateAction extends SecurityBaseRestHandler {
 
     private final SecurityContext securityContext;
@@ -38,9 +40,7 @@ public class RestAuthenticateAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(GET, "/_security/_authenticate").replaces(GET, "/_xpack/security/_authenticate", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(GET, "/_security/_authenticate"));
     }
 
     @Override
@@ -60,11 +60,10 @@ public class RestAuthenticateAction extends SecurityBaseRestHandler {
             new RestBuilderListener<AuthenticateResponse>(channel) {
                 @Override
                 public RestResponse buildResponse(AuthenticateResponse authenticateResponse, XContentBuilder builder) throws Exception {
-                    authenticateResponse.authentication().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                    authenticateResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
                     return new RestResponse(RestStatus.OK, builder);
                 }
             }
         );
-
     }
 }

@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper.size;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.plugin.mapper.MapperSizePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -24,6 +24,8 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -41,7 +43,7 @@ public class SizeMappingIT extends ESIntegTestCase {
         String index = "foo";
 
         XContentBuilder builder = jsonBuilder().startObject().startObject("_size").field("enabled", true).endObject().endObject();
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         // check mapping again
         assertSizeMappingEnabled(index, true);
@@ -54,7 +56,7 @@ public class SizeMappingIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping(index).setSource(updateMappingBuilder).get();
+        AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping(index).setSource(updateMappingBuilder).get();
         assertAcked(putMappingResponse);
 
         // make sure size field is still in mapping
@@ -65,7 +67,7 @@ public class SizeMappingIT extends ESIntegTestCase {
         String index = "foo";
 
         XContentBuilder builder = jsonBuilder().startObject().startObject("_size").field("enabled", true).endObject().endObject();
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         // check mapping again
         assertSizeMappingEnabled(index, true);
@@ -76,7 +78,7 @@ public class SizeMappingIT extends ESIntegTestCase {
             .field("enabled", false)
             .endObject()
             .endObject();
-        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping(index).setSource(updateMappingBuilder).get();
+        AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping(index).setSource(updateMappingBuilder).get();
         assertAcked(putMappingResponse);
 
         // make sure size field is still in mapping
@@ -89,7 +91,7 @@ public class SizeMappingIT extends ESIntegTestCase {
             "Expected size field mapping to be " + (enabled ? "enabled" : "disabled") + " for %s",
             index
         );
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).get();
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, index).get();
         Map<String, Object> mappingSource = getMappingsResponse.getMappings().get(index).getSourceAsMap();
         assertThat(errMsg, mappingSource, hasKey("_size"));
         String sizeAsString = mappingSource.get("_size").toString();
@@ -100,7 +102,7 @@ public class SizeMappingIT extends ESIntegTestCase {
     public void testBasic() throws Exception {
         assertAcked(prepareCreate("test").setMapping("_size", "enabled=true"));
         final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
-        indexRandom(true, client().prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
+        indexRandom(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
         GetResponse getResponse = client().prepareGet("test", "1").setStoredFields("_size").get();
         assertNotNull(getResponse.getField("_size"));
         assertEquals(source.length(), (int) getResponse.getField("_size").getValue());
@@ -109,12 +111,54 @@ public class SizeMappingIT extends ESIntegTestCase {
     public void testGetWithFields() throws Exception {
         assertAcked(prepareCreate("test").setMapping("_size", "enabled=true"));
         final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
-        indexRandom(true, client().prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
-        SearchResponse searchResponse = client().prepareSearch("test").addFetchField("_size").get();
-        assertEquals(source.length(), ((Long) searchResponse.getHits().getHits()[0].getFields().get("_size").getValue()).intValue());
+        indexRandom(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
+        assertResponse(
+            prepareSearch("test").addFetchField("_size"),
+            response -> assertEquals(
+                source.length(),
+                ((Long) response.getHits().getHits()[0].getFields().get("_size").getValue()).intValue()
+            )
+        );
 
         // this should not work when requesting fields via wildcard expression
-        searchResponse = client().prepareSearch("test").addFetchField("*").get();
-        assertNull(searchResponse.getHits().getHits()[0].getFields().get("_size"));
+        assertResponse(
+            prepareSearch("test").addFetchField("*"),
+            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
+        );
+
+        // This should STILL work
+        assertResponse(
+            prepareSearch("test").addStoredField("*"),
+            response -> assertNotNull(response.getHits().getHits()[0].getFields().get("_size"))
+        );
+    }
+
+    public void testWildCardWithFieldsWhenDisabled() throws Exception {
+        assertAcked(prepareCreate("test").setMapping("_size", "enabled=false"));
+        final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
+        indexRandom(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
+        assertResponses(
+            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size")),
+            prepareSearch("test").addFetchField("_size"),
+            prepareSearch("test").addFetchField("*"),
+            prepareSearch("test").addStoredField("*")
+        );
+
+        assertResponse(
+            prepareSearch("test").addStoredField("*"),
+            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
+        );
+    }
+
+    public void testWildCardWithFieldsWhenNotProvided() throws Exception {
+        assertAcked(prepareCreate("test"));
+        final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
+        indexRandom(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
+        assertResponses(
+            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size")),
+            prepareSearch("test").addFetchField("_size"),
+            prepareSearch("test").addFetchField("*"),
+            prepareSearch("test").addStoredField("*")
+        );
     }
 }

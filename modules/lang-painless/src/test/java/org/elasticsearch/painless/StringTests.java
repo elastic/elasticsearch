@@ -1,21 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
 
-import org.apache.lucene.util.Constants;
+import org.elasticsearch.core.Strings;
 
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.painless.WriterConstants.MAX_INDY_STRING_CONCAT_ARGS;
+import static org.elasticsearch.painless.WriterConstants.MAX_STRING_CONCAT_ARGS;
 
 public class StringTests extends ScriptTestCase {
 
@@ -66,7 +66,7 @@ public class StringTests extends ScriptTestCase {
     }
 
     public void testAppendMany() {
-        for (int i = MAX_INDY_STRING_CONCAT_ARGS - 5; i < MAX_INDY_STRING_CONCAT_ARGS + 5; i++) {
+        for (int i = MAX_STRING_CONCAT_ARGS - 5; i < MAX_STRING_CONCAT_ARGS + 5; i++) {
             doTestAppendMany(i);
         }
     }
@@ -75,14 +75,14 @@ public class StringTests extends ScriptTestCase {
         StringBuilder script = new StringBuilder("String s = \"cat\"; return s");
         StringBuilder result = new StringBuilder("cat");
         for (int i = 1; i < count; i++) {
-            final String s = String.format(Locale.ROOT, "%03d", i);
+            final String s = Strings.format("%03d", i);
             script.append(" + '").append(s).append("'.toString()");
             result.append(s);
         }
         final String s = script.toString();
         assertTrue(
             "every string part should be separately pushed to stack.",
-            Debugger.toString(s).contains(String.format(Locale.ROOT, "LDC \"%03d\"", count / 2))
+            Debugger.toString(s).contains(Strings.format("LDC \"%03d\"", count / 2))
         );
         assertEquals(result.toString(), exec(s));
     }
@@ -158,11 +158,9 @@ public class StringTests extends ScriptTestCase {
         assertEquals('c', exec("String s = \"c\"; (char)s"));
         assertEquals('c', exec("String s = 'c'; (char)s"));
 
-        ClassCastException expected = expectScriptThrows(
-            ClassCastException.class,
-            false,
-            () -> { assertEquals("cc", exec("return (String)(char)\"cc\"")); }
-        );
+        ClassCastException expected = expectScriptThrows(ClassCastException.class, false, () -> {
+            assertEquals("cc", exec("return (String)(char)\"cc\""));
+        });
         assertTrue(expected.getMessage().contains("cannot cast java.lang.String with length not equal to one to char"));
 
         expected = expectScriptThrows(ClassCastException.class, false, () -> { assertEquals("cc", exec("return (String)(char)'cc'")); });
@@ -235,18 +233,14 @@ public class StringTests extends ScriptTestCase {
         assertEquals(rando, exec("params.rando.encodeBase64().decodeBase64()", singletonMap("rando", rando), true));
     }
 
-    public void testJava9ConstantStringConcatBytecode() {
-        assumeTrue("Needs Java 9 to test indified String concat", Constants.JRE_IS_MINIMUM_JAVA9);
-        assertNotNull(WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE);
+    public void testConstantStringConcatBytecode() {
         assertBytecodeExists(
             "String s = \"cat\"; return s + true + 'abc' + null;",
             "INVOKEDYNAMIC concat(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"
         );
     }
 
-    public void testJava9StringConcatBytecode() {
-        assumeTrue("Needs Java 9 to test indified String concat", Constants.JRE_IS_MINIMUM_JAVA9);
-        assertNotNull(WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE);
+    public void testStringConcatBytecode() {
         assertBytecodeExists(
             "String s = \"cat\"; boolean t = true; Object u = null; return s + t + 'abc' + u;",
             "INVOKEDYNAMIC concat(Ljava/lang/String;ZLjava/lang/String;Ljava/lang/Object;)Ljava/lang/String;"
@@ -260,11 +254,5 @@ public class StringTests extends ScriptTestCase {
         assertEquals("" + null + null, exec("null + '' + null"));
         assertEquals("" + 2 + null, exec("2 + '' + null"));
         assertEquals("" + null + 2, exec("null + '' + 2"));
-    }
-
-    public void testJava9NullStringConcatBytecode() {
-        assumeTrue("Needs Java 9 to test indified String concat", Constants.JRE_IS_MINIMUM_JAVA9);
-        assertNotNull(WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE);
-        assertEquals("" + null + null, exec("'' + null + null"));
     }
 }

@@ -107,7 +107,7 @@ analyzes it, usually using the same analyzer at the field, then selects the
 top K terms with highest tf-idf to form a disjunctive query of these terms.
 
 IMPORTANT: The fields on which to perform MLT must be indexed and of type
-`text` or `keyword``. Additionally, when using `like` with documents, either
+`text` or `keyword`. Additionally, when using `like` with documents, either
 `_source` must be enabled or the fields must be `stored` or store
 `term_vector`. In order to speed up analysis, it could help to store term
 vectors at index time.

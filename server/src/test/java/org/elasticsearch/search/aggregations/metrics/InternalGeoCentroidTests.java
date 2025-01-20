@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
@@ -48,14 +49,14 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
         long totalCount = 0;
         for (InternalGeoCentroid input : inputs) {
             if (input.count() > 0) {
-                lonSum += (input.count() * input.centroid().getLon());
-                latSum += (input.count() * input.centroid().getLat());
+                lonSum += (input.count() * input.centroid().getX());
+                latSum += (input.count() * input.centroid().getY());
             }
             totalCount += input.count();
         }
         if (totalCount > 0) {
-            assertEquals(latSum / totalCount, reduced.centroid().getLat(), 1E-5D);
-            assertEquals(lonSum / totalCount, reduced.centroid().getLon(), 1E-5D);
+            assertEquals(latSum / totalCount, reduced.centroid().getY(), 1E-5D);
+            assertEquals(lonSum / totalCount, reduced.centroid().getX(), 1E-5D);
         }
         assertEquals(totalCount, reduced.count());
     }
@@ -67,9 +68,11 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
 
     @Override
     protected void assertSampled(InternalGeoCentroid sampled, InternalGeoCentroid reduced, SamplingContext samplingContext) {
-        assertEquals(sampled.centroid().getLat(), reduced.centroid().getLat(), 1e-12);
-        assertEquals(sampled.centroid().getLon(), reduced.centroid().getLon(), 1e-12);
         assertEquals(sampled.count(), samplingContext.scaleUp(reduced.count()), 0);
+        if (sampled.count() > 0) {
+            assertEquals(sampled.centroid().getY(), reduced.centroid().getY(), 1e-12);
+            assertEquals(sampled.centroid().getX(), reduced.centroid().getX(), 1e-12);
+        }
     }
 
     public void testReduceMaxCount() {
@@ -79,23 +82,17 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
             Long.MAX_VALUE,
             Collections.emptyMap()
         );
-        InternalGeoCentroid reducedGeoCentroid = maxValueGeoCentroid.reduce(Collections.singletonList(maxValueGeoCentroid), null);
+        InternalCentroid reducedGeoCentroid = (InternalCentroid) InternalAggregationTestCase.reduce(
+            Collections.singletonList(maxValueGeoCentroid),
+            null
+        );
         assertThat(reducedGeoCentroid.count(), equalTo(Long.MAX_VALUE));
-    }
-
-    @Override
-    protected void assertFromXContent(InternalGeoCentroid aggregation, ParsedAggregation parsedAggregation) {
-        assertTrue(parsedAggregation instanceof ParsedGeoCentroid);
-        ParsedGeoCentroid parsed = (ParsedGeoCentroid) parsedAggregation;
-
-        assertEquals(aggregation.centroid(), parsed.centroid());
-        assertEquals(aggregation.count(), parsed.count());
     }
 
     @Override
     protected InternalGeoCentroid mutateInstance(InternalGeoCentroid instance) {
         String name = instance.getName();
-        GeoPoint centroid = instance.centroid();
+        SpatialPoint centroid = instance.centroid();
         long count = instance.count();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
@@ -115,9 +112,9 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
                 } else {
                     GeoPoint newCentroid = new GeoPoint(centroid);
                     if (randomBoolean()) {
-                        newCentroid.resetLat(centroid.getLat() / 2.0);
+                        newCentroid.resetLat(centroid.getY() / 2.0);
                     } else {
-                        newCentroid.resetLon(centroid.getLon() / 2.0);
+                        newCentroid.resetLon(centroid.getX() / 2.0);
                     }
                     centroid = newCentroid;
                 }

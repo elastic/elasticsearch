@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 
 import java.time.Instant;
 
-public class FlushAcknowledgementTests extends AbstractSerializingTestCase<FlushAcknowledgement> {
+public class FlushAcknowledgementTests extends AbstractXContentSerializingTestCase<FlushAcknowledgement> {
 
     @Override
     protected FlushAcknowledgement doParseInstance(XContentParser parser) {
@@ -23,10 +23,23 @@ public class FlushAcknowledgementTests extends AbstractSerializingTestCase<Flush
     @Override
     protected FlushAcknowledgement createTestInstance() {
         if (randomBoolean()) {
-            return new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20), randomFrom(randomNonNegativeLong(), 0L, null));
+            return new FlushAcknowledgement(
+                randomAlphaOfLengthBetween(1, 20),
+                randomFrom(randomNonNegativeLong(), 0L, null),
+                randomBoolean()
+            );
         } else {
-            return new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20), randomFrom(randomInstant(), Instant.EPOCH, null));
+            return new FlushAcknowledgement(
+                randomAlphaOfLengthBetween(1, 20),
+                randomFrom(randomInstant(), Instant.EPOCH, null),
+                randomBoolean()
+            );
         }
+    }
+
+    @Override
+    protected FlushAcknowledgement mutateInstance(FlushAcknowledgement instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

@@ -1,5 +1,0 @@
-pr: 88378
-summary: Indicate overall deployment failure if all node routes are failed
-area: Machine Learning
-type: enhancement
-issues: []

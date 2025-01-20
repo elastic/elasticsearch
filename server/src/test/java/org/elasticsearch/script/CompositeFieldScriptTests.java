@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -13,6 +14,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 
@@ -31,7 +33,8 @@ public class CompositeFieldScriptTests extends ESTestCase {
                 CompositeFieldScript script = new CompositeFieldScript(
                     "composite",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null),
+                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null, (ctx, doc) -> null),
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -62,7 +65,8 @@ public class CompositeFieldScriptTests extends ESTestCase {
                 CompositeFieldScript script = new CompositeFieldScript(
                     "composite",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null),
+                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null, (ctx, doc) -> null),
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -75,7 +79,8 @@ public class CompositeFieldScriptTests extends ESTestCase {
                 StringFieldScript stringFieldScript = new StringFieldScript(
                     "composite.leaf",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null),
+                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null, (ctx, doc) -> null),
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override

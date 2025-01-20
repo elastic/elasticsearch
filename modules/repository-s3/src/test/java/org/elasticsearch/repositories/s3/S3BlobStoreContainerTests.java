@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.s3;
@@ -39,6 +40,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -58,7 +60,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> blobContainer.executeSingleUpload(blobStore, randomAlphaOfLengthBetween(1, 10), null, blobSize)
+            () -> blobContainer.executeSingleUpload(randomPurpose(), blobStore, randomAlphaOfLengthBetween(1, 10), null, blobSize)
         );
         assertEquals("Upload request size [" + blobSize + "] can't be larger than 5gb", e.getMessage());
     }
@@ -72,7 +74,13 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> blobContainer.executeSingleUpload(blobStore, blobName, new ByteArrayInputStream(new byte[0]), ByteSizeUnit.MB.toBytes(2))
+            () -> blobContainer.executeSingleUpload(
+                randomPurpose(),
+                blobStore,
+                blobName,
+                new ByteArrayInputStream(new byte[0]),
+                ByteSizeUnit.MB.toBytes(2)
+            )
         );
         assertEquals("Upload request size [2097152] can't be larger than buffer size", e.getMessage());
     }
@@ -106,15 +114,13 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
         }
 
-        final AmazonS3 client = mock(AmazonS3.class);
-        final AmazonS3Reference clientReference = new AmazonS3Reference(client);
-        when(blobStore.clientReference()).thenReturn(clientReference);
+        final AmazonS3 client = configureMockClient(blobStore);
 
         final ArgumentCaptor<PutObjectRequest> argumentCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
         when(client.putObject(argumentCaptor.capture())).thenReturn(new PutObjectResult());
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
-        blobContainer.executeSingleUpload(blobStore, blobName, inputStream, blobSize);
+        blobContainer.executeSingleUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize);
 
         final PutObjectRequest request = argumentCaptor.getValue();
         assertEquals(bucketName, request.getBucketName());
@@ -135,7 +141,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> blobContainer.executeMultipartUpload(blobStore, randomAlphaOfLengthBetween(1, 10), null, blobSize)
+            () -> blobContainer.executeMultipartUpload(randomPurpose(), blobStore, randomAlphaOfLengthBetween(1, 10), null, blobSize)
         );
         assertEquals("Multipart upload request size [" + blobSize + "] can't be larger than 5tb", e.getMessage());
     }
@@ -147,7 +153,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> blobContainer.executeMultipartUpload(blobStore, randomAlphaOfLengthBetween(1, 10), null, blobSize)
+            () -> blobContainer.executeMultipartUpload(randomPurpose(), blobStore, randomAlphaOfLengthBetween(1, 10), null, blobSize)
         );
         assertEquals("Multipart upload request size [" + blobSize + "] can't be smaller than 5mb", e.getMessage());
     }
@@ -179,9 +185,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
         }
 
-        final AmazonS3 client = mock(AmazonS3.class);
-        final AmazonS3Reference clientReference = new AmazonS3Reference(client);
-        when(blobStore.clientReference()).thenReturn(clientReference);
+        final AmazonS3 client = configureMockClient(blobStore);
 
         final ArgumentCaptor<InitiateMultipartUploadRequest> initArgCaptor = ArgumentCaptor.forClass(InitiateMultipartUploadRequest.class);
         final InitiateMultipartUploadResult initResult = new InitiateMultipartUploadResult();
@@ -211,7 +215,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[0]);
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
-        blobContainer.executeMultipartUpload(blobStore, blobName, inputStream, blobSize);
+        blobContainer.executeMultipartUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize);
 
         final InitiateMultipartUploadRequest initRequest = initArgCaptor.getValue();
         assertEquals(bucketName, initRequest.getBucketName());
@@ -252,6 +256,8 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
         final List<String> actualETags = compRequest.getPartETags().stream().map(PartETag::getETag).collect(Collectors.toList());
         assertEquals(expectedEtags, actualETags);
+
+        closeMockClient(blobStore);
     }
 
     public void testExecuteMultipartUploadAborted() {
@@ -317,7 +323,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
         final IOException e = expectThrows(IOException.class, () -> {
             final S3BlobContainer blobContainer = new S3BlobContainer(BlobPath.EMPTY, blobStore);
-            blobContainer.executeMultipartUpload(blobStore, blobName, new ByteArrayInputStream(new byte[0]), blobSize);
+            blobContainer.executeMultipartUpload(randomPurpose(), blobStore, blobName, new ByteArrayInputStream(new byte[0]), blobSize);
         });
 
         assertEquals("Unable to upload object [" + blobName + "] using multipart upload", e.getMessage());
@@ -348,6 +354,27 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             assertEquals(blobName, abortRequest.getKey());
             assertEquals(uploadId, abortRequest.getUploadId());
         }
+
+        closeMockClient(blobStore);
+    }
+
+    private static AmazonS3 configureMockClient(S3BlobStore blobStore) {
+        final AmazonS3 client = mock(AmazonS3.class);
+        try (AmazonS3Reference clientReference = new AmazonS3Reference(client)) {
+            clientReference.mustIncRef(); // held by the mock, ultimately released in closeMockClient
+            when(blobStore.clientReference()).then(invocation -> {
+                clientReference.mustIncRef();
+                return clientReference;
+            });
+        }
+        return client;
+    }
+
+    private static void closeMockClient(S3BlobStore blobStore) {
+        final var finalClientReference = blobStore.clientReference();
+        assertFalse(finalClientReference.decRef());
+        assertTrue(finalClientReference.decRef());
+        assertFalse(finalClientReference.hasReferences());
     }
 
     public void testNumberOfMultipartsWithZeroPartSize() {

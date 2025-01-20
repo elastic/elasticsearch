@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/start-trained-model-deployment.html",
       "description":"Start a trained model deployment."
     },
-    "stability":"experimental",
+    "stability":"stable",
     "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
@@ -33,9 +33,14 @@
         "description": "A byte-size value for configuring the inference cache size. For example, 20mb.",
         "required": false
       },
+      "deployment_id":{
+        "type":"string",
+        "description": "The Id of the new deployment. Defaults to the model_id if not set.",
+        "required": false
+      },
       "number_of_allocations":{
         "type":"int",
-        "description": "The number of model allocations on each node where the model is deployed.",
+        "description": "The total number of allocations this model is assigned across machine learning nodes.",
         "required": false,
         "default": 1
       },
@@ -44,6 +49,12 @@
         "description": "The number of threads used by each model allocation during inference.",
         "required": false,
         "default": 1
+      },
+      "priority": {
+        "type": "string",
+        "description": "The deployment priority.",
+        "required": false,
+        "default": "normal"
       },
       "queue_capacity":{
         "type":"int",

@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.core.slm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -22,27 +20,17 @@ public class ExecuteSnapshotRetentionAction extends ActionType<AcknowledgedRespo
     public static final String NAME = "cluster:admin/slm/execute-retention";
 
     protected ExecuteSnapshotRetentionAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<ExecuteSnapshotRetentionAction.Request> implements ToXContentObject {
+    public static class Request extends AcknowledgedRequest<ExecuteSnapshotRetentionAction.Request> {
 
-        public Request() {}
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+            super(masterNodeTimeout, ackTimeout);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.endObject();
-            return builder;
         }
 
         @Override

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.rollup.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -26,7 +25,7 @@ public class RestDeleteRollupJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.builder(DELETE, "/_rollup/job/{id}").replaces(DELETE, "/_xpack/rollup/job/{id}/", RestApiVersion.V_7).build());
+        return List.of(new Route(DELETE, "/_rollup/job/{id}"));
     }
 
     @Override
@@ -34,19 +33,12 @@ public class RestDeleteRollupJobAction extends BaseRestHandler {
         String id = restRequest.param(ID.getPreferredName());
         DeleteRollupJobAction.Request request = new DeleteRollupJobAction.Request(id);
 
-        return channel -> client.execute(
-            DeleteRollupJobAction.INSTANCE,
-            request,
-            new RestToXContentListener<DeleteRollupJobAction.Response>(channel) {
-                @Override
-                protected RestStatus getStatus(DeleteRollupJobAction.Response response) {
-                    if (response.getNodeFailures().size() > 0 || response.getTaskFailures().size() > 0) {
-                        return RestStatus.INTERNAL_SERVER_ERROR;
-                    }
-                    return RestStatus.OK;
-                }
+        return channel -> client.execute(DeleteRollupJobAction.INSTANCE, request, new RestToXContentListener<>(channel, r -> {
+            if (r.getNodeFailures().size() > 0 || r.getTaskFailures().size() > 0) {
+                return RestStatus.INTERNAL_SERVER_ERROR;
             }
-        );
+            return RestStatus.OK;
+        }));
     }
 
     @Override

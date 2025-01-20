@@ -1,7 +1,7 @@
 [[analysis-stempel]]
-=== Stempel Polish Analysis Plugin
+=== Stempel Polish analysis plugin
 
-The Stempel Analysis plugin integrates Lucene's Stempel analysis
+The Stempel analysis plugin integrates Lucene's Stempel analysis
 module for Polish into elasticsearch.
 
 :plugin_name: analysis-stempel

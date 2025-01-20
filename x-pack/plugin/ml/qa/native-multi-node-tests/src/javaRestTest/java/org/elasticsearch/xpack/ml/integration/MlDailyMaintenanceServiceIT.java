@@ -6,12 +6,11 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -35,7 +34,6 @@ import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase {
 
@@ -46,17 +44,19 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
     public void setUpMocks() {
         jobConfigProvider = new JobConfigProvider(client(), xContentRegistry());
         threadPool = mock(ThreadPool.class);
-        when(threadPool.executor(ThreadPool.Names.SAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     public void testTriggerDeleteJobsInStateDeletingWithoutDeletionTask() throws InterruptedException {
         MlDailyMaintenanceService maintenanceService = new MlDailyMaintenanceService(
-            settings(Version.CURRENT).build(),
+            settings(IndexVersion.current()).build(),
             ClusterName.DEFAULT,
             threadPool,
             client(),
             mock(ClusterService.class),
-            mock(MlAssignmentNotifier.class)
+            mock(MlAssignmentNotifier.class),
+            true,
+            true,
+            true
         );
 
         putJob("maintenance-test-1");

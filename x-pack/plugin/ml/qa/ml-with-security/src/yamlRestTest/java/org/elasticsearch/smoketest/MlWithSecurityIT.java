@@ -18,8 +18,6 @@ import org.elasticsearch.xpack.test.rest.AbstractXPackRestTest;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-
 public class MlWithSecurityIT extends AbstractXPackRestTest {
 
     private static final String TEST_ADMIN_USERNAME = "x_pack_rest_user";
@@ -45,6 +43,7 @@ public class MlWithSecurityIT extends AbstractXPackRestTest {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
+    @Override
     protected Map<String, String> getApiCallHeaders() {
         return Collections.singletonMap(
             "Authorization",

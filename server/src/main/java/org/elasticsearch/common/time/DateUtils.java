@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.time;
@@ -290,6 +291,37 @@ public class DateUtils {
         }
 
         return nanoSecondsSinceEpoch / 1_000_000;
+    }
+
+    /**
+     * Compare an epoch nanosecond date (such as returned by {@link DateUtils#toLong}
+     * to an epoch millisecond date (such as returned by {@link Instant#toEpochMilli()}}.
+     * <p>
+     * NB: This function does not implement {@link java.util.Comparator} in
+     * order to avoid performance costs of autoboxing the input longs.
+     *
+     * @param nanos Epoch date represented as a long number of nanoseconds.
+     *              Note that Elasticsearch does not support nanosecond dates
+     *              before Epoch, so this number should never be negative.
+     * @param millis Epoch date represented as a long number of milliseconds.
+     *               This parameter does not have to be constrained to the
+     *               range of long nanosecond dates.
+     * @return -1 if the nanosecond date is before the millisecond date,
+     *         0  if the two dates represent the same instant,
+     *         1  if the nanosecond date is after the millisecond date
+     */
+    public static int compareNanosToMillis(long nanos, long millis) {
+        assert nanos >= 0;
+        if (millis < 0) {
+            return 1;
+        }
+        if (millis > MAX_NANOSECOND_IN_MILLIS) {
+            return -1;
+        }
+        // This can't overflow, because we know millis is between 0 and MAX_NANOSECOND_IN_MILLIS,
+        // and MAX_NANOSECOND_IN_MILLIS * 1_000_000 doesn't overflow.
+        long diff = nanos - (millis * 1_000_000);
+        return diff == 0 ? 0 : diff < 0 ? -1 : 1;
     }
 
     /**

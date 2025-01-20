@@ -89,7 +89,7 @@
 ---
 "Response for version conflict (version powered)":
   - skip:
-      version: "6.7.0 - "
+      cluster_features: ["gte_v6.7.0"]
       reason: reindex moved to rely on sequence numbers for concurrency control
 
   - do:
@@ -278,7 +278,7 @@
 ---
 "Limit by size pre 7.3":
   - skip:
-      version: "7.3.0 - "
+      cluster_features: ["gte_v7.3.0"]
       reason: "7.3 should use max_docs or get deprecation warning"
 
   - do:
@@ -320,8 +320,8 @@
 
 ---
 "Limit by max_docs in URL":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:
@@ -363,8 +363,8 @@
 
 ---
 "Limit by max_docs in body":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:
@@ -448,8 +448,8 @@
 
 ---
 tsdb:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:

@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.util.EC2MetadataUtils;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -80,7 +81,7 @@ class Ec2NameResolver implements CustomNameResolver {
      * @see CustomNameResolver#resolveIfPossible(String)
      */
     @SuppressForbidden(reason = "We call getInputStream in doPrivileged and provide SocketPermission")
-    public InetAddress[] resolve(Ec2HostnameType type) throws IOException {
+    public static InetAddress[] resolve(Ec2HostnameType type) throws IOException {
         InputStream in = null;
         String metadataUrl = EC2MetadataUtils.getHostAddressForEC2MetadataService() + "/latest/meta-data/" + type.ec2Name;
         String metadataTokenUrl = EC2MetadataUtils.getHostAddressForEC2MetadataService() + "/latest/api/token";

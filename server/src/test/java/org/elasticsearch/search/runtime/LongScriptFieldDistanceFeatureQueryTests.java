@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.runtime;
@@ -17,10 +18,12 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -68,17 +71,20 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                SearchLookup searchLookup = new SearchLookup(null, null);
+                SearchLookup searchLookup = new SearchLookup(null, null, SourceProvider.fromStoredFields());
                 Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> new DateFieldScript(
                     "test",
                     Map.of(),
                     searchLookup,
                     null,
+                    OnScriptError.FAIL,
                     ctx
                 ) {
                     @Override
+                    @SuppressWarnings("unchecked")
                     public void execute() {
-                        for (Object timestamp : (List<?>) searchLookup.source().get("timestamp")) {
+                        Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                        for (Object timestamp : (List<?>) source.get("timestamp")) {
                             emit(((Number) timestamp).longValue());
                         }
                     }

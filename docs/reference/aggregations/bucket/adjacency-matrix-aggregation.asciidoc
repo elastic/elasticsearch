@@ -134,7 +134,7 @@ Separator used to concatenate filter names. Defaults to `&`.
 Filters for the bucket. If the bucket uses multiple filters, filter names are
 concatenated using a `separator`.
 
-`document_count`::
+`doc_count`::
 (integer)
 Number of documents matching the bucket's filters.
 

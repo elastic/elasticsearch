@@ -25,11 +25,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 public abstract class Exporter implements AutoCloseable {
 
-    public static Setting.AffixSettingDependency TYPE_DEPENDENCY = () -> Exporter.TYPE_SETTING;
+    public static final Setting.AffixSettingDependency TYPE_DEPENDENCY = () -> Exporter.TYPE_SETTING;
 
     private static final Setting.AffixSetting<Boolean> ENABLED_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
@@ -99,14 +98,7 @@ public abstract class Exporter implements AutoCloseable {
     public static final Setting.AffixSetting<List<String>> CLUSTER_ALERTS_BLACKLIST_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "cluster_alerts.management.blacklist",
-        key -> Setting.listSetting(
-            key,
-            Collections.emptyList(),
-            Function.identity(),
-            Property.Dynamic,
-            Property.NodeScope,
-            Property.DeprecatedWarning
-        ),
+        key -> Setting.stringListSetting(key, Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning),
         TYPE_DEPENDENCY
     );
 
@@ -116,7 +108,7 @@ public abstract class Exporter implements AutoCloseable {
     static final Setting.AffixSetting<DateFormatter> INDEX_NAME_TIME_FORMAT_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "index.name.time_format",
-        key -> new Setting<DateFormatter>(
+        key -> new Setting<>(
             key,
             Exporter.INDEX_FORMAT,
             DateFormatter::forPattern,

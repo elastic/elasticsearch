@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.support;
 
@@ -14,7 +15,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
@@ -36,7 +36,7 @@ import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileCellIdSource;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
@@ -89,7 +89,7 @@ public abstract class ValuesSource {
      * need to call it many times over the course of running the aggregation.
      * Other aggregations should feel free to call it once.
      */
-    protected abstract Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException;
+    protected abstract Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException;
 
     /**
      * Check if this values source supports using global and segment ordinals.
@@ -116,8 +116,8 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public final Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
-            throw new AggregationExecutionException("can't round a [BYTES]");
+        public final Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException {
+            throw AggregationErrors.unsupportedRounding("BYTES");
         }
 
         /**
@@ -249,8 +249,7 @@ public abstract class ValuesSource {
              * Get the maximum global ordinal. Requires {@link #globalOrdinalsValues}
              * so see the note about its performance.
              */
-            public long globalMaxOrd(IndexSearcher indexSearcher) throws IOException {
-                IndexReader indexReader = indexSearcher.getIndexReader();
+            public long globalMaxOrd(IndexReader indexReader) throws IOException {
                 if (indexReader.leaves().isEmpty()) {
                     return 0;
                 } else {
@@ -489,7 +488,7 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public Function<Rounding, Prepared> roundingPreparer() throws IOException {
+        public Function<Rounding, Prepared> roundingPreparer(AggregationContext context) throws IOException {
             return Rounding::prepareForUnknown;
         }
 
@@ -687,7 +686,7 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public Function<Rounding, Prepared> roundingPreparer() throws IOException {
+        public Function<Rounding, Prepared> roundingPreparer(AggregationContext context) throws IOException {
             // TODO lookup the min and max rounding when appropriate
             return Rounding::prepareForUnknown;
         }
@@ -724,8 +723,8 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public final Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
-            throw new AggregationExecutionException("can't round a [GEO_POINT]");
+        public final Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException {
+            throw AggregationErrors.unsupportedRounding("GEO_POINT");
         }
 
         /**

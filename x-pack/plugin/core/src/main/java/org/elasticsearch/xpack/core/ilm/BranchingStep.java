@@ -60,7 +60,7 @@ public class BranchingStep extends ClusterStateActionStep {
         IndexMetadata indexMetadata = clusterState.metadata().index(index);
         if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             return clusterState;
         }
         predicateValue.set(predicate.test(index, clusterState));
@@ -71,7 +71,7 @@ public class BranchingStep extends ClusterStateActionStep {
      * This method returns the next step to execute based on the predicate. If
      * the predicate returned true, then nextStepKeyOnTrue is the key of the
      * next step to run, otherwise nextStepKeyOnFalse is.
-     *
+     * <p>
      * throws {@link UnsupportedOperationException} if performAction was not called yet
      *
      * @return next step to execute

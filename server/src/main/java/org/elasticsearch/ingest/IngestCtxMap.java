@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -22,7 +23,7 @@ import java.util.Map;
  * _index, _id and _routing must be a String or null
  * _version_type must be a lower case VersionType or null
  * _version must be representable as a long without loss of precision or null
- * _dyanmic_templates must be a map
+ * _dynamic_templates must be a map
  * _if_seq_no must be a long or null
  * _if_primary_term must be a long or null
  *

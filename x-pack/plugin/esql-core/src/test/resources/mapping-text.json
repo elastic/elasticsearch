@@ -1,0 +1,8 @@
+{
+    "properties" : {
+        "full_name" : {
+            "type" : "text",
+            "fielddata" : false
+        }
+    }
+}

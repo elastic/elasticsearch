@@ -47,7 +47,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
     }
 
     public void testDoCollectWithFailures() throws Exception {
-        final TimeValue timeout = TimeValue.parseTimeValue(randomPositiveTimeValue(), NodeStatsCollectorTests.class.getName());
+        final TimeValue timeout = randomPositiveTimeValue();
         withCollectionTimeout(NodeStatsCollector.NODE_STATS_TIMEOUT, timeout);
 
         final NodesStatsResponse nodesStatsResponse = mock(NodesStatsResponse.class);

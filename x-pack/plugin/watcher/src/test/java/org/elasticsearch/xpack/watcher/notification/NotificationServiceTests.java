@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.watcher.notification;
 
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -123,10 +124,9 @@ public class NotificationServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put("xpack.notification.test.account." + accountName, "bar").build();
         final AtomicInteger validationInvocationCount = new AtomicInteger(0);
 
-        TestNotificationService service = new TestNotificationService(
-            settings,
-            (String name, Settings accountSettings) -> { validationInvocationCount.incrementAndGet(); }
-        );
+        TestNotificationService service = new TestNotificationService(settings, (String name, Settings accountSettings) -> {
+            validationInvocationCount.incrementAndGet();
+        });
         assertThat(validationInvocationCount.get(), is(0));
         assertThat(service.getAccount(accountName), is(accountName));
         assertThat(validationInvocationCount.get(), is(1));
@@ -253,7 +253,7 @@ public class NotificationServiceTests extends ESTestCase {
             }
 
             @Override
-            public SecureString getString(String setting) throws GeneralSecurityException {
+            public SecureString getString(String setting) {
                 return new SecureString(secureSettingsMap.get(setting));
             }
 
@@ -274,6 +274,11 @@ public class NotificationServiceTests extends ESTestCase {
 
             @Override
             public void close() throws IOException {}
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                throw new IllegalStateException("Not supported");
+            }
         };
     }
 }

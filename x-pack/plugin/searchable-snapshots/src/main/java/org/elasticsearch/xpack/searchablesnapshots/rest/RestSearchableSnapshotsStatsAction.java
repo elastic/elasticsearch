@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.rest;
 
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -35,11 +36,11 @@ public class RestSearchableSnapshotsStatsAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) {
         String[] indices = Strings.splitStringByCommaToArray(restRequest.param("index"));
-        return channel -> client.execute(
-            SearchableSnapshotsStatsAction.INSTANCE,
-            new SearchableSnapshotsStatsRequest(indices),
-            new RestToXContentListener<>(channel)
-        );
+        SearchableSnapshotsStatsRequest statsRequest = new SearchableSnapshotsStatsRequest(indices);
+        // level parameter validation
+        ClusterStatsLevel.of(restRequest, ClusterStatsLevel.INDICES);
+
+        return channel -> client.execute(SearchableSnapshotsStatsAction.INSTANCE, statsRequest, new RestToXContentListener<>(channel));
     }
 
     private static final Set<String> RESPONSE_PARAMS = Collections.singleton("level");

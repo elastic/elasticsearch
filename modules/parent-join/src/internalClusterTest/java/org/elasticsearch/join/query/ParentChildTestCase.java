@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.join.query;
 
@@ -28,11 +29,6 @@ import java.util.Map;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public abstract class ParentChildTestCase extends ESIntegTestCase {
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -105,7 +101,7 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
         String name = type;
         type = "doc";
 
-        IndexRequestBuilder indexRequestBuilder = client().prepareIndex(index).setId(id);
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index).setId(id);
         Map<String, Object> joinField = new HashMap<>();
         if (parentId != null) {
             joinField.put("name", name);

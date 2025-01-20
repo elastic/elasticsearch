@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -94,21 +95,14 @@ public enum AllocationDecision implements Writeable {
         if (allocationStatus == null) {
             return YES;
         } else {
-            switch (allocationStatus) {
-                case DECIDERS_THROTTLED:
-                    return THROTTLED;
-                case FETCHING_SHARD_DATA:
-                    return AWAITING_INFO;
-                case DELAYED_ALLOCATION:
-                    return ALLOCATION_DELAYED;
-                case NO_VALID_SHARD_COPY:
-                    return NO_VALID_SHARD_COPY;
-                case NO_ATTEMPT:
-                    return NO_ATTEMPT;
-                default:
-                    assert allocationStatus == AllocationStatus.DECIDERS_NO : "unhandled AllocationStatus type [" + allocationStatus + "]";
-                    return NO;
-            }
+            return switch (allocationStatus) {
+                case DECIDERS_THROTTLED -> THROTTLED;
+                case FETCHING_SHARD_DATA -> AWAITING_INFO;
+                case DELAYED_ALLOCATION -> ALLOCATION_DELAYED;
+                case NO_VALID_SHARD_COPY -> NO_VALID_SHARD_COPY;
+                case NO_ATTEMPT -> NO_ATTEMPT;
+                case DECIDERS_NO -> NO;
+            };
         }
     }
 
@@ -116,15 +110,11 @@ public enum AllocationDecision implements Writeable {
      * Gets an {@link AllocationDecision} from a {@link Decision.Type}
      */
     public static AllocationDecision fromDecisionType(Decision.Type type) {
-        switch (type) {
-            case YES:
-                return YES;
-            case THROTTLE:
-                return THROTTLED;
-            default:
-                assert type == Decision.Type.NO;
-                return NO;
-        }
+        return switch (type) {
+            case YES -> YES;
+            case THROTTLE -> THROTTLED;
+            case NO -> NO;
+        };
     }
 
     @Override

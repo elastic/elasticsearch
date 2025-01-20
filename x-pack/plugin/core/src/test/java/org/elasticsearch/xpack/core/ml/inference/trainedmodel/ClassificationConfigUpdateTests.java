@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -59,11 +59,11 @@ public class ClassificationConfigUpdateTests extends AbstractBWCSerializationTes
     public void testApply() {
         ClassificationConfig originalConfig = randomClassificationConfig();
 
-        assertThat(originalConfig, equalTo(ClassificationConfigUpdate.EMPTY_PARAMS.apply(originalConfig)));
+        assertThat(originalConfig, equalTo(originalConfig.apply(ClassificationConfigUpdate.EMPTY_PARAMS)));
 
         assertThat(
             new ClassificationConfig.Builder(originalConfig).setNumTopClasses(5).build(),
-            equalTo(new ClassificationConfigUpdate.Builder().setNumTopClasses(5).build().apply(originalConfig))
+            equalTo(originalConfig.apply(new ClassificationConfigUpdate.Builder().setNumTopClasses(5).build()))
         );
         assertThat(
             new ClassificationConfig.Builder().setNumTopClasses(5)
@@ -73,13 +73,14 @@ public class ClassificationConfigUpdateTests extends AbstractBWCSerializationTes
                 .setTopClassesResultsField("bar")
                 .build(),
             equalTo(
-                new ClassificationConfigUpdate.Builder().setNumTopClasses(5)
-                    .setNumTopFeatureImportanceValues(1)
-                    .setPredictionFieldType(PredictionFieldType.BOOLEAN)
-                    .setResultsField("foo")
-                    .setTopClassesResultsField("bar")
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new ClassificationConfigUpdate.Builder().setNumTopClasses(5)
+                        .setNumTopFeatureImportanceValues(1)
+                        .setPredictionFieldType(PredictionFieldType.BOOLEAN)
+                        .setResultsField("foo")
+                        .setTopClassesResultsField("bar")
+                        .build()
+                )
             )
         );
     }
@@ -116,6 +117,11 @@ public class ClassificationConfigUpdateTests extends AbstractBWCSerializationTes
     }
 
     @Override
+    protected ClassificationConfigUpdate mutateInstance(ClassificationConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<ClassificationConfigUpdate> instanceReader() {
         return ClassificationConfigUpdate::new;
     }
@@ -126,7 +132,7 @@ public class ClassificationConfigUpdateTests extends AbstractBWCSerializationTes
     }
 
     @Override
-    protected ClassificationConfigUpdate mutateInstanceForVersion(ClassificationConfigUpdate instance, Version version) {
+    protected ClassificationConfigUpdate mutateInstanceForVersion(ClassificationConfigUpdate instance, TransportVersion version) {
         return instance;
     }
 }

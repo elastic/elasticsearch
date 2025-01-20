@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
@@ -40,22 +41,25 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
     public static final String NAME = "cluster:admin/autoscaling/put_autoscaling_policy";
 
     private PutAutoscalingPolicyAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<Request, String> PARSER;
+        private static final ConstructingObjectParser<Request, Factory> PARSER;
+
+        public interface Factory {
+            Request build(SortedSet<String> roles, SortedMap<String, Settings> deciders);
+        }
 
         static {
-            PARSER = new ConstructingObjectParser<>("put_autocaling_policy_request", false, (c, name) -> {
+            PARSER = new ConstructingObjectParser<>("put_autocaling_policy_request", false, (c, factory) -> {
                 @SuppressWarnings("unchecked")
                 final List<String> roles = (List<String>) c[0];
                 @SuppressWarnings("unchecked")
                 final var deciders = (List<Map.Entry<String, Settings>>) c[1];
-                return new Request(
-                    name,
+                return factory.build(
                     roles != null ? roles.stream().collect(Sets.toUnmodifiableSortedSet()) : null,
                     deciders != null
                         ? new TreeMap<>(deciders.stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
@@ -73,11 +77,18 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
         private final SortedSet<String> roles;
         private final SortedMap<String, Settings> deciders;
 
-        public static Request parse(final XContentParser parser, final String name) {
-            return PARSER.apply(parser, name);
+        public static Request parse(final XContentParser parser, final Factory factory) {
+            return PARSER.apply(parser, factory);
         }
 
-        public Request(final String name, final SortedSet<String> roles, final SortedMap<String, Settings> deciders) {
+        public Request(
+            TimeValue masterNodeTimeout,
+            TimeValue ackTimeout,
+            final String name,
+            final SortedSet<String> roles,
+            final SortedMap<String, Settings> deciders
+        ) {
+            super(masterNodeTimeout, ackTimeout);
             this.name = name;
             this.roles = roles;
             this.deciders = deciders;
@@ -87,7 +98,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
             super(in);
             this.name = in.readString();
             if (in.readBoolean()) {
-                this.roles = in.readSet(StreamInput::readString).stream().collect(Sets.toUnmodifiableSortedSet());
+                this.roles = in.readCollectionAsSet(StreamInput::readString).stream().collect(Sets.toUnmodifiableSortedSet());
             } else {
                 this.roles = null;
             }
@@ -109,7 +120,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
             out.writeString(name);
             if (roles != null) {
                 out.writeBoolean(true);
-                out.writeCollection(roles, StreamOutput::writeString);
+                out.writeStringCollection(roles);
             } else {
                 out.writeBoolean(false);
             }

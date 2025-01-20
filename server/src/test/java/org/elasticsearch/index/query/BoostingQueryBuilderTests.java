@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -28,6 +29,17 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
         );
         query.negativeBoost(2.0f / randomIntBetween(1, 20));
         return query;
+    }
+
+    @Override
+    protected BoostingQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        if (randomBoolean()) {
+            return new BoostingQueryBuilder(queryBuilder, queryBuilder).negativeBoost(1f);
+        }
+        if (randomBoolean()) {
+            return new BoostingQueryBuilder(new MatchAllQueryBuilder(), queryBuilder).negativeBoost(1f);
+        }
+        return new BoostingQueryBuilder(queryBuilder, new MatchAllQueryBuilder()).negativeBoost(1f);
     }
 
     @Override

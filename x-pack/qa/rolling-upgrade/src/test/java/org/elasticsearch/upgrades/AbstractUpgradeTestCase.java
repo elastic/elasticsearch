@@ -6,14 +6,16 @@
  */
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 import org.junit.Before;
@@ -21,6 +23,7 @@ import org.junit.Before;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
@@ -30,9 +33,27 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         new SecureString(SecuritySettingsSourceField.TEST_PASSWORD)
     );
 
-    protected static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
-
+    protected static final String UPGRADE_FROM_VERSION = System.getProperty("tests.upgrade_from_version");
+    protected static final boolean FIRST_MIXED_ROUND = Boolean.parseBoolean(System.getProperty("tests.first_round", "false"));
     protected static final boolean SKIP_ML_TESTS = Booleans.parseBoolean(System.getProperty("tests.ml.skip", "false"));
+
+    protected static boolean isOriginalCluster(String clusterVersion) {
+        return UPGRADE_FROM_VERSION.equals(clusterVersion);
+    }
+
+    /**
+     * Upgrade tests by design are also executed with the same version. We might want to skip some checks if that's the case, see
+     * for example gh#39102.
+     * @return true if the cluster version is the current version.
+     */
+    protected static boolean isOriginalClusterCurrent() {
+        return UPGRADE_FROM_VERSION.equals(Build.current().version());
+    }
+
+    @Override
+    protected boolean resetFeatureStates() {
+        return false;
+    }
 
     @Override
     protected boolean preserveIndicesUponCompletion() {
@@ -129,6 +150,24 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
             if (missingTemplates.isEmpty() == false) {
                 fail("Some expected templates are missing: " + missingTemplates + ". The templates that exist are: " + templates + "");
             }
+        });
+    }
+
+    protected static void waitForSecurityMigrationCompletion(RestClient adminClient, int version) throws Exception {
+        final Request request = new Request("GET", "_cluster/state/metadata/.security-7");
+        assertBusy(() -> {
+            Map<String, Object> indices = new XContentTestUtils.JsonMapView(entityAsMap(adminClient.performRequest(request))).get(
+                "metadata.indices"
+            );
+            assertNotNull(indices);
+            assertTrue(indices.containsKey(".security-7"));
+            // JsonMapView doesn't support . prefixed indices (splits on .)
+            @SuppressWarnings("unchecked")
+            String responseVersion = new XContentTestUtils.JsonMapView((Map<String, Object>) indices.get(".security-7")).get(
+                "migration_version.version"
+            );
+            assertNotNull(responseVersion);
+            assertTrue(Integer.parseInt(responseVersion) >= version);
         });
     }
 }

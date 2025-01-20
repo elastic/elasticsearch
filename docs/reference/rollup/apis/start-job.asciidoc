@@ -6,9 +6,15 @@
 <titleabbrev>Start {rollup-jobs}</titleabbrev>
 ++++
 
-Starts an existing, stopped {rollup-job}.
+deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
 
-experimental[]
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-rollup[Rollup APIs].
+--
+
+Starts an existing, stopped {rollup-job}.
 
 [[rollup-start-job-request]]
 ==== {api-request-title}
@@ -33,7 +39,7 @@ to start a job that is already started, nothing happens.
 
 `<job_id>`::
   (Required, string) Identifier for the {rollup-job}.
-  
+
 [[rollup-start-job-response-codes]]
 ==== {api-response-codes-title}
 

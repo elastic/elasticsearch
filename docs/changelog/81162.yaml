@@ -1,6 +1,0 @@
-pr: 81162
-summary: Stop making index read-only when executing force merge index lifecycle management action
-area: Infra/Core
-type: enhancement
-issues:
- - 81162

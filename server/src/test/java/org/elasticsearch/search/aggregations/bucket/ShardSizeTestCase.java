@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
@@ -18,7 +18,8 @@ import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
 
@@ -78,21 +79,21 @@ public abstract class ShardSizeTestCase extends ESIntegTestCase {
 
         indexRandom(true, docs);
 
-        SearchResponse resp = client().prepareSearch("idx").setRouting(routing1).setQuery(matchAllQuery()).get();
-        assertSearchResponse(resp);
-        long totalOnOne = resp.getHits().getTotalHits().value;
-        assertThat(totalOnOne, is(15L));
-        resp = client().prepareSearch("idx").setRouting(routing2).setQuery(matchAllQuery()).get();
-        assertSearchResponse(resp);
-        long totalOnTwo = resp.getHits().getTotalHits().value;
-        assertThat(totalOnTwo, is(12L));
+        assertNoFailuresAndResponse(prepareSearch("idx").setRouting(routing1).setQuery(matchAllQuery()), resp -> {
+            long totalOnOne = resp.getHits().getTotalHits().value();
+            assertThat(totalOnOne, is(15L));
+        });
+        assertNoFailuresAndResponse(prepareSearch("idx").setRouting(routing2).setQuery(matchAllQuery()), resp -> {
+            assertNoFailures(resp);
+            long totalOnTwo = resp.getHits().getTotalHits().value();
+            assertThat(totalOnTwo, is(12L));
+        });
     }
 
     protected List<IndexRequestBuilder> indexDoc(String shard, String key, int times) throws Exception {
         IndexRequestBuilder[] builders = new IndexRequestBuilder[times];
         for (int i = 0; i < times; i++) {
-            builders[i] = client().prepareIndex("idx")
-                .setRouting(shard)
+            builders[i] = prepareIndex("idx").setRouting(shard)
                 .setSource(jsonBuilder().startObject().field("key", key).field("value", 1).endObject());
         }
         return Arrays.asList(builders);

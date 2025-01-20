@@ -1,23 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
@@ -27,17 +23,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.core.RestApiVersion.equalTo;
-import static org.elasticsearch.core.RestApiVersion.onOrAfter;
-
 /**
  * Wrapper around a field name and the format that should be used to
  * display values of this field.
  */
 public final class FieldAndFormat implements Writeable, ToXContentObject {
-    private static final String USE_DEFAULT_FORMAT = "use_field_mapping";
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(FetchDocValuesPhase.class);
-
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField FORMAT_FIELD = new ParseField("format");
     public static final ParseField INCLUDE_UNMAPPED_FIELD = new ParseField("include_unmapped");
@@ -49,39 +39,8 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_FIELD);
-        PARSER.declareStringOrNull(
-            ConstructingObjectParser.optionalConstructorArg(),
-            FORMAT_FIELD.forRestApiVersion(onOrAfter(RestApiVersion.V_8))
-        );
-        PARSER.declareField(
-            ConstructingObjectParser.optionalConstructorArg(),
-            ignoreUseFieldMappingStringParser(),
-            FORMAT_FIELD.forRestApiVersion(equalTo(RestApiVersion.V_7)),
-            ObjectParser.ValueType.STRING_OR_NULL
-        );
+        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FORMAT_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), INCLUDE_UNMAPPED_FIELD);
-    }
-
-    private static CheckedFunction<XContentParser, String, IOException> ignoreUseFieldMappingStringParser() {
-        return (p) -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
-                return null;
-            } else {
-                String text = p.text();
-                if (text.equals(USE_DEFAULT_FORMAT)) {
-                    DEPRECATION_LOGGER.compatibleCritical(
-                        "explicit_default_format",
-                        "["
-                            + USE_DEFAULT_FORMAT
-                            + "] is a special format that was only used to "
-                            + "ease the transition to 7.x. It has become the default and shouldn't be set explicitly anymore."
-                    );
-                    return null;
-                } else {
-                    return text;
-                }
-            }
-        };
     }
 
     /**
@@ -133,20 +92,14 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
     public FieldAndFormat(StreamInput in) throws IOException {
         this.field = in.readString();
         format = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
-            this.includeUnmapped = in.readOptionalBoolean();
-        } else {
-            this.includeUnmapped = null;
-        }
+        this.includeUnmapped = in.readOptionalBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeOptionalString(format);
-        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
-            out.writeOptionalBoolean(this.includeUnmapped);
-        }
+        out.writeOptionalBoolean(this.includeUnmapped);
     }
 
     @Override

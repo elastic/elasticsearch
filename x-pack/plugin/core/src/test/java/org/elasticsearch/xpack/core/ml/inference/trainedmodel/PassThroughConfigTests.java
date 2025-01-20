@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
@@ -17,7 +17,7 @@ import java.util.function.Predicate;
 
 public class PassThroughConfigTests extends InferenceConfigItemTestCase<PassThroughConfig> {
 
-    public static PassThroughConfig mutateForVersion(PassThroughConfig instance, Version version) {
+    public static PassThroughConfig mutateForVersion(PassThroughConfig instance, TransportVersion version) {
         return new PassThroughConfig(
             instance.getVocabularyConfig(),
             InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
@@ -51,7 +51,12 @@ public class PassThroughConfigTests extends InferenceConfigItemTestCase<PassThro
     }
 
     @Override
-    protected PassThroughConfig mutateInstanceForVersion(PassThroughConfig instance, Version version) {
+    protected PassThroughConfig mutateInstance(PassThroughConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected PassThroughConfig mutateInstanceForVersion(PassThroughConfig instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 

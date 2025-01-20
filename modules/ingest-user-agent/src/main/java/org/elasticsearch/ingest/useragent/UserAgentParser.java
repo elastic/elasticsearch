@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.useragent;
@@ -48,59 +49,62 @@ final class UserAgentParser {
 
     private void init(InputStream regexStream) throws IOException {
         // EMPTY is safe here because we don't use namedObject
-        XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML)
-            .createParser(XContentParserConfiguration.EMPTY, regexStream);
+        try (
+            XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML)
+                .createParser(XContentParserConfiguration.EMPTY, regexStream)
+        ) {
 
-        XContentParser.Token token = yamlParser.nextToken();
+            XContentParser.Token token = yamlParser.nextToken();
 
-        if (token == XContentParser.Token.START_OBJECT) {
-            token = yamlParser.nextToken();
+            if (token == XContentParser.Token.START_OBJECT) {
+                token = yamlParser.nextToken();
 
-            for (; token != null; token = yamlParser.nextToken()) {
-                if (token == XContentParser.Token.FIELD_NAME && yamlParser.currentName().equals("user_agent_parsers")) {
-                    List<Map<String, String>> parserConfigurations = readParserConfigurations(yamlParser);
+                for (; token != null; token = yamlParser.nextToken()) {
+                    if (token == XContentParser.Token.FIELD_NAME && yamlParser.currentName().equals("user_agent_parsers")) {
+                        List<Map<String, String>> parserConfigurations = readParserConfigurations(yamlParser);
 
-                    for (Map<String, String> map : parserConfigurations) {
-                        uaPatterns.add(
-                            new UserAgentSubpattern(
-                                compilePattern(map.get("regex"), map.get("regex_flag")),
-                                map.get("family_replacement"),
-                                map.get("v1_replacement"),
-                                map.get("v2_replacement"),
-                                map.get("v3_replacement"),
-                                map.get("v4_replacement")
-                            )
-                        );
-                    }
-                } else if (token == XContentParser.Token.FIELD_NAME && yamlParser.currentName().equals("os_parsers")) {
-                    List<Map<String, String>> parserConfigurations = readParserConfigurations(yamlParser);
+                        for (Map<String, String> map : parserConfigurations) {
+                            uaPatterns.add(
+                                new UserAgentSubpattern(
+                                    compilePattern(map.get("regex"), map.get("regex_flag")),
+                                    map.get("family_replacement"),
+                                    map.get("v1_replacement"),
+                                    map.get("v2_replacement"),
+                                    map.get("v3_replacement"),
+                                    map.get("v4_replacement")
+                                )
+                            );
+                        }
+                    } else if (token == XContentParser.Token.FIELD_NAME && yamlParser.currentName().equals("os_parsers")) {
+                        List<Map<String, String>> parserConfigurations = readParserConfigurations(yamlParser);
 
-                    for (Map<String, String> map : parserConfigurations) {
-                        osPatterns.add(
-                            new UserAgentSubpattern(
-                                compilePattern(map.get("regex"), map.get("regex_flag")),
-                                map.get("os_replacement"),
-                                map.get("os_v1_replacement"),
-                                map.get("os_v2_replacement"),
-                                map.get("os_v3_replacement"),
-                                map.get("os_v4_replacement")
-                            )
-                        );
-                    }
-                } else if (token == XContentParser.Token.FIELD_NAME && yamlParser.currentName().equals("device_parsers")) {
-                    List<Map<String, String>> parserConfigurations = readParserConfigurations(yamlParser);
+                        for (Map<String, String> map : parserConfigurations) {
+                            osPatterns.add(
+                                new UserAgentSubpattern(
+                                    compilePattern(map.get("regex"), map.get("regex_flag")),
+                                    map.get("os_replacement"),
+                                    map.get("os_v1_replacement"),
+                                    map.get("os_v2_replacement"),
+                                    map.get("os_v3_replacement"),
+                                    map.get("os_v4_replacement")
+                                )
+                            );
+                        }
+                    } else if (token == XContentParser.Token.FIELD_NAME && yamlParser.currentName().equals("device_parsers")) {
+                        List<Map<String, String>> parserConfigurations = readParserConfigurations(yamlParser);
 
-                    for (Map<String, String> map : parserConfigurations) {
-                        devicePatterns.add(
-                            new UserAgentSubpattern(
-                                compilePattern(map.get("regex"), map.get("regex_flag")),
-                                map.get("device_replacement"),
-                                null,
-                                null,
-                                null,
-                                null
-                            )
-                        );
+                        for (Map<String, String> map : parserConfigurations) {
+                            devicePatterns.add(
+                                new UserAgentSubpattern(
+                                    compilePattern(map.get("regex"), map.get("regex_flag")),
+                                    map.get("device_replacement"),
+                                    null,
+                                    null,
+                                    null,
+                                    null
+                                )
+                            );
+                        }
                     }
                 }
             }
@@ -111,7 +115,7 @@ final class UserAgentParser {
         }
     }
 
-    private Pattern compilePattern(String regex, String regex_flag) {
+    private static Pattern compilePattern(String regex, String regex_flag) {
         // Only flag present in the current default regexes.yaml
         if (regex_flag != null && regex_flag.equals("i")) {
             return Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
@@ -188,7 +192,7 @@ final class UserAgentParser {
         return details;
     }
 
-    private VersionedName findMatch(List<UserAgentSubpattern> possiblePatterns, String agentString) {
+    private static VersionedName findMatch(List<UserAgentSubpattern> possiblePatterns, String agentString) {
         VersionedName versionedName;
         for (UserAgentSubpattern pattern : possiblePatterns) {
             versionedName = pattern.match(agentString);

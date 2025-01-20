@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -11,6 +12,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -57,6 +60,14 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
         @Override
         public Object getKey() {
             return getKeyAsString();
+        }
+
+        public BytesRef getTermBytes() {
+            return termBytes;
+        }
+
+        public void setTermBytes(BytesRef termBytes) {
+            this.termBytes = termBytes;
         }
 
         // this method is needed for scripted numeric aggs
@@ -140,6 +151,11 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
     }
 
     @Override
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return termsAggregationReducer(reduceContext, size);
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }
@@ -168,15 +184,15 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
             prototype.termBytes,
             prototype.docCount,
             aggregations,
-            prototype.showDocCountError,
-            prototype.docCountError,
+            showTermDocCountError,
+            prototype.getDocCountError(),
             prototype.format
         );
     }
 
     @Override
     protected Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, StringTerms.Bucket prototype) {
-        return new Bucket(prototype.termBytes, docCount, aggs, prototype.showDocCountError, docCountError, format);
+        return new Bucket(prototype.termBytes, docCount, aggs, showTermDocCountError, docCountError, format);
     }
 
     @Override

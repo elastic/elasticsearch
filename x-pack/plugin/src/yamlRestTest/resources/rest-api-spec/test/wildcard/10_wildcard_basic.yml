@@ -1,15 +1,13 @@
 setup:
-  - skip:
-      features: headers
-      version: " - 7.8.99"
+  - requires:
+      test_runner_features: headers
+      cluster_features: ["gte_v7.9.0"]
       reason: "wildcard fields were added from 7.9"
 
   - do:
       indices.create:
         index: test-index
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               my_wildcard:
@@ -108,9 +106,9 @@ setup:
 
 ---
 "Case insensitive query":
-  - skip:
-      features: headers
-      version: " - 7.9.99"
+  - requires:
+      test_runner_features: headers
+      cluster_features: ["gte_v7.10.0"]
       reason: "Case insensitive flag added in 7.10"
   - do:
       search:

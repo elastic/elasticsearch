@@ -16,9 +16,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -35,6 +37,16 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
 public class RollupIT extends ESRestTestCase {
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .nodes(2)
+        .module("x-pack-rollup")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.watcher.enabled", "false")
+        .setting("xpack.ml.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        .user("super-user", "x-pack-super-password")
+        .build();
 
     @Override
     protected Settings restClientSettings() {
@@ -46,15 +58,36 @@ public class RollupIT extends ESRestTestCase {
         return getClientSettings("super-user", "x-pack-super-password");
     }
 
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     private Settings getClientSettings(final String username, final String password) {
         final String token = basicAuthHeaderValue(username, new SecureString(password.toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     public void testBigRollup() throws Exception {
+        // create dummy rollup index to circumvent the check that prohibits rollup usage in empty clusters:
+        {
+            Request req = new Request("PUT", "dummy-rollup-index");
+            req.setJsonEntity("""
+                {
+                    "mappings":{
+                        "_meta": {
+                            "_rollup":{
+                                "my-id": {}
+                            }
+                        }
+                    }
+                }
+                """);
+            client().performRequest(req);
+        }
+
         final int numDocs = 200;
         String dateFormat = "strict_date_optional_time";
-
         // create the test-index index
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -97,7 +130,7 @@ public class RollupIT extends ESRestTestCase {
         final Request createRollupJobRequest = new Request("PUT", "/_rollup/job/rollup-job-test");
         int pageSize = randomIntBetween(2, 50);
         // fast cron so test runs quickly
-        createRollupJobRequest.setJsonEntity("""
+        createRollupJobRequest.setJsonEntity(Strings.format("""
             {
                 "index_pattern": "rollup-*",
                 "rollup_index": "results-rollup",
@@ -119,7 +152,7 @@ public class RollupIT extends ESRestTestCase {
                         ]
                     }
                 ]
-            }""".formatted(pageSize));
+            }""", pageSize));
 
         var createRollupJobResponse = responseAsMap(client().performRequest(createRollupJobRequest));
         assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));

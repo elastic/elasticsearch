@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -40,7 +41,7 @@ import java.util.stream.Collectors;
  *
  * Allocation ids are added for shards that become active and removed for shards that stop being active.
  */
-public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRoutingChangesObserver {
+public class IndexMetadataUpdater implements RoutingChangesObserver {
     private final Map<ShardId, Updates> shardChanges = new HashMap<>();
 
     @Override
@@ -69,12 +70,14 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
                 + "] and startedShard.allocationId ["
                 + startedShard.allocationId().getId()
                 + "] have to have the same";
-        Updates updates = changes(startedShard.shardId());
-        updates.addedAllocationIds.add(startedShard.allocationId().getId());
-        if (startedShard.primary()
-            // started shard has to have null recoverySource; have to pick up recoverySource from its initializing state
-            && (initializingShard.recoverySource() == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE)) {
-            updates.removedAllocationIds.add(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID);
+        if (startedShard.isPromotableToPrimary()) {
+            Updates updates = changes(startedShard.shardId());
+            updates.addedAllocationIds.add(startedShard.allocationId().getId());
+            if (startedShard.primary()
+                // started shard has to have null recoverySource; have to pick up recoverySource from its initializing state
+                && (initializingShard.recoverySource() == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE)) {
+                updates.removedAllocationIds.add(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID);
+            }
         }
     }
 
@@ -165,13 +168,16 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
                 updatedIndexMetadata = updatedIndexMetadata.withInSyncAllocationIds(shardId.id(), Set.of());
             } else {
                 final String allocationId;
+
                 if (recoverySource == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE) {
                     allocationId = RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID;
-                    updatedIndexMetadata = updatedIndexMetadata.withTimestampRange(
-                        updatedIndexMetadata.getTimestampRange().removeShard(shardId.id(), oldIndexMetadata.getNumberOfShards())
+                    updatedIndexMetadata = updatedIndexMetadata.withTimestampRanges(
+                        updatedIndexMetadata.getTimestampRange().removeShard(shardId.id(), oldIndexMetadata.getNumberOfShards()),
+                        updatedIndexMetadata.getEventIngestedRange().removeShard(shardId.id(), oldIndexMetadata.getNumberOfShards())
                     );
                 } else {
-                    assert recoverySource instanceof RecoverySource.SnapshotRecoverySource : recoverySource;
+                    assert recoverySource instanceof RecoverySource.SnapshotRecoverySource
+                        || isStatelessIndexRecovery(oldIndexMetadata, recoverySource) : recoverySource;
                     allocationId = updates.initializedPrimary.allocationId().getId();
                 }
                 // forcing a stale primary resets the in-sync allocations to the singleton set with the stale id
@@ -231,6 +237,11 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
             }
         }
         return updatedIndexMetadata;
+    }
+
+    private static boolean isStatelessIndexRecovery(IndexMetadata indexMetadata, RecoverySource recoverySource) {
+        var allocator = indexMetadata.getSettings().get(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey());
+        return Objects.equals(allocator, "stateless") && recoverySource instanceof RecoverySource.ExistingStoreRecoverySource;
     }
 
     /**

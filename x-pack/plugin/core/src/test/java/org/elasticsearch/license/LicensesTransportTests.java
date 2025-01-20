@@ -6,12 +6,13 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -23,6 +24,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.license.TestUtils.dateMath;
 import static org.elasticsearch.license.TestUtils.generateExpiredNonBasicLicense;
@@ -58,12 +62,7 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
         // basic license is added async, we should wait for it
         assertBusy(() -> {
             try {
-                final ActionFuture<GetLicenseResponse> getLicenseFuture = new GetLicenseRequestBuilder(
-                    client().admin().cluster(),
-                    GetLicenseAction.INSTANCE
-                ).execute();
-                final GetLicenseResponse getLicenseResponse;
-                getLicenseResponse = getLicenseFuture.get();
+                final GetLicenseResponse getLicenseResponse = getLicense();
                 assertNotNull(getLicenseResponse.license());
                 assertThat(getLicenseResponse.license().operationMode(), equalTo(License.OperationMode.BASIC));
             } catch (Exception e) {
@@ -76,17 +75,12 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
         License signedLicense = generateSignedLicense(TimeValue.timeValueMinutes(2));
 
         // put license
-        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(
-            client().admin().cluster(),
-            PutLicenseAction.INSTANCE
-        ).setLicense(signedLicense).setAcknowledge(true);
-        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
+        final var putLicenseResponse = putLicense(plr -> plr.license(signedLicense).acknowledge(true));
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
 
         // get and check license
-        GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster(), GetLicenseAction.INSTANCE).get();
-        assertThat(getLicenseResponse.license(), equalTo(signedLicense));
+        assertThat(getLicense().license(), equalTo(signedLicense));
     }
 
     public void testPutLicenseFromString() throws Exception {
@@ -94,17 +88,14 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
         String licenseString = TestUtils.dumpLicense(signedLicense);
 
         // put license source
-        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(
-            client().admin().cluster(),
-            PutLicenseAction.INSTANCE
-        ).setLicense(new BytesArray(licenseString.getBytes(StandardCharsets.UTF_8)), XContentType.JSON).setAcknowledge(true);
-        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
+        final var putLicenseResponse = putLicense(
+            plr -> plr.license(new BytesArray(licenseString.getBytes(StandardCharsets.UTF_8)), XContentType.JSON).acknowledge(true)
+        );
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
 
         // get and check license
-        GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster(), GetLicenseAction.INSTANCE).get();
-        assertThat(getLicenseResponse.license(), equalTo(signedLicense));
+        assertThat(getLicense().license(), equalTo(signedLicense));
     }
 
     public void testPutInvalidLicense() throws Exception {
@@ -116,86 +107,57 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
             .expiryDate(signedLicense.expiryDate() + 10 * 24 * 60 * 60 * 1000L)
             .validate()
             .build();
-
-        PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE);
-        builder.setLicense(tamperedLicense);
-
-        // try to put license (should be invalid)
-        final PutLicenseResponse putLicenseResponse = builder.get();
+        final var putLicenseResponse = putLicense(plr -> plr.license(tamperedLicense).acknowledge(randomBoolean()));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.INVALID));
 
         // try to get invalid license
-        GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster(), GetLicenseAction.INSTANCE).get();
-        assertThat(getLicenseResponse.license(), not(tamperedLicense));
+        assertThat(getLicense().license(), not(tamperedLicense));
     }
 
     public void testPutBasicLicenseIsInvalid() throws Exception {
         License signedLicense = generateSignedLicense("basic", License.VERSION_CURRENT, -1, TimeValue.timeValueMinutes(2));
 
-        PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE);
-        builder.setLicense(signedLicense);
-
         // try to put license (should be invalid)
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, builder::get);
+        final var putLicenseFuture = putLicenseFuture(plr -> plr.license(signedLicense).acknowledge(randomBoolean()));
+        IllegalArgumentException iae = expectThrows(ExecutionException.class, IllegalArgumentException.class, putLicenseFuture::get);
         assertEquals(iae.getMessage(), "Registering basic licenses is not allowed.");
 
         // try to get invalid license
-        GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster(), GetLicenseAction.INSTANCE).get();
-        assertThat(getLicenseResponse.license(), not(signedLicense));
+        assertThat(getLicense().license(), not(signedLicense));
     }
 
     public void testPutExpiredLicense() throws Exception {
         License expiredLicense = generateExpiredNonBasicLicense();
-        PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE);
-        builder.setLicense(expiredLicense);
-        PutLicenseResponse putLicenseResponse = builder.get();
+        final var putLicenseResponse = putLicense(plr -> plr.license(expiredLicense).acknowledge(randomBoolean()));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.EXPIRED));
         // get license should not return the expired license
-        GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster(), GetLicenseAction.INSTANCE).get();
-        assertThat(getLicenseResponse.license(), not(expiredLicense));
+        assertThat(getLicense().license(), not(expiredLicense));
     }
 
     public void testPutLicensesSimple() throws Exception {
         License goldSignedLicense = generateSignedLicense("gold", TimeValue.timeValueMinutes(5));
-        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(
-            client().admin().cluster(),
-            PutLicenseAction.INSTANCE
-        ).setLicense(goldSignedLicense).setAcknowledge(true);
-        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
-        assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
-        GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster(), GetLicenseAction.INSTANCE).get();
-        assertThat(getLicenseResponse.license(), equalTo(goldSignedLicense));
+        final var putGoldLicenseResponse = putLicense(plr -> plr.license(goldSignedLicense).acknowledge(true));
+        assertThat(putGoldLicenseResponse.status(), equalTo(LicensesStatus.VALID));
+        assertThat(getLicense().license(), equalTo(goldSignedLicense));
 
         License platinumSignedLicense = generateSignedLicense("platinum", TimeValue.timeValueMinutes(2));
-        putLicenseRequestBuilder.setLicense(platinumSignedLicense);
-        putLicenseResponse = putLicenseRequestBuilder.get();
-        assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
-        assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
-        getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster(), GetLicenseAction.INSTANCE).get();
-        assertThat(getLicenseResponse.license(), equalTo(platinumSignedLicense));
+        final var putPlatinumLicenseResponse = putLicense(plr -> plr.license(platinumSignedLicense).acknowledge(true));
+        assertThat(putPlatinumLicenseResponse.isAcknowledged(), equalTo(true));
+        assertThat(putPlatinumLicenseResponse.status(), equalTo(LicensesStatus.VALID));
+        assertThat(getLicense().license(), equalTo(platinumSignedLicense));
     }
 
     public void testRemoveLicensesSimple() throws Exception {
         License goldLicense = generateSignedLicense("gold", TimeValue.timeValueMinutes(5));
-        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(
-            client().admin().cluster(),
-            PutLicenseAction.INSTANCE
-        ).setLicense(goldLicense).setAcknowledge(true);
-        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
+        PutLicenseResponse putLicenseResponse = putLicense(plr -> plr.license(goldLicense).acknowledge(true));
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
-        GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster(), GetLicenseAction.INSTANCE).get();
-        assertThat(getLicenseResponse.license(), equalTo(goldLicense));
+        assertThat(getLicense().license(), equalTo(goldLicense));
         // delete all licenses
-        DeleteLicenseRequestBuilder deleteLicenseRequestBuilder = new DeleteLicenseRequestBuilder(
-            client().admin().cluster(),
-            DeleteLicenseAction.INSTANCE
-        );
-        AcknowledgedResponse deleteLicenseResponse = deleteLicenseRequestBuilder.get();
+        AcknowledgedResponse deleteLicenseResponse = deleteLicense();
         assertThat(deleteLicenseResponse.isAcknowledged(), equalTo(true));
         // get licenses (expected no licenses)
-        getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster(), GetLicenseAction.INSTANCE).get();
-        assertTrue(License.LicenseType.isBasic(getLicenseResponse.license().type()));
+        assertTrue(License.LicenseType.isBasic(getLicense().license().type()));
     }
 
     public void testLicenseIsRejectWhenStartDateLaterThanNow() throws Exception {
@@ -212,11 +174,7 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
             .maxNodes(5);
         License license = TestUtils.generateSignedLicense(builder);
 
-        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(
-            client().admin().cluster(),
-            PutLicenseAction.INSTANCE
-        ).setLicense(license).setAcknowledge(true);
-        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
+        PutLicenseResponse putLicenseResponse = putLicense(plr -> plr.license(license).acknowledge(true));
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.INVALID));
     }
@@ -235,12 +193,32 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
             .maxNodes(5);
         License license = TestUtils.generateSignedLicense(builder);
 
-        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(
-            client().admin().cluster(),
-            PutLicenseAction.INSTANCE
-        ).setLicense(license).setAcknowledge(true);
-        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
+        PutLicenseResponse putLicenseResponse = putLicense(plr -> plr.license(license).acknowledge(true));
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
+    }
+
+    private GetLicenseResponse getLicense() {
+        return safeGet(clusterAdmin().execute(GetLicenseAction.INSTANCE, new GetLicenseRequest(TEST_REQUEST_TIMEOUT)));
+    }
+
+    private Future<PutLicenseResponse> putLicenseFuture(UnaryOperator<PutLicenseRequest> onRequest) {
+        return clusterAdmin().execute(
+            PutLicenseAction.INSTANCE,
+            onRequest.apply(new PutLicenseRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
+        );
+    }
+
+    private PutLicenseResponse putLicense(UnaryOperator<PutLicenseRequest> onRequest) {
+        return safeGet(putLicenseFuture(onRequest));
+    }
+
+    private AcknowledgedResponse deleteLicense() {
+        return safeGet(
+            clusterAdmin().execute(
+                TransportDeleteLicenseAction.TYPE,
+                new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            )
+        );
     }
 }

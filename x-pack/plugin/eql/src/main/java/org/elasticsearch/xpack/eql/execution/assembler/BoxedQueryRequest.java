@@ -44,6 +44,7 @@ public class BoxedQueryRequest implements QueryRequest {
     public static final int MAX_TERMS = 128;
 
     private final RangeQueryBuilder timestampRange;
+    private final String timestampField;
     private final SearchSourceBuilder searchSource;
 
     private final List<String> keys;
@@ -56,10 +57,11 @@ public class BoxedQueryRequest implements QueryRequest {
     public BoxedQueryRequest(QueryRequest original, String timestamp, List<String> keyNames, Set<String> optionalKeyNames) {
         searchSource = original.searchSource();
         // setup range queries and preserve their reference to simplify the update
-        timestampRange = rangeQuery(timestamp).timeZone("UTC").format("epoch_millis");
+        timestampRange = timestampRangeQuery(timestamp);
+        timestampField = timestamp;
         keys = keyNames;
         this.optionalKeyNames = optionalKeyNames;
-        RuntimeUtils.addFilter(timestampRange, searchSource);
+        RuntimeUtils.combineFilters(searchSource, timestampRange);
     }
 
     @Override
@@ -72,6 +74,18 @@ public class BoxedQueryRequest implements QueryRequest {
         after = ordinal;
         // and leave only search_after
         searchSource.searchAfter(ordinal.toArray());
+    }
+
+    public String timestampField() {
+        return timestampField;
+    }
+
+    public RangeQueryBuilder timestampRangeQuery() {
+        return timestampRangeQuery(timestampField);
+    }
+
+    private static RangeQueryBuilder timestampRangeQuery(String timestamp) {
+        return rangeQuery(timestamp).timeZone("UTC").format("epoch_millis");
     }
 
     /**
@@ -167,7 +181,7 @@ public class BoxedQueryRequest implements QueryRequest {
             }
         }
 
-        RuntimeUtils.replaceFilter(keyFilters, newFilters, searchSource);
+        RuntimeUtils.replaceFilter(searchSource, keyFilters, newFilters);
         keyFilters = newFilters;
         return this;
     }

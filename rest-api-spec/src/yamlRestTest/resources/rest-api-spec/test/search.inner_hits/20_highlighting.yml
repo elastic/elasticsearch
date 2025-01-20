@@ -86,8 +86,8 @@ setup:
 
 ---
 "Unified highlighter with stored fields and disabled source":
-  - skip:
-      version: "- 7.10.1"
+  - requires:
+      cluster_features: "gte_v7.10.2"
       reason: "bug fix introduced in 7.10.2"
   - do:
       indices.create:

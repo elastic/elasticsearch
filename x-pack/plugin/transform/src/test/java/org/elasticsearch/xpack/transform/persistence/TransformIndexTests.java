@@ -6,12 +6,16 @@
  */
 package org.elasticsearch.xpack.transform.persistence;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -19,8 +23,13 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
+import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.junit.Assert;
 import org.junit.Before;
@@ -32,14 +41,17 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
+import static java.util.Map.entry;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -76,7 +88,7 @@ public class TransformIndexTests extends ESTestCase {
         TransformIndex.isDestinationIndexCreatedByTransform(
             client,
             DEST_INDEX,
-            new LatchedActionListener<>(ActionListener.wrap(Assert::assertFalse, e -> fail(e.getMessage())), latch)
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(Assert::assertFalse), latch)
         );
         assertTrue(latch.await(10, TimeUnit.SECONDS));
     }
@@ -90,7 +102,7 @@ public class TransformIndexTests extends ESTestCase {
             client,
             DEST_INDEX,
             new LatchedActionListener<>(
-                ActionListener.wrap(value -> assertThat(value, is(equalTo(expectedValue))), e -> fail(e.getMessage())),
+                ActionTestUtils.assertNoFailureListener(value -> assertThat(value, is(equalTo(expectedValue)))),
                 latch
             )
         );
@@ -136,12 +148,12 @@ public class TransformIndexTests extends ESTestCase {
         TransformIndex.createDestinationIndex(
             client,
             TransformConfigTests.randomTransformConfig(TRANSFORM_ID),
-            TransformIndex.createTransformDestIndexSettings(new HashMap<>(), TRANSFORM_ID, clock),
-            ActionListener.wrap(Assert::assertTrue, e -> fail(e.getMessage()))
+            TransformIndex.createTransformDestIndexSettings(Settings.EMPTY, new HashMap<>(), TRANSFORM_ID, clock),
+            ActionTestUtils.assertNoFailureListener(Assert::assertTrue)
         );
 
         ArgumentCaptor<CreateIndexRequest> createIndexRequestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
-        verify(client).execute(eq(CreateIndexAction.INSTANCE), createIndexRequestCaptor.capture(), any());
+        verify(client).execute(eq(TransportCreateIndexAction.TYPE), createIndexRequestCaptor.capture(), any());
         verify(client, atLeastOnce()).threadPool();
         verifyNoMoreInteractions(client);
 
@@ -152,72 +164,134 @@ public class TransformIndexTests extends ESTestCase {
             assertThat(extractValue("_doc._meta._transform.creation_date_in_millis", map), equalTo(CURRENT_TIME_MILLIS));
             assertThat(extractValue("_doc._meta.created_by", map), equalTo(CREATED_BY));
         }
+        assertThat(createIndexRequest.aliases(), is(empty()));
+    }
+
+    public void testCreateDestinationIndexThrowsResourceAlreadyExistsException() throws InterruptedException {
+        doAnswer(withFailure(new ResourceAlreadyExistsException("blah"))).when(client).execute(any(), any(), any());
+
+        var latch = new CountDownLatch(1);
+
+        TransformIndex.createDestinationIndex(
+            client,
+            TransformConfigTests.randomTransformConfig(TRANSFORM_ID),
+            TransformIndex.createTransformDestIndexSettings(Settings.EMPTY, new HashMap<>(), TRANSFORM_ID, clock),
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(Assert::assertFalse), latch)
+        );
+
+        assertTrue("Timed out waiting for test to finish", latch.await(10, TimeUnit.SECONDS));
+    }
+
+    public void testCreateDestinationIndexThrowsWrappedResourceAlreadyExistsException() throws InterruptedException {
+        doAnswer(withFailure(new RemoteTransportException("blah", new ResourceAlreadyExistsException("also blah")))).when(client)
+            .execute(any(), any(), any());
+
+        var latch = new CountDownLatch(1);
+
+        TransformIndex.createDestinationIndex(
+            client,
+            TransformConfigTests.randomTransformConfig(TRANSFORM_ID),
+            TransformIndex.createTransformDestIndexSettings(Settings.EMPTY, new HashMap<>(), TRANSFORM_ID, clock),
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(Assert::assertFalse), latch)
+        );
+
+        assertTrue("Timed out waiting for test to finish", latch.await(10, TimeUnit.SECONDS));
+    }
+
+    public void testSetUpDestinationAliases_NullAliases() {
+        doAnswer(withResponse(null)).when(client).execute(any(), any(), any());
+
+        TransformConfig config = new TransformConfig.Builder().setId("my-id")
+            .setSource(new SourceConfig("my-source"))
+            .setDest(new DestConfig("my-dest", null, null))
+            .build();
+
+        TransformIndex.setUpDestinationAliases(client, config, ActionTestUtils.assertNoFailureListener(Assert::assertTrue));
+
+        verifyNoMoreInteractions(client);
+    }
+
+    public void testSetUpDestinationAliases_EmptyAliases() {
+        doAnswer(withResponse(null)).when(client).execute(any(), any(), any());
+
+        TransformConfig config = new TransformConfig.Builder().setId("my-id")
+            .setSource(new SourceConfig("my-source"))
+            .setDest(new DestConfig("my-dest", List.of(), null))
+            .build();
+
+        TransformIndex.setUpDestinationAliases(client, config, ActionTestUtils.assertNoFailureListener(Assert::assertTrue));
+
+        verifyNoMoreInteractions(client);
+    }
+
+    public void testSetUpDestinationAliases() {
+        doAnswer(withResponse(null)).when(client).execute(any(), any(), any());
+
+        String destIndex = "my-dest";
+        TransformConfig config = new TransformConfig.Builder().setId("my-id")
+            .setSource(new SourceConfig("my-source"))
+            .setDest(new DestConfig(destIndex, List.of(new DestAlias(".all", false), new DestAlias(".latest", true)), null))
+            .build();
+
+        TransformIndex.setUpDestinationAliases(client, config, ActionTestUtils.assertNoFailureListener(Assert::assertTrue));
+
+        ArgumentCaptor<IndicesAliasesRequest> indicesAliasesRequestCaptor = ArgumentCaptor.forClass(IndicesAliasesRequest.class);
+        verify(client).execute(eq(TransportIndicesAliasesAction.TYPE), indicesAliasesRequestCaptor.capture(), any());
+        verify(client, atLeastOnce()).threadPool();
+        verifyNoMoreInteractions(client);
+
+        IndicesAliasesRequest indicesAliasesRequest = indicesAliasesRequestCaptor.getValue();
+        assertThat(
+            indicesAliasesRequest.getAliasActions(),
+            contains(
+                IndicesAliasesRequest.AliasActions.remove().alias(".latest").index("*"),
+                IndicesAliasesRequest.AliasActions.add().alias(".all").index(destIndex),
+                IndicesAliasesRequest.AliasActions.add().alias(".latest").index(destIndex)
+            )
+        );
     }
 
     public void testCreateMappingsFromStringMap() {
         assertThat(TransformIndex.createMappingsFromStringMap(emptyMap()), is(anEmptyMap()));
+        assertThat(TransformIndex.createMappingsFromStringMap(Map.of("a", "long")), equalTo(Map.of("a", Map.of("type", "long"))));
         assertThat(
-            TransformIndex.createMappingsFromStringMap(singletonMap("a", "long")),
-            is(equalTo(singletonMap("a", singletonMap("type", "long"))))
+            TransformIndex.createMappingsFromStringMap(Map.of("a", "long", "b", "keyword")),
+            equalTo(Map.of("a", Map.of("type", "long"), "b", Map.of("type", "keyword")))
         );
-        assertThat(TransformIndex.createMappingsFromStringMap(new HashMap<>() {
-            {
-                put("a", "long");
-                put("b", "keyword");
-            }
-        }), is(equalTo(new HashMap<>() {
-            {
-                put("a", singletonMap("type", "long"));
-                put("b", singletonMap("type", "keyword"));
-            }
-        })));
-        assertThat(TransformIndex.createMappingsFromStringMap(new HashMap<>() {
-            {
-                put("a", "long");
-                put("a.b", "keyword");
-            }
-        }), is(equalTo(new HashMap<>() {
-            {
-                put("a", singletonMap("type", "long"));
-                put("a.b", singletonMap("type", "keyword"));
-            }
-        })));
-        assertThat(TransformIndex.createMappingsFromStringMap(new HashMap<>() {
-            {
-                put("a", "long");
-                put("a.b", "text");
-                put("a.b.c", "keyword");
-            }
-        }), is(equalTo(new HashMap<>() {
-            {
-                put("a", singletonMap("type", "long"));
-                put("a.b", singletonMap("type", "text"));
-                put("a.b.c", singletonMap("type", "keyword"));
-            }
-        })));
-        assertThat(TransformIndex.createMappingsFromStringMap(new HashMap<>() {
-            {
-                put("a", "object");
-                put("a.b", "long");
-                put("c", "nested");
-                put("c.d", "boolean");
-                put("f", "object");
-                put("f.g", "object");
-                put("f.g.h", "text");
-                put("f.g.h.i", "text");
-            }
-        }), is(equalTo(new HashMap<>() {
-            {
-                put("a", singletonMap("type", "object"));
-                put("a.b", singletonMap("type", "long"));
-                put("c", singletonMap("type", "nested"));
-                put("c.d", singletonMap("type", "boolean"));
-                put("f", singletonMap("type", "object"));
-                put("f.g", singletonMap("type", "object"));
-                put("f.g.h", singletonMap("type", "text"));
-                put("f.g.h.i", singletonMap("type", "text"));
-            }
-        })));
+        assertThat(
+            TransformIndex.createMappingsFromStringMap(Map.of("a", "long", "a.b", "keyword")),
+            equalTo(Map.of("a", Map.of("type", "long"), "a.b", Map.of("type", "keyword")))
+        );
+        assertThat(
+            TransformIndex.createMappingsFromStringMap(Map.of("a", "long", "a.b", "text", "a.b.c", "keyword")),
+            equalTo(Map.of("a", Map.of("type", "long"), "a.b", Map.of("type", "text"), "a.b.c", Map.of("type", "keyword")))
+        );
+        assertThat(
+            TransformIndex.createMappingsFromStringMap(
+                Map.ofEntries(
+                    entry("a", "object"),
+                    entry("a.b", "long"),
+                    entry("c", "nested"),
+                    entry("c.d", "boolean"),
+                    entry("f", "object"),
+                    entry("f.g", "object"),
+                    entry("f.g.h", "text"),
+                    entry("f.g.h.i", "text")
+                )
+            ),
+            equalTo(
+                Map.ofEntries(
+                    entry("a", Map.of("type", "object")),
+                    entry("a.b", Map.of("type", "long")),
+                    entry("c", Map.of("type", "nested")),
+                    entry("c.d", Map.of("type", "boolean")),
+                    entry("f", Map.of("type", "object")),
+                    entry("f.g", Map.of("type", "object")),
+                    entry("f.g.h", Map.of("type", "text")),
+                    entry("f.g.h.i", Map.of("type", "text"))
+                )
+            )
+        );
     }
 
     @SuppressWarnings("unchecked")

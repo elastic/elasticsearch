@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.termvectors;
@@ -224,10 +225,11 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
                 if (randomBoolean()) {
                     selectedFields.add("Doesnt_exist"); // this will be ignored.
                 }
-                for (TestFieldSetting field : fieldSettings)
+                for (TestFieldSetting field : fieldSettings) {
                     if (randomBoolean()) {
                         selectedFields.add(field.name);
                     }
+                }
 
                 if (selectedFields.size() == 0) {
                     selectedFields = null; // 0 length set is not supported.
@@ -393,11 +395,11 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
     }
 
     protected Fields getTermVectorsFromLucene(DirectoryReader directoryReader, TestDoc doc) throws IOException {
-        IndexSearcher searcher = new IndexSearcher(directoryReader);
+        IndexSearcher searcher = newSearcher(directoryReader);
         TopDocs search = searcher.search(new TermQuery(new Term("id", doc.id)), 1);
 
         ScoreDoc[] scoreDocs = search.scoreDocs;
         assertEquals(1, scoreDocs.length);
-        return directoryReader.getTermVectors(scoreDocs[0].doc);
+        return directoryReader.termVectors().get(scoreDocs[0].doc);
     }
 }

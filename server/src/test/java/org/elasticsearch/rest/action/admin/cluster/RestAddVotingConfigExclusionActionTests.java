@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
@@ -18,6 +19,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 import static org.elasticsearch.rest.action.admin.cluster.RestAddVotingConfigExclusionAction.resolveVotingConfigExclusionsRequest;
 
 public class RestAddVotingConfigExclusionActionTests extends ESTestCase {
@@ -69,7 +71,7 @@ public class RestAddVotingConfigExclusionActionTests extends ESTestCase {
     public void testResolveVotingConfigExclusionsRequestMasterTimeout() {
         Map<String, String> params = new HashMap<>();
         params.put("node_names", "node-1,node-2,node-3");
-        params.put("master_timeout", "60s");
+        params.put(REST_MASTER_TIMEOUT_PARAM, "60s");
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/_cluster/voting_config_exclusions")
             .withParams(params)
@@ -84,7 +86,7 @@ public class RestAddVotingConfigExclusionActionTests extends ESTestCase {
         Map<String, String> params = new HashMap<>();
         params.put("node_names", "node-1,node-2,node-3");
         params.put("timeout", "60s");
-        params.put("master_timeout", "120s");
+        params.put(REST_MASTER_TIMEOUT_PARAM, "120s");
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/_cluster/voting_config_exclusions")
             .withParams(params)

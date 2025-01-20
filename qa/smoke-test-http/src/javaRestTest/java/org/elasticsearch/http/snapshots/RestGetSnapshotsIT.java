@@ -1,18 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http.snapshots;
 
 import org.apache.http.client.methods.HttpGet;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.SnapshotSortKey;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -21,8 +24,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotInfoUtils;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -31,6 +37,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -90,45 +97,45 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
 
     private void doTestSortOrder(String repoName, Collection<String> allSnapshotNames, SortOrder order) throws IOException {
         final boolean includeIndexNames = randomBoolean();
-        final List<SnapshotInfo> defaultSorting = clusterAdmin().prepareGetSnapshots(repoName)
+        final List<SnapshotInfo> defaultSorting = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName)
             .setOrder(order)
             .setIncludeIndexNames(includeIndexNames)
             .get()
             .getSnapshots();
         assertSnapshotListSorted(defaultSorting, null, order);
         assertSnapshotListSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.NAME, order, includeIndexNames),
-            GetSnapshotsRequest.SortBy.NAME,
+            allSnapshotsSorted(allSnapshotNames, repoName, SnapshotSortKey.NAME, order, includeIndexNames),
+            SnapshotSortKey.NAME,
             order
         );
         assertSnapshotListSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.DURATION, order, includeIndexNames),
-            GetSnapshotsRequest.SortBy.DURATION,
+            allSnapshotsSorted(allSnapshotNames, repoName, SnapshotSortKey.DURATION, order, includeIndexNames),
+            SnapshotSortKey.DURATION,
             order
         );
         assertSnapshotListSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.INDICES, order, includeIndexNames),
-            GetSnapshotsRequest.SortBy.INDICES,
+            allSnapshotsSorted(allSnapshotNames, repoName, SnapshotSortKey.INDICES, order, includeIndexNames),
+            SnapshotSortKey.INDICES,
             order
         );
         assertSnapshotListSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.START_TIME, order, includeIndexNames),
-            GetSnapshotsRequest.SortBy.START_TIME,
+            allSnapshotsSorted(allSnapshotNames, repoName, SnapshotSortKey.START_TIME, order, includeIndexNames),
+            SnapshotSortKey.START_TIME,
             order
         );
         assertSnapshotListSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.SHARDS, order, includeIndexNames),
-            GetSnapshotsRequest.SortBy.SHARDS,
+            allSnapshotsSorted(allSnapshotNames, repoName, SnapshotSortKey.SHARDS, order, includeIndexNames),
+            SnapshotSortKey.SHARDS,
             order
         );
         assertSnapshotListSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.FAILED_SHARDS, order, includeIndexNames),
-            GetSnapshotsRequest.SortBy.FAILED_SHARDS,
+            allSnapshotsSorted(allSnapshotNames, repoName, SnapshotSortKey.FAILED_SHARDS, order, includeIndexNames),
+            SnapshotSortKey.FAILED_SHARDS,
             order
         );
         assertSnapshotListSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.REPOSITORY, order, includeIndexNames),
-            GetSnapshotsRequest.SortBy.REPOSITORY,
+            allSnapshotsSorted(allSnapshotNames, repoName, SnapshotSortKey.REPOSITORY, order, includeIndexNames),
+            SnapshotSortKey.REPOSITORY,
             order
         );
     }
@@ -137,7 +144,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         final String repoName = "test-repo";
         AbstractSnapshotIntegTestCase.createRepository(logger, repoName, "fs");
         final List<String> names = AbstractSnapshotIntegTestCase.createNSnapshots(logger, repoName, randomIntBetween(6, 20));
-        for (GetSnapshotsRequest.SortBy sort : GetSnapshotsRequest.SortBy.values()) {
+        for (SnapshotSortKey sort : SnapshotSortKey.values()) {
             for (SortOrder order : SortOrder.values()) {
                 logger.info("--> testing pagination for [{}] [{}]", sort, order);
                 doTestPagination(repoName, names, sort, order);
@@ -145,8 +152,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         }
     }
 
-    private void doTestPagination(String repoName, List<String> names, GetSnapshotsRequest.SortBy sort, SortOrder order)
-        throws IOException {
+    private void doTestPagination(String repoName, List<String> names, SnapshotSortKey sort, SortOrder order) throws IOException {
         final boolean includeIndexNames = randomBoolean();
         final List<SnapshotInfo> allSnapshotsSorted = allSnapshotsSorted(names, repoName, sort, order, includeIndexNames);
         final GetSnapshotsResponse batch1 = sortedWithLimit(repoName, sort, null, 2, order, includeIndexNames);
@@ -201,15 +207,14 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         }
         AbstractSnapshotIntegTestCase.awaitNumberOfSnapshotsInProgress(logger, inProgressCount);
         AbstractSnapshotIntegTestCase.awaitClusterState(logger, state -> {
-            boolean firstIndexSuccessfullySnapshot = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .asStream()
+            final var snapshotsInProgress = SnapshotsInProgress.get(state);
+            boolean firstIndexSuccessfullySnapshot = snapshotsInProgress.asStream()
                 .flatMap(s -> s.shards().entrySet().stream())
                 .allMatch(
                     e -> e.getKey().getIndexName().equals("test-index-1") == false
                         || e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS
                 );
-            boolean secondIndexIsBlocked = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .asStream()
+            boolean secondIndexIsBlocked = snapshotsInProgress.asStream()
                 .flatMap(s -> s.shards().entrySet().stream())
                 .filter(e -> e.getKey().getIndexName().equals("test-index-2"))
                 .map(e -> e.getValue().state())
@@ -217,34 +222,34 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
                 .equals(Map.of(SnapshotsInProgress.ShardState.INIT, 1L, SnapshotsInProgress.ShardState.QUEUED, (long) inProgressCount - 1));
             return firstIndexSuccessfullySnapshot && secondIndexIsBlocked;
         });
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.NAME);
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.INDICES);
+        assertStablePagination(repoName, allSnapshotNames, SnapshotSortKey.START_TIME);
+        assertStablePagination(repoName, allSnapshotNames, SnapshotSortKey.NAME);
+        assertStablePagination(repoName, allSnapshotNames, SnapshotSortKey.INDICES);
 
         AbstractSnapshotIntegTestCase.unblockAllDataNodes(repoName);
         for (ActionFuture<CreateSnapshotResponse> inProgressSnapshot : inProgressSnapshots) {
             AbstractSnapshotIntegTestCase.assertSuccessful(logger, inProgressSnapshot);
         }
 
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.NAME);
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.INDICES);
+        assertStablePagination(repoName, allSnapshotNames, SnapshotSortKey.START_TIME);
+        assertStablePagination(repoName, allSnapshotNames, SnapshotSortKey.NAME);
+        assertStablePagination(repoName, allSnapshotNames, SnapshotSortKey.INDICES);
     }
 
     public void testFilterBySLMPolicy() throws Exception {
         final String repoName = "test-repo";
         AbstractSnapshotIntegTestCase.createRepository(logger, repoName, "fs");
         AbstractSnapshotIntegTestCase.createNSnapshots(logger, repoName, randomIntBetween(1, 5));
-        final List<SnapshotInfo> snapshotsWithoutPolicy = clusterAdmin().prepareGetSnapshots("*")
+        final List<SnapshotInfo> snapshotsWithoutPolicy = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "*")
             .setSnapshots("*")
-            .setSort(GetSnapshotsRequest.SortBy.NAME)
+            .setSort(SnapshotSortKey.NAME)
             .get()
             .getSnapshots();
         final String snapshotWithPolicy = "snapshot-with-policy";
         final String policyName = "some-policy";
         final SnapshotInfo withPolicy = AbstractSnapshotIntegTestCase.assertSuccessful(
             logger,
-            clusterAdmin().prepareCreateSnapshot(repoName, snapshotWithPolicy)
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotWithPolicy)
                 .setUserMetadata(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, policyName))
                 .setWaitForCompletion(true)
                 .execute()
@@ -264,7 +269,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         final String otherPolicyName = "other-policy";
         final SnapshotInfo withOtherPolicy = AbstractSnapshotIntegTestCase.assertSuccessful(
             logger,
-            clusterAdmin().prepareCreateSnapshot(repoName, snapshotWithOtherPolicy)
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotWithOtherPolicy)
                 .setUserMetadata(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, otherPolicyName))
                 .setWaitForCompletion(true)
                 .execute()
@@ -272,9 +277,9 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         assertThat(getAllSnapshotsForPolicies("*"), is(List.of(withOtherPolicy, withPolicy)));
         assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName), is(List.of(withOtherPolicy, withPolicy)));
         assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName, "no-such-policy*"), is(List.of(withOtherPolicy, withPolicy)));
-        final List<SnapshotInfo> allSnapshots = clusterAdmin().prepareGetSnapshots("*")
+        final List<SnapshotInfo> allSnapshots = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "*")
             .setSnapshots("*")
-            .setSort(GetSnapshotsRequest.SortBy.NAME)
+            .setSort(SnapshotSortKey.NAME)
             .get()
             .getSnapshots();
         assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, policyName, otherPolicyName), is(allSnapshots));
@@ -289,9 +294,9 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         final SnapshotInfo snapshot2 = createFullSnapshotWithUniqueStartTime(repoName, "snapshot-2", startTimes);
         final SnapshotInfo snapshot3 = createFullSnapshotWithUniqueStartTime(repoName, "snapshot-3", startTimes);
 
-        final List<SnapshotInfo> allSnapshotInfo = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+        final List<SnapshotInfo> allSnapshotInfo = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, matchAllPattern())
             .setSnapshots(matchAllPattern())
-            .setSort(GetSnapshotsRequest.SortBy.START_TIME)
+            .setSort(SnapshotSortKey.START_TIME)
             .get()
             .getSnapshots();
         assertThat(allSnapshotInfo, is(List.of(snapshot1, snapshot2, snapshot3)));
@@ -306,9 +311,9 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         assertThat(allAfterStartTimeAscending(startTime3), is(List.of(snapshot3)));
         assertThat(allAfterStartTimeAscending(startTime3 + 1), empty());
 
-        final List<SnapshotInfo> allSnapshotInfoDesc = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+        final List<SnapshotInfo> allSnapshotInfoDesc = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, matchAllPattern())
             .setSnapshots(matchAllPattern())
-            .setSort(GetSnapshotsRequest.SortBy.START_TIME)
+            .setSort(SnapshotSortKey.START_TIME)
             .setOrder(SortOrder.DESC)
             .get()
             .getSnapshots();
@@ -327,7 +332,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
             final SnapshotInfo snapshotInfo = AbstractSnapshotIntegTestCase.createFullSnapshot(logger, repoName, snapshotName);
             if (forbiddenStartTimes.contains(snapshotInfo.startTime())) {
                 logger.info("--> snapshot start time collided");
-                assertAcked(clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).get());
+                assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName).get());
             } else {
                 assertTrue(forbiddenStartTimes.add(snapshotInfo.startTime()));
                 return snapshotInfo;
@@ -337,7 +342,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
 
     private List<SnapshotInfo> allAfterStartTimeAscending(long timestamp) throws IOException {
         final Request request = baseGetSnapshotsRequest("*");
-        request.addParameter("sort", GetSnapshotsRequest.SortBy.START_TIME.toString());
+        request.addParameter("sort", SnapshotSortKey.START_TIME.toString());
         request.addParameter("from_sort_value", String.valueOf(timestamp));
         final Response response = getRestClient().performRequest(request);
         return readSnapshotInfos(response).getSnapshots();
@@ -345,7 +350,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
 
     private List<SnapshotInfo> allBeforeStartTimeDescending(long timestamp) throws IOException {
         final Request request = baseGetSnapshotsRequest("*");
-        request.addParameter("sort", GetSnapshotsRequest.SortBy.START_TIME.toString());
+        request.addParameter("sort", SnapshotSortKey.START_TIME.toString());
         request.addParameter("from_sort_value", String.valueOf(timestamp));
         request.addParameter("order", SortOrder.DESC.toString());
         final Response response = getRestClient().performRequest(request);
@@ -355,21 +360,21 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
     private static List<SnapshotInfo> getAllSnapshotsForPolicies(String... policies) throws IOException {
         final Request requestWithPolicy = new Request(HttpGet.METHOD_NAME, "/_snapshot/*/*");
         requestWithPolicy.addParameter("slm_policy_filter", Strings.arrayToCommaDelimitedString(policies));
-        requestWithPolicy.addParameter("sort", GetSnapshotsRequest.SortBy.NAME.toString());
+        requestWithPolicy.addParameter("sort", SnapshotSortKey.NAME.toString());
         return readSnapshotInfos(getRestClient().performRequest(requestWithPolicy)).getSnapshots();
     }
 
     private void createIndexWithContent(String indexName) {
         logger.info("--> creating index [{}]", indexName);
-        createIndex(indexName, AbstractSnapshotIntegTestCase.SINGLE_SHARD_NO_REPLICA);
+        createIndex(indexName, 1, 0);
         ensureGreen(indexName);
         indexDoc(indexName, "some_id", "foo", "bar");
     }
 
-    private static void assertStablePagination(String repoName, Collection<String> allSnapshotNames, GetSnapshotsRequest.SortBy sort)
+    private static void assertStablePagination(String repoName, Collection<String> allSnapshotNames, SnapshotSortKey sort)
         throws IOException {
         final SortOrder order = randomFrom(SortOrder.values());
-        final boolean includeIndexNames = sort == GetSnapshotsRequest.SortBy.INDICES || randomBoolean();
+        final boolean includeIndexNames = sort == SnapshotSortKey.INDICES || randomBoolean();
         final List<SnapshotInfo> allSorted = allSnapshotsSorted(allSnapshotNames, repoName, sort, order, includeIndexNames);
 
         for (int i = 1; i <= allSnapshotNames.size(); i++) {
@@ -383,7 +388,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
                 final GetSnapshotsResponse getSnapshotsResponse = sortedWithLimit(
                     repoName,
                     sort,
-                    GetSnapshotsRequest.After.from(after, sort).asQueryParam(),
+                    sort.encodeAfterQueryParam(after),
                     i,
                     order,
                     includeIndexNames
@@ -410,7 +415,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
     private static List<SnapshotInfo> allSnapshotsSorted(
         Collection<String> allSnapshotNames,
         String repoName,
-        GetSnapshotsRequest.SortBy sortBy,
+        SnapshotSortKey sortBy,
         SortOrder order,
         boolean includeIndices
     ) throws IOException {
@@ -445,13 +450,13 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
             InputStream input = response.getEntity().getContent();
             XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, input)
         ) {
-            return GetSnapshotsResponse.fromXContent(parser);
+            return GET_SNAPSHOT_PARSER.parse(parser, null);
         }
     }
 
     private static GetSnapshotsResponse sortedWithLimit(
         String repoName,
-        GetSnapshotsRequest.SortBy sortBy,
+        SnapshotSortKey sortBy,
         String after,
         int size,
         SortOrder order,
@@ -483,7 +488,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
 
     private static GetSnapshotsResponse sortedWithLimit(
         String repoName,
-        GetSnapshotsRequest.SortBy sortBy,
+        SnapshotSortKey sortBy,
         int offset,
         int size,
         SortOrder order,
@@ -501,5 +506,36 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         addIndexNamesParameter(includeIndices, request);
         final Response response = getRestClient().performRequest(request);
         return readSnapshotInfos(response);
+    }
+
+    private static final int UNKNOWN_COUNT = -1;
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<GetSnapshotsResponse, Void> GET_SNAPSHOT_PARSER = new ConstructingObjectParser<>(
+        GetSnapshotsResponse.class.getName(),
+        true,
+        (args) -> new GetSnapshotsResponse(
+            (List<SnapshotInfo>) args[0],
+            (Map<String, ElasticsearchException>) args[1],
+            (String) args[2],
+            args[3] == null ? UNKNOWN_COUNT : (int) args[3],
+            args[4] == null ? UNKNOWN_COUNT : (int) args[4]
+        )
+    );
+
+    static {
+        GET_SNAPSHOT_PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> SnapshotInfoUtils.snapshotInfoFromXContent(p),
+            new ParseField("snapshots")
+        );
+        GET_SNAPSHOT_PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> p.map(HashMap::new, ElasticsearchException::fromXContent),
+            new ParseField("failures")
+        );
+        GET_SNAPSHOT_PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("next"));
+        GET_SNAPSHOT_PARSER.declareIntOrNull(ConstructingObjectParser.optionalConstructorArg(), UNKNOWN_COUNT, new ParseField("total"));
+        GET_SNAPSHOT_PARSER.declareIntOrNull(ConstructingObjectParser.optionalConstructorArg(), UNKNOWN_COUNT, new ParseField("remaining"));
     }
 }

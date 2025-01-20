@@ -18,6 +18,16 @@
           ]
         }
       ]
+    },
+    "params":{
+      "master_timeout": {
+        "type": "time",
+        "description": "Timeout for connection to master node"
+      },
+      "timeout": {
+        "type": "time",
+        "description": "Timeout for acknowledgements from all nodes"
+      }
     }
   }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.conventions.precommit;
@@ -31,10 +32,10 @@ public class PrecommitTaskPlugin implements Plugin<Project> {
                         "lifecycle-base",
                         p -> project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(precommit))
                 );
-        project.getPluginManager().withPlugin("java", p -> {
+        project.getPluginManager().withPlugin("java-base", p -> {
             // run compilation as part of precommit
             project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets().all(sourceSet ->
-                    precommit.configure(t -> t.shouldRunAfter(sourceSet.getClassesTaskName()))
+                    precommit.configure(t -> t.dependsOn(sourceSet.getClassesTaskName()))
             );
             // make sure tests run after all precommit tasks
             project.getTasks().withType(Test.class).configureEach(t -> t.mustRunAfter(precommit));

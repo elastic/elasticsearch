@@ -9,18 +9,16 @@ package org.elasticsearch.xpack.sql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.TestNode;
 import org.elasticsearch.xpack.ql.TestNodes;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.junit.After;
 import org.junit.Before;
 
@@ -38,9 +36,15 @@ import java.util.stream.Collectors;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.ql.TestUtils.buildNodeAndVersions;
 import static org.elasticsearch.xpack.ql.TestUtils.readResource;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_VERSION_FIELD_TYPE;
 
 public class SqlSearchIT extends ESRestTestCase {
-    private static final Version VERSION_FIELD_QL_INTRODUCTION = Version.V_8_4_0;
+
+    private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
+
+    private static final boolean SUPPORTS_VERSION_FIELD_QL_INTRODUCTION = SqlVersion.fromString(BWC_NODES_VERSION)
+        .onOrAfter(INTRODUCING_VERSION_FIELD_TYPE);
+
     private static final String index = "test_sql_mixed_versions";
     private static int numShards;
     private static int numReplicas = 1;
@@ -48,26 +52,17 @@ public class SqlSearchIT extends ESRestTestCase {
     private static TestNodes nodes;
     private static List<TestNode> newNodes;
     private static List<TestNode> bwcNodes;
-    private static Version bwcVersion;
 
     @Before
     public void createIndex() throws IOException {
-        nodes = buildNodeAndVersions(client());
+        nodes = buildNodeAndVersions(client(), BWC_NODES_VERSION);
         numShards = nodes.size();
         numDocs = randomIntBetween(numShards, 15);
         newNodes = new ArrayList<>(nodes.getNewNodes());
         bwcNodes = new ArrayList<>(nodes.getBWCNodes());
-        bwcVersion = nodes.getBWCNodes().get(0).getVersion();
 
         String mappings = readResource(SqlSearchIT.class.getResourceAsStream("/all_field_types.json"));
-        createIndex(
-            index,
-            Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
-                .build(),
-            mappings
-        );
+        createIndex(index, indexSettings(numShards, numReplicas).build(), mappings);
     }
 
     @After
@@ -153,7 +148,7 @@ public class SqlSearchIT extends ESRestTestCase {
         columns.add(columnInfo("scaled_float_field", "scaled_float"));
         columns.add(columnInfo("boolean_field", "boolean"));
         columns.add(columnInfo("ip_field", "ip"));
-        if (bwcVersion.onOrAfter(VERSION_FIELD_QL_INTRODUCTION)) {
+        if (SUPPORTS_VERSION_FIELD_QL_INTRODUCTION) {
             columns.add(columnInfo("version_field", "version"));
         }
         columns.add(columnInfo("text_field", "text"));
@@ -187,7 +182,7 @@ public class SqlSearchIT extends ESRestTestCase {
             builder.append("\"scaled_float_field\":" + fieldValues.computeIfAbsent("scaled_float_field", v -> 123.5d) + ",");
             builder.append("\"boolean_field\":" + fieldValues.computeIfAbsent("boolean_field", v -> randomBoolean()) + ",");
             builder.append("\"ip_field\":\"" + fieldValues.computeIfAbsent("ip_field", v -> "123.123.123.123") + "\",");
-            if (bwcVersion.onOrAfter(VERSION_FIELD_QL_INTRODUCTION)) {
+            if (SUPPORTS_VERSION_FIELD_QL_INTRODUCTION) {
                 builder.append(
                     "\"version_field\":\""
                         + fieldValues.computeIfAbsent("version_field", v -> randomInt() + "." + randomInt() + "." + randomInt())
@@ -229,10 +224,7 @@ public class SqlSearchIT extends ESRestTestCase {
 
     private void assertAllTypesWithNodes(Map<String, Object> expectedResponse, List<TestNode> nodesList) throws Exception {
         try (
-            RestClient client = buildClient(
-                restClientSettings(),
-                nodesList.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new)
-            )
+            RestClient client = buildClient(restClientSettings(), nodesList.stream().map(TestNode::publishAddress).toArray(HttpHost[]::new))
         ) {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> columns = (List<Map<String, Object>>) expectedResponse.get("columns");
@@ -250,7 +242,7 @@ public class SqlSearchIT extends ESRestTestCase {
             String query = "SELECT " + intervalYearMonth + intervalDayTime + fieldsList + " FROM " + index + " ORDER BY id";
 
             Request request = new Request("POST", "_sql");
-            request.setJsonEntity(SqlCompatIT.sqlQueryEntityWithOptionalMode(query, bwcVersion));
+            request.setJsonEntity(SqlCompatIT.sqlQueryEntityWithOptionalMode(query));
             assertBusy(() -> { assertResponse(expectedResponse, dropDisplaySizes(runSql(client, request))); });
         }
     }

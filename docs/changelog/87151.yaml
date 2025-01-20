@@ -1,6 +1,0 @@
-pr: 87151
-summary: Fix date range checks
-area: SQL
-type: bug
-issues:
- - 77179

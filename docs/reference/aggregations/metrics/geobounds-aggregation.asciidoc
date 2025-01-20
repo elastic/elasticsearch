@@ -4,7 +4,7 @@
 <titleabbrev>Geo-bounds</titleabbrev>
 ++++
 
-A metric aggregation that computes the bounding box containing all geo values for a field.
+A metric aggregation that computes the geographic bounding box containing all values for a <<geo-point>> or <<geo-shape>> field.
 
 Example:
 
@@ -51,10 +51,10 @@ POST /museums/_search?size=0
 }
 --------------------------------------------------
 
-<1> The `geo_bounds` aggregation specifies the field to use to obtain the bounds.
+<1> The `geo_bounds` aggregation specifies the field to use to obtain the bounds, which must be a <<geo-point>> or a <<geo-shape>> type.
 <2> [[geo-bounds-wrap-longitude]] `wrap_longitude` is an optional parameter which specifies whether the bounding box should be allowed to overlap the international date line. The default value is `true`.
 
-The above aggregation demonstrates how one would compute the bounding box of the location field for all documents with a business type of shop.
+The above aggregation demonstrates how one would compute the bounding box of the location field for all documents with a name matching "musée".
 
 The response for the above aggregation:
 

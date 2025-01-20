@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.delete;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
@@ -31,15 +32,13 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
- * A request to delete a document from an index based on its type and id. Best created using
- * {@link org.elasticsearch.client.internal.Requests#deleteRequest(String)}.
+ * A request to delete a document from an index based on its type and id.
  * <p>
  * The operation requires the {@link #index()} and {@link #id(String)} to
  * be set.
  *
  * @see DeleteResponse
  * @see org.elasticsearch.client.internal.Client#delete(DeleteRequest)
- * @see org.elasticsearch.client.internal.Requests#deleteRequest(String)
  */
 public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     implements
@@ -64,7 +63,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
 
     public DeleteRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             String type = in.readString();
             assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
         }
@@ -234,8 +233,8 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     }
 
     @Override
-    public void process(IndexRouting indexRouting) {
-        // Nothing to do
+    public boolean isRequireDataStream() {
+        return false;
     }
 
     @Override
@@ -256,7 +255,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     }
 
     private void writeBody(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeString(MapperService.SINGLE_MAPPING_NAME);
         }
         out.writeString(id);

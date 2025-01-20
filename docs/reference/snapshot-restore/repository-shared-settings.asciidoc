@@ -6,6 +6,9 @@ that restores are also throttled through <<recovery,recovery settings>>.
 `max_snapshot_bytes_per_sec`::
 (Optional, <<byte-units,byte value>>)
 Maximum snapshot creation rate per node. Defaults to `40mb` per second.
+Note that if the <<recovery-settings-for-managed-services,recovery settings for managed services>>
+are set, then it defaults to unlimited, and the rate is additionally
+throttled through <<recovery,recovery settings>>.
 
 //tag::readonly-repo-setting[]
 `readonly`::

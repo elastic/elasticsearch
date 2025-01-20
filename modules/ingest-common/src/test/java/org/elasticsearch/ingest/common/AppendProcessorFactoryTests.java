@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -15,13 +16,12 @@ import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class AppendProcessorFactoryTests extends ESTestCase {
 
@@ -39,14 +39,14 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         if (randomBoolean()) {
             value = "value1";
         } else {
-            value = Arrays.asList("value1", "value2", "value3");
+            value = List.of("value1", "value2", "value3");
         }
         config.put("value", value);
         String processorTag = randomAlphaOfLength(10);
         AppendProcessor appendProcessor = factory.create(null, processorTag, null, config);
         assertThat(appendProcessor.getTag(), equalTo(processorTag));
-        assertThat(appendProcessor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("field1"));
-        assertThat(appendProcessor.getValue().copyAndResolve(Collections.emptyMap()), equalTo(value));
+        assertThat(appendProcessor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
+        assertThat(appendProcessor.getValue().copyAndResolve(Map.of()), equalTo(value));
     }
 
     public void testCreateNoFieldPresent() throws Exception {
@@ -110,7 +110,7 @@ public class AppendProcessorFactoryTests extends ESTestCase {
 
         // invalid media type
         expectedMediaType = randomValueOtherThanMany(
-            m -> Arrays.asList(ConfigurationUtils.VALID_MEDIA_TYPES).contains(m),
+            m -> List.of(ConfigurationUtils.VALID_MEDIA_TYPES).contains(m),
             () -> randomAlphaOfLengthBetween(5, 9)
         );
         final Map<String, Object> config2 = new HashMap<>();

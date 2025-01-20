@@ -1,0 +1,94 @@
+// tag::cloud[]
+
+. Log in to the {ess-console}[{ecloud} console].
++
+. On the **Elasticsearch Service** panel, click the gear under the `Manage deployment` column that corresponds to the
+name of your deployment.
++
+. Go to `Actions > Edit deployment` and then go to the `Coordinating instances` or the `Machine Learning instances`
+section depending on the roles listed in the diagnosis:
++
+[role="screenshot"]
+image::images/troubleshooting/disk/increase-disk-capacity-other-node.png[Increase disk capacity of other nodes,align="center"]
+
+. Choose a larger than the pre-selected capacity configuration from the drop-down menu and click `save`. Wait for
+the plan to be applied and the problem should be resolved.
+
+// end::cloud[]
+
+// tag::self-managed[]
+In order to increase the disk capacity of any other node, you will need to replace the instance that has run out of
+space with one of higher disk capacity.
+
+. First, retrieve the disk threshold that will indicate how much disk space is needed. The relevant threshold is
+the <<cluster-routing-watermark-high, high watermark>> and can be retrieved via the following command:
++
+[source,console]
+----
+GET _cluster/settings?include_defaults&filter_path=*.cluster.routing.allocation.disk.watermark.high*
+----
++
+The response will look like this:
++
+[source,console-result]
+----
+{
+  "defaults": {
+    "cluster": {
+      "routing": {
+        "allocation": {
+          "disk": {
+            "watermark": {
+              "high": "90%",
+              "high.max_headroom": "150GB"
+            }
+          }
+        }
+      }
+    }
+  }
+----
+// TEST[skip:illustration purposes only]
++
+The above means that in order to resolve the disk shortage we need to either drop our disk usage below the 90% or have
+more than 150GB available, read more how this threshold works <<cluster-routing-watermark-high, here>>.
+
+. The next step is to find out the current disk usage, this will allow to calculate how much extra space is needed.
+In the following example, we show only a machine learning node for readability purposes:
++
+[source,console]
+----
+GET /_cat/nodes?v&h=name,node.role,disk.used_percent,disk.used,disk.avail,disk.total
+----
++
+The response will look like this:
++
+[source,console-result]
+----
+name                node.role disk.used_percent disk.used disk.avail disk.total
+instance-0000000000     l                 85.31    3.4gb     500mb       4gb
+----
+// TEST[skip:illustration purposes only]
+
+. The desired situation is to drop the disk usage below the relevant threshold, in our example 90%. Consider adding
+some padding, so it will not go over the threshold soon. Assuming you have the new node ready, add this node to the
+cluster.
+
+. Verify that the new node has joined the cluster:
++
+[source,console]
+----
+GET /_cat/nodes?v&h=name,node.role,disk.used_percent,disk.used,disk.avail,disk.total
+----
++
+The response will look like this:
++
+[source,console-result]
+----
+name                node.role disk.used_percent disk.used disk.avail disk.total
+instance-0000000000     l                 85.31    3.4gb     500mb       4gb
+instance-0000000001     l                 41.31    3.4gb     4.5gb       8gb
+----
+// TEST[skip:illustration purposes only]
+. Now you can remove the out of disk space instance.
+// end::self-managed[]

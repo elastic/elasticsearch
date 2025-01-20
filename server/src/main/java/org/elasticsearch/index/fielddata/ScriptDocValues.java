@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -11,9 +12,11 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.geo.BoundingBox;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 
@@ -93,6 +96,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
+    protected void throwIfBeyondLength(int i) {
+        if (i >= size()) {
+            throw new IndexOutOfBoundsException("A document doesn't have a value for a field at position [" + i + "]!");
+        }
+    }
+
     public static class Longs extends ScriptDocValues<Long> {
 
         public Longs(Supplier<Long> supplier) {
@@ -106,6 +115,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public Long get(int index) {
             throwIfEmpty();
+            throwIfBeyondLength(index);
             return supplier.getInternal(index);
         }
 
@@ -131,12 +141,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public ZonedDateTime get(int index) {
-            if (supplier.size() == 0) {
-                throw new IllegalStateException(
-                    "A document doesn't have a value for a field! "
-                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
-                );
-            }
+            throwIfEmpty();
             if (index >= supplier.size()) {
                 throw new IndexOutOfBoundsException(
                     "attempted to fetch the [" + index + "] date when there are only [" + supplier.size() + "] dates."
@@ -205,12 +210,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public Double get(int index) {
-            if (supplier.size() == 0) {
-                throw new IllegalStateException(
-                    "A document doesn't have a value for a field! "
-                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
-                );
-            }
+            throwIfEmpty();
+            throwIfBeyondLength(index);
             return supplier.getInternal(index);
         }
 
@@ -220,9 +221,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public abstract static class Geometry<T> extends ScriptDocValues<T> {
+    public abstract static class BaseGeometry<T extends SpatialPoint, V> extends ScriptDocValues<V> {
 
-        public Geometry(Supplier<T> supplier) {
+        public BaseGeometry(Supplier<V> supplier) {
             super(supplier);
         }
 
@@ -230,35 +231,52 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public abstract int getDimensionalType();
 
         /** Returns the bounding box of this geometry  */
-        public abstract GeoBoundingBox getBoundingBox();
+        public abstract BoundingBox<T> getBoundingBox();
 
         /** Returns the suggested label position  */
-        public abstract GeoPoint getLabelPosition();
+        public abstract T getLabelPosition();
 
         /** Returns the centroid of this geometry  */
-        public abstract GeoPoint getCentroid();
+        public abstract T getCentroid();
+    }
+
+    public interface Geometry {
+        /** Returns the dimensional type of this geometry */
+        int getDimensionalType();
+
+        /** Returns the bounding box of this geometry  */
+        GeoBoundingBox getBoundingBox();
+
+        /** Returns the suggested label position  */
+        GeoPoint getLabelPosition();
+
+        /** Returns the centroid of this geometry  */
+        GeoPoint getCentroid();
+
+        /** returns the size of the geometry */
+        int size();
 
         /** Returns the width of the bounding box diagonal in the spherical Mercator projection (meters)  */
-        public abstract double getMercatorWidth();
+        double getMercatorWidth();
 
         /** Returns the height of the bounding box diagonal in the spherical Mercator projection (meters) */
-        public abstract double getMercatorHeight();
+        double getMercatorHeight();
     }
 
-    public interface GeometrySupplier<T> extends Supplier<T> {
+    public interface GeometrySupplier<T extends SpatialPoint, V> extends Supplier<V> {
 
-        GeoPoint getInternalCentroid();
+        T getInternalCentroid();
 
-        GeoBoundingBox getInternalBoundingBox();
+        BoundingBox<T> getInternalBoundingBox();
 
-        GeoPoint getInternalLabelPosition();
+        T getInternalLabelPosition();
     }
 
-    public static class GeoPoints extends Geometry<GeoPoint> {
+    public static class GeoPoints extends BaseGeometry<GeoPoint, GeoPoint> implements Geometry {
 
-        private final GeometrySupplier<GeoPoint> geometrySupplier;
+        private final GeometrySupplier<GeoPoint, GeoPoint> geometrySupplier;
 
-        public GeoPoints(GeometrySupplier<GeoPoint> supplier) {
+        public GeoPoints(GeometrySupplier<GeoPoint, GeoPoint> supplier) {
             super(supplier);
             geometrySupplier = supplier;
         }
@@ -293,12 +311,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public GeoPoint get(int index) {
-            if (supplier.size() == 0) {
-                throw new IllegalStateException(
-                    "A document doesn't have a value for a field! "
-                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
-                );
-            }
+            throwIfEmpty();
+            throwIfBeyondLength(index);
             final GeoPoint point = supplier.getInternal(index);
             return new GeoPoint(point.lat(), point.lon());
         }
@@ -366,7 +380,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public GeoBoundingBox getBoundingBox() {
-            return size() == 0 ? null : geometrySupplier.getInternalBoundingBox();
+            return size() == 0 ? null : (GeoBoundingBox) geometrySupplier.getInternalBoundingBox();
         }
 
         @Override
@@ -389,6 +403,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public Boolean get(int index) {
             throwIfEmpty();
+            throwIfBeyondLength(index);
             return supplier.getInternal(index);
         }
 
@@ -465,12 +480,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public String get(int index) {
-            if (supplier.size() == 0) {
-                throw new IllegalStateException(
-                    "A document doesn't have a value for a field! "
-                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
-                );
-            }
+            throwIfEmpty();
+            throwIfBeyondLength(index);
             return supplier.getInternal(index);
         }
 
@@ -494,6 +505,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public BytesRef get(int index) {
             throwIfEmpty();
+            throwIfBeyondLength(index);
             return supplier.getInternal(index);
         }
 

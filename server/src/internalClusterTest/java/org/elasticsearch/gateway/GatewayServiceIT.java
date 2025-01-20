@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
@@ -27,8 +28,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import java.util.function.Predicate;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class GatewayServiceIT extends ESIntegTestCase {
@@ -68,7 +68,7 @@ public class GatewayServiceIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
+                public void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate) {}
 
                 @Override
                 public void allocateUnassigned(
@@ -125,10 +125,7 @@ public class GatewayServiceIT extends ESIntegTestCase {
     }
 
     public void testSettingsAppliedBeforeReroute() throws Exception {
-
-        assertAcked(
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(TEST_SETTING.getKey(), true))
-        );
+        updateClusterSettings(Settings.builder().put(TEST_SETTING.getKey(), true));
 
         createIndex("test-index");
 

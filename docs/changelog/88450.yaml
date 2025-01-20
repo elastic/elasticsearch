@@ -1,5 +1,0 @@
-pr: 88450
-summary: Add new `cache_size` parameter to `trained_model` deployments API
-area: Machine Learning
-type: enhancement
-issues: []

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.termvectors;
@@ -48,7 +49,7 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         createIndex("test", Settings.EMPTY, mapping);
         ensureGreen();
 
-        client().prepareIndex("test").setId("0").setSource("field", "foo bar").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("0").setSource("field", "foo bar").setRefreshPolicy(IMMEDIATE).get();
 
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -82,9 +83,7 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         int max = between(3, 10);
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < max; i++) {
-            bulk.add(
-                client().prepareIndex("test").setId(Integer.toString(i)).setSource("text", "the quick brown fox jumped over the lazy dog")
-            );
+            bulk.add(prepareIndex("test").setId(Integer.toString(i)).setSource("text", "the quick brown fox jumped over the lazy dog"));
         }
         bulk.get();
 
@@ -123,9 +122,7 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         int max = between(3, 10);
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < max; i++) {
-            bulk.add(
-                client().prepareIndex("test").setId(Integer.toString(i)).setSource("text", "the quick brown fox jumped over the lazy dog")
-            );
+            bulk.add(prepareIndex("test").setId(Integer.toString(i)).setSource("text", "the quick brown fox jumped over the lazy dog"));
         }
         bulk.get();
 

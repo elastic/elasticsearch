@@ -20,8 +20,17 @@ limits the maximum number of clauses in a query.
 +
 [TIP]
 ====
-If your field mappings contain a large, arbitrary set of keys, consider using the <<flattened,flattened>> data type.
+If your field mappings contain a large, arbitrary set of keys, consider using the <<flattened,flattened>> data type,
+or setting the index setting `index.mapping.total_fields.ignore_dynamic_beyond_limit` to `true`.
 ====
+
+`index.mapping.total_fields.ignore_dynamic_beyond_limit`::
+    This setting determines what happens when a dynamically mapped field would exceed the total fields limit.
+    When set to `false` (the default), the index request of the document that tries to add a dynamic field to the mapping will fail with the message `Limit of total fields [X] has been exceeded`.
+    When set to `true`, the index request will not fail.
+    Instead, fields that would exceed the limit are not added to the mapping, similar to <<dynamic, `dynamic: false`>>.
+    The fields that were not added to the mapping will be added to the <<mapping-ignored-field, `_ignored` field>>.
+    The default value is `false`.
 
 `index.mapping.depth.limit`::
     The maximum depth for a field, which is measured as the number of inner
@@ -49,4 +58,4 @@ If your field mappings contain a large, arbitrary set of keys, consider using th
     unless a user starts to add a huge number of fields with really long names. Default is
     `Long.MAX_VALUE` (no limit).
 
-include::{es-repo-dir}/data-streams/tsds-index-settings.asciidoc[tag=dimensions-limit]
+include::{es-ref-dir}/data-streams/tsds-index-settings.asciidoc[tag=dimensions-limit]

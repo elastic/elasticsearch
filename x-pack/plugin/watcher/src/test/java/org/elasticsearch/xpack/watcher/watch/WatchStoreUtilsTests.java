@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.watcher.watch;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -133,11 +133,8 @@ public class WatchStoreUtilsTests extends ESTestCase {
 
     private IndexMetadata createIndexMetaData(String indexName, AliasMetadata aliasMetadata) {
         IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexName);
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_PRIORITY, 5)
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+        Settings settings = indexSettings(1, 1).put(IndexMetadata.SETTING_PRIORITY, 5)
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
             .build();
         indexMetadataBuilder.settings(settings);
         if (aliasMetadata != null) {

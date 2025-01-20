@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.actions.pagerduty.PagerDutyAction;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
@@ -119,10 +119,9 @@ public class SentEvent implements ToXContentObject {
         // lets first try to parse the error response in the body
         // based on https://developer.pagerduty.com/documentation/rest/errors
         try (
-            InputStream stream = response.body().streamInput();
-            XContentParser parser = JsonXContent.jsonXContent
+            XContentParser parser = XContentHelper
                 // EMPTY is safe here because we never call namedObject
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                .createParserNotCompressed(LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG, response.body(), XContentType.JSON)
         ) {
             parser.nextToken();
 

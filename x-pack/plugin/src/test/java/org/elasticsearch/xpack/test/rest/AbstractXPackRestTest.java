@@ -33,7 +33,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -100,7 +102,8 @@ public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
             Map.of(),
             List.of(),
             response -> true,
-            () -> "Exception when waiting for initial license to be generated"
+            () -> "Exception when waiting for initial license to be generated",
+            30 // longer wait time to accommodate slow-running CI release builds
         );
     }
 
@@ -116,11 +119,15 @@ public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
         if (isWaitForPendingTasks()) {
             // This waits for pending tasks to complete, so must go last (otherwise
             // it could be waiting for pending tasks while monitoring is still running).
-            waitForPendingTasks(adminClient(), task -> {
-                // Don't check rollup jobs because we clear them in the superclass.
-                return task.contains(RollupJob.NAME);
-            });
+            waitForPendingTasks(adminClient(), waitForPendingTasksFilter());
         }
+    }
+
+    protected Predicate<String> waitForPendingTasksFilter() {
+        return task -> {
+            // Don't check rollup jobs because we clear them in the superclass.
+            return task.contains(RollupJob.NAME);
+        };
     }
 
     /**
@@ -142,6 +149,17 @@ public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
         CheckedFunction<ClientYamlTestResponse, Boolean, IOException> success,
         Supplier<String> error
     ) {
+        awaitCallApi(apiName, params, bodies, success, error, 10);
+    }
+
+    private void awaitCallApi(
+        String apiName,
+        Map<String, String> params,
+        List<Map<String, Object>> bodies,
+        CheckedFunction<ClientYamlTestResponse, Boolean, IOException> success,
+        Supplier<String> error,
+        long maxWaitTimeInSeconds
+    ) {
         try {
             final AtomicReference<ClientYamlTestResponse> response = new AtomicReference<>();
             assertBusy(() -> {
@@ -155,7 +173,7 @@ public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
                     // rather than a runtime failure (which terminates the loop)
                     throw new AssertionError("Failed to call API " + apiName, e);
                 }
-            });
+            }, maxWaitTimeInSeconds, TimeUnit.SECONDS);
             success.apply(response.get());
         } catch (Exception e) {
             throw new IllegalStateException(error.get(), e);

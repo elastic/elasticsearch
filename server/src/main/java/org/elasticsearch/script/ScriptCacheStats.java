@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -21,36 +22,29 @@ import java.util.Map;
 import java.util.Objects;
 
 // This class is deprecated in favor of ScriptStats and ScriptContextStats
-public class ScriptCacheStats implements Writeable, ToXContentFragment {
-    private final Map<String, ScriptStats> context;
-    private final ScriptStats general;
+public record ScriptCacheStats(Map<String, ScriptStats> context, ScriptStats general) implements Writeable, ToXContentFragment {
 
     public ScriptCacheStats(Map<String, ScriptStats> context) {
-        this.context = Collections.unmodifiableMap(context);
-        this.general = null;
+        this(Collections.unmodifiableMap(context), null);
     }
 
     public ScriptCacheStats(ScriptStats general) {
-        this.general = Objects.requireNonNull(general);
-        this.context = null;
+        this(null, Objects.requireNonNull(general));
     }
 
-    public ScriptCacheStats(StreamInput in) throws IOException {
+    public static ScriptCacheStats read(StreamInput in) throws IOException {
         boolean isContext = in.readBoolean();
         if (isContext == false) {
-            general = new ScriptStats(in);
-            context = null;
-            return;
+            return new ScriptCacheStats(ScriptStats.read(in));
         }
 
-        general = null;
         int size = in.readInt();
         Map<String, ScriptStats> context = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             String name = in.readString();
-            context.put(name, new ScriptStats(in));
+            context.put(name, ScriptStats.read(in));
         }
-        this.context = Collections.unmodifiableMap(context);
+        return new ScriptCacheStats(context);
     }
 
     @Override

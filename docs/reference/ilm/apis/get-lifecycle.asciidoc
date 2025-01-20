@@ -5,7 +5,13 @@
 <titleabbrev>Get policy</titleabbrev>
 ++++
 
-Retrieves a lifecycle policy.
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ilm[{ilm-cap} APIs].
+--
+
+Retrieves a <<index-lifecycle-management,lifecycle>> policy.
 
 [[ilm-get-lifecycle-request]]
 ==== {api-request-title}
@@ -36,7 +42,7 @@ modified date. If no policy is specified, returns all defined policies.
 [[ilm-get-lifecycle-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [[ilm-get-lifecycle-example]]
 ==== {api-examples-title}

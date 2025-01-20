@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery.ec2;
@@ -14,7 +15,7 @@ import com.amazonaws.services.ec2.model.Instance;
 import org.apache.http.HttpStatus;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -50,7 +51,7 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
             Settings.EMPTY,
             new Netty4Transport(
                 Settings.EMPTY,
-                Version.CURRENT,
+                TransportVersion.current(),
                 threadPool,
                 networkService,
                 PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -100,6 +101,7 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
                     exchange.getResponseHeaders().set("Content-Type", "text/xml; charset=UTF-8");
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, responseBody.length);
                     exchange.getResponseBody().write(responseBody);
+                    exchange.getResponseBody().flush();
                     return;
                 }
             }

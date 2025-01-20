@@ -13,7 +13,12 @@ public class DeprecationInfoActionRequestTests extends AbstractWireSerializingTe
 
     @Override
     protected DeprecationInfoAction.Request createTestInstance() {
-        return new DeprecationInfoAction.Request(randomAlphaOfLength(10));
+        return new DeprecationInfoAction.Request(randomTimeValue(), randomAlphaOfLength(10));
+    }
+
+    @Override
+    protected DeprecationInfoAction.Request mutateInstance(DeprecationInfoAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

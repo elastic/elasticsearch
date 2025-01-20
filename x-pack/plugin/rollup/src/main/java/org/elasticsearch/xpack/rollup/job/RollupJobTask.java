@@ -11,14 +11,15 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.core.scheduler.CronSchedule;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,7 +60,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         private final ThreadPool threadPool;
 
         public RollupJobPersistentTasksExecutor(Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool) {
-            super(RollupField.TASK_NAME, ThreadPool.Names.GENERIC);
+            super(RollupField.TASK_NAME, threadPool.generic());
             this.client = client;
             this.schedulerEngine = schedulerEngine;
             this.threadPool = threadPool;
@@ -130,7 +130,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                 job.getHeaders(),
                 ClientHelper.ROLLUP_ORIGIN,
                 client,
-                SearchAction.INSTANCE,
+                TransportSearchAction.TYPE,
                 buildSearchRequest(),
                 nextPhase
             );
@@ -142,7 +142,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                 job.getHeaders(),
                 ClientHelper.ROLLUP_ORIGIN,
                 client,
-                BulkAction.INSTANCE,
+                TransportBulkAction.TYPE,
                 request,
                 nextPhase
             );
@@ -164,10 +164,10 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         @Override
         protected void onFinish(ActionListener<Void> listener) {
             final RollupJobConfig jobConfig = job.getConfig();
-            final ActionListener<RefreshResponse> refreshResponseActionListener = new ActionListener<>() {
+            final ActionListener<BroadcastResponse> refreshResponseActionListener = new ActionListener<>() {
 
                 @Override
-                public void onResponse(RefreshResponse refreshResponse) {
+                public void onResponse(BroadcastResponse refreshResponse) {
                     logger.trace("refreshing rollup index {} successful for job {}", jobConfig.getRollupIndex(), jobConfig.getId());
                     listener.onResponse(null);
                 }
@@ -463,8 +463,8 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
     public synchronized void triggered(SchedulerEngine.Event event) {
         // Verify this is actually the event that we care about, then trigger the indexer.
         // Note that the status of the indexer is checked in the indexer itself
-        if (event.getJobName().equals(SCHEDULE_NAME + "_" + job.getConfig().getId())) {
-            logger.debug("Rollup indexer [" + event.getJobName() + "] schedule has triggered, state: [" + indexer.getState() + "]");
+        if (event.jobName().equals(SCHEDULE_NAME + "_" + job.getConfig().getId())) {
+            logger.debug("Rollup indexer [" + event.jobName() + "] schedule has triggered, state: [" + indexer.getState() + "]");
             indexer.maybeTriggerAsyncJob(System.currentTimeMillis());
         }
     }

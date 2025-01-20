@@ -27,6 +27,11 @@ public class GetCategoriesResponseTests extends AbstractWireSerializingTestCase<
     }
 
     @Override
+    protected GetCategoriesAction.Response mutateInstance(GetCategoriesAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<GetCategoriesAction.Response> instanceReader() {
         return GetCategoriesAction.Response::new;
     }

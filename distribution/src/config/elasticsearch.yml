@@ -75,12 +75,6 @@
 #
 # For more information, consult the discovery and cluster formation module documentation.
 #
-# --------------------------------- Readiness ----------------------------------
-#
-# Enable an unauthenticated TCP readiness endpoint on localhost
-#
-#readiness.port: 9399
-#
 # ---------------------------------- Various -----------------------------------
 #
 # Allow wildcard deletion of indices:

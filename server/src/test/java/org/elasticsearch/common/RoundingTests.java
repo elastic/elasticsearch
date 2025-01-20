@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
@@ -1017,17 +1018,21 @@ public class RoundingTests extends ESTestCase {
     }
 
     public void testHugeTimeFewAttempts() {
-        ZoneId tz = ZoneId.of("Asia/Tehran");
+        // this needs around 410 transitions to get to this time from 2022
+        String to = "2178-11-10T02:51:22.662Z";
+        int maxChanges = 200;
+        // this tz is unlikely to change in the future
+        ZoneId tz = ZoneId.of("SystemV/EST5EDT");
         Rounding.TimeIntervalRounding.JavaTimeRounding prepared = (Rounding.TimeIntervalRounding.JavaTimeRounding) Rounding.builder(
             TimeValue.timeValueDays(80000)
         ).timeZone(tz).build().prepareJavaTime();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> prepared.round(time("2178-11-10T02:51:22.662Z"), 200));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> prepared.round(time(to), maxChanges));
         assertThat(
             e.getMessage(),
             equalTo(
                 "Rounding["
                     + TimeValue.timeValueDays(80000).millis()
-                    + " in Asia/Tehran][java.time] failed to round 3446656199999 down: "
+                    + " in SystemV/EST5EDT][java.time] failed to round 3450063599999 down: "
                     + "transitioned backwards through too many daylight savings time transitions"
             )
         );

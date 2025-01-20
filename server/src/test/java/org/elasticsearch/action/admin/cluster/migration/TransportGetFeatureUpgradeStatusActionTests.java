@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.migration;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 
@@ -23,10 +26,13 @@ import java.util.Map;
 
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.MIGRATION_NEEDED;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
 
     public static String TEST_SYSTEM_INDEX_PATTERN = ".test*";
+    // Version just before MINIMUM_COMPATIBLE in order to check that UpgradeStatus.MIGRATION_NEEDED is set correctly
+    private static final IndexVersion TEST_OLD_VERSION = IndexVersion.fromId(IndexVersions.MINIMUM_COMPATIBLE.id() - 1);
     private static final ClusterState CLUSTER_STATE = getClusterState();
     private static final SystemIndices.Feature FEATURE = getFeature();
 
@@ -38,8 +44,8 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
 
         assertThat(status.getUpgradeStatus(), equalTo(MIGRATION_NEEDED));
         assertThat(status.getFeatureName(), equalTo("test-feature"));
-        assertThat(status.getMinimumIndexVersion(), equalTo(Version.V_7_0_0));
-        assertThat(status.getIndexVersions().size(), equalTo(2)); // additional testing below
+        assertThat(status.getMinimumIndexVersion(), equalTo(TEST_OLD_VERSION));
+        assertThat(status.getIndexVersions(), hasSize(2)); // additional testing below
     }
 
     public void testGetIndexInfos() {
@@ -48,22 +54,22 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
             FEATURE
         );
 
-        assertThat(versions.size(), equalTo(2));
+        assertThat(versions, hasSize(2));
 
         {
             GetFeatureUpgradeStatusResponse.IndexInfo version = versions.get(0);
-            assertThat(version.getVersion(), equalTo(Version.CURRENT));
+            assertThat(version.getVersion(), equalTo(IndexVersion.current()));
             assertThat(version.getIndexName(), equalTo(".test-index-1"));
         }
         {
             GetFeatureUpgradeStatusResponse.IndexInfo version = versions.get(1);
-            assertThat(version.getVersion(), equalTo(Version.V_7_0_0));
+            assertThat(version.getVersion(), equalTo(TEST_OLD_VERSION));
             assertThat(version.getIndexName(), equalTo(".test-index-2"));
         }
     }
 
     private static SystemIndices.Feature getFeature() {
-        SystemIndexDescriptor descriptor = new SystemIndexDescriptor(TEST_SYSTEM_INDEX_PATTERN, "descriptor for tests");
+        SystemIndexDescriptor descriptor = SystemIndexDescriptorUtils.createUnmanaged(TEST_SYSTEM_INDEX_PATTERN, "descriptor for tests");
 
         List<SystemIndexDescriptor> descriptors = new ArrayList<>();
         descriptors.add(descriptor);
@@ -75,13 +81,13 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
 
     private static ClusterState getClusterState() {
         IndexMetadata indexMetadata1 = IndexMetadata.builder(".test-index-1")
-            .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+            .settings(Settings.builder().put("index.version.created", IndexVersion.current()).build())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
 
         IndexMetadata indexMetadata2 = IndexMetadata.builder(".test-index-2")
-            .settings(Settings.builder().put("index.version.created", Version.V_7_0_0).build())
+            .settings(Settings.builder().put("index.version.created", TEST_OLD_VERSION).build())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();

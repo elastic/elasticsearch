@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.get;
@@ -13,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
@@ -41,6 +43,16 @@ public class DocumentFieldTests extends ESTestCase {
         assertEquals("{\"field\":[\"value1\",\"value2\"]}", output);
         String ignoredOutput = Strings.toString(documentField.getIgnoredValuesWriter());
         assertEquals("{\"field\":[\"ignored1\",\"ignored2\"]}", ignoredOutput);
+    }
+
+    public void testUnserializableXContent() {
+        DocumentField df = new DocumentField(
+            "field",
+            List.of((ToXContent) (builder, params) -> { throw new UnsupportedOperationException(); })
+        );
+        String output = Strings.toString(df.getValidValuesWriter());
+        assertEquals("""
+            {"field":["<unserializable>"]}""", output);
     }
 
     public void testEqualsAndHashcode() {
@@ -111,7 +123,7 @@ public class DocumentFieldTests extends ESTestCase {
         if (isMetafield) {
             String metaField = randomValueOtherThanMany(excludeMetaFieldFilter, () -> randomFrom(IndicesModule.getBuiltInMetadataFields()));
             DocumentField documentField;
-            if (metaField.equals(IgnoredFieldMapper.NAME)) {
+            if (IgnoredFieldMapper.NAME.equals(metaField) || IgnoredSourceFieldMapper.NAME.equals(metaField)) {
                 int numValues = randomIntBetween(1, 3);
                 List<Object> ignoredFields = new ArrayList<>(numValues);
                 for (int i = 0; i < numValues; i++) {
@@ -119,7 +131,7 @@ public class DocumentFieldTests extends ESTestCase {
                 }
                 documentField = new DocumentField(metaField, ignoredFields);
             } else {
-                // meta fields are single value only, besides _ignored
+                // meta fields are single value only, besides _ignored and _ignored_source
                 documentField = new DocumentField(metaField, Collections.singletonList(randomAlphaOfLengthBetween(3, 10)));
             }
             return Tuple.tuple(documentField, documentField);

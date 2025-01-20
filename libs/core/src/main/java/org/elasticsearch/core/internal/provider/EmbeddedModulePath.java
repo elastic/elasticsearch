@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.core.internal.provider;
@@ -213,7 +214,7 @@ final class EmbeddedModulePath {
         if (parent == null) {
             String name = file.toString();
             if (name.endsWith(".class") && name.equals(MODULE_INFO) == false) {
-                String msg = name + " found in top-level directory" + " (unnamed package not allowed in module)";
+                String msg = name + " found in top-level directory (unnamed package not allowed in module)";
                 throw new InvalidModuleDescriptorException(msg);
             }
             return Optional.empty();

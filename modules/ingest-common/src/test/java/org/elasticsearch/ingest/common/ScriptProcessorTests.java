@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -20,13 +21,12 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.core.Is.is;
+import static org.hamcrest.Matchers.is;
 
 public class ScriptProcessorTests extends ESTestCase {
 
@@ -39,20 +39,17 @@ public class ScriptProcessorTests extends ESTestCase {
         String scriptName = "script";
         scriptService = new ScriptService(
             Settings.builder().build(),
-            Collections.singletonMap(
-                Script.DEFAULT_SCRIPT_LANG,
-                new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> {
-                    Integer bytesIn = (Integer) ctx.get("bytes_in");
-                    Integer bytesOut = (Integer) ctx.get("bytes_out");
-                    ctx.put("bytes_total", bytesIn + bytesOut);
-                    ctx.put("_dynamic_templates", Map.of("foo", "bar"));
-                    return null;
-                }), Collections.emptyMap())
-            ),
+            Map.of(Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Map.of(scriptName, ctx -> {
+                Integer bytesIn = (Integer) ctx.get("bytes_in");
+                Integer bytesOut = (Integer) ctx.get("bytes_out");
+                ctx.put("bytes_total", bytesIn + bytesOut);
+                ctx.put("_dynamic_templates", Map.of("foo", "bar"));
+                return null;
+            }), Map.of())),
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
             () -> 1L
         );
-        script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap());
+        script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Map.of());
         ingestScriptFactory = scriptService.compile(script, IngestScript.CONTEXT);
     }
 

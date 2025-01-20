@@ -1,5 +1,0 @@
-pr: 86514
-summary: Make snapshot deletes not block the repository during data blob deletes
-area: Snapshot/Restore
-type: enhancement
-issues: []

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,6 +37,7 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
     private final AsyncResultsService<AsyncTask, StoredAsyncResponse<Response>> resultsService;
     private final TransportService transportService;
 
+    @SuppressWarnings("this-escape")
     public AbstractTransportQlAsyncGetResultsAction(
         String actionName,
         TransportService transportService,
@@ -47,7 +49,7 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
         BigArrays bigArrays,
         Class<? extends AsyncTask> asynkTaskClass
     ) {
-        super(actionName, transportService, actionFilters, GetAsyncResultRequest::new);
+        super(actionName, transportService, actionFilters, GetAsyncResultRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.actionName = actionName;
         this.transportService = transportService;
         this.resultsService = createResultsService(
@@ -62,7 +64,7 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
     }
 
     AsyncResultsService<AsyncTask, StoredAsyncResponse<Response>> createResultsService(
-        TransportService transportServiceArg,
+        TransportService transportService,
         ClusterService clusterService,
         NamedWriteableRegistry registry,
         Client client,
@@ -86,7 +88,7 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
             false,
             asyncTaskClass,
             (task, listener, timeout) -> AsyncTaskManagementService.addCompletionListener(threadPool, task, listener, timeout),
-            transportServiceArg.getTaskManager(),
+            transportService.getTaskManager(),
             clusterService
         );
     }
@@ -95,19 +97,19 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
     protected void doExecute(Task task, GetAsyncResultRequest request, ActionListener<Response> listener) {
         DiscoveryNode node = resultsService.getNode(request.getId());
         if (node == null || resultsService.isLocalNode(node)) {
-            resultsService.retrieveResult(request, ActionListener.wrap(r -> {
+            resultsService.retrieveResult(request, listener.delegateFailureAndWrap((l, r) -> {
                 if (r.getException() != null) {
-                    listener.onFailure(r.getException());
+                    l.onFailure(r.getException());
                 } else {
-                    listener.onResponse(r.getResponse());
+                    l.onResponse(r.getResponse());
                 }
-            }, listener::onFailure));
+            }));
         } else {
             transportService.sendRequest(
                 node,
                 actionName,
                 request,
-                new ActionListenerResponseHandler<>(listener, responseReader(), ThreadPool.Names.SAME)
+                new ActionListenerResponseHandler<>(listener, responseReader(), EsExecutors.DIRECT_EXECUTOR_SERVICE)
             );
         }
     }

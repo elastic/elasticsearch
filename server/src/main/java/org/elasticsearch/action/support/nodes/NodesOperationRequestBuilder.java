@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.nodes;
@@ -14,7 +15,7 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
 
 public abstract class NodesOperationRequestBuilder<
-    Request extends BaseNodesRequest<Request>,
+    Request extends BaseNodesRequest,
     Response extends BaseNodesResponse<?>,
     RequestBuilder extends NodesOperationRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestBuilder<
         Request,
@@ -25,20 +26,9 @@ public abstract class NodesOperationRequestBuilder<
     }
 
     @SuppressWarnings("unchecked")
-    public final RequestBuilder setNodesIds(String... nodesIds) {
-        request.nodesIds(nodesIds);
-        return (RequestBuilder) this;
-    }
-
-    @SuppressWarnings("unchecked")
     public RequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
+        request.setTimeout(timeout);
         return (RequestBuilder) this;
     }
 
-    @SuppressWarnings("unchecked")
-    public final RequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
-        return (RequestBuilder) this;
-    }
 }

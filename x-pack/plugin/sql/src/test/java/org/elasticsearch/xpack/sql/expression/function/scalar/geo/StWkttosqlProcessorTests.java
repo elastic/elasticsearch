@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.geo;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 
@@ -28,17 +29,17 @@ public class StWkttosqlProcessorTests extends ESTestCase {
 
     public void testTypeCheck() {
         StWkttosqlProcessor procPoint = new StWkttosqlProcessor();
-        QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class, () -> procPoint.process(42));
-        assertEquals("A string is required; received [42]", siae.getMessage());
+        Exception e = expectThrows(QlIllegalArgumentException.class, () -> procPoint.process(42));
+        assertEquals("A string is required; received [42]", e.getMessage());
 
-        siae = expectThrows(QlIllegalArgumentException.class, () -> procPoint.process("some random string"));
-        assertEquals("Cannot parse [some random string] as a geo_shape value", siae.getMessage());
+        e = expectThrows(InvalidArgumentException.class, () -> procPoint.process("some random string"));
+        assertEquals("Cannot parse [some random string] as a geo_shape value", e.getMessage());
 
-        siae = expectThrows(QlIllegalArgumentException.class, () -> procPoint.process("point (foo bar)"));
-        assertEquals("Cannot parse [point (foo bar)] as a geo_shape or shape value", siae.getMessage());
+        e = expectThrows(InvalidArgumentException.class, () -> procPoint.process("point (foo bar)"));
+        assertEquals("Cannot parse [point (foo bar)] as a geo_shape or shape value", e.getMessage());
 
-        siae = expectThrows(QlIllegalArgumentException.class, () -> procPoint.process("point (10 10"));
-        assertEquals("Cannot parse [point (10 10] as a geo_shape or shape value", siae.getMessage());
+        e = expectThrows(InvalidArgumentException.class, () -> procPoint.process("point (10 10"));
+        assertEquals("Cannot parse [point (10 10] as a geo_shape or shape value", e.getMessage());
     }
 
     public void testCoerce() {

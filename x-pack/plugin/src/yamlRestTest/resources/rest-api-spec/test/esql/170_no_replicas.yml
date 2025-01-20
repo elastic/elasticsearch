@@ -1,0 +1,181 @@
+---
+setup:
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: "Planning bugs for locally missing fields fixed in v 8.15"
+      test_runner_features: allowed_warnings_regex
+  - do:
+      indices.create:
+        index:  test1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              name1:
+                type: keyword
+  - do:
+      bulk:
+        index: "test1"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "name1": "1"}
+  - do:
+      indices.create:
+        index:  test2
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              name2:
+                type: keyword
+  - do:
+      bulk:
+        index: "test2"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "name2": "2"}
+
+  - do:
+      indices.create:
+        index:  test3
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              name3:
+                type: keyword
+  - do:
+      bulk:
+        index: "test3"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "name3": "3"}
+
+  - do:
+      indices.create:
+        index:  test4
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              name4:
+                type: keyword
+  - do:
+      bulk:
+        index: "test4"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "name4": "4"}
+
+  - do:
+      indices.create:
+        index:  test5
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              name5:
+                type: keyword
+  - do:
+      bulk:
+        index: "test5"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "name5": "5"}
+
+  - do:
+      indices.create:
+        index:  test6
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              name6:
+                type: keyword
+  - do:
+      bulk:
+        index: "test6"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "name6": "6"}
+
+  - do:
+      indices.create:
+        index:  test7
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              name7:
+                type: keyword
+  - do:
+      bulk:
+        index: "test7"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "name7": "7"}
+
+  - do:
+      indices.create:
+        index:  test8
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              name8:
+                type: keyword
+  - do:
+      bulk:
+        index: "test8"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "name8": "8"}
+
+---
+"Test From 1":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test* | MV_EXPAND name1 | KEEP name1 | SORT name1 NULLS LAST | LIMIT 1'
+
+  - match: {columns.0.name: "name1"}
+  - match: {columns.0.type: "keyword"}
+  - length: { values: 1 }
+  - match: {values.0.0: "1"}
+
+---
+"Test From 5":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test* | MV_EXPAND name5 | KEEP name5 | SORT name5 NULLS LAST | LIMIT 1'
+
+  - match: {columns.0.name: "name5"}
+  - match: {columns.0.type: "keyword"}
+  - length: { values: 1 }
+  - match: {values.0.0: "5"}
+

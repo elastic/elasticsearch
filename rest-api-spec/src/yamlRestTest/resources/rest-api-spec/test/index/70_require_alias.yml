@@ -1,7 +1,7 @@
 ---
 "Set require_alias flag":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: "require_alias flag added in 7.10"
   - do:
       catch: missing

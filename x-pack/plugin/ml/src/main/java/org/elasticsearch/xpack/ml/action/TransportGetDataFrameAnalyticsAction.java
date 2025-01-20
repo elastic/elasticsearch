@@ -11,10 +11,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
@@ -83,7 +83,7 @@ public class TransportGetDataFrameAnalyticsAction extends AbstractTransportGetRe
         searchResources(
             request,
             new TaskId(clusterService.localNode().getId(), task.getId()),
-            ActionListener.wrap(queryPage -> listener.onResponse(new GetDataFrameAnalyticsAction.Response(queryPage)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, queryPage) -> l.onResponse(new GetDataFrameAnalyticsAction.Response(queryPage)))
         );
     }
 

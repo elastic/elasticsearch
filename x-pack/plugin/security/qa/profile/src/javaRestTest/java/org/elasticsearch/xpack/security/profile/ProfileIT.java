@@ -7,20 +7,34 @@
 
 package org.elasticsearch.xpack.security.profile;
 
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
@@ -30,11 +44,57 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ProfileIT extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = createCluster();
+
+    private static ElasticsearchCluster createCluster() {
+        LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
+            .nodes(2)
+            .distribution(DistributionType.DEFAULT)
+            .rolesFile(Resource.fromClasspath("roles.yml"))
+            .setting("xpack.license.self_generated.type", "trial")
+            .setting("xpack.security.enabled", "true")
+            .setting("xpack.ml.enabled", "false")
+            .setting("xpack.security.authc.token.enabled", "true")
+            .setting("xpack.security.authc.api_key.enabled", "true")
+            .setting("xpack.security.authc.realms.ldap.ldap1.enabled", "false")
+            .setting("xpack.security.authc.domains.my_domain.realms", "default_file,ldap1")
+            .setting("xpack.security.authc.realms.saml.saml1.enabled", "false")
+            .setting("xpack.security.authc.realms.active_directory.ad1.enabled", "false")
+            .setting("xpack.security.authc.domains.other_domain.realms", "saml1,ad1")
+            // Ensure new cache setting is recognised
+            .setting("xpack.security.authz.store.roles.has_privileges.cache.max_size", "100")
+            .user("test-admin", "x-pack-test-password")
+            .user("rac-user", "x-pack-test-password", "rac_user_role", false);
+        if (Booleans.parseBoolean(System.getProperty("test.literalUsername"))) {
+            clusterBuilder.setting("xpack.security.authc.domains.my_domain.uid_generation.literal_username", "true")
+                .setting("xpack.security.authc.domains.my_domain.uid_generation.suffix", "es");
+        }
+        return clusterBuilder.build();
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+    @Override
+    protected Settings restAdminSettings() {
+        return Settings.builder()
+            .put(
+                ThreadContext.PREFIX + ".Authorization",
+                basicAuthHeaderValue("test-admin", new SecureString("x-pack-test-password".toCharArray()))
+            )
+            .build();
+    }
 
     public static final String SAMPLE_PROFILE_DOCUMENT_TEMPLATE = """
         {
@@ -73,16 +133,6 @@ public class ProfileIT extends ESRestTestCase {
         }
         """;
 
-    @Override
-    protected Settings restAdminSettings() {
-        return Settings.builder()
-            .put(
-                ThreadContext.PREFIX + ".Authorization",
-                basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()))
-            )
-            .build();
-    }
-
     public void testActivateProfile() throws IOException {
         final Map<String, Object> activateProfileMap = doActivateProfile();
 
@@ -96,7 +146,7 @@ public class ProfileIT extends ESRestTestCase {
         final Map<String, Object> activateProfileMap = doActivateProfile();
         final String profileUid = (String) activateProfileMap.get("uid");
         final Request profileHasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges");
-        profileHasPrivilegesRequest.setJsonEntity("""
+        profileHasPrivilegesRequest.setJsonEntity(Strings.format("""
             {
               "uids": ["some_missing_profile", "%s"],
               "privileges": {
@@ -110,13 +160,24 @@ public class ProfileIT extends ESRestTestCase {
                   "cluster:monitor/health"
                 ]
               }
-            }""".formatted(profileUid));
+            }""", profileUid));
 
         final Response profileHasPrivilegesResponse = adminClient().performRequest(profileHasPrivilegesRequest);
         assertOK(profileHasPrivilegesResponse);
         Map<String, Object> profileHasPrivilegesResponseMap = responseAsMap(profileHasPrivilegesResponse);
-        assertThat(profileHasPrivilegesResponseMap.keySet(), contains("has_privilege_uids"));
+        assertThat(profileHasPrivilegesResponseMap.keySet(), contains("has_privilege_uids", "errors"));
         assertThat(((List<String>) profileHasPrivilegesResponseMap.get("has_privilege_uids")), contains(profileUid));
+        assertThat(
+            profileHasPrivilegesResponseMap.get("errors"),
+            equalTo(
+                Map.of(
+                    "count",
+                    1,
+                    "details",
+                    Map.of("some_missing_profile", Map.of("type", "resource_not_found_exception", "reason", "profile document not found"))
+                )
+            )
+        );
     }
 
     public void testGetProfiles() throws IOException {
@@ -135,7 +196,7 @@ public class ProfileIT extends ESRestTestCase {
 
         // Create the profile documents
         for (String uid : uids) {
-            final String source = SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(uid, uid, Instant.now().toEpochMilli());
+            final String source = Strings.format(SAMPLE_PROFILE_DOCUMENT_TEMPLATE, uid, uid, Instant.now().toEpochMilli());
             final Request indexRequest = new Request("PUT", ".security-profile/_doc/profile_" + uid);
             indexRequest.setJsonEntity(source);
             indexRequest.addParameter("refresh", "wait_for");
@@ -143,7 +204,7 @@ public class ProfileIT extends ESRestTestCase {
                 expectWarnings(
                     "this request accesses system indices: [.security-profile-8], but in a future major version, "
                         + "direct access to system indices will be prevented by default"
-                )
+                ).toBuilder().addHeader("X-elastic-product-origin", "elastic")
             );
             assertOK(adminClient().performRequest(indexRequest));
         }
@@ -196,11 +257,11 @@ public class ProfileIT extends ESRestTestCase {
         errorDetails4.values().forEach(value -> assertThat(castToMap(value).get("type"), equalTo("resource_not_found_exception")));
     }
 
-    public void testUpdateProfileData() throws IOException {
+    public void testStoreProfileData() throws IOException {
         final Map<String, Object> activateProfileMap = doActivateProfile();
         final String uid = (String) activateProfileMap.get("uid");
-        final Request updateProfileRequest1 = new Request(randomFrom("PUT", "POST"), "_security/profile/" + uid + "/_data");
-        updateProfileRequest1.setJsonEntity("""
+        final Request updateProfileRequest = new Request(randomFrom("PUT", "POST"), "_security/profile/" + uid + "/_data");
+        updateProfileRequest.setJsonEntity("""
             {
               "labels": {
                 "app1": { "tags": [ "prod", "east" ] }
@@ -209,11 +270,125 @@ public class ProfileIT extends ESRestTestCase {
                 "app1": { "theme": "default" }
               }
             }""");
-        assertOK(adminClient().performRequest(updateProfileRequest1));
+        assertOK(adminClient().performRequest(updateProfileRequest));
 
-        final Map<String, Object> profileMap1 = doGetProfile(uid, "app1");
-        assertThat(castToMap(profileMap1.get("labels")), equalTo(Map.of("app1", Map.of("tags", List.of("prod", "east")))));
-        assertThat(castToMap(profileMap1.get("data")), equalTo(Map.of("app1", Map.of("theme", "default"))));
+        final Map<String, Object> profileMap = doGetProfile(uid, "app1");
+        assertThat(castToMap(profileMap.get("labels")), equalTo(Map.of("app1", Map.of("tags", List.of("prod", "east")))));
+        assertThat(castToMap(profileMap.get("data")), equalTo(Map.of("app1", Map.of("theme", "default"))));
+    }
+
+    public void testModifyProfileData() throws IOException {
+        final Map<String, Object> activateProfileMap = doActivateProfile();
+        final String uid = (String) activateProfileMap.get("uid");
+        final String endpoint = "_security/profile/" + uid + "/_data";
+        final String appName1 = randomAlphaOfLengthBetween(3, 5);
+        final String appName2 = randomAlphaOfLengthBetween(6, 8);
+        final List<String> tags = randomList(1, 5, () -> randomAlphaOfLengthBetween(4, 12));
+        final String labelKey = randomAlphaOfLengthBetween(4, 6);
+        final String dataKey1 = randomAlphaOfLengthBetween(3, 5);
+        final String dataKey2 = randomAlphaOfLengthBetween(6, 8);
+        final String dataKey3 = randomAlphaOfLengthBetween(9, 10);
+        final String dataValue1a = randomAlphaOfLengthBetween(6, 9);
+        final String dataValue1b = randomAlphaOfLengthBetween(10, 12);
+        final String dataValue2 = randomAlphaOfLengthBetween(6, 12);
+        final String dataValue3 = randomAlphaOfLengthBetween(4, 10);
+
+        // Store the data
+        {
+            final Request updateProfileRequest = new Request(randomFrom("PUT", "POST"), endpoint);
+            final Map<String, String> dataBlock = Map.ofEntries(
+                // { k1: v1, k2: v2 }
+                Map.entry(dataKey1, dataValue1a),
+                Map.entry(dataKey2, dataValue2)
+            );
+            updateProfileRequest.setJsonEntity(
+                toJson(
+                    Map.ofEntries(
+                        Map.entry("labels", Map.of(appName1, Map.of(labelKey, tags))),
+                        // Store the same data under both app-names
+                        Map.entry("data", Map.of(appName1, dataBlock, appName2, dataBlock))
+                    )
+                )
+            );
+            assertOK(adminClient().performRequest(updateProfileRequest));
+
+            final Map<String, Object> profileMap1 = doGetProfile(uid, appName1);
+            logger.info("Profile Map [{}][app={}] : {}", getTestName(), appName1, profileMap1);
+            assertThat(ObjectPath.eval("labels." + appName1 + "." + labelKey, profileMap1), equalTo(tags));
+            assertThat(ObjectPath.eval("data." + appName1 + "." + dataKey1, profileMap1), equalTo(dataValue1a));
+            assertThat(ObjectPath.eval("data." + appName1 + "." + dataKey2, profileMap1), equalTo(dataValue2));
+            final Map<String, Object> profileMap2 = doGetProfile(uid, appName2);
+            logger.info("Profile Map [{}][app={}] : {}", getTestName(), appName2, profileMap2);
+            assertThat(ObjectPath.eval("data." + appName2 + "." + dataKey1, profileMap2), equalTo(dataValue1a));
+            assertThat(ObjectPath.eval("data." + appName2 + "." + dataKey2, profileMap2), equalTo(dataValue2));
+        }
+
+        // Store modified data
+        {
+            // Add a new tag, remove an old one
+            final String newTag = randomValueOtherThanMany(tags::contains, () -> randomAlphaOfLengthBetween(3, 9));
+            tags.remove(randomFrom(tags));
+            tags.add(newTag);
+            final Request updateProfileRequest = new Request(randomFrom("PUT", "POST"), endpoint);
+            final Map<String, String> dataBlock = Map.ofEntries(
+                // { k1: v1b, k3: v3 }
+                Map.entry(dataKey1, dataValue1b),
+                Map.entry(dataKey3, dataValue3)
+            );
+            updateProfileRequest.setJsonEntity(
+                toJson(
+                    Map.ofEntries(
+                        Map.entry("labels", Map.of(appName1, Map.of(labelKey, tags))),
+                        // We don't make any changes to appName2, so it should keep the original data
+                        Map.entry("data", Map.of(appName1, dataBlock))
+                    )
+                )
+            );
+            assertOK(adminClient().performRequest(updateProfileRequest));
+
+            final Map<String, Object> profileMap1 = doGetProfile(uid, appName1);
+            logger.info("Profile Map [{}][app={}] : {}", getTestName(), appName1, profileMap1);
+            assertThat(ObjectPath.eval("labels." + appName1 + "." + labelKey, profileMap1), equalTo(tags));
+            assertThat(ObjectPath.eval("data." + appName1 + "." + dataKey1, profileMap1), equalTo(dataValue1b));
+            assertThat(ObjectPath.eval("data." + appName1 + "." + dataKey2, profileMap1), equalTo(dataValue2));
+            assertThat(ObjectPath.eval("data." + appName1 + "." + dataKey3, profileMap1), equalTo(dataValue3));
+            final Map<String, Object> profileMap2 = doGetProfile(uid, appName2);
+            logger.info("Profile Map [{}][app={}] : {}", getTestName(), appName2, profileMap2);
+            assertThat(ObjectPath.eval("data." + appName2 + "." + dataKey1, profileMap2), equalTo(dataValue1a));
+            assertThat(ObjectPath.eval("data." + appName2 + "." + dataKey2, profileMap2), equalTo(dataValue2));
+            assertThat(ObjectPath.eval("data." + appName2 + "." + dataKey3, profileMap2), nullValue());
+        }
+    }
+
+    public void testRemoveProfileData() throws IOException {
+        final Map<String, Object> activateProfileMap = doActivateProfile();
+        final String uid = (String) activateProfileMap.get("uid");
+        {
+            final Request request = new Request(randomFrom("PUT", "POST"), "_security/profile/" + uid + "/_data");
+            request.setJsonEntity("""
+                {
+                  "data": {
+                    "app1": { "top": { "inner" : { "leaf": "data_value" } } }
+                  }
+                }""");
+            assertOK(adminClient().performRequest(request));
+
+            final Map<String, Object> profileMap = doGetProfile(uid, "app1");
+            assertThat(ObjectPath.eval("data.app1.top.inner.leaf", profileMap), equalTo("data_value"));
+        }
+        {
+            final Request request = new Request(randomFrom("PUT", "POST"), "_security/profile/" + uid + "/_data");
+            request.setJsonEntity("""
+                {
+                  "data": {
+                    "app1": { "top": null }
+                  }
+                }""");
+            assertOK(adminClient().performRequest(request));
+
+            final Map<String, Object> profileMap = doGetProfile(uid, "app1");
+            assertThat(ObjectPath.eval("data.app1.top", profileMap), nullValue());
+        }
     }
 
     public void testSuggestProfile() throws IOException {
@@ -247,17 +422,18 @@ public class ProfileIT extends ESRestTestCase {
         final String payload;
         switch (randomIntBetween(0, 2)) {
             case 0 -> {
-                payload = """
+                payload = Strings.format("""
                     {
                       "name": "rac",
                       "hint": {
                         "uids": ["%s"]
                       }
                     }
-                    """.formatted("not-" + uid);
+                    """, "not-" + uid);
             }
             case 1 -> {
-                payload = """
+                Object[] args = new Object[] { randomBoolean() ? "\"demo\"" : "[\"demo\"]" };
+                payload = Strings.format("""
                     {
                       "name": "rac",
                       "hint": {
@@ -266,10 +442,11 @@ public class ProfileIT extends ESRestTestCase {
                         }
                       }
                     }
-                    """.formatted(randomBoolean() ? "\"demo\"" : "[\"demo\"]");
+                    """, args);
             }
             default -> {
-                payload = """
+                Object[] args = new Object[] { "not-" + uid, randomBoolean() ? "\"demo\"" : "[\"demo\"]" };
+                payload = Strings.format("""
                     {
                       "name": "rac",
                       "hint": {
@@ -278,7 +455,7 @@ public class ProfileIT extends ESRestTestCase {
                           "kibana.spaces": %s
                         }
                       }
-                    }""".formatted("not-" + uid, randomBoolean() ? "\"demo\"" : "[\"demo\"]");
+                    }""", args);
             }
         }
         suggestProfilesRequest1.setJsonEntity(payload);
@@ -322,6 +499,33 @@ public class ProfileIT extends ESRestTestCase {
     }
 
     public void testXpackUsageOutput() throws IOException {
+        // Profile 1 that has not activated for more than 30 days
+        final String uid = randomAlphaOfLength(20);
+        final String source = String.format(
+            Locale.ROOT,
+            SAMPLE_PROFILE_DOCUMENT_TEMPLATE,
+            uid,
+            uid,
+            Instant.now().minus(31, ChronoUnit.DAYS).toEpochMilli()
+        );
+        final Request indexRequest = new Request("PUT", ".security-profile/_doc/profile_" + uid);
+        indexRequest.setJsonEntity(source);
+        indexRequest.addParameter("refresh", "wait_for");
+        indexRequest.setOptions(
+            expectWarnings(
+                "this request accesses system indices: [.security-profile-8], but in a future major version, "
+                    + "direct access to system indices will be prevented by default"
+            ).toBuilder().addHeader("X-elastic-product-origin", "elastic")
+        );
+        assertOK(adminClient().performRequest(indexRequest));
+
+        // Profile 2 is disabled
+        final Map<String, Object> racUserProfile = doActivateProfile();
+        doSetEnabled((String) racUserProfile.get("uid"), false);
+
+        // Profile 3 is enabled and recently activated
+        doActivateProfile("test-admin", "x-pack-test-password");
+
         final Request xpackUsageRequest = new Request("GET", "_xpack/usage");
         xpackUsageRequest.addParameter("filter_path", "security");
         final Response xpackUsageResponse = adminClient().performRequest(xpackUsageRequest);
@@ -338,9 +542,11 @@ public class ProfileIT extends ESRestTestCase {
         @SuppressWarnings("unchecked")
         final List<String> otherDomainRealms = (List<String>) castToMap(domainsUsage.get("other_domain")).get("realms");
         assertThat(otherDomainRealms, containsInAnyOrder("saml1", "ad1"));
+
+        assertThat(castToMap(xpackUsageView.get("security.user_profile")), equalTo(Map.of("total", 3, "enabled", 2, "recent", 1)));
     }
 
-    private Map<String, Object> doActivateProfile() throws IOException {
+    public void testActivateGracePeriodIsPerNode() throws IOException {
         final Request activateProfileRequest = new Request("POST", "_security/profile/_activate");
         activateProfileRequest.setJsonEntity("""
             {
@@ -348,6 +554,85 @@ public class ProfileIT extends ESRestTestCase {
               "username": "rac-user",
               "password": "x-pack-test-password"
             }""");
+
+        final RestClient client = adminClient();
+        final List<Node> originalNodes = client.getNodes();
+        assertThat(originalNodes.size(), greaterThan(1));
+        final Node node0 = originalNodes.get(0);
+        // Find a different node other than node0.
+        // Because all nodes of a testcluster runs on the same physical host, the different node
+        // should have the same hostname but listens on a different port.
+        // A single node can have both ipv4 and ipv6 addresses. If we do not filter for the
+        // same hostname, we might find the same node again (e.g. node0 but has an ipv6 address).
+        final Node node1 = originalNodes.subList(1, originalNodes.size())
+            .stream()
+            .filter(node -> node.getHost().getHostName().equals(node0.getHost().getHostName()))
+            .findFirst()
+            .orElseThrow();
+
+        try {
+            // Initial activate with node0
+            client.setNodes(List.of(node0));
+            final Map<String, Object> responseMap0 = responseAsMap(client.performRequest(activateProfileRequest));
+
+            final Instant start = Instant.now();
+            // Activate again with the same host (node0) should fall within the grace period and skip actual update
+            final Map<String, Object> responseMap1 = responseAsMap(client.performRequest(activateProfileRequest));
+            assumeTrue("Test is running too slow", start.plus(30, ChronoUnit.SECONDS).isAfter(Instant.now()));
+            assertThat(responseMap1.get("_doc"), equalTo(responseMap0.get("_doc")));
+
+            // Activate with different host (node1) should actually update since node name changes in RealmRef
+            client.setNodes(List.of(node1));
+            final Map<String, Object> responseMap2 = responseAsMap(client.performRequest(activateProfileRequest));
+            assumeTrue("Test is running too slow", start.plus(30, ChronoUnit.SECONDS).isAfter(Instant.now()));
+            assertThat(responseMap2.get("_doc"), not(equalTo(responseMap0.get("_doc"))));
+
+            // Activate again with node1 should see no update
+            final Map<String, Object> responseMap3 = responseAsMap(client.performRequest(activateProfileRequest));
+            assertTrue("Test is running too slow", Instant.now().toEpochMilli() - (long) responseMap2.get("last_synchronized") < 30_000L);
+            assertThat(responseMap3.get("_doc"), equalTo(responseMap2.get("_doc")));
+        } finally {
+            client.setNodes(originalNodes);
+        }
+    }
+
+    public void testGetUsersWithProfileUid() throws IOException {
+        final String username = randomAlphaOfLengthBetween(3, 8);
+        final Request putUserRequest = new Request("PUT", "_security/user/" + username);
+        putUserRequest.setJsonEntity("{\"password\":\"x-pack-test-password\",\"roles\":[\"superuser\"]}");
+        assertOK(adminClient().performRequest(putUserRequest));
+
+        // Get user with profile uid before profile index exists will not show any profile_uid
+        final Request getUserRequest = new Request("GET", "_security/user" + (randomBoolean() ? "/" + username : ""));
+        getUserRequest.addParameter("with_profile_uid", "true");
+        final Response getUserResponse1 = adminClient().performRequest(getUserRequest);
+        assertOK(getUserResponse1);
+        responseAsMap(getUserResponse1).forEach((k, v) -> assertThat(castToMap(v), not(hasKey("profile_uid"))));
+
+        // The profile_uid is retrieved for the user after the profile gets activated
+        final Map<String, Object> profile = doActivateProfile(username, "x-pack-test-password");
+        final Response getUserResponse2 = adminClient().performRequest(getUserRequest);
+        responseAsMap(getUserResponse2).forEach((k, v) -> {
+            if (username.equals(k)) {
+                assertThat(castToMap(v).get("profile_uid"), equalTo(profile.get("uid")));
+            } else {
+                assertThat(castToMap(v), not(hasKey("profile_uid")));
+            }
+        });
+    }
+
+    private Map<String, Object> doActivateProfile() throws IOException {
+        return doActivateProfile("rac-user", "x-pack-test-password");
+    }
+
+    private Map<String, Object> doActivateProfile(String username, String password) throws IOException {
+        final Request activateProfileRequest = new Request("POST", "_security/profile/_activate");
+        activateProfileRequest.setJsonEntity(Strings.format("""
+            {
+              "grant_type": "password",
+              "username": "%s",
+              "password": "%s"
+            }""", username, password));
 
         final Response activateProfileResponse = adminClient().performRequest(activateProfileRequest);
         assertOK(activateProfileResponse);
@@ -392,4 +677,11 @@ public class ProfileIT extends ESRestTestCase {
     private Map<String, Object> castToMap(Object o) {
         return (Map<String, Object>) o;
     }
+
+    private static String toJson(Map<String, ? extends Object> map) throws IOException {
+        final XContentBuilder builder = XContentFactory.jsonBuilder().map(map);
+        final BytesReference bytes = BytesReference.bytes(builder);
+        return bytes.utf8ToString();
+    }
+
 }

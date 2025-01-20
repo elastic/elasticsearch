@@ -111,7 +111,7 @@ public class HistoBackedAvgAggregatorTests extends AggregatorTestCase {
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<InternalAvg> verify)
         throws IOException {
-        testCase(avg("_name").field(FIELD_NAME), query, indexer, verify, defaultFieldType());
+        testCase(indexer, verify, new AggTestConfig(avg("_name").field(FIELD_NAME), defaultFieldType()).withQuery(query));
     }
 
     @Override
@@ -136,6 +136,6 @@ public class HistoBackedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedFieldType defaultFieldType() {
-        return new HistogramFieldMapper.HistogramFieldType(HistoBackedAvgAggregatorTests.FIELD_NAME, Collections.emptyMap(), null);
+        return new HistogramFieldMapper.HistogramFieldType(HistoBackedAvgAggregatorTests.FIELD_NAME, Collections.emptyMap());
     }
 }

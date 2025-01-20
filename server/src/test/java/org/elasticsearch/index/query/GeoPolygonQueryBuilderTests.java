@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -15,6 +16,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -161,7 +163,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testParsingAndToQuery1() throws IOException {
-        String query = """
+        String query = Strings.format("""
             {
               "geo_polygon": {
                 "%s": {
@@ -172,46 +174,46 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
                   ]
                 }
               }
-            }""".formatted(GEO_POINT_FIELD_NAME);
+            }""", GEO_POINT_FIELD_NAME);
         assertGeoPolygonQuery(query);
         assertDeprecationWarning();
     }
 
     public void testParsingAndToQuery2() throws IOException {
-        String query = """
+        String query = Strings.format("""
             {
               "geo_polygon": {
                 "%s": {
                   "points": [ { "lat": 40, "lon": -70 }, { "lat": 30, "lon": -80 }, { "lat": 20, "lon": -90 } ]
                 }
               }
-            }""".formatted(GEO_POINT_FIELD_NAME);
+            }""", GEO_POINT_FIELD_NAME);
         assertGeoPolygonQuery(query);
         assertDeprecationWarning();
     }
 
     public void testParsingAndToQuery3() throws IOException {
-        String query = """
+        String query = Strings.format("""
             {
               "geo_polygon": {
                 "%s": {
                   "points": [ "40, -70", "30, -80", "20, -90" ]
                 }
               }
-            }""".formatted(GEO_POINT_FIELD_NAME);
+            }""", GEO_POINT_FIELD_NAME);
         assertGeoPolygonQuery(query);
         assertDeprecationWarning();
     }
 
     public void testParsingAndToQuery4() throws IOException {
-        String query = """
+        String query = Strings.format("""
             {
               "geo_polygon": {
                 "%s": {
                   "points": [ "drn5x1g8cu2y", "30, -80", "20, -90" ]
                 }
               }
-            }""".formatted(GEO_POINT_FIELD_NAME);
+            }""", GEO_POINT_FIELD_NAME);
         assertGeoPolygonQuery(query);
         assertDeprecationWarning();
     }
@@ -256,7 +258,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
 
     public void testPointValidation() throws IOException {
         SearchExecutionContext context = createSearchExecutionContext();
-        String queryInvalidLat = """
+        String queryInvalidLat = Strings.format("""
             {
               "geo_polygon": {
                 "%s": {
@@ -267,12 +269,12 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
                   ]
                 }
               }
-            }""".formatted(GEO_POINT_FIELD_NAME);
+            }""", GEO_POINT_FIELD_NAME);
 
         QueryShardException e1 = expectThrows(QueryShardException.class, () -> parseQuery(queryInvalidLat).toQuery(context));
         assertThat(e1.getMessage(), containsString("illegal latitude value [140.0] for [geo_polygon]"));
 
-        String queryInvalidLon = """
+        String queryInvalidLon = Strings.format("""
             {
               "geo_polygon": {
                 "%s": {
@@ -283,7 +285,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
                   ]
                 }
               }
-            }""".formatted(GEO_POINT_FIELD_NAME);
+            }""", GEO_POINT_FIELD_NAME);
 
         QueryShardException e2 = expectThrows(QueryShardException.class, () -> parseQuery(queryInvalidLon).toQuery(context));
         assertThat(e2.getMessage(), containsString("illegal longitude value [-190.0] for [geo_polygon]"));

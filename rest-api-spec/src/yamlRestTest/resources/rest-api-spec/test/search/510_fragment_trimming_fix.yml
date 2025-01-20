@@ -1,0 +1,62 @@
+setup:
+  - requires:
+        cluster_features: "gte_v8.15.0"
+        reason: 'no trimming highlight snippets when number_of_fragments is 0 was introduced  in 8.14'
+  - do:
+      indices.create:
+        index: test_trim
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+                analyzer: whitespace
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_trim
+              _id: 1
+          - text: " a  b c d "
+
+---
+"Test unified highlighter with custom passage formatter and number_of_fragments > 0":
+  - do:
+      search:
+        index: test_trim
+        body:
+          query:
+            match:
+              text: "c"
+          highlight:
+            type: unified
+            number_of_fragments: 1
+            fields:
+              text:
+                pre_tags: ["("]
+                post_tags: [")"]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.highlight.text: ["a  b (c) d"] }
+
+---
+"Test unified highlighter with custom passage formatter when number_of_fragments = 0":
+  - do:
+      search:
+        index: test_trim
+        body:
+          query:
+            match:
+              text: "c"
+          highlight:
+            type: unified
+            number_of_fragments: 0
+            fields:
+              text:
+                pre_tags: ["("]
+                post_tags: [")"]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.highlight.text: [" a  b (c) d "] }

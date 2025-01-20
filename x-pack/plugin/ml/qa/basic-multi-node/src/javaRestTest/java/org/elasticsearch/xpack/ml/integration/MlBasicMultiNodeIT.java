@@ -545,7 +545,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         String dateFormat = datesHaveNanoSecondResolution ? "strict_date_optional_time_nanos" : "strict_date_optional_time";
         String randomNanos = datesHaveNanoSecondResolution ? "," + randomIntBetween(100000000, 999999999) : "";
         Request createAirlineDataRequest = new Request("PUT", "/airline-data");
-        createAirlineDataRequest.setJsonEntity("""
+        createAirlineDataRequest.setJsonEntity(Strings.format("""
             {
               "mappings": {
                 "properties": {
@@ -561,7 +561,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
                   }
                 }
               }
-            }""".formatted(dateMappingType, dateFormat));
+            }""", dateMappingType, dateFormat));
         client().performRequest(createAirlineDataRequest);
         Request airlineData1 = new Request("PUT", "/airline-data/_doc/1");
         airlineData1.setJsonEntity("{\"time\":\"2016-06-01T00:00:00" + randomNanos + "Z\",\"airline\":\"AAA\",\"responsetime\":135.22}");

@@ -8,6 +8,12 @@ IMPORTANT: This documentation is about legacy index templates,
 which are deprecated and will be replaced by the composable templates introduced in {es} 7.8. 
 For information about composable templates, see <<index-templates>>.
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
+--
+
 Creates or updates an index template.
 
 [source,console]
@@ -112,7 +118,7 @@ Templates with lower `order` values are merged first.
 Templates with higher `order` values are merged later,
 overriding templates with lower values.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [role="child_attributes"]
 [[put-index-template-v1-api-request-body]]
@@ -126,11 +132,11 @@ used to match the names of indices during creation.
 `aliases`::
 (Optional, object of objects) Aliases for the index.
 +
-include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
+include::{es-ref-dir}/indices/create-index.asciidoc[tag=aliases-props]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=settings]
 
 `version`::
 (Optional, integer)

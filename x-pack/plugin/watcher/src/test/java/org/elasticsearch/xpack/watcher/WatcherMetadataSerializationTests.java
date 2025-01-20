@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -35,7 +36,7 @@ public class WatcherMetadataSerializationTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.startObject("watcher");
-        watcherMetadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(watcherMetadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         builder.endObject();
         WatcherMetadata watchersMetadataFromXContent = getWatcherMetadataFromXContent(createParser(builder));
@@ -63,7 +64,7 @@ public class WatcherMetadataSerializationTests extends ESTestCase {
             Collections.singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY)
         );
         builder.startObject();
-        builder = metadataBuilder.build().toXContent(builder, params);
+        builder = ChunkedToXContent.wrapAsToXContent(metadataBuilder.build()).toXContent(builder, params);
         builder.endObject();
         // deserialize metadata again
         Metadata metadata = Metadata.Builder.fromXContent(createParser(builder));

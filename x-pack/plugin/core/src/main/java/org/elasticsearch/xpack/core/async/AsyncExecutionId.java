@@ -21,6 +21,9 @@ import java.util.Objects;
  * A class that contains all information related to a submitted async execution.
  */
 public final class AsyncExecutionId {
+    public static final String ASYNC_EXECUTION_ID_HEADER = "X-Elasticsearch-Async-Id";
+    public static final String ASYNC_EXECUTION_IS_RUNNING_HEADER = "X-Elasticsearch-Async-Is-Running";
+
     private final String docId;
     private final TaskId taskId;
     private final String encoded;

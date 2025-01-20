@@ -76,17 +76,21 @@ public class StateStreamer {
                     .setSize(1)
                     .setQuery(QueryBuilders.idsQuery().addIds(stateDocId))
                     .get();
-                if (stateResponse.getHits().getHits().length == 0) {
-                    LOGGER.error(
-                        "Expected {} documents for model state for {} snapshot {} but failed to find {}",
-                        modelSnapshot.getSnapshotDocCount(),
-                        jobId,
-                        modelSnapshot.getSnapshotId(),
-                        stateDocId
-                    );
-                    break;
+                try {
+                    if (stateResponse.getHits().getHits().length == 0) {
+                        LOGGER.error(
+                            "Expected {} documents for model state for {} snapshot {} but failed to find {}",
+                            modelSnapshot.getSnapshotDocCount(),
+                            jobId,
+                            modelSnapshot.getSnapshotId(),
+                            stateDocId
+                        );
+                        break;
+                    }
+                    writeStateToStream(stateResponse.getHits().getAt(0).getSourceRef(), restoreStream);
+                } finally {
+                    stateResponse.decRef();
                 }
-                writeStateToStream(stateResponse.getHits().getAt(0).getSourceRef(), restoreStream);
             }
         }
 
@@ -108,10 +112,14 @@ public class StateStreamer {
                     .setSize(1)
                     .setQuery(QueryBuilders.idsQuery().addIds(docId))
                     .get();
-                if (stateResponse.getHits().getHits().length == 0) {
-                    break;
+                try {
+                    if (stateResponse.getHits().getHits().length == 0) {
+                        break;
+                    }
+                    writeStateToStream(stateResponse.getHits().getAt(0).getSourceRef(), restoreStream);
+                } finally {
+                    stateResponse.decRef();
                 }
-                writeStateToStream(stateResponse.getHits().getAt(0).getSourceRef(), restoreStream);
             }
         }
 

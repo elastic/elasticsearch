@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.range;
@@ -15,8 +16,6 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -186,42 +185,41 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnboundedRanges() throws IOException {
-        testCase(
-            new RangeAggregationBuilder("name").field(DATE_FIELD_NAME).addUnboundedTo(5).addUnboundedFrom(5),
-            new MatchAllDocsQuery(),
-            iw -> {
-                iw.addDocument(
-                    List.of(new NumericDocValuesField(DATE_FIELD_NAME, Long.MIN_VALUE), new LongPoint(DATE_FIELD_NAME, Long.MIN_VALUE))
-                );
-                iw.addDocument(List.of(new NumericDocValuesField(DATE_FIELD_NAME, 7), new LongPoint(DATE_FIELD_NAME, 7)));
-                iw.addDocument(List.of(new NumericDocValuesField(DATE_FIELD_NAME, 2), new LongPoint(DATE_FIELD_NAME, 2)));
-                iw.addDocument(List.of(new NumericDocValuesField(DATE_FIELD_NAME, 3), new LongPoint(DATE_FIELD_NAME, 3)));
-                iw.addDocument(
-                    List.of(new NumericDocValuesField(DATE_FIELD_NAME, Long.MAX_VALUE), new LongPoint(DATE_FIELD_NAME, Long.MAX_VALUE))
-                );
-            },
-            result -> {
-                InternalRange<?, ?> range = (InternalRange<?, ?>) result;
-                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
-                assertThat(ranges, hasSize(2));
-                assertThat(ranges.get(0).getFrom(), equalTo(Double.NEGATIVE_INFINITY));
-                assertThat(ranges.get(0).getTo(), equalTo(5d));
-                assertThat(ranges.get(0).getDocCount(), equalTo(3L));
-                assertThat(ranges.get(1).getFrom(), equalTo(5d));
-                assertThat(ranges.get(1).getTo(), equalTo(Double.POSITIVE_INFINITY));
-                assertThat(ranges.get(1).getDocCount(), equalTo(2L));
-                assertTrue(AggregationInspectionHelper.hasValue(range));
-            },
-            new DateFieldMapper.DateFieldType(
-                DATE_FIELD_NAME,
-                randomBoolean(),
-                randomBoolean(),
-                true,
-                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
-                Resolution.MILLISECONDS,
-                null,
-                null,
-                emptyMap()
+        testCase(iw -> {
+            iw.addDocument(
+                List.of(new NumericDocValuesField(DATE_FIELD_NAME, Long.MIN_VALUE), new LongPoint(DATE_FIELD_NAME, Long.MIN_VALUE))
+            );
+            iw.addDocument(List.of(new NumericDocValuesField(DATE_FIELD_NAME, 7), new LongPoint(DATE_FIELD_NAME, 7)));
+            iw.addDocument(List.of(new NumericDocValuesField(DATE_FIELD_NAME, 2), new LongPoint(DATE_FIELD_NAME, 2)));
+            iw.addDocument(List.of(new NumericDocValuesField(DATE_FIELD_NAME, 3), new LongPoint(DATE_FIELD_NAME, 3)));
+            iw.addDocument(
+                List.of(new NumericDocValuesField(DATE_FIELD_NAME, Long.MAX_VALUE), new LongPoint(DATE_FIELD_NAME, Long.MAX_VALUE))
+            );
+        }, result -> {
+            InternalRange<?, ?> range = (InternalRange<?, ?>) result;
+            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+            assertThat(ranges, hasSize(2));
+            assertThat(ranges.get(0).getFrom(), equalTo(Double.NEGATIVE_INFINITY));
+            assertThat(ranges.get(0).getTo(), equalTo(5d));
+            assertThat(ranges.get(0).getDocCount(), equalTo(3L));
+            assertThat(ranges.get(1).getFrom(), equalTo(5d));
+            assertThat(ranges.get(1).getTo(), equalTo(Double.POSITIVE_INFINITY));
+            assertThat(ranges.get(1).getDocCount(), equalTo(2L));
+            assertTrue(AggregationInspectionHelper.hasValue(range));
+        },
+            new AggTestConfig(
+                new RangeAggregationBuilder("name").field(DATE_FIELD_NAME).addUnboundedTo(5).addUnboundedFrom(5),
+                new DateFieldMapper.DateFieldType(
+                    DATE_FIELD_NAME,
+                    randomBoolean(),
+                    randomBoolean(),
+                    true,
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+                    Resolution.MILLISECONDS,
+                    null,
+                    null,
+                    emptyMap()
+                )
             )
         );
     }
@@ -281,7 +279,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             final DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range").field("does_not_exist");
             rangeType.accept(aggregationBuilder);
 
-            testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            testCase(iw -> {
                 iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
                 iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
             }, (InternalDateRange range) -> {
@@ -289,7 +287,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 assertEquals(1, ranges.size());
                 assertEquals(0, ranges.get(0).getDocCount());
                 assertFalse(AggregationInspectionHelper.hasValue(range));
-            });
+            }, new AggTestConfig(aggregationBuilder));
         }
     }
 
@@ -337,13 +335,9 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> testCase(
-                aggregationBuilder,
-                new MatchAllDocsQuery(),
-                iw -> { iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo")))); },
-                range -> fail("Should have thrown exception"),
-                fieldType
-            )
+            () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));
+            }, range -> fail("Should have thrown exception"), fieldType)
         );
         assertEquals("Field [not_a_number] of type [keyword] is not supported for aggregation [date_range]", e.getMessage());
     }
@@ -381,7 +375,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             .addUnboundedFrom("2012-03-15")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT_NAME, emptyMap()));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             for (List<Instant> values : DATE_FIELD_VALUES) {
                 iw.addDocument(List.of(new SortedNumericDocValuesField(DATE_FIELD_NAME, values.get(0).toEpochMilli())));
             }
@@ -418,7 +412,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 assertThat(bucket.getToAsString(), nullValue());
                 assertThat(bucket.getDocCount(), equalTo(2L));
             }
-        }, new DateFieldMapper.DateFieldType(DATE_FIELD_NAME));
+        }, new AggTestConfig(aggregationBuilder, new DateFieldMapper.DateFieldType(DATE_FIELD_NAME)));
     }
 
     public void testValueScriptMultiValuedField() throws IOException {
@@ -428,7 +422,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             .addUnboundedFrom("2012-03-15")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT_NAME, emptyMap()));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             for (List<Instant> values : DATE_FIELD_VALUES) {
                 iw.addDocument(
                     values.stream().map(value -> new SortedNumericDocValuesField(DATE_FIELD_NAME, value.toEpochMilli())).toList()
@@ -467,7 +461,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 assertThat(bucket.getToAsString(), nullValue());
                 assertThat(bucket.getDocCount(), equalTo(3L));
             }
-        }, new DateFieldMapper.DateFieldType(DATE_FIELD_NAME));
+        }, new AggTestConfig(aggregationBuilder, new DateFieldMapper.DateFieldType(DATE_FIELD_NAME)));
     }
 
     private void testBothResolutions(
@@ -525,14 +519,10 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             buildIndex.accept(indexWriter);
             indexWriter.close();
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>> agg = searchAndReduce(
-                    indexSearcher,
-                    query,
-                    aggregationBuilder,
-                    fieldType
+                    indexReader,
+                    new AggTestConfig(aggregationBuilder, fieldType).withQuery(query)
                 );
                 verify.accept(agg);
 

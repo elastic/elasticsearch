@@ -1,14 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -25,9 +31,15 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     protected abstract String fieldName();
 
+    protected abstract boolean isConfigurable();
+
+    protected boolean isSupportedOn(IndexVersion version) {
+        return true;
+    }
+
     protected abstract void registerParameters(ParameterChecker checker) throws IOException;
 
-    private record ConflictCheck(XContentBuilder init, XContentBuilder update) {}
+    private record ConflictCheck(XContentBuilder init, XContentBuilder update, Consumer<DocumentMapper> check) {}
 
     private record UpdateCheck(XContentBuilder init, XContentBuilder update, Consumer<DocumentMapper> check) {}
 
@@ -47,7 +59,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
                 b.startObject(fieldName());
                 update.accept(b);
                 b.endObject();
-            })));
+            }), d -> {}));
         }
 
         /**
@@ -57,8 +69,8 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
          * @param init   the initial mapping
          * @param update the updated mapping
          */
-        public void registerConflictCheck(String param, XContentBuilder init, XContentBuilder update) {
-            conflictChecks.put(param, new ConflictCheck(init, update));
+        public void registerConflictCheck(String param, XContentBuilder init, XContentBuilder update, Consumer<DocumentMapper> check) {
+            conflictChecks.put(param, new ConflictCheck(init, update, check));
         }
 
         public void registerUpdateCheck(XContentBuilder init, XContentBuilder update, Consumer<DocumentMapper> check) {
@@ -67,6 +79,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testUpdates() throws IOException {
+        assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
         ParameterChecker checker = new ParameterChecker();
         registerParameters(checker);
         for (String param : checker.conflictChecks.keySet()) {
@@ -83,6 +96,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
                 e.getMessage(),
                 anyOf(containsString("Cannot update parameter [" + param + "]"), containsString("different [" + param + "]"))
             );
+            checker.conflictChecks.get(param).check.accept(mapperService.documentMapper());
         }
         for (UpdateCheck updateCheck : checker.updateChecks) {
             MapperService mapperService = createMapperService(updateCheck.init);
@@ -90,6 +104,127 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
             merge(mapperService, updateCheck.update);
             // run the update assertion
             updateCheck.check.accept(mapperService.documentMapper());
+        }
+    }
+
+    public final void testUnsupportedParametersAreRejected() throws IOException {
+        assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+        assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
+        MapperService mapperService = createMapperService(version, mapping(xContentBuilder -> {}));
+        String mappingAsString = "{\n"
+            + "    \"_doc\" : {\n"
+            + "      \""
+            + fieldName()
+            + "\" : {\n"
+            + "        \"anything\" : \"anything\"\n"
+            + "      }\n"
+            + "    }\n"
+            + "}";
+        MapperParsingException exception = expectThrows(
+            MapperParsingException.class,
+            () -> mapperService.parseMapping("_doc", MergeReason.MAPPING_UPDATE, new CompressedXContent(mappingAsString))
+        );
+        assertEquals(
+            "Failed to parse mapping: unknown parameter [anything] on metadata field [" + fieldName() + "]",
+            exception.getMessage()
+        );
+    }
+
+    public final void testFixedMetaFieldsAreNotConfigurable() throws IOException {
+        assumeFalse("Metadata field " + fieldName() + " is configurable", isConfigurable());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+        assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
+        MapperService mapperService = createMapperService(version, mapping(xContentBuilder -> {}));
+        String mappingAsString = "{\n" + "    \"_doc\" : {\n" + "      \"" + fieldName() + "\" : {\n" + "      }\n" + "    }\n" + "}";
+        MapperParsingException exception = expectThrows(
+            MapperParsingException.class,
+            () -> mapperService.parseMapping("_doc", MergeReason.MAPPING_UPDATE, new CompressedXContent(mappingAsString))
+        );
+        assertEquals("Failed to parse mapping: " + fieldName() + " is not configurable", exception.getMessage());
+    }
+
+    public void testTypeAndFriendsAreAcceptedBefore_8_6_0() throws IOException {
+        assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
+        IndexVersion previousVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_6_0);
+        // we randomly also pick read-only versions to test that we can still parse the parameters for them
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersionUtils.getLowestReadCompatibleVersion(),
+            previousVersion
+        );
+        assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
+        MapperService mapperService = createMapperService(version, mapping(b -> {}));
+        // these parameters were previously silently ignored, they will still be ignored in existing indices
+        String[] unsupportedParameters = new String[] { "fields", "copy_to", "boost", "type" };
+        for (String param : unsupportedParameters) {
+            String mappingAsString = "{\n"
+                + "    \"_doc\" : {\n"
+                + "      \""
+                + fieldName()
+                + "\" : {\n"
+                + "        \""
+                + param
+                + "\" : \"any\"\n"
+                + "      }\n"
+                + "    }\n"
+                + "}";
+            assertNotNull(mapperService.parseMapping("_doc", MergeReason.MAPPING_UPDATE, new CompressedXContent(mappingAsString)));
+        }
+    }
+
+    public void testTypeAndFriendsAreDeprecatedFrom_8_6_0_TO_9_0_0() throws IOException {
+        assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
+        IndexVersion previousVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_6_0, previousVersion);
+        assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
+        MapperService mapperService = createMapperService(version, mapping(b -> {}));
+        // these parameters were deprecated, they now should throw an error in new indices
+        String[] unsupportedParameters = new String[] { "fields", "copy_to", "boost", "type" };
+        for (String param : unsupportedParameters) {
+            String mappingAsString = "{\n"
+                + "    \"_doc\" : {\n"
+                + "      \""
+                + fieldName()
+                + "\" : {\n"
+                + "        \""
+                + param
+                + "\" : \"any\"\n"
+                + "      }\n"
+                + "    }\n"
+                + "}";
+            assertNotNull(mapperService.parseMapping("_doc", MergeReason.MAPPING_UPDATE, new CompressedXContent(mappingAsString)));
+            assertWarnings("Parameter [" + param + "] has no effect on metadata field [" + fieldName() + "] and will be removed in future");
+        }
+    }
+
+    public void testTypeAndFriendsThrow_After_9_0_0() throws IOException {
+        assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
+            IndexVersion.current()
+        );
+        assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
+        MapperService mapperService = createMapperService(version, mapping(b -> {}));
+        // these parameters were previously silently ignored, they are now deprecated in new indices
+        String[] unsupportedParameters = new String[] { "fields", "copy_to", "boost", "type" };
+        for (String param : unsupportedParameters) {
+            String mappingAsString = "{\n"
+                + "    \"_doc\" : {\n"
+                + "      \""
+                + fieldName()
+                + "\" : {\n"
+                + "        \""
+                + param
+                + "\" : \"any\"\n"
+                + "      }\n"
+                + "    }\n"
+                + "}";
+            expectThrows(
+                MapperParsingException.class,
+                () -> mapperService.parseMapping("_doc", MergeReason.MAPPING_UPDATE, new CompressedXContent(mappingAsString))
+            );
         }
     }
 }

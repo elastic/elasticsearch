@@ -45,13 +45,13 @@ public final class FieldExpression implements RoleMapperExpression {
     }
 
     public FieldExpression(StreamInput in) throws IOException {
-        this(in.readString(), in.readList(FieldValue::readFrom));
+        this(in.readString(), in.readCollectionAsList(FieldValue::readFrom));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
-        out.writeList(values);
+        out.writeCollection(values);
     }
 
     @Override

@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
@@ -18,9 +18,11 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -31,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -50,13 +53,14 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
     volatile TimeValue pollInterval;
     volatile Scheduler.Cancellable job;
     private final AtomicBoolean running = new AtomicBoolean(false);
-    private final ClusterStateTaskExecutor<UpdateTimeSeriesTask> taskExecutor = new UpdateTimeSeriesExecutor();
+    private final MasterServiceTaskQueue<UpdateTimeSeriesTask> taskQueue;
 
     UpdateTimeSeriesRangeService(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
         this.pollInterval = DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL.get(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL, this::setPollInterval);
+        this.taskQueue = clusterService.createTaskQueue("update-time-series-range", Priority.URGENT, new UpdateTimeSeriesExecutor());
     }
 
     void perform(Runnable onComplete) {
@@ -69,8 +73,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
                 running.set(false);
                 onComplete.run();
             });
-            var config = ClusterStateTaskConfig.build(Priority.URGENT);
-            clusterService.submitStateUpdateTask("update_tsdb_data_stream_end_times", task, config, taskExecutor);
+            taskQueue.submitTask("update_tsdb_data_stream_end_times", task, null);
         } else {
             LOGGER.debug("not starting tsdb update task, because another execution is still running");
         }
@@ -106,8 +109,10 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
             Index head = dataStream.getWriteIndex();
             IndexMetadata im = current.metadata().getIndexSafe(head);
             Instant currentEnd = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
-            TimeValue lookAheadTime = DataStreamsPlugin.LOOK_AHEAD_TIME.get(im.getSettings());
-            Instant newEnd = now.plus(lookAheadTime.getMillis(), ChronoUnit.MILLIS).plus(pollInterval.getMillis(), ChronoUnit.MILLIS);
+            TimeValue lookAheadTime = DataStreamsPlugin.getLookAheadTime(im.getSettings());
+            Instant newEnd = DataStream.getCanonicalTimestampBound(
+                now.plus(lookAheadTime.getMillis(), ChronoUnit.MILLIS).plus(pollInterval.getMillis(), ChronoUnit.MILLIS)
+            );
             if (newEnd.isAfter(currentEnd)) {
                 try {
                     Settings settings = Settings.builder()
@@ -153,7 +158,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
             job = threadPool.scheduleWithFixedDelay(
                 () -> perform(() -> LOGGER.debug("completed tsdb update task")),
                 pollInterval,
-                ThreadPool.Names.SAME
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
         }
     }
@@ -208,6 +213,11 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
                 taskContext.success(() -> taskContext.getTask().listener().accept(null));
             }
             return result;
+        }
+
+        @Override
+        public String describeTasks(List<UpdateTimeSeriesTask> tasks) {
+            return ""; // tasks are equivalent and idempotent, no need to list them out
         }
     }
 }

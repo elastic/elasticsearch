@@ -34,6 +34,9 @@ cluster sizing video]. As you test different shard configurations, use {kib}'s
 {kibana-ref}/elasticsearch-metrics.html[{es} monitoring tools] to track your
 cluster's stability and performance.
 
+The performance of an {es} node is often limited by the performance of the underlying storage. 
+Review our recommendations for optimizing your storage for <<indexing-use-faster-hardware,indexing>> and <<search-use-faster-hardware,search>>.
+
 The following sections provide some reminders and guidelines you should
 consider when designing your sharding strategy. If your cluster is already
 oversharded, see <<reduce-cluster-shard-count>>.
@@ -140,24 +143,27 @@ Every new backing index is an opportunity to further tune your strategy.
 
 [discrete]
 [[shard-size-recommendation]]
-==== Aim for shard sizes between 10GB and 50GB
+==== Aim for shards of up to 200M documents, or with sizes between 10GB and 50GB
 
-Larger shards take longer to recover after a failure. When a node fails, {es}
-rebalances the node's shards across the data tier's remaining nodes. This
-recovery process typically involves copying the shard contents across the
-network, so a 100GB shard will take twice as long to recover than a 50GB shard.
-In contrast, small shards carry proportionally more overhead and are less
-efficient to search. Searching fifty 1GB shards will take substantially more
-resources than searching a single 50GB shard containing the same data.
+There is some overhead associated with each shard, both in terms of cluster
+management and search performance. Searching a thousand 50MB shards will be
+substantially more expensive than searching a single 50GB shard containing the
+same data. However, very large shards can also cause slower searches and will
+take longer to recover after a failure.
 
-There are no hard limits on shard size, but experience shows that shards
-between 10GB and 50GB typically work well for logs and time series data. You
-may be able to use larger shards depending on your network and use case.
-Smaller shards may be appropriate for
+There is no hard limit on the physical size of a shard, and each shard can in
+theory contain up to <<troubleshooting-max-docs-limit,just over two billion 
+documents>>. However, experience shows that shards between 10GB and 50GB 
+typically work well for many use cases, as long as the per-shard document count 
+is kept below 200 million.
+
+You may be able to use larger shards depending on your network and use case,
+and smaller shards may be appropriate for
 {enterprise-search-ref}/index.html[Enterprise Search] and similar use cases.
 
 If you use {ilm-init}, set the <<ilm-rollover,rollover action>>'s
-`max_primary_shard_size` threshold to `50gb` to avoid shards larger than 50GB.
+`max_primary_shard_size` threshold to `50gb` to avoid shards larger than 50GB 
+and `min_primary_shard_size` threshold to `10gb` to avoid shards smaller than 10GB.
 
 To see the current size of your shards, use the <<cat-shards,cat shards API>>.
 
@@ -179,6 +185,30 @@ index                                 prirep shard store
 // TESTRESPONSE[non_json]
 // TESTRESPONSE[s/\.ds-my-data-stream-2099\.05\.06-000001/my-index-000001/]
 // TESTRESPONSE[s/50gb/.*/]
+
+If an index's shard is experiencing degraded performance from surpassing the 
+recommended 50GB size, you may consider fixing the index's shards' sizing. 
+Shards are immutable and therefore their size is fixed in place, 
+so indices must be copied with corrected settings. This requires first ensuring 
+sufficient disk to copy the data. Afterwards, you can copy the index's data 
+with corrected settings via one of the following options:
+
+* running <<indices-split-index,Split Index>> to increase number of primary 
+shards 
+
+* creating a destination index with corrected settings and then running 
+<<docs-reindex,Reindex>> 
+
+Kindly note performing a <<restore-snapshot-api,Restore Snapshot>> and/or 
+<<indices-clone-index,Clone Index>> would be insufficient to resolve shards' 
+sizing. 
+
+Once a source index's data is copied into its destination index, the source 
+index can be <<indices-delete-index,removed>>. You may then consider setting 
+<<indices-add-alias,Create Alias>> against the destination index for the source 
+index's name to point to it for continuity. 
+
+See this https://www.youtube.com/watch?v=sHyNYnwbYro[fixing shard sizes video] for an example troubleshooting walkthrough.
 
 [discrete]
 [[shard-count-recommendation]]
@@ -221,28 +251,135 @@ GET _cat/shards?v=true
 // TEST[setup:my_index]
 
 [discrete]
+[[shard-count-per-node-recommendation]]
+==== Add enough nodes to stay within the cluster shard limits
+
+include::./shard-limits.asciidoc[]
+
+[discrete]
 [[field-count-recommendation]]
-==== Data nodes should have at least 1kB of heap per field per index, plus overheads
+==== Allow enough heap for field mappers and overheads
 
-The exact resource usage of each mapped field depends on its type, but a rule
-of thumb is to allow for approximately 1kB of heap overhead per mapped field
-per index held by each data node. You must also allow enough heap for {es}'s
-baseline usage as well as your workload such as indexing, searches and
-aggregations. 0.5GB of extra heap will suffice for many reasonable workloads,
-and you may need even less if your workload is very light while heavy workloads
-may require more.
+Mapped fields consume some heap memory on each node, and require extra
+heap on data nodes.
+Ensure each node has enough heap for mappings, and also allow
+extra space for overheads associated with its workload. The following sections
+show how to determine these heap requirements.
 
-For example, if a data node holds shards from 1000 indices, each containing
-4000 mapped fields, then you should allow approximately 1000 × 4000 × 1kB = 4GB
-of heap for the fields and another 0.5GB of heap for its workload and other
-overheads, and therefore this node will need a heap size of at least 4.5GB.
+[discrete]
+===== Mapping metadata in the cluster state
 
-Note that this rule defines the absolute maximum number of indices that a data
-node can manage, but does not guarantee the performance of searches or indexing
-involving this many indices. You must also ensure that your data nodes have
-adequate resources for your workload and that your overall sharding strategy
-meets all your performance requirements. See also <<single-thread-per-shard>>
-and <<each-shard-has-overhead>>.
+Each node in the cluster has a copy of the <<cluster-state-api-desc,cluster state>>.
+The cluster state includes information about the field mappings for
+each index. This information has heap overhead. You can use the
+<<cluster-stats,Cluster stats API>> to get the heap overhead of the total size of
+all mappings after deduplication and compression.
+
+[source,console]
+----
+GET _cluster/stats?human&filter_path=indices.mappings.total_deduplicated_mapping_size*
+----
+// TEST[setup:node]
+
+This will show you information like in this example output:
+
+[source,console-result]
+----
+{
+  "indices": {
+    "mappings": {
+      "total_deduplicated_mapping_size": "1gb",
+      "total_deduplicated_mapping_size_in_bytes": 1073741824
+    }
+  }
+}
+----
+// TESTRESPONSE[s/"total_deduplicated_mapping_size": "1gb"/"total_deduplicated_mapping_size": $body.$_path/]
+// TESTRESPONSE[s/"total_deduplicated_mapping_size_in_bytes": 1073741824/"total_deduplicated_mapping_size_in_bytes": $body.$_path/]
+
+[discrete]
+===== Retrieving heap size and field mapper overheads
+
+You can use the <<cluster-nodes-stats,Nodes stats API>> to get two relevant metrics
+for each node:
+
+* The size of the heap on each node.
+
+* Any additional estimated heap overhead for the fields per node. This is specific to
+data nodes, where apart from the cluster state field information mentioned above,
+there is additional heap overhead for each mapped field of an index held by the data
+node. For nodes which are not data nodes, this field may be zero.
+
+[source,console]
+----
+GET _nodes/stats?human&filter_path=nodes.*.name,nodes.*.indices.mappings.total_estimated_overhead*,nodes.*.jvm.mem.heap_max*
+----
+// TEST[setup:node]
+
+For each node, this will show you information like in this example output:
+
+[source,console-result]
+----
+{
+  "nodes": {
+    "USpTGYaBSIKbgSUJR2Z9lg": {
+      "name": "node-0",
+      "indices": {
+        "mappings": {
+          "total_estimated_overhead": "1gb",
+          "total_estimated_overhead_in_bytes": 1073741824
+        }
+      },
+      "jvm": {
+        "mem": {
+          "heap_max": "4gb",
+          "heap_max_in_bytes": 4294967296
+        }
+      }
+    }
+  }
+}
+----
+// TESTRESPONSE[s/"USpTGYaBSIKbgSUJR2Z9lg"/\$node_name/]
+// TESTRESPONSE[s/"name": "node-0"/"name": $body.$_path/]
+// TESTRESPONSE[s/"total_estimated_overhead": "1gb"/"total_estimated_overhead": $body.$_path/]
+// TESTRESPONSE[s/"total_estimated_overhead_in_bytes": 1073741824/"total_estimated_overhead_in_bytes": $body.$_path/]
+// TESTRESPONSE[s/"heap_max": "4gb"/"heap_max": $body.$_path/]
+// TESTRESPONSE[s/"heap_max_in_bytes": 4294967296/"heap_max_in_bytes": $body.$_path/]
+
+[discrete]
+===== Consider additional heap overheads
+
+Apart from the two field overhead metrics above, you must additionally allow
+enough heap for {es}'s baseline usage as well as your workload such as indexing,
+searches and aggregations. 0.5GB of extra heap will suffice for many reasonable
+workloads, and you may need even less if your workload is very light while heavy
+workloads may require more.
+
+[discrete]
+===== Example
+
+As an example, consider the outputs above for a data node. The heap of the node
+will need at least:
+
+* 1 GB for the cluster state field information.
+
+* 1 GB for the additional estimated heap overhead for the fields of the data node.
+
+* 0.5 GB of extra heap for other overheads.
+
+Since the node has a 4GB heap max size in the example, it is thus sufficient
+for the total required heap of 2.5GB.
+
+If the heap max size for a node is not sufficient, consider
+<<avoid-unnecessary-fields,avoiding unnecessary fields>>,
+or scaling up the cluster, or redistributing index shards.
+
+Note that the above rules do not necessarily guarantee the performance of
+searches or indexing involving a very high number of indices. You must also
+ensure that your data nodes have adequate resources for your workload and
+that your overall sharding strategy meets all your performance requirements.
+See also <<single-thread-per-shard>> and <<each-shard-has-overhead>>.
 
 [discrete]
 [[avoid-node-hotspots]]
@@ -390,6 +527,7 @@ POST _reindex
 Here’s how to resolve common shard-related errors.
 
 [discrete]
+[[troubleshooting-max-shards-open]]
 ==== this action would add [x] total shards, but this cluster currently has [y]/[z] maximum shards open;
 
 The <<cluster-max-shards-per-node,`cluster.max_shards_per_node`>> cluster
@@ -433,3 +571,44 @@ PUT _cluster/settings
   }
 }
 ----
+
+See this https://www.youtube.com/watch?v=tZKbDegt4-M[fixing "max shards open" video] for an example troubleshooting walkthrough. For more information, see <<troubleshooting-shards-capacity-issues,Troubleshooting shards capacity>>.
+
+[discrete]
+[[troubleshooting-max-docs-limit]]
+==== Number of documents in the shard cannot exceed [2147483519]
+
+Each {es} shard is a separate Lucene index, so it shares Lucene's
+https://github.com/apache/lucene/issues/5176[`MAX_DOC` limit] of having at most
+2,147,483,519 (`(2^31)-129`) documents. This per-shard limit applies to the sum
+of `docs.count` plus `docs.deleted` as reported by the <<indices-stats,Index
+stats API>>. Exceeding this limit will result in errors like the following:
+
+[source,txt]
+----
+Elasticsearch exception [type=illegal_argument_exception, reason=Number of documents in the shard cannot exceed [2147483519]]
+----
+
+TIP: This calculation may differ from the <<search-count,Count API's>>
+calculation, because the Count API does not include nested documents and does
+not count deleted documents.
+
+This limit is much higher than the <<shard-size-recommendation,recommended
+maximum document count>> of approximately 200M documents per shard.
+
+If you encounter this problem, try to mitigate it by using the
+<<indices-forcemerge,Force Merge API>> to merge away some deleted docs. For
+example:
+
+[source,console]
+----
+POST my-index-000001/_forcemerge?only_expunge_deletes=true
+----
+// TEST[setup:my_index]
+
+This will launch an asynchronous task which can be monitored via the
+<<tasks,Task Management API>>.
+
+It may also be helpful to <<docs-delete-by-query,delete unneeded documents>>,
+or to <<indices-split-index,split>> or <<docs-reindex,reindex>> the index into
+one with a larger number of shards.

@@ -19,7 +19,7 @@ public final class GrantApiKeyAction extends ActionType<CreateApiKeyResponse> {
     public static final GrantApiKeyAction INSTANCE = new GrantApiKeyAction();
 
     private GrantApiKeyAction() {
-        super(NAME, CreateApiKeyResponse::new);
+        super(NAME);
     }
 
 }

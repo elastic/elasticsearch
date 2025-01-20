@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.indices.IndexCreationException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -45,5 +47,13 @@ public class ExceptionsHelperTests extends ESTestCase {
         );
 
         assertThat(rootCauseException.getMessage(), equalTo("cause"));
+    }
+
+    public void testTaskOperationFailureToStatusException() {
+        var rootCause = new IllegalArgumentException("bah");
+        var failure = new TaskOperationFailure("foo", 0L, rootCause);
+        var convertedException = ExceptionsHelper.taskOperationFailureToStatusException(failure);
+        assertThat(convertedException.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(convertedException.getCause(), sameInstance(rootCause));
     }
 }

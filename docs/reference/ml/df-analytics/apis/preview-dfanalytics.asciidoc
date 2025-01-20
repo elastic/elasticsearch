@@ -7,6 +7,12 @@
 <titleabbrev>Preview {dfanalytics}</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-data-frame[{ml-cap}  {dfanalytics} APIs].
+--
+
 Previews the features used by a {dataframe-analytics-config}.
 
 
@@ -41,7 +47,7 @@ that either exists already or one that has not been created yet.
 
 `<data_frame_analytics_id>`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 
 [[ml-preview-dfanalytics-request-body]]
 == {api-request-body-title}

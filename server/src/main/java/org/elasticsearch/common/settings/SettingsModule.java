@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.settings;
@@ -11,9 +12,8 @@ package org.elasticsearch.common.settings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.injection.guice.Binder;
+import org.elasticsearch.injection.guice.Module;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -44,20 +44,14 @@ public class SettingsModule implements Module {
     private final SettingsFilter settingsFilter;
 
     public SettingsModule(Settings settings, Setting<?>... additionalSettings) {
-        this(settings, Arrays.asList(additionalSettings), Collections.emptyList(), Collections.emptySet());
+        this(settings, Arrays.asList(additionalSettings), Collections.emptyList());
     }
 
-    public SettingsModule(
-        Settings settings,
-        List<Setting<?>> additionalSettings,
-        List<String> settingsFilter,
-        Set<SettingUpgrader<?>> settingUpgraders
-    ) {
+    public SettingsModule(Settings settings, List<Setting<?>> additionalSettings, List<String> settingsFilter) {
         this(
             settings,
             additionalSettings,
             settingsFilter,
-            settingUpgraders,
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
             IndexScopedSettings.BUILT_IN_INDEX_SETTINGS
         );
@@ -67,7 +61,6 @@ public class SettingsModule implements Module {
         final Settings settings,
         final List<Setting<?>> additionalSettings,
         final List<String> settingsFilter,
-        final Set<SettingUpgrader<?>> settingUpgraders,
         final Set<Setting<?>> registeredClusterSettings,
         final Set<Setting<?>> registeredIndexSettings
     ) {
@@ -85,19 +78,8 @@ public class SettingsModule implements Module {
         for (String filter : settingsFilter) {
             registerSettingsFilter(filter);
         }
-        final Set<SettingUpgrader<?>> clusterSettingUpgraders = new HashSet<>();
-        for (final SettingUpgrader<?> settingUpgrader : ClusterSettings.BUILT_IN_SETTING_UPGRADERS) {
-            assert settingUpgrader.getSetting().hasNodeScope() : settingUpgrader.getSetting().getKey();
-            final boolean added = clusterSettingUpgraders.add(settingUpgrader);
-            assert added : settingUpgrader.getSetting().getKey();
-        }
-        for (final SettingUpgrader<?> settingUpgrader : settingUpgraders) {
-            assert settingUpgrader.getSetting().hasNodeScope() : settingUpgrader.getSetting().getKey();
-            final boolean added = clusterSettingUpgraders.add(settingUpgrader);
-            assert added : settingUpgrader.getSetting().getKey();
-        }
         this.indexScopedSettings = new IndexScopedSettings(settings, new HashSet<>(this.indexSettings.values()));
-        this.clusterSettings = new ClusterSettings(settings, new HashSet<>(this.nodeSettings.values()), clusterSettingUpgraders);
+        this.clusterSettings = new ClusterSettings(settings, new HashSet<>(this.nodeSettings.values()));
         Settings indexSettings = settings.filter((s) -> s.startsWith("index.") && clusterSettings.get(s) == null);
         if (indexSettings.isEmpty() == false) {
             try {
@@ -132,7 +114,7 @@ public class SettingsModule implements Module {
                 try (XContentBuilder xContentBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
                     xContentBuilder.prettyPrint();
                     xContentBuilder.startObject();
-                    indexSettings.toXContent(xContentBuilder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+                    indexSettings.toXContent(xContentBuilder, Settings.FLAT_SETTINGS_TRUE);
                     xContentBuilder.endObject();
                     builder.append(Strings.toString(xContentBuilder));
                 }
@@ -212,7 +194,7 @@ public class SettingsModule implements Module {
 
     // TODO: remove this hack once we remove the deprecated ability to use repository settings in the cluster state in the S3 snapshot
     // module
-    private boolean isS3InsecureCredentials(Setting<?> setting) {
+    private static boolean isS3InsecureCredentials(Setting<?> setting) {
         final String settingKey = setting.getKey();
         return settingKey.equals("access_key") || settingKey.equals("secret_key");
     }

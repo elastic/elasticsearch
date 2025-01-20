@@ -115,7 +115,7 @@ supplied in `unicast_hosts.txt`.
 
 The `unicast_hosts.txt` file contains one node entry per line. Each node entry
 consists of the host (host name or IP address) and an optional transport port
-number. If the port number is specified, is must come immediately after the
+number. If the port number is specified, it must come immediately after the
 host (on the same line) separated by a `:`. If the port number is not
 specified, {es} will implicitly use the first port in the port range given by
 `transport.profiles.default.port`, or by `transport.port` if

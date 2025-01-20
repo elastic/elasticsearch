@@ -9,13 +9,23 @@ package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.eql.stats.EqlUsageRestTestCase;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.eql.SecurityUtils.secureClientSettings;
 
 public class EqlStatsIT extends EqlUsageRestTestCase {
+
+    @ClassRule
+    public static final ElasticsearchCluster cluster = EqlSecurityTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     /**
      * All tests run as a superuser but use <code>es-security-runas-user</code> to become a less privileged user.

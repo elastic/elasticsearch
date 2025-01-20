@@ -1,0 +1,73 @@
+[
+  {
+    "host_ip": "10.0.0.1",
+    "event_type": "alert_1",
+    "host": "doom",
+    "uptime": 0,
+    "port": 12,
+    "os": "win10",
+    "id": 1
+  },
+  {
+    "event_type": "alert_1",
+    "host": "CS",
+    "os": "win10",
+    "id": 2
+  },
+  {
+    "event_type": "alert_2",
+    "host": "farcry",
+    "bool": true,
+    "os": "win10",
+    "id": 3
+  },
+  {
+    "event_type": "alert_1",
+    "host": "GTA",
+    "os": "win10",
+    "bool": true,
+    "id": 4
+  },
+  {
+    "event_type": "alert_1",
+    "host": "GTA",
+    "os": "fedora",
+    "bool": true,
+    "id": 5
+  },
+  {
+    "event_type": "alert_2",
+    "host": "farcry",
+    "bool": true,
+    "os": "redhat",
+    "id": 6
+  },
+  {
+    "event_type": "alert_1",
+    "host": "farcry",
+    "bool": true,
+    "os": "redhat",
+    "id": 7
+  },
+  {
+    "event_type": "alert_1",
+    "host": "farcry",
+    "bool": true,
+    "os": null,
+    "id": 8
+  },
+  {
+    "event_type": "alert_2",
+    "host": "farcry",
+    "bool": true,
+    "os": null,
+    "id": 9
+  },
+  {
+    "event_type": "alert_1",
+    "host": "GTA",
+    "bool": true,
+    "id": 10
+  }
+
+]

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -15,6 +14,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 
 import java.io.IOException;
@@ -30,10 +30,10 @@ import static org.hamcrest.Matchers.notNullValue;
 public class PivotConfigTests extends AbstractSerializingTransformTestCase<PivotConfig> {
 
     public static PivotConfig randomPivotConfigWithDeprecatedFields() {
-        return randomPivotConfigWithDeprecatedFields(Version.CURRENT);
+        return randomPivotConfigWithDeprecatedFields(TransformConfigVersion.CURRENT);
     }
 
-    public static PivotConfig randomPivotConfigWithDeprecatedFields(Version version) {
+    public static PivotConfig randomPivotConfigWithDeprecatedFields(TransformConfigVersion version) {
         return new PivotConfig(
             GroupConfigTests.randomGroupConfig(version),
             AggregationConfigTests.randomAggregationConfig(),
@@ -42,10 +42,10 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
     }
 
     public static PivotConfig randomPivotConfig() {
-        return randomPivotConfig(Version.CURRENT);
+        return randomPivotConfig(TransformConfigVersion.CURRENT);
     }
 
-    public static PivotConfig randomPivotConfig(Version version) {
+    public static PivotConfig randomPivotConfig(TransformConfigVersion version) {
         return new PivotConfig(
             GroupConfigTests.randomGroupConfig(version),
             AggregationConfigTests.randomAggregationConfig(),
@@ -69,6 +69,11 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
     @Override
     protected PivotConfig createTestInstance() {
         return randomPivotConfig();
+    }
+
+    @Override
+    protected PivotConfig mutateInstance(PivotConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

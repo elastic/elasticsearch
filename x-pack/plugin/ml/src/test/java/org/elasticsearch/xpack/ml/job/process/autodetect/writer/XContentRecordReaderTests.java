@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -23,7 +24,6 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.mockito.Mockito.mock;
@@ -190,7 +190,7 @@ public class XContentRecordReaderTests extends ESTestCase {
             """;
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < XContentRecordReader.PARSE_ERRORS_LIMIT; i++) {
-            builder.append(String.format(Locale.ROOT, format, i));
+            builder.append(Strings.format(format, i));
         }
 
         XContentParser parser = createParser(builder.toString());
@@ -213,11 +213,11 @@ public class XContentRecordReaderTests extends ESTestCase {
     public void testRead_givenControlCharacterInData() throws Exception {
         char controlChar = '\u0002';
 
-        String data = """
+        String data = Strings.format("""
             {"a":10, "%s" : 5, "b":20, "c":30}
             {"b":21, "a":11, "c":31}
             {"c":32, "b":22, "a":12}
-            """.formatted(controlChar);
+            """, controlChar);
 
         XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = createFieldMap();

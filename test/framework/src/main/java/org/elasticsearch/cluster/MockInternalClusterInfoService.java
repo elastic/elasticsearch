@@ -1,13 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -15,10 +19,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -51,14 +57,8 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
     }
 
     @Override
-    public ClusterInfo getClusterInfo() {
-        final ClusterInfo clusterInfo = super.getClusterInfo();
-        return new SizeFakingClusterInfo(clusterInfo);
-    }
-
-    @Override
     List<NodeStats> adjustNodesStats(List<NodeStats> nodesStats) {
-        final BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunctionCopy = this.diskUsageFunction;
+        var diskUsageFunctionCopy = this.diskUsageFunction;
         if (diskUsageFunctionCopy == null) {
             return nodesStats;
         }
@@ -89,32 +89,44 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 nodeStats.getIngestStats(),
                 nodeStats.getAdaptiveSelectionStats(),
                 nodeStats.getScriptCacheStats(),
-                nodeStats.getIndexingPressureStats()
+                nodeStats.getIndexingPressureStats(),
+                nodeStats.getRepositoriesStats(),
+                nodeStats.getNodeAllocationStats()
             );
         }).collect(Collectors.toList());
     }
 
-    class SizeFakingClusterInfo extends ClusterInfo {
-        SizeFakingClusterInfo(ClusterInfo delegate) {
-            super(
-                delegate.getNodeLeastAvailableDiskUsages(),
-                delegate.getNodeMostAvailableDiskUsages(),
-                delegate.shardSizes,
-                delegate.shardDataSetSizes,
-                delegate.routingToDataPath,
-                delegate.reservedSpace
+    @Override
+    ShardStats[] adjustShardStats(ShardStats[] shardsStats) {
+        var shardSizeFunctionCopy = this.shardSizeFunction;
+        if (shardSizeFunctionCopy == null) {
+            return shardsStats;
+        }
+
+        return Arrays.stream(shardsStats).map(shardStats -> {
+
+            var shardRouting = shardStats.getShardRouting();
+            var storeStats = new StoreStats(
+                shardSizeFunctionCopy.apply(shardRouting),
+                shardSizeFunctionCopy.apply(shardRouting),
+                shardStats.getStats().store == null ? 0L : shardStats.getStats().store.reservedSizeInBytes()
             );
-        }
+            var commonStats = new CommonStats(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
+            commonStats.store = storeStats;
 
-        @Override
-        public Long getShardSize(ShardRouting shardRouting) {
-            final Function<ShardRouting, Long> shardSizeFunctionCopy = MockInternalClusterInfoService.this.shardSizeFunction;
-            if (shardSizeFunctionCopy == null) {
-                return super.getShardSize(shardRouting);
-            }
-
-            return shardSizeFunctionCopy.apply(shardRouting);
-        }
+            return new ShardStats(
+                shardRouting,
+                commonStats,
+                shardStats.getCommitStats(),
+                shardStats.getSeqNoStats(),
+                shardStats.getRetentionLeaseStats(),
+                shardStats.getDataPath(),
+                shardStats.getStatePath(),
+                shardStats.isCustomDataPath(),
+                shardStats.isSearchIdle(),
+                shardStats.getSearchIdleTime()
+            );
+        }).toArray(ShardStats[]::new);
     }
 
     @Override

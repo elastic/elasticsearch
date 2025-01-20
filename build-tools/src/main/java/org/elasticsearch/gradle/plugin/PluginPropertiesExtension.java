@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.plugin;
@@ -11,6 +12,7 @@ package org.elasticsearch.gradle.plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 
 import java.io.File;
@@ -62,7 +64,7 @@ public class PluginPropertiesExtension {
     }
 
     public void setName(String name) {
-        this.project.setProperty("archivesBaseName", name);
+        this.project.getExtensions().getByType(BasePluginExtension.class).getArchivesName().set(name);
         this.name = name;
     }
 

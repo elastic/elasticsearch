@@ -2,12 +2,14 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
-  name 'repositories-metering-api'
-  description 'Repositories metering API'
-  classname 'org.elasticsearch.xpack.repositories.metering.RepositoriesMeteringPlugin'
+  name = 'repositories-metering-api'
+  description = 'Repositories metering API'
+  classname = 'org.elasticsearch.xpack.repositories.metering.RepositoriesMeteringPlugin'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-repositories-metering-api'
+base {
+  archivesName = 'x-pack-repositories-metering-api'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

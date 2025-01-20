@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.store;
@@ -15,6 +16,8 @@ import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -28,7 +31,7 @@ import java.util.Objects;
 public class StoreFileMetadata implements Writeable {
 
     public static final BytesRef UNAVAILABLE_WRITER_UUID = new BytesRef();
-    private static final org.elasticsearch.Version WRITER_UUID_MIN_VERSION = org.elasticsearch.Version.V_7_16_0;
+    private static final TransportVersion WRITER_UUID_MIN_VERSION = TransportVersions.V_7_16_0;
 
     private final String name;
 
@@ -68,7 +71,7 @@ public class StoreFileMetadata implements Writeable {
         checksum = in.readString();
         writtenBy = in.readString();
         hash = in.readBytesRef();
-        if (in.getVersion().onOrAfter(WRITER_UUID_MIN_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(WRITER_UUID_MIN_VERSION)) {
             writerUuid = StoreFileMetadata.toWriterUuid(in.readBytesRef());
         } else {
             writerUuid = UNAVAILABLE_WRITER_UUID;
@@ -82,7 +85,7 @@ public class StoreFileMetadata implements Writeable {
         out.writeString(checksum);
         out.writeString(writtenBy);
         out.writeBytesRef(hash);
-        if (out.getVersion().onOrAfter(WRITER_UUID_MIN_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(WRITER_UUID_MIN_VERSION)) {
             out.writeBytesRef(writerUuid);
         }
     }
@@ -190,9 +193,9 @@ public class StoreFileMetadata implements Writeable {
      * - For generational segment files (i.e. updated docvalues, liv files etc) this is {@link SegmentCommitInfo#getId()}
      *     which uniquely identifies the generation of the segment.
      *
-     * This ID may be {@link StoreFileMetadata#UNAVAILABLE_WRITER_UUID} (i.e. zero-length) if unavilable, e.g.:
+     * This ID may be {@link StoreFileMetadata#UNAVAILABLE_WRITER_UUID} (i.e. zero-length) if unavailable, e.g.:
      *
-     * - The file was written by a version of Lucene prior to {@link org.apache.lucene.util.Version#LUCENE_8_6_0}.
+     * - The file was written by a version of Lucene prior to 8.6.0.
      * - The metadata came from a version of Elasticsearch prior to {@link StoreFileMetadata#WRITER_UUID_MIN_VERSION}).
      * - The file is not one of the files listed above.
      *

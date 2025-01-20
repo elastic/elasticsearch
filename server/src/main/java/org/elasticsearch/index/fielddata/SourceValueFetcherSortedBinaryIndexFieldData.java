@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -15,7 +16,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceProvider;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -31,10 +33,10 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
             String fieldName,
             ValuesSourceType valuesSourceType,
             ValueFetcher valueFetcher,
-            SourceLookup sourceLookup,
+            SourceProvider sourceProvider,
             ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
         ) {
-            super(fieldName, valuesSourceType, valueFetcher, sourceLookup, toScriptFieldFactory);
+            super(fieldName, valuesSourceType, valueFetcher, sourceProvider, toScriptFieldFactory);
         }
 
         @Override
@@ -43,7 +45,7 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
                 fieldName,
                 valuesSourceType,
                 valueFetcher,
-                sourceLookup,
+                sourceProvider,
                 toScriptFieldFactory
             );
         }
@@ -53,15 +55,15 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
         String fieldName,
         ValuesSourceType valuesSourceType,
         ValueFetcher valueFetcher,
-        SourceLookup sourceLookup,
+        SourceProvider sourceProvider,
         ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
     ) {
-        super(fieldName, valuesSourceType, valueFetcher, sourceLookup, toScriptFieldFactory);
+        super(fieldName, valuesSourceType, valueFetcher, sourceProvider, toScriptFieldFactory);
     }
 
     @Override
-    public SourceValueFetcherSortedBinaryLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
-        return new SourceValueFetcherSortedBinaryLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceLookup);
+    public SourceValueFetcherSortedBinaryLeafFieldData loadDirect(LeafReaderContext context) {
+        return new SourceValueFetcherSortedBinaryLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceProvider);
     }
 
     public static class SourceValueFetcherSortedBinaryLeafFieldData extends SourceValueFetcherLeafFieldData<SortedBinaryDocValues> {
@@ -70,15 +72,15 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
             ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
-            SourceLookup sourceLookup
+            SourceProvider sourceProvider
         ) {
-            super(toScriptFieldFactory, leafReaderContext, valueFetcher, sourceLookup);
+            super(toScriptFieldFactory, leafReaderContext, valueFetcher, sourceProvider);
         }
 
         @Override
         public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
             return toScriptFieldFactory.getScriptFieldFactory(
-                new SourceValueFetcherSortedBinaryDocValues(leafReaderContext, valueFetcher, sourceLookup),
+                new SourceValueFetcherSortedBinaryDocValues(leafReaderContext, valueFetcher, sourceProvider),
                 name
             );
         }
@@ -89,28 +91,34 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
         private final LeafReaderContext leafReaderContext;
 
         private final ValueFetcher valueFetcher;
-        private final SourceLookup sourceLookup;
+        private final SourceProvider sourceProvider;
 
-        private SortedSet<Object> values;
-        private Iterator<Object> iterator;
+        private final SortedSet<BytesRef> values;
+        private Iterator<BytesRef> iterator;
 
         public SourceValueFetcherSortedBinaryDocValues(
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
-            SourceLookup sourceLookup
+            SourceProvider sourceProvider
         ) {
             this.leafReaderContext = leafReaderContext;
             this.valueFetcher = valueFetcher;
-            this.sourceLookup = sourceLookup;
+            this.sourceProvider = sourceProvider;
+
+            values = new TreeSet<>();
         }
 
         @Override
         public boolean advanceExact(int doc) throws IOException {
-            sourceLookup.setSegmentAndDocument(leafReaderContext, doc);
-            values = new TreeSet<>(valueFetcher.fetchValues(sourceLookup, Collections.emptyList()));
+            values.clear();
+            Source source = sourceProvider.getSource(leafReaderContext, doc);
+            for (Object object : valueFetcher.fetchValues(source, doc, Collections.emptyList())) {
+                values.add(new BytesRef(object.toString()));
+            }
+
             iterator = values.iterator();
 
-            return true;
+            return values.isEmpty() == false;
         }
 
         @Override
@@ -119,9 +127,9 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
         }
 
         @Override
-        public BytesRef nextValue() throws IOException {
+        public BytesRef nextValue() {
             assert iterator.hasNext();
-            return new BytesRef(iterator.next().toString());
+            return iterator.next();
         }
     }
 }

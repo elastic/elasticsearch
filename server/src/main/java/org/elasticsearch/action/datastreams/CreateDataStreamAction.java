@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.datastreams;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -28,7 +29,7 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "indices:admin/data_stream/create";
 
     private CreateDataStreamAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
@@ -36,12 +37,14 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         private final String name;
         private final long startTime;
 
-        public Request(String name) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String name) {
+            super(masterNodeTimeout, ackTimeout);
             this.name = name;
             this.startTime = System.currentTimeMillis();
         }
 
-        public Request(String name, long startTime) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String name, long startTime) {
+            super(masterNodeTimeout, ackTimeout);
             this.name = name;
             this.startTime = startTime;
         }
@@ -66,20 +69,14 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.name = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
-                this.startTime = in.readVLong();
-            } else {
-                this.startTime = System.currentTimeMillis();
-            }
+            this.startTime = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(name);
-            if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-                out.writeVLong(startTime);
-            }
+            out.writeVLong(startTime);
         }
 
         @Override

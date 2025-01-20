@@ -1,16 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
@@ -56,10 +55,6 @@ public class BucketHelpersTests extends ESTestCase {
         };
 
         InternalMultiBucketAggregation.InternalBucket bucket = new InternalMultiBucketAggregation.InternalBucket() {
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-
-            }
 
             @Override
             public Object getKey() {
@@ -77,12 +72,7 @@ public class BucketHelpersTests extends ESTestCase {
             }
 
             @Override
-            public Aggregations getAggregations() {
-                return null;
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            public InternalAggregations getAggregations() {
                 return null;
             }
 
@@ -92,8 +82,8 @@ public class BucketHelpersTests extends ESTestCase {
             }
         };
 
-        AggregationExecutionException e = expectThrows(
-            AggregationExecutionException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> BucketHelpers.resolveBucketValue(agg, bucket, "foo>bar", BucketHelpers.GapPolicy.SKIP)
         );
 
@@ -136,10 +126,6 @@ public class BucketHelpersTests extends ESTestCase {
         };
 
         InternalMultiBucketAggregation.InternalBucket bucket = new InternalMultiBucketAggregation.InternalBucket() {
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-
-            }
 
             @Override
             public Object getKey() {
@@ -157,12 +143,7 @@ public class BucketHelpersTests extends ESTestCase {
             }
 
             @Override
-            public Aggregations getAggregations() {
-                return null;
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            public InternalAggregations getAggregations() {
                 return null;
             }
 

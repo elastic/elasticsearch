@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -32,16 +33,16 @@ public final class FieldAliasMapper extends Mapper {
     }
 
     private final String name;
-    private final String path;
+    private final String targetPath;
 
-    public FieldAliasMapper(String simpleName, String name, String path) {
+    public FieldAliasMapper(String simpleName, String name, String targetPath) {
         super(simpleName);
         this.name = Mapper.internFieldName(name);
-        this.path = path;
+        this.targetPath = targetPath;
     }
 
     @Override
-    public String name() {
+    public String fullPath() {
         return name;
     }
 
@@ -50,15 +51,15 @@ public final class FieldAliasMapper extends Mapper {
         return CONTENT_TYPE;
     }
 
-    public String path() {
-        return path;
+    public String targetPath() {
+        return targetPath;
     }
 
     @Override
-    public Mapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext) {
+    public Mapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext) {
         if ((mergeWith instanceof FieldAliasMapper) == false) {
             throw new IllegalArgumentException(
-                "Cannot merge a field alias mapping [" + name() + "] with a mapping that is not for a field alias."
+                "Cannot merge a field alias mapping [" + fullPath() + "] with a mapping that is not for a field alias."
             );
         }
         return mergeWith;
@@ -71,37 +72,37 @@ public final class FieldAliasMapper extends Mapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject(simpleName()).field("type", CONTENT_TYPE).field(Names.PATH, path).endObject();
+        return builder.startObject(leafName()).field("type", CONTENT_TYPE).field(Names.PATH, targetPath).endObject();
     }
 
     @Override
     public void validate(MappingLookup mappers) {
-        if (Objects.equals(this.path(), this.name())) {
+        if (Objects.equals(this.targetPath(), this.fullPath())) {
             throw new MapperParsingException(
-                "Invalid [path] value [" + path + "] for field alias [" + name() + "]: an alias cannot refer to itself."
+                "Invalid [path] value [" + targetPath + "] for field alias [" + fullPath() + "]: an alias cannot refer to itself."
             );
         }
-        if (mappers.fieldTypesLookup().get(path) == null) {
+        if (mappers.fieldTypesLookup().get(targetPath) == null) {
             throw new MapperParsingException(
                 "Invalid [path] value ["
-                    + path
+                    + targetPath
                     + "] for field alias ["
-                    + name()
+                    + fullPath()
                     + "]: an alias must refer to an existing field in the mappings."
             );
         }
-        if (mappers.getMapper(path) instanceof FieldAliasMapper) {
+        if (mappers.getMapper(targetPath) instanceof FieldAliasMapper) {
             throw new MapperParsingException(
-                "Invalid [path] value [" + path + "] for field alias [" + name() + "]: an alias cannot refer to another alias."
+                "Invalid [path] value [" + targetPath + "] for field alias [" + fullPath() + "]: an alias cannot refer to another alias."
             );
         }
         String aliasScope = mappers.nestedLookup().getNestedParent(name);
-        String pathScope = mappers.nestedLookup().getNestedParent(path);
+        String pathScope = mappers.nestedLookup().getNestedParent(targetPath);
 
         if (Objects.equals(aliasScope, pathScope) == false) {
             StringBuilder message = new StringBuilder(
                 "Invalid [path] value ["
-                    + path
+                    + targetPath
                     + "] for field alias ["
                     + name
                     + "]: an alias must have the same nested scope as its target. "
@@ -111,6 +112,11 @@ public final class FieldAliasMapper extends Mapper {
             message.append(pathScope == null ? "the target is not nested." : "the target's nested scope is [" + pathScope + "].");
             throw new IllegalArgumentException(message.toString());
         }
+    }
+
+    @Override
+    public int getTotalFieldsCount() {
+        return 1;
     }
 
     public static class TypeParser implements Mapper.TypeParser {
@@ -127,22 +133,16 @@ public final class FieldAliasMapper extends Mapper {
         }
 
         @Override
-        public boolean supportsVersion(Version indexCreatedVersion) {
+        public boolean supportsVersion(IndexVersion indexCreatedVersion) {
             return true;
         }
     }
 
     public static class Builder extends Mapper.Builder {
-        private String name;
         private String path;
 
         protected Builder(String name) {
             super(name);
-            this.name = name;
-        }
-
-        public String name() {
-            return this.name;
         }
 
         public Builder path(String path) {
@@ -152,13 +152,8 @@ public final class FieldAliasMapper extends Mapper {
 
         @Override
         public FieldAliasMapper build(MapperBuilderContext context) {
-            String fullName = context.buildFullName(name);
-            return new FieldAliasMapper(name, fullName, path);
+            String fullName = context.buildFullName(leafName());
+            return new FieldAliasMapper(leafName(), fullName, path);
         }
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

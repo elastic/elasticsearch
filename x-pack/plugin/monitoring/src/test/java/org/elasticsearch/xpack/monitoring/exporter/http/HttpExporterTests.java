@@ -11,6 +11,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -48,6 +49,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -606,10 +608,10 @@ public class HttpExporterTests extends ESTestCase {
             verify(listener).setResource(resource);
 
             final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
-            final ActionListener<ExportBulk> bulkListener = ActionListener.wrap(bulk -> {
+            final ActionListener<ExportBulk> bulkListener = ActionTestUtils.assertNoFailureListener(bulk -> {
                 assertNull("should have been invoked with null value to denote migration in progress", bulk);
                 awaitResponseAndClose.countDown();
-            }, e -> fail("[onResponse] should have been invoked with null value to denote migration in progress"));
+            });
 
             exporter.openBulk(bulkListener);
 
@@ -680,11 +682,10 @@ public class HttpExporterTests extends ESTestCase {
             verify(listener).setResource(resource);
 
             final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
-            final ActionListener<ExportBulk> bulkListener = ActionListener.wrap(bulk -> {
+            final ActionListener<ExportBulk> bulkListener = ActionTestUtils.assertNoFailureListener(bulk -> {
                 assertThat(bulk, nullValue());
-
                 awaitResponseAndClose.countDown();
-            }, e -> fail(e.getMessage()));
+            });
 
             exporter.openBulk(bulkListener);
 
@@ -718,11 +719,10 @@ public class HttpExporterTests extends ESTestCase {
             verify(listener).setResource(resource);
 
             final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
-            final ActionListener<ExportBulk> bulkListener = ActionListener.wrap(bulk -> {
+            final ActionListener<ExportBulk> bulkListener = ActionTestUtils.assertNoFailureListener(bulk -> {
                 assertThat(bulk.getName(), equalTo(exporterName()));
-
                 awaitResponseAndClose.countDown();
-            }, e -> fail(e.getMessage()));
+            });
 
             exporter.openBulk(bulkListener);
 
@@ -765,7 +765,10 @@ public class HttpExporterTests extends ESTestCase {
         if (timeout != null) {
             for (final HttpResource resource : resources) {
                 if (resource instanceof PublishableHttpResource) {
-                    assertEquals(timeout.getStringRep(), ((PublishableHttpResource) resource).getDefaultParameters().get("master_timeout"));
+                    assertEquals(
+                        timeout.getStringRep(),
+                        ((PublishableHttpResource) resource).getDefaultParameters().get(REST_MASTER_TIMEOUT_PARAM)
+                    );
                 }
             }
         }

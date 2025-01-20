@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.precommit;
@@ -118,11 +119,16 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
                 errors.values().stream().flatMap(Collection::stream).forEach(printWriter::println);
             }
             StringBuilder sb = new StringBuilder();
-            sb.append("Error validating JSON. See the report at: ");
+            sb.append("Verification failed. See the report at: ");
             sb.append(getReport().toURI().toASCIIString());
             sb.append(System.lineSeparator());
             sb.append(
-                String.format("Verification failed: %d files contained %d violations", errors.keySet().size(), errors.values().size())
+                String.format(
+                    "Error validating %s: %d files contained %d violations",
+                    getFileType(),
+                    errors.keySet().size(),
+                    errors.values().size()
+                )
             );
             throw new JsonSchemaException(sb.toString());
         }

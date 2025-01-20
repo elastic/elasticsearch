@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch;
@@ -31,9 +32,9 @@ public class StoredFieldsContext implements Writeable {
     public static final String _NONE_ = "_none_";
 
     private final List<String> fieldNames;
-    private boolean fetchFields;
+    private final boolean fetchFields;
 
-    private StoredFieldsContext(boolean fetchFields) {
+    public StoredFieldsContext(boolean fetchFields) {
         this.fetchFields = fetchFields;
         this.fieldNames = null;
     }
@@ -115,7 +116,7 @@ public class StoredFieldsContext implements Writeable {
         StoredFieldsContext that = (StoredFieldsContext) o;
 
         if (fetchFields != that.fetchFields) return false;
-        return fieldNames != null ? fieldNames.equals(that.fieldNames) : that.fieldNames == null;
+        return Objects.equals(fieldNames, that.fieldNames);
 
     }
 
@@ -143,6 +144,10 @@ public class StoredFieldsContext implements Writeable {
         }
     }
 
+    public static StoredFieldsContext metadataOnly() {
+        return new StoredFieldsContext(true);
+    }
+
     public static StoredFieldsContext fromList(List<String> fieldNames) {
         if (fieldNames.size() == 1 && _NONE_.equals(fieldNames.get(0))) {
             return new StoredFieldsContext(false);
@@ -160,7 +165,7 @@ public class StoredFieldsContext implements Writeable {
             return fromList(Collections.singletonList(parser.text()));
         } else if (token == XContentParser.Token.START_ARRAY) {
             ArrayList<String> list = new ArrayList<>();
-            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                 list.add(parser.text());
             }
             return fromList(list);

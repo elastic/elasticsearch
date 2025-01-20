@@ -15,6 +15,6 @@ public class CreateServiceAccountTokenAction extends ActionType<CreateServiceAcc
     public static final CreateServiceAccountTokenAction INSTANCE = new CreateServiceAccountTokenAction();
 
     private CreateServiceAccountTokenAction() {
-        super(NAME, CreateServiceAccountTokenResponse::new);
+        super(NAME);
     }
 }

@@ -17,7 +17,8 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -57,7 +59,7 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
             actionFilters,
             DeleteDatafeedAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
         this.persistentTasksService = persistentTasksService;
@@ -83,19 +85,17 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        ActionListener<Boolean> finalListener = ActionListener.wrap(
-            // use clusterService.state() here so that the updated state without the task is available
-            response -> datafeedManager.deleteDatafeed(request, clusterService.state(), listener),
-            listener::onFailure
-        );
-
-        ActionListener<IsolateDatafeedAction.Response> isolateDatafeedHandler = ActionListener.wrap(
-            response -> removeDatafeedTask(request, state, finalListener),
-            listener::onFailure
-        );
-
         IsolateDatafeedAction.Request isolateDatafeedRequest = new IsolateDatafeedAction.Request(request.getDatafeedId());
-        executeAsyncWithOrigin(client, ML_ORIGIN, IsolateDatafeedAction.INSTANCE, isolateDatafeedRequest, isolateDatafeedHandler);
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            IsolateDatafeedAction.INSTANCE,
+            isolateDatafeedRequest,
+            listener.<Boolean>delegateFailureAndWrap(
+                // use clusterService.state() here so that the updated state without the task is available
+                (l, response) -> datafeedManager.deleteDatafeed(request, clusterService.state(), l)
+            ).delegateFailureAndWrap((l, response) -> removeDatafeedTask(request, state, l))
+        );
     }
 
     private void removeDatafeedTask(DeleteDatafeedAction.Request request, ClusterState state, ActionListener<Boolean> listener) {
@@ -104,22 +104,26 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
         if (datafeedTask == null) {
             listener.onResponse(true);
         } else {
-            persistentTasksService.sendRemoveRequest(datafeedTask.getId(), new ActionListener<>() {
-                @Override
-                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
-                    listener.onResponse(Boolean.TRUE);
-                }
+            persistentTasksService.sendRemoveRequest(
+                datafeedTask.getId(),
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
+                        listener.onResponse(Boolean.TRUE);
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                        // the task has been removed in between
-                        listener.onResponse(true);
-                    } else {
-                        listener.onFailure(e);
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                            // the task has been removed in between
+                            listener.onResponse(true);
+                        } else {
+                            listener.onFailure(e);
+                        }
                     }
                 }
-            });
+            );
         }
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -15,6 +16,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * An allocation decider that ensures we allocate the shards of a target index for resize operations next to the source primaries
@@ -73,5 +77,28 @@ public class ResizeAllocationDecider extends AllocationDecider {
     @Override
     public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return canAllocate(shardRouting, node, allocation);
+    }
+
+    @Override
+    public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
+        if (shardRouting.unassignedInfo() != null && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
+            var targetIndexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+            var sourceIndexMetadata = allocation.metadata().index(targetIndexMetadata.getResizeSourceIndex());
+            if (sourceIndexMetadata == null) {
+                return Optional.of(Set.of());// source index not found
+            }
+            if (targetIndexMetadata.getNumberOfShards() < sourceIndexMetadata.getNumberOfShards()) {
+                return Optional.empty();
+            }
+            var shardId = targetIndexMetadata.getNumberOfShards() == sourceIndexMetadata.getNumberOfShards()
+                ? IndexMetadata.selectCloneShard(shardRouting.id(), sourceIndexMetadata, targetIndexMetadata.getNumberOfShards())
+                : IndexMetadata.selectSplitShard(shardRouting.id(), sourceIndexMetadata, targetIndexMetadata.getNumberOfShards());
+            var activePrimary = allocation.routingNodes().activePrimary(shardId);
+            if (activePrimary == null) {
+                return Optional.of(Set.of());// primary is active
+            }
+            return Optional.of(Set.of(activePrimary.currentNodeId()));
+        }
+        return super.getForcedInitialShardAllocationToNodes(shardRouting, allocation);
     }
 }

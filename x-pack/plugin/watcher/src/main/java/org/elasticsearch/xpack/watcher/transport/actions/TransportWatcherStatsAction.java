@@ -11,8 +11,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,7 +36,8 @@ public class TransportWatcherStatsAction extends TransportNodesAction<
     WatcherStatsRequest,
     WatcherStatsResponse,
     WatcherStatsRequest.Node,
-    WatcherStatsResponse.Node> {
+    WatcherStatsResponse.Node,
+    Void> {
 
     private final ExecutionService executionService;
     private final TriggerService triggerService;
@@ -54,14 +55,11 @@ public class TransportWatcherStatsAction extends TransportNodesAction<
     ) {
         super(
             WatcherStatsAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            WatcherStatsRequest::new,
             WatcherStatsRequest.Node::new,
-            ThreadPool.Names.MANAGEMENT,
-            WatcherStatsResponse.Node.class
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.lifeCycleService = lifeCycleService;
         this.executionService = executionService;

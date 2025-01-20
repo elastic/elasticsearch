@@ -1,11 +1,12 @@
+---
 setup:
-  - skip:
-      version: " - 8.1.99"
-      reason: id generation changed in 8.2
+  - requires:
+      cluster_features: "gte_v8.14.0"
+      reason: _tsid hashing introduced in 8.13 and tsid routing changed in 8.14
 
   - do:
       indices.create:
-          index: test
+          index: id_generation_test
           body:
             settings:
               index:
@@ -14,7 +15,6 @@ setup:
                 time_series:
                   start_time: 2021-04-28T00:00:00Z
                   end_time: 2021-04-29T00:00:00Z
-                number_of_replicas: 0
                 number_of_shards: 2
             mappings:
               properties:
@@ -44,7 +44,7 @@ setup:
   - do:
       bulk:
         refresh: true
-        index: test
+        index: id_generation_test
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
@@ -65,37 +65,142 @@ setup:
 
 ---
 generates a consistent id:
-  - skip:
-      version: " - 8.1.99"
-      reason: ID generation added in 8.2
+  - do:
+      bulk:
+        refresh: true
+        index: id_generation_test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:52:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+  - match: {items.0.index._id: cZZNs7B9sSWsyrL5AAABeRnS7fM}
 
   - do:
       bulk:
         refresh: true
-        index: test
+        index: id_generation_test
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:52:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
-  - match: {items.0.index._id: cZZNs4NdV58ePSPIAAABeRnS7fM}
+  - match: {items.0.index._id: cZZNs7B9sSWsyrL5AAABeRnS7fM}
 
   - do:
-      bulk:
-        refresh: true
-        index: test
-        body:
-          - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:52:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
-  - match: {items.0.index._id: cZZNs4NdV58ePSPIAAABeRnS7fM}
+      get:
+        index: id_generation_test
+        id: cn4excfoxSs_KdA5AAABeRnRFAY
+  - match: {_index: id_generation_test}
+  - match: {_id: cn4excfoxSs_KdA5AAABeRnRFAY}
+  - match:
+      _source:
+        "@timestamp": "2021-04-28T18:50:03.142Z"
+        metricset: pod
+        k8s:
+          pod:
+            name: dog
+            uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9
+            ip: 10.10.55.3
+            network:
+              tx: 1434521831
+              rx: 530575198
 
----
-index a new document on top of an old one:
-  - skip:
-      version: " - 8.1.99"
-      reason: indexing on top of another document support added in 8.2
 
   - do:
       search:
-        index: test
+        index: id_generation_test
+        body:
+          query:
+            match_all: {}
+          sort: ["@timestamp"]
+          _source: true
+          docvalue_fields: [_ts_routing_hash]
+
+  - match: {hits.total.value: 9}
+
+  - match: { hits.hits.0._id: cn4excfoxSs_KdA5AAABeRnRFAY }
+  - match: { hits.hits.0.fields._ts_routing_hash: [ cn4exQ ] }
+  - match: { hits.hits.0._source.@timestamp: 2021-04-28T18:50:03.142Z }
+  - match: { hits.hits.0._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+
+  - match: { hits.hits.1._id: cZZNs7B9sSWsyrL5AAABeRnRGTM }
+  - match: { hits.hits.1._source.@timestamp: 2021-04-28T18:50:04.467Z }
+  - match: { hits.hits.1._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+
+  - match: { hits.hits.2._id: cn4excfoxSs_KdA5AAABeRnRYiY }
+  - match: { hits.hits.2._source.@timestamp: 2021-04-28T18:50:23.142Z }
+  - match: { hits.hits.2._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+
+  - match: { hits.hits.3._id: cZZNs7B9sSWsyrL5AAABeRnRZ1M }
+  - match: { hits.hits.3._source.@timestamp: 2021-04-28T18:50:24.467Z }
+  - match: { hits.hits.3._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+
+  - match: { hits.hits.4._id: cZZNs7B9sSWsyrL5AAABeRnRtXM }
+  - match: { hits.hits.4._source.@timestamp: 2021-04-28T18:50:44.467Z }
+  - match: { hits.hits.4._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+
+  - match: { hits.hits.5._id: cn4excfoxSs_KdA5AAABeRnR11Y }
+  - match: { hits.hits.5._source.@timestamp: 2021-04-28T18:50:53.142Z }
+  - match: { hits.hits.5._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+
+  - match: { hits.hits.6._id: cn4excfoxSs_KdA5AAABeRnR_mY }
+  - match: { hits.hits.6._source.@timestamp: 2021-04-28T18:51:03.142Z }
+  - match: { hits.hits.6._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+
+  - match: { hits.hits.7._id: cZZNs7B9sSWsyrL5AAABeRnSA5M }
+  - match: { hits.hits.7._source.@timestamp: 2021-04-28T18:51:04.467Z }
+  - match: { hits.hits.7._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+
+  - match: { hits.hits.8._id: cZZNs7B9sSWsyrL5AAABeRnS7fM }
+  - match: { hits.hits.8._source.@timestamp: 2021-04-28T18:52:04.467Z }
+  - match: { hits.hits.8._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+
+  - do:
+      search:
+        index: id_generation_test
+        body:
+          query:
+            match_all: {}
+          sort: ["@timestamp", "_ts_routing_hash"]
+          _source: true
+          search_after: [ "2021-04-28T18:50:03.142Z", "cn4exQ" ]
+          docvalue_fields: [_ts_routing_hash]
+
+  - match: {hits.total.value: 9}
+
+  - match: { hits.hits.0._id: cZZNs7B9sSWsyrL5AAABeRnRGTM }
+  - match: { hits.hits.0._source.@timestamp: 2021-04-28T18:50:04.467Z }
+  - match: { hits.hits.0._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+
+  - match: { hits.hits.1._id: cn4excfoxSs_KdA5AAABeRnRYiY }
+  - match: { hits.hits.1._source.@timestamp: 2021-04-28T18:50:23.142Z }
+  - match: { hits.hits.1._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+
+  - match: { hits.hits.2._id: cZZNs7B9sSWsyrL5AAABeRnRZ1M }
+  - match: { hits.hits.2._source.@timestamp: 2021-04-28T18:50:24.467Z }
+  - match: { hits.hits.2._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+
+  - match: { hits.hits.3._id: cZZNs7B9sSWsyrL5AAABeRnRtXM }
+  - match: { hits.hits.3._source.@timestamp: 2021-04-28T18:50:44.467Z }
+  - match: { hits.hits.3._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+
+  - match: { hits.hits.4._id: cn4excfoxSs_KdA5AAABeRnR11Y }
+  - match: { hits.hits.4._source.@timestamp: 2021-04-28T18:50:53.142Z }
+  - match: { hits.hits.4._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+
+  - match: { hits.hits.5._id: cn4excfoxSs_KdA5AAABeRnR_mY }
+  - match: { hits.hits.5._source.@timestamp: 2021-04-28T18:51:03.142Z }
+  - match: { hits.hits.5._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+
+  - match: { hits.hits.6._id: cZZNs7B9sSWsyrL5AAABeRnSA5M }
+  - match: { hits.hits.6._source.@timestamp: 2021-04-28T18:51:04.467Z }
+  - match: { hits.hits.6._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+
+  - match: { hits.hits.7._id: cZZNs7B9sSWsyrL5AAABeRnS7fM }
+  - match: { hits.hits.7._source.@timestamp: 2021-04-28T18:52:04.467Z }
+  - match: { hits.hits.7._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+---
+index a new document on top of an old one:
+  - do:
+      search:
+        index: id_generation_test
         body:
           size: 0
           aggs:
@@ -111,7 +216,7 @@ index a new document on top of an old one:
   - do:
       index:
         refresh: true
-        index: test
+        index: id_generation_test
         op_type: index
         body:
           "@timestamp": "2021-04-28T18:51:03.142Z"
@@ -124,32 +229,28 @@ index a new document on top of an old one:
               network:
                 tx: 111434595272
                 rx: 430605511
-  - match: {_id: cn4exTOUtxytuLkQAAABeRnR_mY}
+  - match: {_id: cn4excfoxSs_KdA5AAABeRnR_mY}
 
   - do:
       search:
-        index: test
+        index: id_generation_test
         body:
           size: 0
           aggs:
             max_tx:
               max:
                 field: k8s.pod.network.tx
-            max_rx:
+            min_rx:
               min:
                 field: k8s.pod.network.rx
   - match: {aggregations.max_tx.value: 1.11434595272E11}
-  - match: {aggregations.max_rx.value: 4.30605511E8}
+  - match: {aggregations.min_rx.value: 4.30605511E8}
 
 ---
 index a new document on top of an old one over bulk:
-  - skip:
-      version: " - 8.1.99"
-      reason: indexing on top of another document support added in 8.2
-
   - do:
       search:
-        index: test
+        index: id_generation_test
         body:
           size: 0
           aggs:
@@ -165,15 +266,15 @@ index a new document on top of an old one over bulk:
   - do:
       bulk:
         refresh: true
-        index: test
+        index: id_generation_test
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 111434595272, "rx": 430605511}}}}'
-  - match: {items.0.index._id: cn4exTOUtxytuLkQAAABeRnR_mY}
+  - match: {items.0.index._id: cn4excfoxSs_KdA5AAABeRnR_mY}
 
   - do:
       search:
-        index: test
+        index: id_generation_test
         body:
           size: 0
           aggs:
@@ -188,15 +289,11 @@ index a new document on top of an old one over bulk:
 
 ---
 create operation on top of old document fails:
-  - skip:
-      version: " - 8.1.99"
-      reason: id generation changed in 8.2
-
   - do:
-      catch: "/\\[cn4exTOUtxytuLkQAAABeRnR_mY\\]\\[\\{.+\\}\\@2021-04-28T18:51:03.142Z\\]: version conflict, document already exists \\(current version \\[1\\]\\)/"
+      catch: "/\\[cn4excfoxSs_KdA5AAABeRnR_mY\\]\\[.*@2021-04-28T18:51:03.142Z\\]: version conflict, document already exists \\(current version \\[1\\]\\)/"
       index:
         refresh: true
-        index: test
+        index: id_generation_test
         body:
           "@timestamp": "2021-04-28T18:51:03.142Z"
           metricset: pod
@@ -211,53 +308,41 @@ create operation on top of old document fails:
 
 ---
 create operation on top of old document fails over bulk:
-  - skip:
-      version: " - 8.1.99"
-      reason: id generation changed in 8.2
-
   - do:
       bulk:
         refresh: true
-        index: test
+        index: id_generation_test
         body:
           - '{"create": {}}'
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 111434595272, "rx": 430605511}}}}'
-  - match: { items.0.create.error.reason: "[cn4exTOUtxytuLkQAAABeRnR_mY][{k8s.pod.uid=df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset=pod}@2021-04-28T18:51:03.142Z]: version conflict, document already exists (current version [1])" }
+  - match: { items.0.create.error.reason: "[cn4excfoxSs_KdA5AAABeRnR_mY][KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ@2021-04-28T18:51:03.142Z]: version conflict, document already exists (current version [1])" }
 
 ---
 ids query:
-  - skip:
-      version: " - 8.1.99"
-      reason: ids generation changed in 8.2
-
   - do:
       search:
-        index: test
+        index: id_generation_test
         body:
           fields:
             - field: k8s.pod.network.tx
           query:
             ids:
-              values: ["cn4exTOUtxytuLkQAAABeRnR_mY", "cZZNs4NdV58ePSPIAAABeRnSA5M"]
+              values: ["cn4excfoxSs_KdA5AAABeRnR11Y", "cn4excfoxSs_KdA5AAABeRnR_mY"]
           sort: ["@timestamp"]
   - match: {hits.total.value: 2}
-  - match: {hits.hits.0._id: "cn4exTOUtxytuLkQAAABeRnR_mY"}
-  - match: {hits.hits.0.fields.k8s\.pod\.network\.tx: [1434595272]}
-  - match: {hits.hits.1._id: "cZZNs4NdV58ePSPIAAABeRnSA5M"}
-  - match: {hits.hits.1.fields.k8s\.pod\.network\.tx: [2012916202]}
+  - match: {hits.hits.0._id: "cn4excfoxSs_KdA5AAABeRnR11Y"}
+  - match: {hits.hits.0.fields.k8s\.pod\.network\.tx: [1434587694]}
+  - match: {hits.hits.1._id: "cn4excfoxSs_KdA5AAABeRnR_mY" }
+  - match: {hits.hits.1.fields.k8s\.pod\.network\.tx: [1434595272]}
 
 ---
 get:
-  - skip:
-      version: " - 8.1.99"
-      reason: ids generation changed in 8.2
-
   - do:
       get:
-        index:   test
-        id:      cZZNs4NdV58ePSPIAAABeRnSA5M
-  - match: {_index: test}
-  - match: {_id: cZZNs4NdV58ePSPIAAABeRnSA5M}
+        index:   id_generation_test
+        id:      cZZNs7B9sSWsyrL5AAABeRnSA5M
+  - match: {_index: id_generation_test}
+  - match: {_id: cZZNs7B9sSWsyrL5AAABeRnSA5M}
   - match:
       _source:
         "@timestamp": "2021-04-28T18:51:04.467Z"
@@ -273,93 +358,79 @@ get:
 
 ---
 get not found:
-  - skip:
-      version: " - 8.1.99"
-      reason: ids generation changed in 8.2
-
   - do:
       catch: missing
       get:
-        index:   test
+        index:   id_generation_test
         id:      not found
 
 ---
 get with routing:
-  - skip:
-      version: " - 8.1.99"
-      reason: ids generation changed in 8.2
-
   - do:
       catch: bad_request
       get:
-        index:   test
-        id:      cZZNs4NdV58ePSPIAAABeRnSA5M
+        index:   id_generation_test
+        id:      cZZNs-xII2fZweptAAABeRnSA5M
         routing: routing
 
 ---
 delete:
-  - skip:
-      version: " - 8.1.99"
-      reason: ids generation changed in 8.2
-
   - do:
       delete:
-        index:   test
-        id:      cZZNs4NdV58ePSPIAAABeRnSA5M
+        index:   id_generation_test
+        id:      cn4excfoxSs_KdA5AAABeRnR_mY
   - match: {result: deleted}
 
 ---
 delete not found:
-  - skip:
-      version: " - 8.1.99"
-      reason: ids generation changed in 8.2
-
   - do:
       catch: missing
       delete:
-        index:   test
+        index:   id_generation_test
         id:      not found
 
 ---
 delete with routing:
-  - skip:
-      version: " - 8.1.99"
-      reason: ids generation changed in 8.2
-
   - do:
       catch: bad_request
       delete:
-        index:   test
+        index:   id_generation_test
         id:      not found
         routing: routing
 
 ---
 delete over _bulk:
-  - skip:
-      version: " - 8.1.99"
-      reason: ids generation changed in 8.2
+  # mget call added to investigate test failure: https://github.com/elastic/elasticsearch/issues/93852
+  # (should be removed when test issue is resolved)
+  - do:
+      mget:
+        index: id_generation_test
+        body:
+          ids: [ cn4excfoxSs_KdA5AAABeRnR_mY, cn4excfoxSs_KdA5AAABeRnR11Y ]
+  - match: { docs.0._index: "id_generation_test" }
+  - match: { docs.0._id: "cn4excfoxSs_KdA5AAABeRnR_mY" }
+  - match: { docs.0.found: true }
+  - match: { docs.1._index: "id_generation_test" }
+  - match: { docs.1._id: "cn4excfoxSs_KdA5AAABeRnR11Y" }
+  - match: { docs.1.found: true }
 
   - do:
       bulk:
-        index:   test
+        index:   id_generation_test
         body:
-          - '{"delete": {"_id": "cn4exTOUtxytuLkQAAABeRnR_mY"}}'
-          - '{"delete": {"_id": "cZZNs4NdV58ePSPIAAABeRnSA5M"}}'
+          - '{"delete": {"_id": "cn4excfoxSs_KdA5AAABeRnR_mY"}}'
+          - '{"delete": {"_id": "cn4excfoxSs_KdA5AAABeRnR11Y"}}'
           - '{"delete": {"_id": "not found ++ not found"}}'
   - match: {items.0.delete.result: deleted}
   - match: {items.1.delete.result: deleted}
   - match: {items.2.delete.status: 404}
-  - match: {items.2.delete.error.reason: "invalid id [not found ++ not found] for index [test] in time series mode"}
+  - match: {items.2.delete.error.reason: '/invalid\ id\ \[not\ found\ \+\+\ not\ found\]\ for\ index\ \[id_generation_test\]\ in\ time.series\ mode/'}
 
 ---
 routing_path matches deep object:
-  - skip:
-      version: " - 8.1.99"
-      reason: id generation changed in 8.2
-
   - do:
       indices.create:
-          index: test2
+          index: routing_path_test
           body:
             settings:
               index:
@@ -389,22 +460,18 @@ routing_path matches deep object:
   - do:
       bulk:
         refresh: true
-        index: test2
+        index: routing_path_test
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": {"foo": {"bar": {"baz": {"uid": "uid1"}}}}}'
   - match: {items.0.index.result: created}
-  - match: {items.0.index._id: OcEOGaxBa0saxogMAAABeRnRGTM}
+  - match: {items.0.index._id: OcEOGchJrjH1fFX8AAABeRnRGTM}
 
 ---
 routing_path matches object:
-  - skip:
-      version: " - 8.1.99"
-      reason: id generation changed in 8.2
-
   - do:
       indices.create:
-          index: test2
+          index: routing_path_test_2
           body:
             settings:
               index:
@@ -430,9 +497,9 @@ routing_path matches object:
   - do:
       bulk:
         refresh: true
-        index: test2
+        index: routing_path_test_2
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": {"foo": {"uid": "uid1"}}}'
   - match: {items.0.index.result: created}
-  - match: {items.0.index._id: 8bgiqUyQKH6n8noAAAABeRnRGTM}
+  - match: {items.0.index._id: 8bgiqW9JKwAyp1bZAAABeRnRGTM}

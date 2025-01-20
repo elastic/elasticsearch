@@ -19,6 +19,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
@@ -26,6 +28,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -35,7 +38,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Base64;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -78,11 +80,40 @@ public class ServiceAccountIT extends ESRestTestCase {
         }
         """;
 
+    private static final String ELASTIC_AUTO_OPS_ROLE_DESCRIPTOR = """
+        {
+            "cluster": [
+                "monitor",
+                "read_ilm",
+                "read_slm"
+            ],
+            "indices": [
+                {
+                    "names": [
+                        "*"
+                    ],
+                    "privileges": [
+                        "monitor",
+                        "view_index_metadata"
+                    ],
+                    "allow_restricted_indices": true
+                }
+            ],
+            "applications": [],
+            "run_as": [],
+            "metadata": {},
+            "transient_metadata": {
+                "enabled": true
+            }
+        }""";
+
     private static final String ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR = """
         {
               "cluster": [
                 "monitor",
-                "manage_own_api_key"
+                "manage_own_api_key",
+                "read_fleet_secrets",
+                "cluster:admin/xpack/connector/*"
               ],
               "indices": [
                 {
@@ -90,14 +121,24 @@ public class ServiceAccountIT extends ESRestTestCase {
                     "logs-*",
                     "metrics-*",
                     "traces-*",
-                    "synthetics-*",
                     ".logs-endpoint.diagnostic.collection-*",
-                    ".logs-endpoint.action.responses-*"
+                    ".logs-endpoint.action.responses-*",
+                    ".logs-endpoint.heartbeat-*"
                   ],
                   "privileges": [
                     "write",
                     "create_index",
                     "auto_configure"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    "profiling-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write"
                   ],
                   "allow_restricted_indices": false
                 },
@@ -114,7 +155,16 @@ public class ServiceAccountIT extends ESRestTestCase {
                 },
                 {
                   "names": [
-                    ".fleet-*"
+                    ".fleet-secrets*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "allow_restricted_indices":true
+                },
+                {
+                  "names": [
+                    ".fleet-actions*"
                   ],
                   "privileges": [
                     "read",
@@ -125,6 +175,162 @@ public class ServiceAccountIT extends ESRestTestCase {
                     "maintenance"
                   ],
                   "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-agents*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-artifacts*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-enrollment-api-keys*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-policies*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-policies-leader*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-servers*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-fileds*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    "synthetics-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "create_index",
+                    "auto_configure"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    ".elastic-connectors*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance",
+                    "view_index_metadata"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    "content-*",
+                    ".search-acl-filter-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance",
+                    "view_index_metadata"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    "agentless-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance",
+                    "view_index_metadata"
+                  ],
+                  "allow_restricted_indices": false
                 }
               ],
               "applications": [        {
@@ -148,23 +354,30 @@ public class ServiceAccountIT extends ESRestTestCase {
         {
             "cluster": [
                 "manage",
-                "manage_security"
+                "manage_security",
+                "read_connector_secrets",
+                "write_connector_secrets"
             ],
             "indices": [
                 {
                     "names": [
                         "search-*",
+                        ".search-acl-filter-*",
+                        ".elastic-analytics-collections",
                         ".ent-search-*",
                         ".monitoring-ent-search-*",
                         "metricbeat-ent-search-*",
                         "enterprise-search-*",
                         "logs-app_search.analytics-default",
+                        "logs-elastic_analytics.events-*",
                         "logs-enterprise_search.api-default",
                         "logs-enterprise_search.audit-default",
                         "logs-app_search.search_relevance_suggestions-default",
                         "logs-crawler-default",
+                        "logs-elastic_crawler-default",
                         "logs-workplace_search.analytics-default",
-                        "logs-workplace_search.content_events-default"
+                        "logs-workplace_search.content_events-default",
+                        ".elastic-connectors*"
                     ],
                     "privileges": [
                         "manage",
@@ -182,6 +395,37 @@ public class ServiceAccountIT extends ESRestTestCase {
             }
         }""";
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .nodes(2)
+        .module("analysis-common")
+        .module("rest-root")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.authc.token.enabled", "true")
+        .setting("xpack.security.authc.api_key.enabled", "true")
+        .setting("xpack.security.http.ssl.enabled", "true")
+        .setting("xpack.security.http.ssl.certificate", "node.crt")
+        .setting("xpack.security.http.ssl.key", "node.key")
+        .setting("xpack.security.http.ssl.certificate_authorities", "ca.crt")
+        .setting("xpack.security.transport.ssl.enabled", "true")
+        .setting("xpack.security.transport.ssl.certificate", "node.crt")
+        .setting("xpack.security.transport.ssl.key", "node.key")
+        .setting("xpack.security.transport.ssl.certificate_authorities", "ca.crt")
+        .setting("xpack.security.transport.ssl.verification_mode", "certificate")
+        .keystore("bootstrap.password", "x-pack-test-password")
+        .keystore("xpack.security.transport.ssl.secure_key_passphrase", "node-password")
+        .keystore("xpack.security.http.ssl.secure_key_passphrase", "node-password")
+        .configFile("node.key", Resource.fromClasspath("ssl/node.key"))
+        .configFile("node.crt", Resource.fromClasspath("ssl/node.crt"))
+        .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
+        .configFile("service_tokens", Resource.fromClasspath("service_tokens"))
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .user("test_admin", "x-pack-test-password")
+        .user("elastic/fleet-server", "x-pack-test-password", "superuser", false)
+        .user("service_account_manager", "x-pack-test-password", "service_account_manager", false)
+        .build();
+
     @BeforeClass
     public static void init() throws URISyntaxException, FileNotFoundException {
         URL resource = ServiceAccountIT.class.getResource("/ssl/ca.crt");
@@ -189,6 +433,11 @@ public class ServiceAccountIT extends ESRestTestCase {
             throw new FileNotFoundException("Cannot find classpath resource /ssl/ca.crt");
         }
         caPath = PathUtils.get(resource.toURI());
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     @Override
@@ -224,6 +473,10 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Response getServiceAccountResponse3 = client().performRequest(getServiceAccountRequest3);
         assertOK(getServiceAccountResponse3);
         assertServiceAccountRoleDescriptor(getServiceAccountResponse3, "elastic/fleet-server", ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR);
+
+        final Request getServiceAccountRequestAutoOps = new Request("GET", "_security/service/elastic/auto-ops");
+        final Response getServiceAccountResponseAutoOps = client().performRequest(getServiceAccountRequestAutoOps);
+        assertServiceAccountRoleDescriptor(getServiceAccountResponseAutoOps, "elastic/auto-ops", ELASTIC_AUTO_OPS_ROLE_DESCRIPTOR);
 
         final Request getServiceAccountRequestKibana = new Request("GET", "_security/service/elastic/kibana");
         final Response getServiceAccountResponseKibana = client().performRequest(getServiceAccountRequestKibana);
@@ -266,7 +519,7 @@ public class ServiceAccountIT extends ESRestTestCase {
             responseAsMap(response),
             equalTo(
                 XContentHelper.convertToMap(
-                    new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "token1", "file")),
+                    new BytesArray(Strings.format(AUTHENTICATE_RESPONSE, "token1", "file")),
                     false,
                     XContentType.JSON
                 ).v2()
@@ -313,9 +566,9 @@ public class ServiceAccountIT extends ESRestTestCase {
 
         final String refreshToken = (String) oauthTokenResponseMap.get("refresh_token");
         final Request refreshTokenRequest = new Request("POST", "_security/oauth2/token");
-        refreshTokenRequest.setJsonEntity("""
+        refreshTokenRequest.setJsonEntity(Strings.format("""
             {"grant_type":"refresh_token","refresh_token":"%s"}
-            """.formatted(refreshToken));
+            """, refreshToken));
         final Response refreshTokenResponse = adminClient().performRequest(refreshTokenRequest);
         assertOK(refreshTokenResponse);
     }
@@ -358,7 +611,7 @@ public class ServiceAccountIT extends ESRestTestCase {
             responseAsMap(response),
             equalTo(
                 XContentHelper.convertToMap(
-                    new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "api-token-1", "index")),
+                    new BytesArray(Strings.format(AUTHENTICATE_RESPONSE, "api-token-1", "index")),
                     false,
                     XContentType.JSON
                 ).v2()
@@ -505,8 +758,8 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("is unauthorized for API key"));
 
         final Request invalidateApiKeysRequest = new Request("DELETE", "_security/api_key");
-        invalidateApiKeysRequest.setJsonEntity("""
-            {"ids":["%s"],"owner":true}""".formatted(apiKeyId1));
+        invalidateApiKeysRequest.setJsonEntity(Strings.format("""
+            {"ids":["%s"],"owner":true}""", apiKeyId1));
         invalidateApiKeysRequest.setOptions(requestOptions);
         final Response invalidateApiKeysResponse = client().performRequest(invalidateApiKeysRequest);
         assertOK(invalidateApiKeysResponse);
@@ -559,6 +812,6 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> fileTokens = (Map<String, Object>) nodes.get("file_tokens");
         assertThat(fileTokens, hasKey("token1"));
         final Map<String, Object> token1 = (Map<String, Object>) fileTokens.get("token1");
-        assertThat((List<String>) token1.get("nodes"), equalTo(List.of("javaRestTest-0", "javaRestTest-1")));
+        assertThat((List<String>) token1.get("nodes"), equalTo(List.of("test-cluster-0", "test-cluster-1")));
     }
 }

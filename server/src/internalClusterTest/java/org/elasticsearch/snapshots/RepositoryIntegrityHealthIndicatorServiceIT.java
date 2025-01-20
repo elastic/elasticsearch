@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -21,7 +22,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
-import static org.elasticsearch.health.HealthStatus.RED;
+import static org.elasticsearch.health.HealthStatus.YELLOW;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
 import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,21 +60,21 @@ public class RepositoryIntegrityHealthIndicatorServiceIT extends AbstractSnapsho
         // instead relies on other operations to detect and flag repository corruption
         assertThat(
             expectThrows(RepositoryException.class, () -> createFullSnapshot(repository, "snapshot-2")).getMessage(),
-            containsString("[" + repository + "] Could not read repository data")
+            containsString("[" + repository + "] The repository has been disabled to prevent data corruption")
         );
 
-        assertSnapshotRepositoryHealth("Indicator should be red after file is deleted from the repository", client, RED);
+        assertSnapshotRepositoryHealth("Indicator should be yellow after file is deleted from the repository", client, YELLOW);
 
         deleteRepository(repository);
     }
 
     private void assertSnapshotRepositoryHealth(String message, Client client, HealthStatus status) {
-        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(randomBoolean())).actionGet();
+        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(randomBoolean(), 1000)).actionGet();
         assertThat(message, response.findIndicator(NAME).status(), equalTo(status));
     }
 
     private void corruptRepository(String name, Path location) throws IOException {
         final RepositoryData repositoryData = getRepositoryData(name);
-        Files.delete(location.resolve("index-" + repositoryData.getGenId()));
+        Files.delete(location.resolve(getRepositoryDataBlobName(repositoryData.getGenId())));
     }
 }

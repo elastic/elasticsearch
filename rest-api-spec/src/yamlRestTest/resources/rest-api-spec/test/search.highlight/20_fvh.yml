@@ -22,7 +22,6 @@ setup:
   - do:
       index:
         index: test
-        refresh: true
         body:
           id : 1
           title : "The quick brown fox is brown"
@@ -31,13 +30,16 @@ setup:
   - do:
       index:
         index: test
-        refresh: true
         body:
           id : 2
           title : "The quick blue fox is blue"
           nested:
             - title: "purple octopus"
             - title: "purple fish"
+
+  - do:
+      indices.refresh:
+        index: [test]
 
 ---
 "Highlight query":
@@ -67,8 +69,8 @@ setup:
 
 ---
 "Highlight multiple documents":
-  - skip:
-      version: " - 7.10.1"
+  - requires:
+      cluster_features: ["gte_v7.10.2"]
       reason: Bug fixed in 7.10.2
   - do:
       search:
@@ -91,8 +93,8 @@ setup:
 
 ---
 "Highlight multiple nested documents":
-  - skip:
-      version: " - 7.10.1"
+  - requires:
+      cluster_features: ["gte_v7.10.2"]
       reason: Bug fixed in 7.10.2
   - do:
       search:

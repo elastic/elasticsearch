@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.node;
@@ -42,14 +43,14 @@ public class AdaptiveSelectionStats implements Writeable, ToXContentFragment {
     }
 
     public AdaptiveSelectionStats(StreamInput in) throws IOException {
-        this.clientOutgoingConnections = in.readMap(StreamInput::readString, StreamInput::readLong);
-        this.nodeComputedStats = in.readMap(StreamInput::readString, ResponseCollectorService.ComputedNodeStats::new);
+        this.clientOutgoingConnections = in.readMap(StreamInput::readLong);
+        this.nodeComputedStats = in.readMap(ResponseCollectorService.ComputedNodeStats::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.clientOutgoingConnections, StreamOutput::writeString, StreamOutput::writeLong);
-        out.writeMap(this.nodeComputedStats, StreamOutput::writeString, (stream, stats) -> stats.writeTo(stream));
+        out.writeMap(this.clientOutgoingConnections, StreamOutput::writeLong);
+        out.writeMap(this.nodeComputedStats, StreamOutput::writeWriteable);
     }
 
     @Override

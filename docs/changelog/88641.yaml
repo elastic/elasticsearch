@@ -1,5 +1,0 @@
-pr: 88641
-summary: Replace health request with a state observer
-area: Allocation
-type: bug
-issues: []

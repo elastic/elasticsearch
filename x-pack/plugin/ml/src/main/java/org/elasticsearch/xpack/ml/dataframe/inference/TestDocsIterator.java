@@ -27,7 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
+class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     private final DataFrameAnalyticsConfig config;
     private Long lastDocId;
@@ -61,7 +61,7 @@ public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     @Override
     protected SearchHit map(SearchHit hit) {
-        return hit;
+        return hit.asUnpooled();
     }
 
     @Override

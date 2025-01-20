@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.search;
@@ -11,10 +12,11 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.search.vectors.KnnSearchRequestParser;
 
 import java.io.IOException;
@@ -34,10 +36,11 @@ public class RestKnnSearchAction extends BaseRestHandler {
     public RestKnnSearchAction() {}
 
     @Override
+    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_RELEVANCE)
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, "{index}/_knn_search").deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_8).build(),
-            Route.builder(POST, "{index}/_knn_search").deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_8).build()
+            Route.builder(GET, "{index}/_knn_search").deprecatedForRemoval(DEPRECATION_MESSAGE, RestApiVersion.V_8).build(),
+            Route.builder(POST, "{index}/_knn_search").deprecatedForRemoval(DEPRECATION_MESSAGE, RestApiVersion.V_8).build()
         );
     }
 
@@ -55,6 +58,6 @@ public class RestKnnSearchAction extends BaseRestHandler {
         SearchRequestBuilder searchRequestBuilder = cancellableNodeClient.prepareSearch();
         parser.toSearchRequest(searchRequestBuilder);
 
-        return channel -> searchRequestBuilder.execute(new RestStatusToXContentListener<>(channel));
+        return channel -> searchRequestBuilder.execute(new RestRefCountedChunkedToXContentListener<>(channel));
     }
 }

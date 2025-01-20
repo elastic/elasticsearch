@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.rest.yaml.section;
 
@@ -28,6 +29,7 @@ public interface ExecutableSection {
         new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("set"), SetSection::parse),
         new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("transform_and_set"), TransformAndSetSection::parse),
         new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("match"), MatchAssertion::parse),
+        new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("is_after"), IsAfterAssertion::parse),
         new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("is_true"), IsTrueAssertion::parse),
         new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("is_false"), IsFalseAssertion::parse),
         new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("gt"), GreaterThanAssertion::parse),
@@ -36,7 +38,9 @@ public interface ExecutableSection {
         new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("lte"), LessThanOrEqualToAssertion::parse),
         new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("contains"), ContainsAssertion::parse),
         new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("length"), LengthAssertion::parse),
-        new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("close_to"), CloseToAssertion::parse)
+        new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("close_to"), CloseToAssertion::parse),
+        new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("exists"), ExistsAssertion::parse),
+        new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("not_exists"), NotExistsAssertion::parse)
     );
 
     /**

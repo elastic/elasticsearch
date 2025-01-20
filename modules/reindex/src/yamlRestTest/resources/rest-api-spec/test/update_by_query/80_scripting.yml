@@ -132,8 +132,8 @@
 
 ---
 "Setting bogus context is an error":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "error message changed in 8.5"
   - do:
       index:
@@ -154,8 +154,8 @@
 
 ---
 "Can't change _id":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "error message changed in 8.5"
   - do:
       index:
@@ -313,8 +313,8 @@
 
 ---
 "Set unsupported operation type":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "error message changed in 8.5"
   - do:
       index:
@@ -442,8 +442,8 @@
 
 ---
 "Can read version":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: fixed in 8.4.0
 
   - do:
@@ -506,3 +506,37 @@
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.old_version: -1 }
 
+---
+"Script Write Field":
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
+      reason: "Write fields api introduced in 8.5.0"
+
+  - do:
+      index:
+        index: testw1
+        id: "1"
+        body:
+          foo: bar
+          count: 1
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      update_by_query:
+        refresh: true
+        index: testw1
+        body:
+          script:
+            source: field('foo').transform(x -> x + '-baz'); field('nest').doc().field('bar').set(200)
+            lang: painless
+
+  - do:
+      get:
+        index: testw1
+        id: "1"
+
+  - match: { _source.foo: bar-baz }
+  - match: { _source.nest.bar: 200 }
+  - match: { found: true }

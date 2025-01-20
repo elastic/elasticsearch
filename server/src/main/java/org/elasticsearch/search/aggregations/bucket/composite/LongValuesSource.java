@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -43,7 +46,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     private final CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc;
     private final LongUnaryOperator rounding;
 
-    private BitArray bits;
+    private final BitArray bits;
     private LongArray values;
     private long currentValue;
     private boolean missingCurrentValue;
@@ -59,7 +62,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         int size,
         int reverseMul
     ) {
-        super(bigArrays, format, fieldType, missingBucket, missingOrder, size, reverseMul);
+        super(bigArrays, format, fieldType, missingBucket, missingOrder, reverseMul);
         this.bigArrays = bigArrays;
         this.docValuesFunc = docValuesFunc;
         this.rounding = rounding;
@@ -153,11 +156,9 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
             afterValue = null;
         } else {
             // parse the value from a string in case it is a date or a formatted unsigned long.
-            afterValue = format.parseLong(
-                value.toString(),
-                false,
-                () -> { throw new IllegalArgumentException("now() is not supported in [after] key"); }
-            );
+            afterValue = format.parseLong(value.toString(), false, () -> {
+                throw new IllegalArgumentException("now() is not supported in [after] key");
+            });
         }
     }
 
@@ -172,6 +173,11 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     @Override
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
         final SortedNumericDocValues dvs = docValuesFunc.apply(context);
+        final NumericDocValues singleton = DocValues.unwrapSingleton(dvs);
+        return singleton != null ? getLeafCollector(singleton, next) : getLeafCollector(dvs, next);
+    }
+
+    private LeafBucketCollector getLeafCollector(SortedNumericDocValues dvs, LeafBucketCollector next) {
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -186,6 +192,22 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
                             previous = currentValue;
                         }
                     }
+                } else if (missingBucket) {
+                    missingCurrentValue = true;
+                    next.collect(doc, bucket);
+                }
+            }
+        };
+    }
+
+    private LeafBucketCollector getLeafCollector(NumericDocValues dvs, LeafBucketCollector next) {
+        return new LeafBucketCollector() {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (dvs.advanceExact(doc)) {
+                    currentValue = dvs.longValue();
+                    missingCurrentValue = false;
+                    next.collect(doc, bucket);
                 } else if (missingBucket) {
                     missingCurrentValue = true;
                     next.collect(doc, bucket);

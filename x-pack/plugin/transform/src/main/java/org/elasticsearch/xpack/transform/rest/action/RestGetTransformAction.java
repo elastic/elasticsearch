@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.transform.rest.action;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -24,6 +26,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 import static org.elasticsearch.xpack.core.transform.TransformField.EXCLUDE_GENERATED;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestGetTransformAction extends BaseRestHandler {
 
     @Override

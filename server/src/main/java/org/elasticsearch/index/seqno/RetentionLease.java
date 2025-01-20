@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.seqno;
@@ -99,7 +100,12 @@ public final class RetentionLease implements ToXContentObject, Writeable {
         this.id = id;
         this.retainingSequenceNumber = retainingSequenceNumber;
         this.timestamp = timestamp;
-        this.source = source;
+        // deduplicate the string instances to save memory for the known possible source values
+        this.source = switch (source) {
+            case "ccr" -> "ccr";
+            case ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE -> ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE;
+            default -> source;
+        };
     }
 
     /**
@@ -109,10 +115,7 @@ public final class RetentionLease implements ToXContentObject, Writeable {
      * @throws IOException if an I/O exception occurs reading from the stream
      */
     public RetentionLease(final StreamInput in) throws IOException {
-        id = in.readString();
-        retainingSequenceNumber = in.readZLong();
-        timestamp = in.readVLong();
-        source = in.readString();
+        this(in.readString(), in.readZLong(), in.readVLong(), in.readString());
     }
 
     /**
@@ -157,11 +160,6 @@ public final class RetentionLease implements ToXContentObject, Writeable {
         }
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public boolean isFragment() {
-        return false;
     }
 
     /**

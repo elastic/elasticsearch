@@ -5,14 +5,14 @@
             aria-selected="true"
             aria-controls="cloud-tab-install"
             id="cloud-install">
-      Elasticsearch Service
+      Elastic Cloud
     </button>
     <button role="tab"
             aria-selected="false"
             aria-controls="self-managed-tab-install"
             id="self-managed-install"
             tabindex="-1">
-      Self-managed
+      Local Dev (Docker)
     </button>
   </div>
   <div tabindex="0"

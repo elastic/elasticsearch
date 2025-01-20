@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.cluster.ClusterState.Custom;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,7 +21,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -38,6 +40,10 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     public static final RestoreInProgress EMPTY = new RestoreInProgress(Map.of());
 
     private final Map<String, Entry> entries;
+
+    public static RestoreInProgress get(ClusterState state) {
+        return state.custom(TYPE, EMPTY);
+    }
 
     /**
      * Constructs new restore metadata
@@ -148,12 +154,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     /**
      * Represents status of a restored shard
      */
-    public static class ShardRestoreStatus implements Writeable {
-        private State state;
-        private String nodeId;
-        private String reason;
-
-        private ShardRestoreStatus() {}
+    public record ShardRestoreStatus(String nodeId, State state, String reason) implements Writeable {
 
         /**
          * Constructs a new shard restore status in initializing state on the given node
@@ -174,67 +175,8 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             this(nodeId, state, null);
         }
 
-        /**
-         * Constructs a new shard restore status in with specified state on the given node with specified failure reason
-         *
-         * @param nodeId node id
-         * @param state  restore state
-         * @param reason failure reason
-         */
-        public ShardRestoreStatus(String nodeId, State state, String reason) {
-            this.nodeId = nodeId;
-            this.state = state;
-            this.reason = reason;
-        }
-
-        /**
-         * Returns current state
-         *
-         * @return current state
-         */
-        public State state() {
-            return state;
-        }
-
-        /**
-         * Returns node id of the node where shared is getting restored
-         *
-         * @return node id
-         */
-        public String nodeId() {
-            return nodeId;
-        }
-
-        /**
-         * Returns failure reason
-         *
-         * @return failure reason
-         */
-        public String reason() {
-            return reason;
-        }
-
-        /**
-         * Reads restore status from stream input
-         *
-         * @param in stream input
-         * @return restore status
-         */
-        public static ShardRestoreStatus readShardRestoreStatus(StreamInput in) throws IOException {
-            ShardRestoreStatus shardSnapshotStatus = new ShardRestoreStatus();
-            shardSnapshotStatus.readFrom(in);
-            return shardSnapshotStatus;
-        }
-
-        /**
-         * Reads restore status from stream input
-         *
-         * @param in stream input
-         */
-        public void readFrom(StreamInput in) throws IOException {
-            nodeId = in.readOptionalString();
-            state = State.fromValue(in.readByte());
-            reason = in.readOptionalString();
+        public static ShardRestoreStatus readFrom(StreamInput in) throws IOException {
+            return new ShardRestoreStatus(in.readOptionalString(), State.fromValue(in.readByte()), in.readOptionalString());
         }
 
         /**
@@ -247,24 +189,6 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             out.writeOptionalString(nodeId);
             out.writeByte(state.value);
             out.writeOptionalString(reason);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            ShardRestoreStatus status = (ShardRestoreStatus) o;
-            return state == status.state && Objects.equals(nodeId, status.nodeId) && Objects.equals(reason, status.reason);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(state, nodeId, reason);
         }
     }
 
@@ -344,8 +268,8 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -361,23 +285,16 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             Snapshot snapshot = new Snapshot(in);
             State state = State.fromValue(in.readByte());
             boolean quiet;
-            if (in.getVersion().onOrAfter(RestoreSnapshotRequest.VERSION_SUPPORTING_QUIET_PARAMETER)) {
+            if (in.getTransportVersion().onOrAfter(RestoreSnapshotRequest.VERSION_SUPPORTING_QUIET_PARAMETER)) {
                 quiet = in.readBoolean();
             } else {
                 // Backwards compatibility: previously there was no logging of the start or completion of a snapshot restore
                 quiet = true;
             }
-            List<String> indices = in.readImmutableList(StreamInput::readString);
+            List<String> indices = in.readCollectionAsImmutableList(StreamInput::readString);
             entriesBuilder.put(
                 uuid,
-                new Entry(
-                    uuid,
-                    snapshot,
-                    state,
-                    quiet,
-                    indices,
-                    in.readImmutableMap(ShardId::new, ShardRestoreStatus::readShardRestoreStatus)
-                )
+                new Entry(uuid, snapshot, state, quiet, indices, in.readImmutableMap(ShardId::new, ShardRestoreStatus::readFrom))
             );
         }
         this.entries = Collections.unmodifiableMap(entriesBuilder);
@@ -389,7 +306,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             o.writeString(entry.uuid);
             entry.snapshot().writeTo(o);
             o.writeByte(entry.state().value());
-            if (out.getVersion().onOrAfter(RestoreSnapshotRequest.VERSION_SUPPORTING_QUIET_PARAMETER)) {
+            if (out.getTransportVersion().onOrAfter(RestoreSnapshotRequest.VERSION_SUPPORTING_QUIET_PARAMETER)) {
                 o.writeBoolean(entry.quiet());
             }
             o.writeStringCollection(entry.indices);
@@ -398,49 +315,41 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startArray("snapshots");
-        for (Entry entry : entries.values()) {
-            toXContent(entry, builder);
-        }
-        builder.endArray();
-        return builder;
-    }
-
-    /**
-     * Serializes single restore operation
-     *
-     * @param entry   restore operation metadata
-     * @param builder XContent builder
-     */
-    public static void toXContent(Entry entry, XContentBuilder builder) throws IOException {
-        builder.startObject();
-        builder.field("snapshot", entry.snapshot().getSnapshotId().getName());
-        builder.field("repository", entry.snapshot().getRepository());
-        builder.field("state", entry.state());
-        builder.startArray("indices");
-        {
-            for (String index : entry.indices()) {
-                builder.value(index);
-            }
-        }
-        builder.endArray();
-        builder.startArray("shards");
-        {
-            for (Map.Entry<ShardId, ShardRestoreStatus> shardEntry : entry.shards.entrySet()) {
-                ShardId shardId = shardEntry.getKey();
-                ShardRestoreStatus status = shardEntry.getValue();
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.concat(
+            Iterators.single((builder, params) -> builder.startArray("snapshots")),
+            Iterators.map(entries.values().iterator(), entry -> (builder, params) -> {
                 builder.startObject();
+                builder.field("snapshot", entry.snapshot().getSnapshotId().getName());
+                builder.field("repository", entry.snapshot().getRepository());
+                builder.field("state", entry.state());
+                builder.startArray("indices");
                 {
-                    builder.field("index", shardId.getIndex());
-                    builder.field("shard", shardId.getId());
-                    builder.field("state", status.state());
+                    for (String index : entry.indices()) {
+                        builder.value(index);
+                    }
                 }
-                builder.endObject();
-            }
-        }
+                builder.endArray();
+                builder.startArray("shards");
+                {
+                    for (Map.Entry<ShardId, ShardRestoreStatus> shardEntry : entry.shards.entrySet()) {
+                        ShardId shardId = shardEntry.getKey();
+                        ShardRestoreStatus status = shardEntry.getValue();
+                        builder.startObject();
+                        {
+                            builder.field("index", shardId.getIndex());
+                            builder.field("shard", shardId.getId());
+                            builder.field("state", status.state());
+                        }
+                        builder.endObject();
+                    }
+                }
 
-        builder.endArray();
-        builder.endObject();
+                builder.endArray();
+                builder.endObject();
+                return builder;
+            }),
+            Iterators.single((builder, params) -> builder.endArray())
+        );
     }
 }

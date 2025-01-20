@@ -129,7 +129,7 @@ public class DatabaseMetaDataTestCase extends JdbcIntegrationTestCase {
 
     private void expectDataStreamTable(String dataStreamName, String tableNamePattern, String[] types) throws SQLException, IOException {
         try {
-            createDataStream(dataStreamName);
+            createDataStream(dataStreamName, provisioningClient());
             try (Connection es = esJdbc(); ResultSet rs = es.getMetaData().getTables("%", "%", tableNamePattern, types)) {
                 assertTrue(rs.next());
                 assertEquals(dataStreamName, rs.getString(3));
@@ -137,7 +137,7 @@ public class DatabaseMetaDataTestCase extends JdbcIntegrationTestCase {
                 assertFalse(rs.next());
             }
         } finally {
-            deleteDataStream(dataStreamName);
+            deleteDataStream(dataStreamName, provisioningClient());
         }
     }
 

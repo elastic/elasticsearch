@@ -81,19 +81,20 @@ To get realistic results, you should exercise care when running benchmarks. Here
 
 NOTE: Linux only. Sorry Mac and Windows.
 
-Disassembling is fun! Maybe not always useful, but always fun! Generally, you'll want to install `perf` and FCML's `hsdis`.
-`perf` is generally available via `apg-get install perf` or `pacman -S perf`. FCML is a little more involved. This worked
+Disassembling is fun! Maybe not always useful, but always fun! Generally, you'll want to install `perf` and the JDK's `hsdis`.
+`perf` is generally available via `apg-get install perf` or `pacman -S perf`. `hsdis` you'll want to compile from source. is a little more involved. This worked
 on 2020-08-01:
 
 ```
-wget https://github.com/swojtasiak/fcml-lib/releases/download/v1.2.2/fcml-1.2.2.tar.gz
-tar xf fcml*
-cd fcml*
-./configure
-make
-cd example/hsdis
-make
-sudo cp .libs/libhsdis.so.0.0.0 /usr/lib/jvm/java-14-adoptopenjdk/lib/hsdis-amd64.so
+git clone git@github.com:openjdk/jdk.git
+cd jdk
+git checkout jdk-17-ga
+cd src/utils/hsdis
+# Get a known good binutils
+wget https://ftp.gnu.org/gnu/binutils/binutils-2.35.tar.gz
+tar xf binutils-2.35.tar.gz
+make BINUTILS=binutils-2.35 ARCH=amd64
+sudo cp build/linux-amd64/hsdis-amd64.so /usr/lib/jvm/java-17-openjdk/lib/server/
 ```
 
 If you want to disassemble a single method do something like this:

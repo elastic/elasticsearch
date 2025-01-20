@@ -1,0 +1,6 @@
+{
+  "org.elasticsearch.plugins.scanners.extensible_test_classes.ExtensibleInterface": {
+    "test_named_component": "org.elasticsearch.plugins.scanners.named_components_test_classes.TestNamedComponent",
+    "test_named_component2": "org.elasticsearch.plugins.scanners.named_components_test_classes.TestNamedComponent2"
+  }
+}

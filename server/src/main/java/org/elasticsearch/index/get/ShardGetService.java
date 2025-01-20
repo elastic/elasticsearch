@@ -1,13 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.get;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -15,15 +19,19 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentFieldFilter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -31,13 +39,22 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.MultiEngineGet;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -48,11 +65,13 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     private final MeanMetric missingMetric = new MeanMetric();
     private final CounterMetric currentMetric = new CounterMetric();
     private final IndexShard indexShard;
+    private final MapperMetrics mapperMetrics;
 
-    public ShardGetService(IndexSettings indexSettings, IndexShard indexShard, MapperService mapperService) {
+    public ShardGetService(IndexSettings indexSettings, IndexShard indexShard, MapperService mapperService, MapperMetrics mapperMetrics) {
         super(indexShard.shardId(), indexSettings);
         this.mapperService = mapperService;
         this.indexShard = indexShard;
+        this.mapperMetrics = mapperMetrics;
     }
 
     public GetStats stats() {
@@ -83,7 +102,32 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             UNASSIGNED_SEQ_NO,
             UNASSIGNED_PRIMARY_TERM,
             fetchSourceContext,
-            forceSyntheticSource
+            forceSyntheticSource,
+            indexShard::get
+        );
+    }
+
+    public GetResult get(
+        String id,
+        String[] gFields,
+        boolean realtime,
+        long version,
+        VersionType versionType,
+        FetchSourceContext fetchSourceContext,
+        boolean forceSyntheticSource,
+        MultiEngineGet mget
+    ) throws IOException {
+        return get(
+            id,
+            gFields,
+            realtime,
+            version,
+            versionType,
+            UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            fetchSourceContext,
+            forceSyntheticSource,
+            mget::get
         );
     }
 
@@ -96,7 +140,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         long ifSeqNo,
         long ifPrimaryTerm,
         FetchSourceContext fetchSourceContext,
-        boolean forceSyntheticSource
+        boolean forceSyntheticSource,
+        Function<Engine.Get, Engine.GetResult> engineGetOperator
     ) throws IOException {
         currentMetric.inc();
         try {
@@ -110,10 +155,11 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 ifSeqNo,
                 ifPrimaryTerm,
                 fetchSourceContext,
-                forceSyntheticSource
+                forceSyntheticSource,
+                engineGetOperator
             );
 
-            if (getResult.isExists()) {
+            if (getResult != null && getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {
                 missingMetric.inc(System.nanoTime() - now);
@@ -124,17 +170,45 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
     }
 
-    public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm) throws IOException {
+    public GetResult getFromTranslog(
+        String id,
+        String[] gFields,
+        boolean realtime,
+        long version,
+        VersionType versionType,
+        FetchSourceContext fetchSourceContext,
+        boolean forceSyntheticSource
+    ) throws IOException {
         return get(
             id,
-            new String[] { RoutingFieldMapper.NAME },
+            gFields,
+            realtime,
+            version,
+            versionType,
+            UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            fetchSourceContext,
+            forceSyntheticSource,
+            indexShard::getFromTranslog
+        );
+    }
+
+    public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm) throws IOException {
+        return getForUpdate(id, ifSeqNo, ifPrimaryTerm, new String[] { RoutingFieldMapper.NAME });
+    }
+
+    public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm, String[] gFields) throws IOException {
+        return get(
+            id,
+            gFields,
             true,
             Versions.MATCH_ANY,
             VersionType.INTERNAL,
             ifSeqNo,
             ifPrimaryTerm,
             FetchSourceContext.FETCH_SOURCE,
-            false
+            false,
+            indexShard::get
         );
     }
 
@@ -194,29 +268,23 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         long ifSeqNo,
         long ifPrimaryTerm,
         FetchSourceContext fetchSourceContext,
-        boolean forceSyntheticSource
+        boolean forceSyntheticSource,
+        Function<Engine.Get, Engine.GetResult> engineGetOperator
     ) throws IOException {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
-
-        Engine.GetResult get = indexShard.get(
-            new Engine.Get(realtime, realtime, id).version(version)
-                .versionType(versionType)
-                .setIfSeqNo(ifSeqNo)
-                .setIfPrimaryTerm(ifPrimaryTerm)
-        );
-        if (get.exists() == false) {
-            get.close();
-        }
-
-        if (get == null || get.exists() == false) {
-            return new GetResult(shardId.getIndexName(), id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
-        }
-
-        try {
+        var engineGet = new Engine.Get(realtime, realtime, id).version(version)
+            .versionType(versionType)
+            .setIfSeqNo(ifSeqNo)
+            .setIfPrimaryTerm(ifPrimaryTerm);
+        try (Engine.GetResult get = engineGetOperator.apply(engineGet)) {
+            if (get == null) {
+                return null;
+            }
+            if (get.exists() == false) {
+                return new GetResult(shardId.getIndexName(), id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
+            }
             // break between having loaded it from translog (so we only have _source), and having a document to load
             return innerGetFetch(id, gFields, fetchSourceContext, get, forceSyntheticSource);
-        } finally {
-            get.close();
         }
     }
 
@@ -228,11 +296,18 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         boolean forceSyntheticSource
     ) throws IOException {
         assert get.exists() : "method should only be called if document could be retrieved";
-
         // check first if stored fields to be loaded don't contain an object field
         MappingLookup mappingLookup = mapperService.mappingLookup();
+        final IndexVersion indexVersion = indexSettings.getIndexVersionCreated();
+        final Set<String> storedFieldSet = new HashSet<>();
+        boolean hasInferenceMetadataFields = false;
         if (storedFields != null) {
             for (String field : storedFields) {
+                if (field.equals(InferenceMetadataFieldsMapper.NAME)
+                    && InferenceMetadataFieldsMapper.isEnabled(indexShard.mapperService().mappingLookup())) {
+                    hasInferenceMetadataFields = true;
+                    continue;
+                }
                 Mapper fieldMapper = mappingLookup.getMapper(field);
                 if (fieldMapper == null) {
                     if (mappingLookup.objectMappers().get(field) != null) {
@@ -240,52 +315,92 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                         throw new IllegalArgumentException("field [" + field + "] isn't a leaf field");
                     }
                 }
+                storedFieldSet.add(field);
             }
         }
 
         Map<String, DocumentField> documentFields = null;
         Map<String, DocumentField> metadataFields = null;
-        BytesReference source = null;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
-        FieldsVisitor fieldVisitor = buildFieldsVisitors(storedFields, fetchSourceContext);
-        if (fieldVisitor != null) {
-            try {
-                docIdAndVersion.reader.document(docIdAndVersion.docId, fieldVisitor);
-            } catch (IOException e) {
-                throw new ElasticsearchException("Failed to get id [" + id + "]", e);
-            }
-            SourceLoader loader = forceSyntheticSource
-                ? new SourceLoader.Synthetic(mappingLookup.getMapping())
-                : mappingLookup.newSourceLoader();
-            source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId }).source(fieldVisitor, docIdAndVersion.docId);
+        var sourceFilter = fetchSourceContext.filter();
+        SourceLoader loader = forceSyntheticSource
+            ? new SourceLoader.Synthetic(
+                sourceFilter,
+                () -> mappingLookup.getMapping().syntheticFieldLoader(sourceFilter),
+                mapperMetrics.sourceFieldMetrics()
+            )
+            : mappingLookup.newSourceLoader(sourceFilter, mapperMetrics.sourceFieldMetrics());
+        StoredFieldLoader storedFieldLoader = buildStoredFieldLoader(storedFieldSet, fetchSourceContext, loader);
+        LeafStoredFieldLoader leafStoredFieldLoader = storedFieldLoader.getLoader(docIdAndVersion.reader.getContext(), null);
+        try {
+            leafStoredFieldLoader.advanceTo(docIdAndVersion.docId);
+        } catch (IOException e) {
+            throw new ElasticsearchException("Failed to get id [" + id + "]", e);
+        }
 
-            // put stored fields into result objects
-            if (fieldVisitor.fields().isEmpty() == false) {
-                fieldVisitor.postProcess(mapperService::fieldType);
-                documentFields = new HashMap<>();
-                metadataFields = new HashMap<>();
-                for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {
-                    if (mapperService.isMetadataField(entry.getKey())) {
-                        metadataFields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
-                    } else {
-                        documentFields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
-                    }
+        // put stored fields into result objects
+        if (leafStoredFieldLoader.storedFields().isEmpty() == false) {
+            Set<String> needed = new HashSet<>();
+            if (storedFields != null) {
+                Collections.addAll(needed, storedFields);
+            }
+            needed.add(RoutingFieldMapper.NAME); // we always return _routing if we see it, even if you don't ask for it.....
+            documentFields = new HashMap<>();
+            metadataFields = new HashMap<>();
+            for (Map.Entry<String, List<Object>> entry : leafStoredFieldLoader.storedFields().entrySet()) {
+                if (false == needed.contains(entry.getKey())) {
+                    continue;
+                }
+                if (IgnoredFieldMapper.NAME.equals(entry.getKey())
+                    && indexVersion.onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
+                    continue;
+                }
+                MappedFieldType ft = mapperService.fieldType(entry.getKey());
+                if (ft == null) {
+                    continue;   // user asked for a non-existent field, ignore it
+                }
+                List<Object> values = entry.getValue().stream().map(ft::valueForDisplay).toList();
+                if (mapperService.isMetadataField(entry.getKey())) {
+                    metadataFields.put(entry.getKey(), new DocumentField(entry.getKey(), values));
+                } else {
+                    documentFields.put(entry.getKey(), new DocumentField(entry.getKey(), values));
                 }
             }
         }
 
-        if (source != null) {
-            // apply request-level source filtering
-            if (fetchSourceContext.fetchSource() == false) {
-                source = null;
-            } else if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
-                try {
-                    source = XContentFieldFilter.newFieldFilter(fetchSourceContext.includes(), fetchSourceContext.excludes())
-                        .apply(source, null);
-                } catch (IOException e) {
-                    throw new ElasticsearchException("Failed to get id [" + id + "] with includes/excludes set", e);
+        // NOTE: when _ignored is requested via `stored_fields` we need to load it from doc values instead of loading it from stored fields.
+        // The _ignored field used to be stored, but as a result of supporting aggregations on it, it moved from using a stored field to
+        // using doc values.
+        if (indexVersion.onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)
+            && storedFields != null
+            && Arrays.asList(storedFields).contains(IgnoredFieldMapper.NAME)) {
+            final DocumentField ignoredDocumentField = loadIgnoredMetadataField(docIdAndVersion);
+            if (ignoredDocumentField != null) {
+                if (metadataFields == null) {
+                    metadataFields = new HashMap<>();
                 }
+                metadataFields.put(IgnoredFieldMapper.NAME, ignoredDocumentField);
             }
+        }
+
+        BytesReference sourceBytes = null;
+        if (mapperService.mappingLookup().isSourceEnabled() && fetchSourceContext.fetchSource()) {
+            Source source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId })
+                .source(leafStoredFieldLoader, docIdAndVersion.docId);
+
+            SourceFilter filter = fetchSourceContext.filter();
+            if (filter != null) {
+                source = source.filter(filter);
+            }
+
+            if (hasInferenceMetadataFields) {
+                /**
+                 * Adds the {@link InferenceMetadataFieldsMapper#NAME} field from the document fields
+                 * to the original _source if it has been requested.
+                 */
+                source = addInferenceMetadataFields(mapperService, docIdAndVersion.reader.getContext(), docIdAndVersion.docId, source);
+            }
+            sourceBytes = source.internalSourceRef();
         }
 
         return new GetResult(
@@ -295,17 +410,60 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             get.docIdAndVersion().primaryTerm,
             get.version(),
             get.exists(),
-            source,
+            sourceBytes,
             documentFields,
             metadataFields
         );
     }
 
-    private static FieldsVisitor buildFieldsVisitors(String[] fields, FetchSourceContext fetchSourceContext) {
-        if (fields == null || fields.length == 0) {
-            return fetchSourceContext.fetchSource() ? new FieldsVisitor(true) : null;
+    private static DocumentField loadIgnoredMetadataField(final DocIdAndVersion docIdAndVersion) throws IOException {
+        final SortedSetDocValues ignoredDocValues = docIdAndVersion.reader.getContext()
+            .reader()
+            .getSortedSetDocValues(IgnoredFieldMapper.NAME);
+        if (ignoredDocValues == null
+            || ignoredDocValues.advanceExact(docIdAndVersion.docId) == false
+            || ignoredDocValues.docValueCount() <= 0) {
+            return null;
         }
+        final List<Object> ignoredValues = new ArrayList<>(ignoredDocValues.docValueCount());
+        for (int i = 0; i < ignoredDocValues.docValueCount(); i++) {
+            ignoredValues.add(ignoredDocValues.lookupOrd(ignoredDocValues.nextOrd()).utf8ToString());
+        }
+        return new DocumentField(IgnoredFieldMapper.NAME, ignoredValues);
+    }
 
-        return new CustomFieldsVisitor(Sets.newHashSet(fields), fetchSourceContext.fetchSource());
+    private static Source addInferenceMetadataFields(MapperService mapperService, LeafReaderContext readerContext, int docId, Source source)
+        throws IOException {
+        var mappingLookup = mapperService.mappingLookup();
+        var inferenceMetadata = (InferenceMetadataFieldsMapper) mappingLookup.getMapping()
+            .getMetadataMapperByName(InferenceMetadataFieldsMapper.NAME);
+        if (inferenceMetadata == null || mapperService.mappingLookup().inferenceFields().isEmpty()) {
+            return source;
+        }
+        var inferenceLoader = inferenceMetadata.fieldType()
+            .valueFetcher(mappingLookup, mapperService.getBitSetProducer(), new IndexSearcher(readerContext.reader()));
+        inferenceLoader.setNextReader(readerContext);
+        List<Object> values = inferenceLoader.fetchValues(source, docId, List.of());
+        if (values.size() == 1) {
+            var newSource = source.source();
+            newSource.put(InferenceMetadataFieldsMapper.NAME, values.get(0));
+            return Source.fromMap(newSource, source.sourceContentType());
+        }
+        return source;
+    }
+
+    private static StoredFieldLoader buildStoredFieldLoader(
+        Set<String> fields,
+        FetchSourceContext fetchSourceContext,
+        SourceLoader loader
+    ) {
+        if (fetchSourceContext.fetchSource()) {
+            fields.addAll(loader.requiredStoredFields());
+        } else {
+            if (fields.isEmpty()) {
+                return StoredFieldLoader.empty();
+            }
+        }
+        return StoredFieldLoader.create(fetchSourceContext.fetchSource(), fields);
     }
 }

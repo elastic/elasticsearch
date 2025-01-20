@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDetection> {
+public class OutlierDetectionTests extends AbstractXContentSerializingTestCase<OutlierDetection> {
 
     private static final EvaluationParameters EVALUATION_PARAMETERS = new EvaluationParameters(100);
 
@@ -78,6 +78,11 @@ public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDe
     @Override
     protected OutlierDetection createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected OutlierDetection mutateInstance(OutlierDetection instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

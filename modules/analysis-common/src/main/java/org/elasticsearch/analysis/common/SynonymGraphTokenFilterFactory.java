@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -14,19 +15,27 @@ import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 
 import java.util.List;
 import java.util.function.Function;
 
 public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
 
-    SynonymGraphTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, env, name, settings);
+    SynonymGraphTokenFilterFactory(
+        IndexSettings indexSettings,
+        Environment env,
+        String name,
+        Settings settings,
+        SynonymsManagementAPIService synonymsManagementAPIService
+    ) {
+        super(indexSettings, env, name, settings, synonymsManagementAPIService);
     }
 
     @Override
@@ -36,13 +45,15 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
 
     @Override
     public TokenFilterFactory getChainAwareTokenFilterFactory(
+        IndexCreationContext context,
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
         List<TokenFilterFactory> previousTokenFilters,
         Function<String, TokenFilterFactory> allFilters
     ) {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
-        final SynonymMap synonyms = buildSynonyms(analyzer, getRulesFromSettings(environment));
+        ReaderWithOrigin rulesReader = synonymsSource.getRulesReader(this, context);
+        final SynonymMap synonyms = buildSynonyms(analyzer, rulesReader);
         final String name = name();
         return new TokenFilterFactory() {
             @Override
@@ -58,6 +69,11 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
             @Override
             public AnalysisMode getAnalysisMode() {
                 return analysisMode;
+            }
+
+            @Override
+            public String getResourceName() {
+                return rulesReader.resource();
             }
         };
     }

@@ -27,27 +27,14 @@ package org.elasticsearch.h3;
  */
 final class BaseCells {
 
-    private static class BaseCellData {
-        // "home" face and normalized ijk coordinates on that face
-        final int homeFace;
-        final int homeI;
-        final int homeJ;
-        final int homeK;
-        // is this base cell a pentagon?
-        final boolean isPentagon;
-        // if a pentagon, what are its two clockwise offset
-        final int[] cwOffsetPent;
-
-        /// faces?
-        BaseCellData(int homeFace, int homeI, int homeJ, int homeK, boolean isPentagon, int[] cwOffsetPent) {
-            this.homeFace = homeFace;
-            this.homeI = homeI;
-            this.homeJ = homeJ;
-            this.homeK = homeK;
-            this.isPentagon = isPentagon;
-            this.cwOffsetPent = cwOffsetPent;
-        }
-    }
+    private record BaseCellData(
+        int homeFace, // "home" face and normalized ijk coordinates on that face
+        int homeI,
+        int homeJ,
+        int homeK,
+        boolean isPentagon,   // is this base cell a pentagon?
+        int[] cwOffsetPent  // if a pentagon, what are its two clockwise offset
+    ) {}
 
     /**
      * Resolution 0 base cell data table.
@@ -185,16 +172,10 @@ final class BaseCells {
     /**
      *  base cell at a given ijk and required rotations into its system
      */
-    private static class BaseCellRotation {
-        final int baseCell;  // base cell number
-        final int ccwRot60;  // number of ccw 60 degree rotations relative to current
-        /// face
-
-        BaseCellRotation(int baseCell, int ccwRot60) {
-            this.baseCell = baseCell;
-            this.ccwRot60 = ccwRot60;
-        }
-    }
+    record BaseCellRotation(
+        int baseCell, // base cell number
+        int ccwRot60  // number of ccw 60 degree rotations relative to current
+    ) {}
 
     /** @brief Resolution 0 base cell lookup table for each face.
      *
@@ -613,7 +594,7 @@ final class BaseCells {
         return new FaceIJK(cellData.homeFace, new CoordIJK(cellData.homeI, cellData.homeJ, cellData.homeK));
     }
 
-    /** Find base cell given FaceIJK.
+    /** Find base cell given a face and a CoordIJK.
      *
      * Given the face number and a resolution 0 ijk+ coordinate in that face's
      * face-centered ijk coordinate system, return the base cell located at that
@@ -621,11 +602,11 @@ final class BaseCells {
      *
      * Valid ijk+ lookup coordinates are from (0, 0, 0) to (2, 2, 2).
      */
-    public static int getBaseCell(FaceIJK faceIJK) {
-        return faceIjkBaseCells[faceIJK.face][faceIJK.coord.i][faceIJK.coord.j][faceIJK.coord.k].baseCell;
+    public static int getBaseCell(int face, CoordIJK coord) {
+        return faceIjkBaseCells[face][coord.i][coord.j][coord.k].baseCell;
     }
 
-    /** Find base cell given FaceIJK.
+    /** Find base cell given a face and a CoordIJK.
      *
      * Given the face number and a resolution 0 ijk+ coordinate in that face's
      * face-centered ijk coordinate system, return the number of 60' ccw rotations
@@ -633,8 +614,8 @@ final class BaseCells {
      *
      * Valid ijk+ lookup coordinates are from (0, 0, 0) to (2, 2, 2).
      */
-    public static int getBaseCellCCWrot60(FaceIJK faceIJK) {
-        return faceIjkBaseCells[faceIJK.face][faceIJK.coord.i][faceIJK.coord.j][faceIJK.coord.k].ccwRot60;
+    public static int getBaseCellCCWrot60(int face, CoordIJK coord) {
+        return faceIjkBaseCells[face][coord.i][coord.j][coord.k].ccwRot60;
     }
 
     /**  Return whether or not the tested face is a cw offset face.

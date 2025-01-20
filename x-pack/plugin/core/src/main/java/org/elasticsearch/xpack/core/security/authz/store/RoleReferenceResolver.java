@@ -25,4 +25,14 @@ public interface RoleReferenceResolver {
     );
 
     void resolveServiceAccountRoleReference(ServiceAccountRoleReference roleReference, ActionListener<RolesRetrievalResult> listener);
+
+    void resolveCrossClusterAccessRoleReference(
+        RoleReference.CrossClusterAccessRoleReference crossClusterAccessRoleReference,
+        ActionListener<RolesRetrievalResult> listener
+    );
+
+    void resolveCrossClusterApiKeyRoleReference(
+        RoleReference.CrossClusterApiKeyRoleReference crossClusterApiKeyRoleReference,
+        ActionListener<RolesRetrievalResult> listener
+    );
 }

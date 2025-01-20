@@ -4,6 +4,12 @@
 <titleabbrev>Force merge</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
+--
+
 Forces a <<index-modules-merge,merge>> on the shards of one or more indices.
 For data streams, the API forces a merge on the shards of the stream's backing
 indices.
@@ -39,13 +45,16 @@ deleted documents. Merging normally happens automatically, but sometimes it is
 useful to trigger a merge manually.
 
 // tag::force-merge-read-only-warn[]
-WARNING: **Force merge should only be called against an index after you have
-finished writing to it.** Force merge can cause very large (>5GB) segments to
-be produced, and if you continue to write to such an index then the automatic
-merge policy will never consider these segments for future merges until they
-mostly consist of deleted documents. This can cause very large segments to
-remain in the index which can result in increased disk usage and worse search
-performance.
+WARNING: **We recommend only force merging a read-only index (meaning the index
+is no longer receiving writes).**  When documents are updated or deleted, the
+old version is not immediately removed, but instead soft-deleted and marked
+with a "tombstone". These soft-deleted documents are automatically cleaned up
+during regular segment merges. But force merge can cause very large (> 5GB)
+segments to be produced, which are not eligible for regular merges. So the
+number of soft-deleted documents can then grow rapidly, resulting in higher
+disk usage and worse search performance. If you regularly force merge an index
+receiving writes, this can also make snapshots more expensive, since the new
+documents can't be backed up incrementally.
 // end::force-merge-read-only-warn[]
 
 
@@ -53,7 +62,7 @@ performance.
 ===== Blocks during a force merge
 
 Calls to this API block until the merge is complete (unless request contains
-wait_for_completion=false, which is default true). If the client connection
+`wait_for_completion=false`, which is default `true`). If the client connection
 is lost before completion then the force merge process will continue in the
 background. Any new requests to force merge the same indices will also block
 until the ongoing force merge is complete.
@@ -86,8 +95,9 @@ one at a time. If you expand the `force_merge` threadpool on a node then it
 will force merge its shards in parallel.
 
 Force merge makes the storage for the shard being merged temporarily
-increase, up to double its size in case `max_num_segments` parameter is set to
-`1`, as all segments need to be rewritten into a new one.
+increase, as it may require free space up to triple its size in case
+`max_num_segments` parameter is set to `1`, to rewrite all segments into a new
+one.
 
 [[forcemerge-api-path-params]]
 ==== {api-path-parms-title}
@@ -100,11 +110,11 @@ and indices, omit this parameter or use `*` or `_all`.
 [[forcemerge-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
@@ -115,7 +125,7 @@ If `true`,
 after the force merge.
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `max_num_segments`::
 +

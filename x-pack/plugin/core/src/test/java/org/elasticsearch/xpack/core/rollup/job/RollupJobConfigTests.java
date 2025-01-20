@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
@@ -18,7 +18,7 @@ import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomRollup
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RollupJobConfigTests extends AbstractSerializingTestCase<RollupJobConfig> {
+public class RollupJobConfigTests extends AbstractXContentSerializingTestCase<RollupJobConfig> {
 
     private String jobId;
 
@@ -30,6 +30,11 @@ public class RollupJobConfigTests extends AbstractSerializingTestCase<RollupJobC
     @Override
     protected RollupJobConfig createTestInstance() {
         return randomRollupJobConfig(random(), jobId);
+    }
+
+    @Override
+    protected RollupJobConfig mutateInstance(RollupJobConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

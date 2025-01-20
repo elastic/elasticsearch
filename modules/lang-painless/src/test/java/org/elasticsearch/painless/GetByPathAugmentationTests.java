@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.core.Strings;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 public class GetByPathAugmentationTests extends ScriptTestCase {
@@ -38,20 +40,20 @@ public class GetByPathAugmentationTests extends ScriptTestCase {
     }
 
     private String toScript(String collection, String key) {
-        return String.format(Locale.ROOT, "return %s.getByPath('%s')", collection, key);
+        return Strings.format("return %s.getByPath('%s')", collection, key);
     }
 
     private String toScript(String collection, String key, String defaultValue) {
-        return String.format(Locale.ROOT, "return %s.getByPath('%s', %s)", collection, key, defaultValue);
+        return Strings.format("return %s.getByPath('%s', %s)", collection, key, defaultValue);
     }
 
     private String numberFormat(String unparsable, String path, int i) {
         String format = "Could not parse [%s] as a int index into list at path [%s] and index [%d]";
-        return String.format(Locale.ROOT, format, unparsable, path, i);
+        return Strings.format(format, unparsable, path, i);
     }
 
     private String missingValue(String path) {
-        return String.format(Locale.ROOT, "Could not find value at path [%s]", path);
+        return Strings.format("Could not find value at path [%s]", path);
     }
 
     private void assertPathValue(String collection, String key, Object value) {

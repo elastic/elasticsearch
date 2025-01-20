@@ -11,11 +11,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.bootstrap.ConsoleLoader;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
@@ -120,6 +120,7 @@ public class InitialNodeSecurityAutoConfiguration {
                         }
                         final String httpsCaFingerprint = fingerprint;
                         GroupedActionListener<Map<String, String>> groupedActionListener = new GroupedActionListener<>(
+                            3,
                             ActionListener.wrap(results -> {
                                 final Map<String, String> allResultsMap = new HashMap<>();
                                 for (Map<String, String> result : results) {
@@ -135,8 +136,7 @@ public class InitialNodeSecurityAutoConfiguration {
                                     httpsCaFingerprint,
                                     console
                                 );
-                            }, e -> LOGGER.error("Unexpected exception during security auto-configuration", e)),
-                            3
+                            }, e -> LOGGER.error("Unexpected exception during security auto-configuration", e))
                         );
                         // we only generate the elastic user password if the node has been auto-configured in a specific way, such that the
                         // first time a node starts it will form a cluster by itself and can hold the .security index (which we assume
@@ -187,7 +187,7 @@ public class InitialNodeSecurityAutoConfiguration {
                             }
                         }, backoff);
                     }
-                }, TimeValue.timeValueSeconds(9), ThreadPool.Names.GENERIC));
+                }, TimeValue.timeValueSeconds(9), threadPool.generic()));
             }
         });
     }

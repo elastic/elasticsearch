@@ -1,14 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.admin.cluster.desirednodes.TransportUpdateDesiredNodesAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.NodeJoinExecutor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -97,8 +100,7 @@ import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
  *  </ul>
  *
  * <p>
- *  See {@code JoinTaskExecutor} and {@code TransportUpdateDesiredNodesAction} for more details about
- *  desired nodes status tracking.
+ *  See {@link NodeJoinExecutor} and {@link TransportUpdateDesiredNodesAction} for more details about desired nodes status tracking.
  * </p>
  *
  * <p>
@@ -162,7 +164,7 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
     public static DesiredNodes readFrom(StreamInput in) throws IOException {
         final var historyId = in.readString();
         final var version = in.readLong();
-        final var nodesWithStatus = in.readList(DesiredNodeWithStatus::readFrom);
+        final var nodesWithStatus = in.readCollectionAsList(DesiredNodeWithStatus::readFrom);
         return create(historyId, version, nodesWithStatus);
     }
 
@@ -247,6 +249,29 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
                 )
             );
         }
+    }
+
+    public boolean equalsWithProcessorsCloseTo(DesiredNodes that) {
+        return that != null
+            && version == that.version
+            && Objects.equals(historyID, that.historyID)
+            && equalsNodesWithProcessorsCloseTo(that);
+    }
+
+    public boolean equalsNodesWithProcessorsCloseTo(DesiredNodes that) {
+        if (that == null || nodes.size() != that.nodes.size()) {
+            return false;
+        }
+
+        for (Map.Entry<String, DesiredNodeWithStatus> desiredNodeEntry : nodes.entrySet()) {
+            final DesiredNodeWithStatus desiredNodeWithStatus = desiredNodeEntry.getValue();
+            final DesiredNodeWithStatus otherDesiredNodeWithStatus = that.nodes.get(desiredNodeEntry.getKey());
+            if (desiredNodeWithStatus.equalsWithProcessorsCloseTo(otherDesiredNodeWithStatus) == false) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     @Override

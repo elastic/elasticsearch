@@ -2,7 +2,7 @@
 [[autoscaling-frozen-storage-decider]]
 === Frozen storage decider
 
-The frozen storage decider (`frozen_storage`) calculates the local storage
+The {cloud}/ec-autoscaling.html[autoscaling] frozen storage decider (`frozen_storage`) calculates the local storage
 required to search the current set of partially mounted indices based on a
 percentage of the total data set size of such indices. It signals that
 additional storage capacity is necessary when existing capacity is less than the

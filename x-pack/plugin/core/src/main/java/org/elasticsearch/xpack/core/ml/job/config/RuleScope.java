@@ -68,12 +68,12 @@ public class RuleScope implements ToXContentObject, Writeable {
     }
 
     public RuleScope(StreamInput in) throws IOException {
-        scope = in.readMap(StreamInput::readString, FilterRef::new);
+        scope = in.readMap(FilterRef::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(scope, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+        out.writeMap(scope, StreamOutput::writeWriteable);
     }
 
     @Override

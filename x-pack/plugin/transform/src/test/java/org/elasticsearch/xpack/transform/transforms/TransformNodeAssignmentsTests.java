@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -19,15 +17,57 @@ import static org.hamcrest.Matchers.is;
 public class TransformNodeAssignmentsTests extends ESTestCase {
 
     public void testConstructorAndGetters() {
-        Set<String> executorNodes = new HashSet<>(Arrays.asList("executor-1", "executor-2"));
-        Set<String> assigned = new HashSet<>(Arrays.asList("assigned-1", "assigned-2"));
-        Set<String> waitingForAssignment = new HashSet<>(Arrays.asList("waiting-1", "waitingv-2"));
-        Set<String> stopped = new HashSet<>(Arrays.asList("stopped-1", "stopped-2"));
+        Set<String> executorNodes = Set.of("executor-1", "executor-2");
+        Set<String> assigned = Set.of("assigned-1", "assigned-2");
+        Set<String> waitingForAssignment = Set.of("waiting-1", "waiting-2");
+        Set<String> stopped = Set.of("stopped-1", "stopped-2");
+
         TransformNodeAssignments assignments = new TransformNodeAssignments(executorNodes, assigned, waitingForAssignment, stopped);
 
         assertThat(assignments.getExecutorNodes(), is(equalTo(executorNodes)));
         assertThat(assignments.getAssigned(), is(equalTo(assigned)));
         assertThat(assignments.getWaitingForAssignment(), is(equalTo(waitingForAssignment)));
         assertThat(assignments.getStopped(), is(equalTo(stopped)));
+    }
+
+    public void testToString() {
+        Set<String> executorNodes = Set.of("executor-1");
+        Set<String> assigned = Set.of("assigned-1");
+        Set<String> waitingForAssignment = Set.of("waiting-1");
+        Set<String> stopped = Set.of("stopped-1");
+
+        TransformNodeAssignments assignments = new TransformNodeAssignments(executorNodes, assigned, waitingForAssignment, stopped);
+
+        assertThat(
+            assignments.toString(),
+            is(
+                equalTo(
+                    "TransformNodeAssignments["
+                        + "executorNodes=[executor-1],"
+                        + "assigned=[assigned-1],"
+                        + "waitingForAssignment=[waiting-1],"
+                        + "stopped=[stopped-1]"
+                        + "]"
+                )
+            )
+        );
+    }
+
+    public void testToString_EmptyCollections() {
+        Set<String> executorNodes = Set.of();
+        Set<String> assigned = Set.of();
+        Set<String> waitingForAssignment = Set.of();
+        Set<String> stopped = Set.of();
+
+        TransformNodeAssignments assignments = new TransformNodeAssignments(executorNodes, assigned, waitingForAssignment, stopped);
+
+        assertThat(
+            assignments.toString(),
+            is(
+                equalTo(
+                    "TransformNodeAssignments[" + "executorNodes=[]," + "assigned=[]," + "waitingForAssignment=[]," + "stopped=[]" + "]"
+                )
+            )
+        );
     }
 }

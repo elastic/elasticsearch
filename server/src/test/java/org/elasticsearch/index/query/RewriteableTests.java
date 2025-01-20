@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.query;
 
@@ -21,7 +22,7 @@ import java.util.function.Supplier;
 public class RewriteableTests extends ESTestCase {
 
     public void testRewrite() throws IOException {
-        QueryRewriteContext context = new QueryRewriteContext(null, null, null, null);
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null);
         TestRewriteable rewrite = Rewriteable.rewrite(
             new TestRewriteable(randomIntBetween(0, Rewriteable.MAX_REWRITE_ROUNDS)),
             context,
@@ -41,7 +42,7 @@ public class RewriteableTests extends ESTestCase {
     }
 
     public void testRewriteAndFetch() throws ExecutionException, InterruptedException {
-        QueryRewriteContext context = new QueryRewriteContext(null, null, null, null);
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null);
         PlainActionFuture<TestRewriteable> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(new TestRewriteable(randomIntBetween(0, Rewriteable.MAX_REWRITE_ROUNDS), true), context, future);
         TestRewriteable rewrite = future.get();
@@ -59,7 +60,7 @@ public class RewriteableTests extends ESTestCase {
     }
 
     public void testRewriteList() throws IOException {
-        QueryRewriteContext context = new QueryRewriteContext(null, null, null, null);
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null);
         List<TestRewriteable> rewriteableList = new ArrayList<>();
         int numInstances = randomIntBetween(1, 10);
         rewriteableList.add(new TestRewriteable(randomIntBetween(1, Rewriteable.MAX_REWRITE_ROUNDS)));

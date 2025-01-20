@@ -1,0 +1,38 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+---
+"Test traces-otel* template installation":
+  - skip:
+      reason: contains is a newly added assertion
+      features: contains
+  - do:
+      indices.get_index_template:
+        name: traces-otel*
+  - length: {index_templates: 1}
+  - contains: {index_templates: {name: traces-otel@template}}
+
+---
+"Test metrics-otel* template installation":
+  - skip:
+      reason: contains is a newly added assertion
+      features: contains
+  - do:
+      indices.get_index_template:
+        name: metrics-otel*
+  - length: {index_templates: 1}
+  - contains: {index_templates: {name: metrics-otel@template}}
+
+---
+"Test logs-otel* template installation":
+  - skip:
+      reason: contains is a newly added assertion
+      features: contains
+  - do:
+      indices.get_index_template:
+        name: logs-otel*
+  - length: {index_templates: 1}
+  - contains: {index_templates: {name: logs-otel@template}}

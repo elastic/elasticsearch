@@ -1,7 +1,7 @@
 ---
 "Test ingest attachment processor with .doc file":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "new fields added in 8.0.0"
   - do:
       ingest.put_pipeline:
@@ -12,7 +12,8 @@
             "processors": [
               {
                 "attachment" : {
-                  "field" : "field1"
+                  "field" : "field1",
+                  "remove_binary": true
                 }
               }
             ]
@@ -43,8 +44,8 @@
 
 ---
 "Test ingest attachment processor with .docx file":
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: "tika upgraded in 8.3.0"
   - do:
       ingest.put_pipeline:
@@ -55,7 +56,8 @@
             "processors": [
               {
                 "attachment" : {
-                  "field" : "field1"
+                  "field" : "field1",
+                  "remove_binary": true
                 }
               }
             ]

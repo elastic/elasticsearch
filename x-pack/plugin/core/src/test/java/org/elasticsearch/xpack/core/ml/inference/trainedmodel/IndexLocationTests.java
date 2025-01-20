@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class IndexLocationTests extends AbstractSerializingTestCase<IndexLocation> {
+public class IndexLocationTests extends AbstractXContentSerializingTestCase<IndexLocation> {
 
     private final boolean lenient = randomBoolean();
 
@@ -34,6 +34,11 @@ public class IndexLocationTests extends AbstractSerializingTestCase<IndexLocatio
     @Override
     protected IndexLocation createTestInstance() {
         return randomInstance();
+    }
+
+    @Override
+    protected IndexLocation mutateInstance(IndexLocation instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

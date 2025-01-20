@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -526,8 +527,12 @@ public class DefMath {
     }
 
     private static boolean eq(Object left, Object right) {
-        if (left != null && right != null) {
-            if (left instanceof Double) {
+        if (left == right) {
+            return true;
+        } else if (left != null && right != null) {
+            if (left.getClass() == right.getClass()) {
+                return left.equals(right);
+            } else if (left instanceof Double) {
                 if (right instanceof Number) {
                     return (double) left == ((Number) right).doubleValue();
                 } else if (right instanceof Character) {
@@ -537,7 +542,7 @@ public class DefMath {
                 if (left instanceof Number) {
                     return ((Number) left).doubleValue() == (double) right;
                 } else if (left instanceof Character) {
-                    return (char) left == ((Number) right).doubleValue();
+                    return (char) left == (double) right;
                 }
             } else if (left instanceof Float) {
                 if (right instanceof Number) {
@@ -549,7 +554,7 @@ public class DefMath {
                 if (left instanceof Number) {
                     return ((Number) left).floatValue() == (float) right;
                 } else if (left instanceof Character) {
-                    return (char) left == ((Number) right).floatValue();
+                    return (char) left == (float) right;
                 }
             } else if (left instanceof Long) {
                 if (right instanceof Number) {
@@ -561,7 +566,7 @@ public class DefMath {
                 if (left instanceof Number) {
                     return ((Number) left).longValue() == (long) right;
                 } else if (left instanceof Character) {
-                    return (char) left == ((Number) right).longValue();
+                    return (char) left == (long) right;
                 }
             } else if (left instanceof Number) {
                 if (right instanceof Number) {
@@ -578,7 +583,7 @@ public class DefMath {
             return left.equals(right);
         }
 
-        return left == null && right == null;
+        return false;
     }
 
     // comparison operators: applicable for any numeric type

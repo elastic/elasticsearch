@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.transforms.latest;
 
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfigTests;
@@ -23,7 +23,7 @@ public class LatestTests extends ESTestCase {
     public void testValidateConfig() {
         LatestConfig latestConfig = LatestConfigTests.randomLatestConfig();
         Function latest = new Latest(latestConfig);
-        latest.validateConfig(ActionListener.wrap(isValid -> assertThat(isValid, is(true)), e -> fail(e.getMessage())));
+        latest.validateConfig(ActionTestUtils.assertNoFailureListener(isValid -> assertThat(isValid, is(true))));
     }
 
     public void testGetPerformanceCriticalFields() {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action;
@@ -36,8 +37,6 @@ public class RejectionActionIT extends ESIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("thread_pool.search.size", 1)
             .put("thread_pool.search.queue_size", 1)
-            .put("thread_pool.write.size", 1)
-            .put("thread_pool.write.queue_size", 1)
             .put("thread_pool.get.size", 1)
             .put("thread_pool.get.queue_size", 1)
             .build();
@@ -45,15 +44,14 @@ public class RejectionActionIT extends ESIntegTestCase {
 
     public void testSimulatedSearchRejectionLoad() throws Throwable {
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "1").get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "1").get();
         }
 
         int numberOfAsyncOps = randomIntBetween(200, 700);
         final CountDownLatch latch = new CountDownLatch(numberOfAsyncOps);
         final CopyOnWriteArrayList<Object> responses = new CopyOnWriteArrayList<>();
         for (int i = 0; i < numberOfAsyncOps; i++) {
-            client().prepareSearch("test")
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
+            prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(QueryBuilders.matchQuery("field", "1"))
                 .execute(new LatchedActionListener<>(new ActionListener<SearchResponse>() {
                     @Override

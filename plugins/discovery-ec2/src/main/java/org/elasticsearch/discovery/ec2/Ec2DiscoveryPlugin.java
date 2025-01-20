@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery.ec2;
@@ -11,14 +12,14 @@ package org.elasticsearch.discovery.ec2;
 import com.amazonaws.util.EC2MetadataUtils;
 import com.amazonaws.util.json.Jackson;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.SeedHostsProvider;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -74,6 +75,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         this(settings, new AwsEc2ServiceImpl());
     }
 
+    @SuppressWarnings("this-escape")
     protected Ec2DiscoveryPlugin(Settings settings, AwsEc2ServiceImpl ec2Service) {
         this.settings = settings;
         this.ec2Service = ec2Service;
@@ -103,6 +105,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
             Ec2ClientSettings.PROTOCOL_SETTING,
             Ec2ClientSettings.PROXY_HOST_SETTING,
             Ec2ClientSettings.PROXY_PORT_SETTING,
+            Ec2ClientSettings.PROXY_SCHEME_SETTING,
             Ec2ClientSettings.PROXY_USERNAME_SETTING,
             Ec2ClientSettings.PROXY_PASSWORD_SETTING,
             Ec2ClientSettings.READ_TIMEOUT_SETTING,

@@ -39,4 +39,9 @@ public class FrequentItemSetWireSerializationTests extends AbstractWireSerializi
         return randomFrequentItemSet();
     }
 
+    @Override
+    protected FrequentItemSet mutateInstance(FrequentItemSet instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
 }

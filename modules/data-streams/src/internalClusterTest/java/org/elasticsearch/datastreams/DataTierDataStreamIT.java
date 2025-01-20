@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -34,43 +34,35 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
         startHotOnlyNode();
         ensureGreen();
 
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            Collections.singletonList(index),
-            null,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(),
-            null
-        );
-        client().execute(
-            PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("template").indexTemplate(template)
-        ).actionGet();
-        client().prepareIndex(index).setCreate(true).setId("1").setSource("@timestamp", "2020-09-09").setWaitForActiveShards(0).get();
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList(index))
 
-        Settings idxSettings = client().admin()
-            .indices()
-            .prepareGetIndex()
-            .addIndices(index)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
+        client().execute(
+            TransportPutComposableIndexTemplateAction.TYPE,
+            new TransportPutComposableIndexTemplateAction.Request("template").indexTemplate(template)
+        ).actionGet();
+
+        var dsIndexName = prepareIndex(index).setCreate(true)
+            .setId("1")
+            .setSource("@timestamp", "2020-09-09")
+            .setWaitForActiveShards(0)
             .get()
-            .getSettings()
-            .get(DataStream.getDefaultBackingIndexName(index, 1));
+            .getIndex();
+        var idxSettings = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(index).get().getSettings().get(dsIndexName);
         assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
 
         logger.info("--> waiting for {} to be yellow", index);
         ensureYellow(index);
 
         // Roll over index and ensure the second index also went to the "hot" tier
-        client().admin().indices().prepareRolloverIndex(index).get();
-        idxSettings = client().admin()
-            .indices()
-            .prepareGetIndex()
-            .addIndices(index)
-            .get()
-            .getSettings()
-            .get(DataStream.getDefaultBackingIndexName(index, 2));
+        var rolledOverIndexName = indicesAdmin().prepareRolloverIndex(index).get().getNewIndex();
+
+        // new index name should have the rolled over name
+        assertNotEquals(dsIndexName, rolledOverIndexName);
+
+        idxSettings = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(index).get().getSettings().get(rolledOverIndexName);
         assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
     }
 

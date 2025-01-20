@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 import static org.elasticsearch.xpack.core.ccr.action.UnfollowAction.INSTANCE;
 
 public class RestUnfollowAction extends BaseRestHandler {
@@ -32,7 +34,11 @@ public class RestUnfollowAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        UnfollowAction.Request request = new UnfollowAction.Request(restRequest.param("index"));
+        UnfollowAction.Request request = new UnfollowAction.Request(
+            getMasterNodeTimeout(restRequest),
+            TimeValue.THIRTY_SECONDS,
+            restRequest.param("index")
+        );
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

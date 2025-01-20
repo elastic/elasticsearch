@@ -15,6 +15,6 @@ public class ClearSecurityCacheAction extends ActionType<ClearSecurityCacheRespo
     public static final String NAME = "cluster:admin/xpack/security/cache/clear";
 
     protected ClearSecurityCacheAction() {
-        super(NAME, ClearSecurityCacheResponse::new);
+        super(NAME);
     }
 }

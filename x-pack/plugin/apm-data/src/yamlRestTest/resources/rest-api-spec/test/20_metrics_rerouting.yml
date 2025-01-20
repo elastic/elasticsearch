@@ -1,0 +1,52 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+---
+"Test metrics-apm.internal-* data stream rerouting":
+  - do:
+      bulk:
+        index: metrics-apm.internal-testing
+        refresh: true
+        body:
+          - create: {}
+          - "@timestamp": "2017-06-22"
+            data_stream.type: metrics
+            data_stream.dataset: apm.internal
+            data_stream.namespace: testing
+            metricset:
+              name: transaction
+          - create: {}
+          - "@timestamp": "2017-06-22"
+            data_stream.type: metrics
+            data_stream.dataset: apm.internal
+            data_stream.namespace: testing
+            metricset:
+              name: service_destination
+          - create: {}
+          - "@timestamp": "2017-06-22"
+            data_stream.type: metrics
+            data_stream.dataset: apm.internal
+            data_stream.namespace: testing
+            metricset:
+              name: app_config # should not be rerouted
+  - do:
+      indices.get_data_stream:
+        name: metrics-apm.transaction.1m-testing
+  - do:
+      indices.get_data_stream:
+        name: metrics-apm.service_destination.1m-testing
+  - do:
+      indices.get_data_stream:
+        name: metrics-apm.internal-testing
+  - do:
+      search:
+        index: metrics-apm*
+  - length: {hits.hits: 3}
+  - match: {hits.hits.0._source.data_stream.dataset: "apm.internal"}
+  - match: {hits.hits.1._source.data_stream.dataset: "apm.service_destination.1m"}
+  - match: {hits.hits.1._source.metricset.interval: "1m"}
+  - match: {hits.hits.2._source.data_stream.dataset: "apm.transaction.1m"}
+  - match: {hits.hits.2._source.metricset.interval: "1m"}

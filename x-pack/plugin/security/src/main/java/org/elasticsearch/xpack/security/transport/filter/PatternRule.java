@@ -105,9 +105,9 @@ final class PatternRule implements IpFilterRule {
         if (pattern.length() != 0) {
             pattern += "|";
         }
-        rule = rule.replaceAll("\\.", "\\\\.");
-        rule = rule.replaceAll("\\*", ".*");
-        rule = rule.replaceAll("\\?", ".");
+        rule = rule.replace(".", "\\.");
+        rule = rule.replace("*", ".*");
+        rule = rule.replace("?", ".");
         pattern += '(' + rule + ')';
         return pattern;
     }

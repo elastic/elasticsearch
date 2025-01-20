@@ -1,6 +1,0 @@
-pr: 87220
-summary: Make the metric in the `buckets_path` parameter optional
-area: Aggregations
-type: bug
-issues:
- - 72983

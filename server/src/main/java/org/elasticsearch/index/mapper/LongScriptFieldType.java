@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -43,17 +44,25 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(String name, LongFieldScript.Factory factory, Script script, Map<String, String> meta) {
-            return new LongScriptFieldType(name, factory, script, meta);
+        protected AbstractScriptFieldType<?> createFieldType(
+            String name,
+            LongFieldScript.Factory factory,
+            Script script,
+            Map<String, String> meta,
+            OnScriptError onScriptError
+        ) {
+            return new LongScriptFieldType(name, factory, script, meta, onScriptError);
         }
 
         @Override
-        LongFieldScript.Factory getParseFromSourceFactory() {
+        protected LongFieldScript.Factory getParseFromSourceFactory() {
             return LongFieldScript.PARSE_FROM_SOURCE;
         }
 
         @Override
-        LongFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+        protected LongFieldScript.Factory getCompositeLeafFactory(
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
             return LongFieldScript.leafAdapter(parentScriptFactory);
         }
     }
@@ -62,10 +71,16 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         return new Builder(name).createRuntimeField(LongFieldScript.PARSE_FROM_SOURCE);
     }
 
-    public LongScriptFieldType(String name, LongFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+    public LongScriptFieldType(
+        String name,
+        LongFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta,
+        OnScriptError onScriptError
+    ) {
         super(
             name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
             meta
@@ -89,6 +104,11 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
             return DocValueFormat.RAW;
         }
         return new DocValueFormat.Decimal(format);
+    }
+
+    @Override
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        return new LongScriptBlockDocValuesReader.LongScriptBlockLoader(leafFactory(blContext.lookup()));
     }
 
     @Override

@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.routing;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.containsString;
 
 public class PartitionedRoutingIT extends ESIntegTestCase {
@@ -32,9 +33,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             for (int partitionSize = 1; partitionSize < shards; partitionSize++) {
                 String index = "index_" + shards + "_" + partitionSize;
 
-                client().admin()
-                    .indices()
-                    .prepareCreate(index)
+                indicesAdmin().prepareCreate(index)
                     .setSettings(
                         Settings.builder()
                             .put("index.number_of_shards", shards)
@@ -42,8 +41,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                             .put("index.routing_partition_size", partitionSize)
                     )
                     .setMapping("{\"_routing\":{\"required\":true}}")
-                    .execute()
-                    .actionGet();
+                    .get();
                 ensureGreen();
 
                 Map<String, Set<String>> routingToDocumentIds = generateRoutedDocumentIds(index);
@@ -65,19 +63,13 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
         int currentShards = originalShards;
         String index = "index_" + currentShards;
 
-        client().admin()
-            .indices()
-            .prepareCreate(index)
+        indicesAdmin().prepareCreate(index)
             .setSettings(
-                Settings.builder()
-                    .put("index.number_of_shards", currentShards)
-                    .put("index.number_of_routing_shards", currentShards)
-                    .put("index.number_of_replicas", numberOfReplicas())
+                indexSettings(currentShards, numberOfReplicas()).put("index.number_of_routing_shards", currentShards)
                     .put("index.routing_partition_size", partitionSize)
             )
             .setMapping("{\"_routing\":{\"required\":true}}")
-            .execute()
-            .actionGet();
+            .get();
         ensureGreen();
 
         Map<String, Set<String>> routingToDocumentIds = generateRoutedDocumentIds(index);
@@ -98,26 +90,21 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                     : Sets.newSet(Math.floorDiv(partitionSize, factor), -Math.floorDiv(-partitionSize, factor))
             );
 
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(index)
-                .setSettings(
-                    Settings.builder()
-                        .put(
-                            "index.routing.allocation.require._name",
-                            client().admin()
-                                .cluster()
-                                .prepareState()
-                                .get()
-                                .getState()
-                                .nodes()
-                                .getDataNodes()
-                                .values()
-                                .toArray(DiscoveryNode[]::new)[0].getName()
-                        )
-                        .put("index.blocks.write", true)
-                )
-                .get();
+            updateIndexSettings(
+                Settings.builder()
+                    .put(
+                        "index.routing.allocation.require._name",
+                        clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                            .get()
+                            .getState()
+                            .nodes()
+                            .getDataNodes()
+                            .values()
+                            .toArray(DiscoveryNode[]::new)[0].getName()
+                    )
+                    .put("index.blocks.write", true),
+                index
+            );
             ensureGreen();
 
             currentShards = Math.floorDiv(currentShards, 2);
@@ -130,16 +117,8 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             index = "index_" + currentShards;
 
             logger.info("--> shrinking index [" + previousIndex + "] to [" + index + "]");
-            client().admin()
-                .indices()
-                .prepareResizeIndex(previousIndex, index)
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", currentShards)
-                        .put("index.number_of_replicas", numberOfReplicas())
-                        .putNull("index.routing.allocation.require._name")
-                        .build()
-                )
+            indicesAdmin().prepareResizeIndex(previousIndex, index)
+                .setSettings(indexSettings(currentShards, numberOfReplicas()).putNull("index.routing.allocation.require._name").build())
                 .get();
             ensureGreen();
         }
@@ -170,36 +149,33 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             String routing = routingEntry.getKey();
             int expectedDocuments = routingEntry.getValue().size();
 
-            SearchResponse response = client().prepareSearch()
-                .setQuery(QueryBuilders.termQuery("_routing", routing))
-                .setRouting(routing)
-                .setIndices(index)
-                .setSize(100)
-                .execute()
-                .actionGet();
+            assertResponse(
+                prepareSearch().setQuery(QueryBuilders.termQuery("_routing", routing)).setRouting(routing).setIndices(index).setSize(100),
+                response -> {
+                    logger.info(
+                        "--> routed search on index ["
+                            + index
+                            + "] visited ["
+                            + response.getTotalShards()
+                            + "] shards for routing ["
+                            + routing
+                            + "] and got hits ["
+                            + response.getHits().getTotalHits().value()
+                            + "]"
+                    );
 
-            logger.info(
-                "--> routed search on index ["
-                    + index
-                    + "] visited ["
-                    + response.getTotalShards()
-                    + "] shards for routing ["
-                    + routing
-                    + "] and got hits ["
-                    + response.getHits().getTotalHits().value
-                    + "]"
+                    assertTrue(
+                        response.getTotalShards() + " was not in " + expectedShards + " for " + index,
+                        expectedShards.contains(response.getTotalShards())
+                    );
+                    assertEquals(expectedDocuments, response.getHits().getTotalHits().value());
+
+                    Set<String> found = new HashSet<>();
+                    response.getHits().forEach(h -> found.add(h.getId()));
+
+                    assertEquals(routingEntry.getValue(), found);
+                }
             );
-
-            assertTrue(
-                response.getTotalShards() + " was not in " + expectedShards + " for " + index,
-                expectedShards.contains(response.getTotalShards())
-            );
-            assertEquals(expectedDocuments, response.getHits().getTotalHits().value);
-
-            Set<String> found = new HashSet<>();
-            response.getHits().forEach(h -> found.add(h.getId()));
-
-            assertEquals(routingEntry.getValue(), found);
         }
     }
 
@@ -208,20 +184,18 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             String routing = routingEntry.getKey();
             int expectedDocuments = routingEntry.getValue().size();
 
-            SearchResponse response = client().prepareSearch()
-                .setQuery(QueryBuilders.termQuery("_routing", routing))
-                .setIndices(index)
-                .setSize(100)
-                .execute()
-                .actionGet();
+            assertResponse(
+                prepareSearch().setQuery(QueryBuilders.termQuery("_routing", routing)).setIndices(index).setSize(100),
+                response -> {
+                    assertEquals(expectedShards, response.getTotalShards());
+                    assertEquals(expectedDocuments, response.getHits().getTotalHits().value());
 
-            assertEquals(expectedShards, response.getTotalShards());
-            assertEquals(expectedDocuments, response.getHits().getTotalHits().value);
+                    Set<String> found = new HashSet<>();
+                    response.getHits().forEach(h -> found.add(h.getId()));
 
-            Set<String> found = new HashSet<>();
-            response.getHits().forEach(h -> found.add(h.getId()));
-
-            assertEquals(routingEntry.getValue(), found);
+                    assertEquals(routingEntry.getValue(), found);
+                }
+            );
         }
     }
 
@@ -230,7 +204,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             String routing = routingEntry.getKey();
 
             for (String id : routingEntry.getValue()) {
-                assertTrue(client().prepareGet(index, id).setRouting(routing).execute().actionGet().isExists());
+                assertTrue(client().prepareGet(index, id).setRouting(routing).get().isExists());
             }
         }
     }
@@ -248,11 +222,11 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 String id = routingValue + "_" + String.valueOf(k);
                 routingToDocumentIds.get(routingValue).add(id);
 
-                client().prepareIndex(index).setId(id).setRouting(routingValue).setSource("foo", "bar").get();
+                prepareIndex(index).setId(id).setRouting(routingValue).setSource("foo", "bar").get();
             }
         }
 
-        client().admin().indices().prepareRefresh(index).get();
+        indicesAdmin().prepareRefresh(index).get();
 
         return routingToDocumentIds;
     }

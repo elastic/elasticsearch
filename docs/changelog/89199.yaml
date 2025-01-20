@@ -1,7 +1,0 @@
-pr: 89199
-summary: Geo_line aggregation returns a geojson point when the resulting line has
-  only one point
-area: Geo
-type: bug
-issues:
- - 85748

@@ -31,7 +31,7 @@ public class MockActionTests extends AbstractActionTestCase<MockAction> {
     }
 
     @Override
-    protected MockAction mutateInstance(MockAction instance) throws IOException {
+    protected MockAction mutateInstance(MockAction instance) {
         List<Step> steps = instance.getSteps();
         boolean safe = instance.isSafeAction();
         if (randomBoolean()) {

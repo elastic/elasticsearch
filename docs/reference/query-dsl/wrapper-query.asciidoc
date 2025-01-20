@@ -20,7 +20,4 @@ GET /_search
 
 <1> Base64 encoded string:  `{"term" : { "user.id" : "kimchy" }}`
 
-This query is more useful in the context of the Java high-level REST client or
-transport client to also accept queries as json formatted string.
-In these cases queries can be specified as a json or yaml formatted string or
-as a query builder (which is a available in the Java high-level REST client).
+This query is more useful in the context of Spring Data Elasticsearch. It's the way a user can add custom queries when using Spring Data repositories. The user can add a @Query() annotation to a repository method. When such a method is called we do a parameter replacement in the query argument of the annotation and then send this as the query part of a search request.

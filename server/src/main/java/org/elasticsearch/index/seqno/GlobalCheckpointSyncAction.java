@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.seqno;
@@ -16,13 +17,13 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -38,8 +39,8 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
     GlobalCheckpointSyncAction.Request,
     ReplicationResponse> {
 
-    public static String ACTION_NAME = "indices:admin/seq_no/global_checkpoint_sync";
-    public static ActionType<ReplicationResponse> TYPE = new ActionType<>(ACTION_NAME, ReplicationResponse::new);
+    public static final String ACTION_NAME = "indices:admin/seq_no/global_checkpoint_sync";
+    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(ACTION_NAME);
 
     @Inject
     public GlobalCheckpointSyncAction(
@@ -62,7 +63,10 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
             actionFilters,
             Request::new,
             Request::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.WRITE),
+            SyncGlobalCheckpointAfterOperation.DoNotSync,
+            PrimaryActionExecution.Force,
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
     }
 
@@ -77,24 +81,26 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
         IndexShard indexShard,
         ActionListener<PrimaryResult<Request, ReplicationResponse>> listener
     ) {
-        ActionListener.completeWith(listener, () -> {
-            maybeSyncTranslog(indexShard);
-            return new PrimaryResult<>(request, new ReplicationResponse());
-        });
+        maybeSyncTranslog(indexShard, listener.map(v -> new PrimaryResult<>(request, new ReplicationResponse())));
     }
 
     @Override
     protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        ActionListener.completeWith(listener, () -> {
-            maybeSyncTranslog(replica);
-            return new ReplicaResult();
-        });
+        maybeSyncTranslog(replica, listener.map(v -> new ReplicaResult()));
     }
 
-    private static void maybeSyncTranslog(final IndexShard indexShard) throws IOException {
+    private static <T> void maybeSyncTranslog(IndexShard indexShard, ActionListener<Void> listener) {
         if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST
             && indexShard.getLastSyncedGlobalCheckpoint() < indexShard.getLastKnownGlobalCheckpoint()) {
-            indexShard.sync();
+            indexShard.syncGlobalCheckpoint(indexShard.getLastKnownGlobalCheckpoint(), e -> {
+                if (e == null) {
+                    listener.onResponse(null);
+                } else {
+                    listener.onFailure(e);
+                }
+            });
+        } else {
+            listener.onResponse(null);
         }
     }
 

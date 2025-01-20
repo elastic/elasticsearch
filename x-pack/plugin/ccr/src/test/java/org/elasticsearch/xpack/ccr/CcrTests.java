@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.ccr;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
@@ -30,7 +30,7 @@ public class CcrTests extends ESTestCase {
             final String indexName = "following-" + value;
             final Index index = new Index(indexName, UUIDs.randomBase64UUID());
             final Settings.Builder builder = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
             if (value != null) {
                 builder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), value);

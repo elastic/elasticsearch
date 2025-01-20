@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
@@ -70,6 +71,12 @@ public class SslConfigurationKeys {
      * with a {@link #TRUSTSTORE_PATH truststore}.
      */
     public static final String TRUSTSTORE_ALGORITHM = "truststore.algorithm";
+
+    /**
+     * The fields from the X509 certificate used for restricted trust. Internationally omitted from the list of setting returned by methods
+     * in this class. This is not a general purpose ssl configuration.
+     */
+    public static final String TRUST_RESTRICTIONS_X509_FIELDS = "trust_restrictions.x509_fields";
 
     // Key Management
     // -- Keystore

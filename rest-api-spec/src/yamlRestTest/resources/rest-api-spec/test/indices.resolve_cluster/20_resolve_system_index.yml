@@ -1,0 +1,34 @@
+---
+setup:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "resolve cluster introduced in 8.13"
+      test_runner_features: ["warnings", "headers"]
+
+  - do:
+      headers: { X-elastic-product-origin: elastic }
+      indices.create:
+        index: ".tasks"
+---
+# explicitly delete ".tasks" because this is a system index
+teardown:
+  - skip:
+      features: "warnings"
+      reason: "these tests manipulate system indices, so we get warnings"
+  - do:
+      indices.delete:
+        index: ".tasks"
+      warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented
+       by default"
+---
+"Resolve system index via resolve/cluster":
+
+  - do:
+      indices.resolve_cluster:
+        name: '.tasks'
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: true}
+  - exists: (local).version.number

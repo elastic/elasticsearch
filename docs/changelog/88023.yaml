@@ -1,5 +1,0 @@
-pr: 88023
-summary: "If signature validation fails, reload JWKs and retry if new JWKs are found"
-area: Authentication
-type: enhancement
-issues: []

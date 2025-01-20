@@ -4,7 +4,14 @@
 
 NOTE: {cloud-only}
 
-You can use the following APIs to perform autoscaling operations.
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-autoscaling[Autoscaling APIs].
+--
+
+You can use the following APIs to perform {cloud}/ec-autoscaling.html[autoscaling operations].
 
 [discrete]
 [[autoscaling-api-top-level]]

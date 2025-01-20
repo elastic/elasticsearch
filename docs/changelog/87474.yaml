@@ -1,5 +1,0 @@
-pr: 87474
-summary: Keep track of desired nodes status in cluster state
-area: Autoscaling
-type: enhancement
-issues: []

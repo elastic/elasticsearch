@@ -7,7 +7,8 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
@@ -49,14 +50,10 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ml/datafeed/start";
 
     private StartDatafeedAction() {
-        super(NAME, NodeAcknowledgedResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
-
-        public static Request fromXContent(XContentParser parser) {
-            return parseRequest(null, parser);
-        }
 
         public static Request parseRequest(String datafeedId, XContentParser parser) {
             DatafeedParams params = DatafeedParams.PARSER.apply(parser, null);
@@ -69,14 +66,17 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
         private DatafeedParams params;
 
         public Request(String datafeedId, long startTime) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.params = new DatafeedParams(datafeedId, startTime);
         }
 
         public Request(String datafeedId, String startTime) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.params = new DatafeedParams(datafeedId, startTime);
         }
 
         public Request(DatafeedParams params) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.params = params;
         }
 
@@ -189,6 +189,9 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
 
         public DatafeedParams(String datafeedId, long startTime) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
+            if (startTime < 0) {
+                throw new IllegalArgumentException("[" + START_TIME.getPreferredName() + "] must not be negative [" + startTime + "].");
+            }
             this.startTime = startTime;
         }
 
@@ -202,7 +205,7 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
             endTime = in.readOptionalLong();
             timeout = TimeValue.timeValueMillis(in.readVLong());
             jobId = in.readOptionalString();
-            datafeedIndices = in.readStringList();
+            datafeedIndices = in.readStringCollectionAsList();
             indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
@@ -275,8 +278,8 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT.minimumCompatibilityVersion();
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.MINIMUM_COMPATIBLE;
         }
 
         @Override

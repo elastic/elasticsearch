@@ -4,8 +4,13 @@
 <titleabbrev>Cluster update settings</titleabbrev>
 ++++
 
-Configures <<dynamic-cluster-setting,dynamic cluster settings>>.
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[Cluster APIs].
+--
 
+Configures <<dynamic-cluster-setting,dynamic cluster settings>>.
 
 [[cluster-update-settings-api-request]]
 ==== {api-request-title}
@@ -22,18 +27,18 @@ Configures <<dynamic-cluster-setting,dynamic cluster settings>>.
 ==== {api-description-title}
 
 :strip-api-link: true
-include::{es-repo-dir}/setup/configuration.asciidoc[tag=cluster-setting-precedence]
+include::{es-ref-dir}/setup/configuration.asciidoc[tag=cluster-setting-precedence]
 
 [[cluster-update-settings-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
 `include_defaults`::
     (Optional, Boolean) If `true`, returns all default cluster settings.
     Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[cluster-update-settings-api-example]]
@@ -59,8 +64,8 @@ An example of a transient update:
 ====
 We no longer recommend using transient cluster settings. Use persistent cluster
 settings instead. If a cluster becomes unstable, transient settings can clear
-unexpectedly, resulting in a potentially undesired cluster configuration. See
-the <<transient-settings-migration-guide>>.
+unexpectedly, resulting in a potentially undesired cluster configuration.
+// See the <<transient-settings-migration-guide>>.
 ====
 // end::transient-settings-warning[]
 

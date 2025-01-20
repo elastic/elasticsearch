@@ -1,0 +1,6 @@
+pr: 112258
+summary: Updated Date Range to Follow Documentation When Assuming Missing Values
+area: Search
+type: bug
+issues: 
+  - 111484

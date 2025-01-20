@@ -1,5 +1,5 @@
 [[api]]
-== API Extension Plugins
+== API extension plugins
 
 API extension plugins add new functionality to Elasticsearch by adding new APIs or features, usually to do with search or mapping.
 

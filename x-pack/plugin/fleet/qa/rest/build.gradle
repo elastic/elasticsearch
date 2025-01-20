@@ -1,23 +1,31 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
-
-dependencies {
-  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
-}
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 restResources {
   restApi {
-    include '_common', 'indices', 'index', 'fleet'
+    include '_common', 'bulk', 'cluster', 'nodes', 'indices', 'index', 'xpack', 'security', 'fleet'
   }
 }
 
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'false'
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
-if (BuildParams.inFipsJvm){
-  // Test clusters run with security disabled
+tasks.named('yamlRestTest') {
+  usesDefaultDistribution()
+}
+tasks.named('yamlRestCompatTest') {
+  usesDefaultDistribution()
+}
+if (buildParams.inFipsJvm){
+  // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
   tasks.named("yamlRestTest").configure{enabled = false }
 }

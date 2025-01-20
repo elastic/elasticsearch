@@ -1,0 +1,39 @@
+++++
+<div class="tabs" data-tab-group="model">
+  <div role="tablist" aria-label="model">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="elser-tab-field-mappings"
+            id="elser-field-mappings">
+      ELSER
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="dense-vector-tab-field-mappings"
+            id="dense-vector-field-mappings">
+      Dense vector models
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="elser-tab-field-mappings"
+       aria-labelledby="elser-field-mappings">
+++++
+
+include::field-mappings.asciidoc[tag=elser]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="dense-vector-tab-field-mappings"
+       aria-labelledby="dense-vector-field-mappings"
+       hidden="">
+++++
+
+include::field-mappings.asciidoc[tag=dense-vector]
+
+++++
+  </div>
+</div>
+++++

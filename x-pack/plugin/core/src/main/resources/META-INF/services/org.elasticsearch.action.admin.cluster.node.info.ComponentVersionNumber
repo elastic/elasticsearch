@@ -1,0 +1,3 @@
+org.elasticsearch.xpack.core.ml.MlConfigVersionComponent
+org.elasticsearch.xpack.core.transform.TransformConfigVersionComponent
+org.elasticsearch.xpack.core.security.action.apikey.ApiKey$VersionComponent

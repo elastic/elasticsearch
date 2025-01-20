@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.conventions.precommit;
@@ -25,6 +26,7 @@ import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.IgnoreEmptyDirectories;
@@ -39,25 +41,22 @@ import org.gradle.api.tasks.TaskAction;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
-import org.gradle.api.model.ObjectFactory;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.Serializable;
 import java.io.Writer;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
-import java.io.Serializable;
-
-import javax.inject.Inject;
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 
 /**
  * Checks files for license headers..
@@ -68,15 +67,21 @@ public abstract class LicenseHeadersTask extends DefaultTask {
     private final RegularFileProperty reportFile;
 
     private static List<License> conventionalLicenses = Arrays.asList(
-            // Dual SSPLv1 and Elastic
-            new License("DUAL", "SSPL+Elastic License", "the Elastic License 2.0 or the Server")
+        // Triple AGPL, SSPLv1 and Elastic
+        new License(
+            "TRIPLE",
+            "AGLP+SSPL+Elastic License",
+            "2.0\", the \"GNU Affero General Public License v3.0 only\", and the \"Server Side"
+        )
     );
 
     /**
      * Allowed license families for this project.
      */
     @Input
-    private List<String> approvedLicenses = new ArrayList<String>(Arrays.asList("SSPL+Elastic License", "Generated", "Vendored", "Apache LZ4-Java"));
+    private List<String> approvedLicenses = new ArrayList<String>(
+        Arrays.asList("AGLP+SSPL+Elastic License", "Generated", "Vendored", "Apache LZ4-Java")
+    );
     /**
      * Files that should be excluded from the license header check. Use with extreme care, only in situations where the license on the
      * source file is compatible with the codebase but we do not want to add the license to the list of approved headers (to avoid the
@@ -90,9 +95,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
     @Inject
     public LicenseHeadersTask(ObjectFactory objectFactory, ProjectLayout projectLayout) {
         additionalLicenses = objectFactory.listProperty(License.class).convention(conventionalLicenses);
-        reportFile = objectFactory.fileProperty().convention(
-            projectLayout.getBuildDirectory().file("reports/licenseHeaders/rat.xml")
-        );
+        reportFile = objectFactory.fileProperty().convention(projectLayout.getBuildDirectory().file("reports/licenseHeaders/rat.xml"));
         setDescription("Checks sources for missing, incorrect, or unacceptable license headers");
     }
 
@@ -140,6 +143,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
     public ListProperty<License> getAdditionalLicenses() {
         return additionalLicenses;
     }
+
     /**
      * Add a new license type.
      * <p>
@@ -176,9 +180,8 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         // Vendored Code
         matchers.add(subStringMatcher("VEN  ", "Vendored", "@notice"));
 
-        additionalLicenses.get().forEach(l ->
-            matchers.add(subStringMatcher(l.licenseFamilyCategory, l.licenseFamilyName, l.substringPattern))
-        );
+        additionalLicenses.get()
+            .forEach(l -> matchers.add(subStringMatcher(l.licenseFamilyCategory, l.licenseFamilyName, l.substringPattern)));
 
         reportConfiguration.setHeaderMatcher(new HeaderMatcherMultiplexer(matchers.toArray(IHeaderMatcher[]::new)));
         reportConfiguration.setApprovedLicenseNames(approvedLicenses.stream().map(license -> {
@@ -193,9 +196,8 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         boolean unApprovedLicenses = stats.getNumUnApproved() > 0;
         if (unknownLicenses || unApprovedLicenses) {
             getLogger().error("The following files contain unapproved license headers:");
-            unapprovedFiles(repFile).stream().forEachOrdered(unapprovedFile -> getLogger().error(unapprovedFile));
-            throw new GradleException("Check failed. License header problems were found. Full details: " +
-                    repFile.getAbsolutePath());
+            unapprovedFiles(repFile).forEach(getLogger()::error);
+            throw new GradleException("Check failed. License header problems were found. Full details: " + repFile.getAbsolutePath());
         }
     }
 
@@ -237,8 +239,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
 
     private static List<String> unapprovedFiles(File xmlReportFile) {
         try {
-            NodeList resourcesNodes = DocumentBuilderFactory.newInstance()
-                .newDocumentBuilder()
+            NodeList resourcesNodes = createXmlDocumentBuilderFactory().newDocumentBuilder()
                 .parse(xmlReportFile)
                 .getElementsByTagName("resource");
             return elementList(resourcesNodes).stream()
@@ -252,6 +253,21 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         } catch (SAXException | IOException | ParserConfigurationException e) {
             throw new GradleException("Error parsing xml report " + xmlReportFile.getAbsolutePath());
         }
+    }
+
+    private static DocumentBuilderFactory createXmlDocumentBuilderFactory() throws ParserConfigurationException {
+        final DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+        dbf.setXIncludeAware(false);
+        dbf.setIgnoringComments(true);
+        dbf.setExpandEntityReferences(false);
+        dbf.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        dbf.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+        dbf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        dbf.setFeature("http://xml.org/sax/features/external-general-entities", false);
+        dbf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+        dbf.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+        return dbf;
     }
 
     private static List<Element> elementList(NodeList resourcesNodes) {

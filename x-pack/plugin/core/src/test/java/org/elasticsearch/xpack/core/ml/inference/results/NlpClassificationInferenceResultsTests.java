@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults.writeResult;
+import static org.elasticsearch.inference.InferenceResults.writeResult;
 import static org.hamcrest.Matchers.equalTo;
 
 public class NlpClassificationInferenceResultsTests extends InferenceResultsTestCase<NlpClassificationInferenceResults> {
@@ -69,13 +69,23 @@ public class NlpClassificationInferenceResultsTests extends InferenceResultsTest
     }
 
     @Override
+    protected NlpClassificationInferenceResults mutateInstance(NlpClassificationInferenceResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<NlpClassificationInferenceResults> instanceReader() {
         return NlpClassificationInferenceResults::new;
     }
 
     @Override
-    void assertFieldValues(NlpClassificationInferenceResults createdInstance, IngestDocument document, String resultsField) {
-        String path = resultsField + "." + createdInstance.getResultsField();
+    void assertFieldValues(
+        NlpClassificationInferenceResults createdInstance,
+        IngestDocument document,
+        String parentField,
+        String resultsField
+    ) {
+        String path = parentField + resultsField;
         assertThat(document.getFieldValue(path, String.class), equalTo(createdInstance.predictedValue()));
     }
 }

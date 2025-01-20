@@ -72,8 +72,7 @@ teardown:
   - do:
       headers:
         Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
-      cluster.health: {}
-  - match: { timed_out: false }
+      info: {}
 
   - do:
       security.get_role:

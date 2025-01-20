@@ -14,11 +14,12 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
+/**
+ * Set variant of {@link AttributeMap} - please see that class Javadoc.
+ */
 public class AttributeSet implements Set<Attribute> {
 
-    private static final AttributeMap<Object> EMPTY_DELEGATE = AttributeMap.emptyAttributeMap();
-
-    public static final AttributeSet EMPTY = new AttributeSet(EMPTY_DELEGATE);
+    public static final AttributeSet EMPTY = new AttributeSet(AttributeMap.emptyAttributeMap());
 
     // use the same name as in HashSet
     private static final Object PRESENT = new Object();
@@ -34,25 +35,15 @@ public class AttributeSet implements Set<Attribute> {
     }
 
     public AttributeSet(Collection<? extends Attribute> attr) {
-        if (attr.isEmpty()) {
-            delegate = EMPTY_DELEGATE;
-        } else {
-            delegate = new AttributeMap<>();
+        delegate = new AttributeMap<>();
 
-            for (Attribute a : attr) {
-                delegate.add(a, PRESENT);
-            }
+        for (Attribute a : attr) {
+            delegate.add(a, PRESENT);
         }
     }
 
     private AttributeSet(AttributeMap<Object> delegate) {
         this.delegate = delegate;
-    }
-
-    // package protected - should be called through Expressions to cheaply create
-    // a set from a collection of sets without too much copying
-    void addAll(AttributeSet other) {
-        delegate.addAll(other.delegate);
     }
 
     public AttributeSet combine(AttributeSet other) {
@@ -122,42 +113,54 @@ public class AttributeSet implements Set<Attribute> {
 
     @Override
     public boolean add(Attribute e) {
-        throw new UnsupportedOperationException();
+        return delegate.put(e, PRESENT) == null;
     }
 
     @Override
     public boolean remove(Object o) {
-        throw new UnsupportedOperationException();
+        return delegate.remove(o) != null;
+    }
+
+    public void addAll(AttributeSet other) {
+        delegate.addAll(other.delegate);
     }
 
     @Override
     public boolean addAll(Collection<? extends Attribute> c) {
-        throw new UnsupportedOperationException();
+        int size = delegate.size();
+        for (var e : c) {
+            delegate.put(e, PRESENT);
+        }
+        return delegate.size() != size;
     }
 
     @Override
     public boolean retainAll(Collection<?> c) {
-        throw new UnsupportedOperationException();
+        return delegate.keySet().removeIf(e -> c.contains(e) == false);
     }
 
     @Override
     public boolean removeAll(Collection<?> c) {
-        throw new UnsupportedOperationException();
+        int size = delegate.size();
+        for (var e : c) {
+            delegate.remove(e);
+        }
+        return delegate.size() != size;
     }
 
     @Override
     public void clear() {
-        throw new UnsupportedOperationException();
+        delegate.clear();
     }
 
     @Override
     public Spliterator<Attribute> spliterator() {
-        throw new UnsupportedOperationException();
+        return delegate.keySet().spliterator();
     }
 
     @Override
     public boolean removeIf(Predicate<? super Attribute> filter) {
-        throw new UnsupportedOperationException();
+        return delegate.keySet().removeIf(filter);
     }
 
     @Override

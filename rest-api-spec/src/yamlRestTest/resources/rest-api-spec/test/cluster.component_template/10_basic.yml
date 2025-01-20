@@ -1,7 +1,7 @@
 ---
 "Basic CRUD":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "index/component template v2 API unavailable before 7.8"
 
   - do:
@@ -48,8 +48,8 @@
 
 ---
 "Delete multiple templates":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "not yet backported"
 
   - do:
@@ -113,3 +113,91 @@
         name: baz
 
   - match: {component_templates.0.name: baz}
+
+---
+"Add data stream lifecycle":
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
+      reason: "Data stream lifecycle was available from 8.11"
+
+  - do:
+      cluster.put_component_template:
+        name: test-lifecycle
+        body:
+          template:
+            lifecycle:
+              data_retention: "10d"
+          version: 1
+          _meta:
+            foo: bar
+            baz:
+              eggplant: true
+
+  - do:
+      cluster.get_component_template:
+        name: test-lifecycle
+
+  - match: {component_templates.0.name: test-lifecycle}
+  - match: {component_templates.0.component_template.version: 1}
+  - match: {component_templates.0.component_template.template.lifecycle.enabled: true}
+  - match: {component_templates.0.component_template.template.lifecycle.data_retention: "10d"}
+
+---
+"Get data stream lifecycle with default rollover":
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
+      reason: "Data stream lifecycle was available from 8.11"
+
+  - do:
+      cluster.put_component_template:
+        name: test-lifecycle
+        body:
+          template:
+            lifecycle:
+              data_retention: "10d"
+          version: 1
+          _meta:
+            foo: bar
+            baz:
+              eggplant: true
+
+  - do:
+      cluster.get_component_template:
+        name: test-lifecycle
+        include_defaults: true
+
+  - match: {component_templates.0.name: test-lifecycle}
+  - match: {component_templates.0.component_template.version: 1}
+  - match: {component_templates.0.component_template.template.lifecycle.enabled: true}
+  - match: {component_templates.0.component_template.template.lifecycle.data_retention: "10d"}
+  - is_true: component_templates.0.component_template.template.lifecycle.rollover
+
+---
+"Deprecated local parameter":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_component_template
+          capabilities: ["local_param_deprecated"]
+      test_runner_features: ["capabilities", "warnings"]
+      reason: Deprecation was implemented with capability
+
+  - do:
+      cluster.get_component_template:
+        local: true
+      warnings:
+        - "the [?local] query parameter to this API has no effect, is now deprecated, and will be removed in a future version"
+
+---
+"Deprecated local parameter works in v8 compat mode":
+  - requires:
+      test_runner_features: ["headers"]
+
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=8"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=8"
+      cluster.get_component_template:
+        local: true
+
+  - exists: component_templates

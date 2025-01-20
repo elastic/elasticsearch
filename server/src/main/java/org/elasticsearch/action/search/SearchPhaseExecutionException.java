@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -43,8 +44,8 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+    protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
+        super.writeTo(out, nestedExceptionsWriter);
         out.writeOptionalString(phaseName);
         out.writeArray(shardFailures);
     }
@@ -72,15 +73,21 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
             // on coordinator node. so get the status from cause instead of returning SERVICE_UNAVAILABLE blindly
             return getCause() == null ? RestStatus.SERVICE_UNAVAILABLE : ExceptionsHelper.status(getCause());
         }
-        RestStatus status = shardFailures[0].status();
-        if (shardFailures.length > 1) {
-            for (int i = 1; i < shardFailures.length; i++) {
-                if (shardFailures[i].status().getStatus() >= RestStatus.INTERNAL_SERVER_ERROR.getStatus()) {
-                    status = shardFailures[i].status();
-                }
+        RestStatus status = null;
+        for (ShardSearchFailure shardFailure : shardFailures) {
+            RestStatus shardStatus = shardFailure.status();
+            int statusCode = shardStatus.getStatus();
+
+            // Return if it's an error that can be retried.
+            // These currently take precedence over other status code(s).
+            if (statusCode >= 502 && statusCode <= 504) {
+                return shardStatus;
+            } else if (statusCode >= 500) {
+                status = shardStatus;
             }
         }
-        return status;
+
+        return status == null ? shardFailures[0].status() : status;
     }
 
     public ShardSearchFailure[] shardFailures() {
@@ -129,15 +136,25 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel) throws IOException {
         Throwable ex = ExceptionsHelper.unwrapCause(this);
         if (ex != this) {
-            generateThrowableXContent(builder, params, this);
+            generateThrowableXContent(builder, params, this, nestedLevel);
         } else {
             // We don't have a cause when all shards failed, but we do have shards failures so we can "guess" a cause
             // (see {@link #getCause()}). Here, we use super.getCause() because we don't want the guessed exception to
             // be rendered twice (one in the "cause" field, one in "failed_shards")
-            innerToXContent(builder, params, this, getExceptionName(), getMessage(), getHeaders(), getMetadata(), super.getCause());
+            innerToXContent(
+                builder,
+                params,
+                this,
+                getExceptionName(),
+                getMessage(),
+                getHeaders(),
+                getMetadata(),
+                super.getCause(),
+                nestedLevel
+            );
         }
         return builder;
     }

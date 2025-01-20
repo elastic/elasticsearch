@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.release;
@@ -60,11 +61,11 @@ public class ReleaseHighlightsGeneratorTest {
     }
 
     private List<ChangelogEntry> getEntries() {
-        ChangelogEntry entry1 = makeChangelogEntry(1, true);
-        ChangelogEntry entry2 = makeChangelogEntry(2, true);
-        ChangelogEntry entry3 = makeChangelogEntry(3, false);
+        ChangelogEntry entry123 = makeChangelogEntry(123, true);
+        ChangelogEntry entry456 = makeChangelogEntry(456, true);
+        ChangelogEntry entry789 = makeChangelogEntry(789, false);
         // Return unordered list, to test correct re-ordering
-        return List.of(entry2, entry1, entry3);
+        return List.of(entry456, entry123, entry789);
     }
 
     private ChangelogEntry makeChangelogEntry(int pr, boolean notable) {

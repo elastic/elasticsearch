@@ -4,6 +4,12 @@
 <titleabbrev>Validate</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/operation/operation-indices-validate-query[Validate a query].
+--
+
 Validates a potentially expensive query without executing it.
 
 [source,console]
@@ -41,7 +47,7 @@ request body.
 search. Supports wildcards (`*`). To search all data streams or indices, omit
 this parameter or use `*` or `_all`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=query]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=query]
 
 
 [[search-validate-api-query-params]]
@@ -51,33 +57,33 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=query]
   (Optional, Boolean) If `true`, the validation is executed on all shards
   instead of one random shard per index. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyzer]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=analyzer]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=default_operator]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=default_operator]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=df]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=df]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 `explain`::
   (Optional, Boolean) If `true`, the response returns detailed information if an
   error has occurred. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=lenient]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=lenient]
 
 `rewrite`::
   (Optional, Boolean) If `true`, returns a more detailed explanation showing the
   actual Lucene query that will be executed. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=search-q]
 
 
 [[search-validate-api-example]]

@@ -1,5 +1,0 @@
-pr: 87695
-summary: Do not include desired nodes in snapshots
-area: Autoscaling
-type: bug
-issues: []

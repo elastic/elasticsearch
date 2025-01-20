@@ -9,6 +9,8 @@ setup:
             properties:
               double:
                 type: double
+              keyword:
+                type: keyword
 
   - do:
       cluster.health:
@@ -20,6 +22,7 @@ setup:
         id: "1"
         body:
           double: 1.0
+          keyword: "first"
 
   - do:
       index:
@@ -27,6 +30,7 @@ setup:
         id: "2"
         body:
           double: 1.0
+          keyword: "second"
 
   - do:
       index:
@@ -34,6 +38,7 @@ setup:
         id: "3"
         body:
           double: 2.0
+          keyword: "third"
 
   - do:
       indices.refresh: {}
@@ -53,6 +58,52 @@ setup:
                 "map_script": "state.transactions.add(doc['double'].value)",
                 "combine_script": "double total = 0.0; for (t in state.transactions) { total += t } return total",
                 "reduce_script": "double total = 0; for (a in states) { total += a } return total"
+              }
+            }
+          }
+        }
+
+  - match: { hits.total: 3 }
+  - match: { aggregations.total.value: 4.0 }
+
+---
+"Scripted Metric Agg Non String Map Key":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: {
+          "size": 0,
+          "aggs": {
+            "total": {
+              "scripted_metric": {
+                "init_script": "state.transactions = [:]",
+                "map_script": "state.transactions[doc['double'].value] = doc['double'].value",
+                "combine_script": "return state.transactions",
+                "reduce_script": "double sum = 0; for (transactions in states) { for (entry in transactions.entrySet()) { sum += entry.getKey() - entry.getValue() } } return sum"
+              }
+            }
+          }
+        }
+
+  - match: { hits.total: 3 }
+  - match: { aggregations.total.value: 0.0 }
+
+---
+"Scripted Metric Agg String Map Key":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: {
+          "size": 0,
+          "aggs": {
+            "total": {
+              "scripted_metric": {
+                "init_script": "state.transactions = [:]",
+                "map_script": "state.transactions[doc['keyword'].value] = doc['double'].value",
+                "combine_script": "return state.transactions",
+                "reduce_script": "double sum = 0; for (transactions in states) { for (entry in transactions.entrySet()) { sum += entry.getValue() } } return sum"
               }
             }
           }

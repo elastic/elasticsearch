@@ -87,6 +87,9 @@ public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
 
     @SuppressWarnings("unchecked")
     static boolean containsKey(String key, Map<String, Object> mapOfMaps) {
+        if (mapOfMaps == null || mapOfMaps.isEmpty()) {
+            return false;
+        }
         if (mapOfMaps.containsKey(key)) {
             return true;
         }

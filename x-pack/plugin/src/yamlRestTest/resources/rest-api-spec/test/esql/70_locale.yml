@@ -1,0 +1,69 @@
+---
+setup:
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
+      reason: "ESQL is available in 8.11+"
+      test_runner_features: allowed_warnings_regex
+  - do:
+      indices.create:
+        index: events
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              format:
+                type: keyword
+
+  - do:
+      bulk:
+        index: events
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2023-06-20", "format": "MMMM" }
+          - { "index": { } }
+          - { "@timestamp": "2022-05-21", "format": "yy" }
+---
+"Date format with default locale":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+        - "Date format \\[MMMM\\] contains textual field specifiers that could change in JDK 23.*"
+      esql.query:
+        body:
+          query: 'FROM events | eval fixed_format = date_format("MMMM", @timestamp), variable_format = date_format(format, @timestamp) | sort @timestamp | keep @timestamp, fixed_format, variable_format'
+
+  - match: { columns.0.name: "@timestamp" }
+  - match: { columns.0.type: "date" }
+  - match: { columns.1.name: "fixed_format" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "variable_format" }
+  - match: { columns.2.type: "keyword" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ "2022-05-21T00:00:00.000Z", "May", "22"] }
+  - match: { values.1: [ "2023-06-20T00:00:00.000Z", "June", "June"] }
+
+
+---
+"Date format with Italian locale":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+        - "Date format \\[MMMM\\] contains textual field specifiers that could change in JDK 23.*"
+      esql.query:
+        body:
+          query: 'FROM events | eval fixed_format = date_format("MMMM", @timestamp), variable_format = date_format(format, @timestamp) | sort @timestamp | keep @timestamp, fixed_format, variable_format'
+          locale: "it-IT"
+
+  - match: { columns.0.name: "@timestamp" }
+  - match: { columns.0.type: "date" }
+  - match: { columns.1.name: "fixed_format" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "variable_format" }
+  - match: { columns.2.type: "keyword" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ "2022-05-21T00:00:00.000Z", "maggio", "22"] }
+  - match: { values.1: [ "2023-06-20T00:00:00.000Z", "giugno", "giugno"] }

@@ -72,8 +72,9 @@ enrich index for the policy.
 
 [source,console]
 ----
-POST /_enrich/policy/postal_policy/_execute
+POST /_enrich/policy/postal_policy/_execute?wait_for_completion=false
 ----
+// TEST[s/\?wait_for_completion=false//]
 // TEST[continued]
 
 Use the <<put-pipeline-api,create or update pipeline API>> to create an ingest

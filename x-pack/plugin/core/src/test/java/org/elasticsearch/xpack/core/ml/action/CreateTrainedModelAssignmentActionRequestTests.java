@@ -14,7 +14,12 @@ public class CreateTrainedModelAssignmentActionRequestTests extends AbstractWire
 
     @Override
     protected Request createTestInstance() {
-        return new Request(StartTrainedModelDeploymentTaskParamsTests.createRandom());
+        return new Request(StartTrainedModelDeploymentTaskParamsTests.createRandom(), null);
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

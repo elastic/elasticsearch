@@ -1,93 +1,99 @@
 ---
 "Help":
-  - skip:
-      version: " - 7.99.99"
-      reason:  bulk stats were added in 8.0.0
+  - requires:
+      cluster_features: [ "gte_v8.15.0" ]
+      reason: sparse vector was added in 8.15.0
   - do:
       cat.shards:
         help: true
 
   - match:
       $body: |
-               /^   index                            .+   \n
-                    shard                            .+   \n
-                    prirep                           .+   \n
-                    state                            .+   \n
-                    docs                             .+   \n
-                    store                            .+   \n
-                    ip                               .+   \n
-                    id                               .+   \n
-                    node                             .+   \n
-                    sync_id                          .+   \n
-                    unassigned.reason                .+   \n
-                    unassigned.at                    .+   \n
-                    unassigned.for                   .+   \n
-                    unassigned.details               .+   \n
-                    recoverysource.type              .+   \n
-                    completion.size                  .+   \n
-                    fielddata.memory_size            .+   \n
-                    fielddata.evictions              .+   \n
-                    query_cache.memory_size          .+   \n
-                    query_cache.evictions            .+   \n
-                    flush.total                      .+   \n
-                    flush.total_time                 .+   \n
-                    get.current                      .+   \n
-                    get.time                         .+   \n
-                    get.total                        .+   \n
-                    get.exists_time                  .+   \n
-                    get.exists_total                 .+   \n
-                    get.missing_time                 .+   \n
-                    get.missing_total                .+   \n
-                    indexing.delete_current          .+   \n
-                    indexing.delete_time             .+   \n
-                    indexing.delete_total            .+   \n
-                    indexing.index_current           .+   \n
-                    indexing.index_time              .+   \n
-                    indexing.index_total             .+   \n
-                    indexing.index_failed            .+   \n
-                    merges.current                   .+   \n
-                    merges.current_docs              .+   \n
-                    merges.current_size              .+   \n
-                    merges.total                     .+   \n
-                    merges.total_docs                .+   \n
-                    merges.total_size                .+   \n
-                    merges.total_time                .+   \n
-                    refresh.total                    .+   \n
-                    refresh.time                     .+   \n
-                    refresh.external_total           .+   \n
-                    refresh.external_time            .+   \n
-                    refresh.listeners                .+   \n
-                    search.fetch_current             .+   \n
-                    search.fetch_time                .+   \n
-                    search.fetch_total               .+   \n
-                    search.open_contexts             .+   \n
-                    search.query_current             .+   \n
-                    search.query_time                .+   \n
-                    search.query_total               .+   \n
-                    search.scroll_current            .+   \n
-                    search.scroll_time               .+   \n
-                    search.scroll_total              .+   \n
-                    segments.count                   .+   \n
-                    segments.memory                  .+   \n
-                    segments.index_writer_memory     .+   \n
-                    segments.version_map_memory      .+   \n
-                    segments.fixed_bitset_memory     .+   \n
-                    seq_no.max                       .+   \n
-                    seq_no.local_checkpoint          .+   \n
-                    seq_no.global_checkpoint         .+   \n
-                    warmer.current                   .+   \n
-                    warmer.total                     .+   \n
-                    warmer.total_time                .+   \n
-                    path.data                        .+   \n
-                    path.state                       .+   \n
-                    bulk.total_operations            .+   \n
-                    bulk.total_time                  .+   \n
-                    bulk.total_size_in_bytes         .+   \n
-                    bulk.avg_time                    .+   \n
-                    bulk.avg_size_in_bytes           .+   \n
-               $/
+        /^   index                            .+   \n
+             shard                            .+   \n
+             prirep                           .+   \n
+             state                            .+   \n
+             docs                             .+   \n
+             store                            .+   \n
+             dataset                          .+   \n
+             ip                               .+   \n
+             id                               .+   \n
+             node                             .+   \n
+             unassigned.reason                .+   \n
+             unassigned.at                    .+   \n
+             unassigned.for                   .+   \n
+             unassigned.details               .+   \n
+             recoverysource.type              .+   \n
+             completion.size                  .+   \n
+             fielddata.memory_size            .+   \n
+             fielddata.evictions              .+   \n
+             query_cache.memory_size          .+   \n
+             query_cache.evictions            .+   \n
+             flush.total                      .+   \n
+             flush.total_time                 .+   \n
+             get.current                      .+   \n
+             get.time                         .+   \n
+             get.total                        .+   \n
+             get.exists_time                  .+   \n
+             get.exists_total                 .+   \n
+             get.missing_time                 .+   \n
+             get.missing_total                .+   \n
+             indexing.delete_current          .+   \n
+             indexing.delete_time             .+   \n
+             indexing.delete_total            .+   \n
+             indexing.index_current           .+   \n
+             indexing.index_time              .+   \n
+             indexing.index_total             .+   \n
+             indexing.index_failed            .+   \n
+             indexing.index_failed_due_to_version_conflict .+   \n
+             merges.current                   .+   \n
+             merges.current_docs              .+   \n
+             merges.current_size              .+   \n
+             merges.total                     .+   \n
+             merges.total_docs                .+   \n
+             merges.total_size                .+   \n
+             merges.total_time                .+   \n
+             refresh.total                    .+   \n
+             refresh.time                     .+   \n
+             refresh.external_total           .+   \n
+             refresh.external_time            .+   \n
+             refresh.listeners                .+   \n
+             search.fetch_current             .+   \n
+             search.fetch_time                .+   \n
+             search.fetch_total               .+   \n
+             search.open_contexts             .+   \n
+             search.query_current             .+   \n
+             search.query_time                .+   \n
+             search.query_total               .+   \n
+             search.scroll_current            .+   \n
+             search.scroll_time               .+   \n
+             search.scroll_total              .+   \n
+             segments.count                   .+   \n
+             segments.memory                  .+   \n
+             segments.index_writer_memory     .+   \n
+             segments.version_map_memory      .+   \n
+             segments.fixed_bitset_memory     .+   \n
+             seq_no.max                       .+   \n
+             seq_no.local_checkpoint          .+   \n
+             seq_no.global_checkpoint         .+   \n
+             warmer.current                   .+   \n
+             warmer.total                     .+   \n
+             warmer.total_time                .+   \n
+             path.data                        .+   \n
+             path.state                       .+   \n
+             bulk.total_operations            .+   \n
+             bulk.total_time                  .+   \n
+             bulk.total_size_in_bytes         .+   \n
+             bulk.avg_time                    .+   \n
+             bulk.avg_size_in_bytes           .+   \n
+             dense_vector.value_count         .+   \n
+             sparse_vector.value_count        .+   \n
+        $/
 ---
 "Test cat shards output":
+  - requires:
+      cluster_features: [ "gte_v8.11.0" ]
+      reason: dataset size was added in 8.11.0
 
   - do:
       cat.shards:
@@ -95,7 +101,7 @@
 
   - match:
       $body: |
-               /^$/
+        /^$/
   - do:
       indices.create:
         index: index1
@@ -109,7 +115,7 @@
 
   - match:
       $body: |
-               /^(index1 \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+)  \n?){10}$/
+        /^(index1 \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+)  \n?){10}$/
 
   - do:
       indices.create:
@@ -124,14 +130,14 @@
         index: i*
   - match:
       $body: |
-               /^(index(1|2) \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+) \n?){15}$/
+        /^(index(1|2) \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+) \n?){15}$/
 
   - do:
       cat.shards:
         index: index2
   - match:
       $body: |
-               /^(index2 \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+) \n?){5}$/
+        /^(index2 \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+) \n?){5}$/
 
 ---
 "Test cat shards using wildcards":
@@ -168,7 +174,7 @@
 
   - match:
       $body: |
-               /^(foo \n?)$/
+        /^(foo \n?)$/
 
   - do:
       cat.shards:
@@ -178,10 +184,14 @@
 
   - match:
       $body: |
-               /^(ba(r|z) \n?){2}$/
+        /^(ba(r|z) \n?){2}$/
 
 ---
 "Test cat shards sort":
+  - requires:
+      cluster_features: [ "gte_v8.11.0" ]
+      reason: dataset size was added in 8.11.0
+
   - do:
       indices.create:
         index: foo
@@ -206,23 +216,34 @@
 
   - do:
       cat.shards:
-        h: [index, docs]
-        s: [docs]
+        h: [ index, docs ]
+        s: [ docs ]
         index: "foo,bar"
 
-# don't use the store here it's cached and might be stale
+  # don't use the store here it's cached and might be stale
   - match:
       $body: |
-            /^ foo \s+ 0\n
-               bar \s+ 1\n
-            $/
+        /^ foo \s+ 0\n
+           bar \s+ 1\n
+        $/
 
+  - do:
+      cat.shards:
+        h: [ index, dataset ]
+        s: [ docs ]
+        index: "foo,bar"
+
+  - match:
+      $body: |
+        /^ foo \s+ (\d+|\d+[.]\d+)(kb|b)\n
+           bar \s+ (\d+|\d+[.]\d+)(kb|b)\n
+        $/
 
 ---
 "Test cat shards with hidden indices":
-  - skip:
-      version: " - 8.2.99"
-      reason:  hidden indices were misreported in versions before 8.3.0
+  - requires:
+      cluster_features: [ "gte_v8.3.0" ]
+      reason: hidden indices were misreported in versions before 8.3.0
 
   - do:
       indices.create:
@@ -241,7 +262,7 @@
 
   - do:
       cat.shards:
-        h: [index, docs]
+        h: [ index, docs ]
 
   - match:
       $body: /foo \s+ 1\n/

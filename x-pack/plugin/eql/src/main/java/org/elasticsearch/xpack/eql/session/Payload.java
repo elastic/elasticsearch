@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.session;
 
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.List;
@@ -18,7 +19,8 @@ public interface Payload {
 
     enum Type {
         EVENT,
-        SEQUENCE;
+        SEQUENCE,
+        SAMPLE;
     }
 
     Type resultType();
@@ -28,4 +30,6 @@ public interface Payload {
     TimeValue timeTook();
 
     List<?> values();
+
+    ShardSearchFailure[] shardFailures();
 }

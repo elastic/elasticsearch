@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -66,12 +65,13 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         List<Step> steps = instance.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        assertEquals(5, steps.size());
+        assertEquals(6, steps.size());
         BranchingStep firstStep = (BranchingStep) steps.get(0);
         CheckNotDataStreamWriteIndexStep secondStep = (CheckNotDataStreamWriteIndexStep) steps.get(1);
-        NoopStep thirdStep = (NoopStep) steps.get(2);
-        ForceMergeStep fourthStep = (ForceMergeStep) steps.get(3);
-        SegmentCountStep fifthStep = (SegmentCountStep) steps.get(4);
+        WaitUntilTimeSeriesEndTimePassesStep thirdStep = (WaitUntilTimeSeriesEndTimePassesStep) steps.get(2);
+        NoopStep fourthStep = (NoopStep) steps.get(3);
+        ForceMergeStep fifthStep = (ForceMergeStep) steps.get(4);
+        SegmentCountStep sixthStep = (SegmentCountStep) steps.get(5);
 
         assertThat(
             firstStep.getKey(),
@@ -79,16 +79,22 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         );
 
         assertThat(secondStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, CheckNotDataStreamWriteIndexStep.NAME)));
-        assertThat(secondStep.getNextStepKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
+        assertThat(
+            secondStep.getNextStepKey(),
+            equalTo(new StepKey(phase, ForceMergeAction.NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME))
+        );
 
-        assertThat(thirdStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ReadOnlyAction.NAME)));
+        assertThat(thirdStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME)));
         assertThat(thirdStep.getNextStepKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
 
-        assertThat(fourthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
-        assertThat(fourthStep.getNextStepKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, SegmentCountStep.NAME)));
+        assertThat(fourthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ReadOnlyAction.NAME)));
+        assertThat(fourthStep.getNextStepKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
 
-        assertThat(fifthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, SegmentCountStep.NAME)));
-        assertThat(fifthStep.getNextStepKey(), equalTo(nextStepKey));
+        assertThat(fifthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
+        assertThat(fifthStep.getNextStepKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, SegmentCountStep.NAME)));
+
+        assertThat(sixthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, SegmentCountStep.NAME)));
+        assertThat(sixthStep.getNextStepKey(), equalTo(nextStepKey));
     }
 
     private void assertBestCompression(ForceMergeAction instance) {
@@ -96,15 +102,16 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         List<Step> steps = instance.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        assertEquals(9, steps.size());
+        assertEquals(10, steps.size());
         List<Tuple<StepKey, StepKey>> stepKeys = steps.stream()
             // skip the first branching step as `performAction` needs to be executed to evaluate the condition before the next step is
             // available
             .skip(1)
             .map(s -> new Tuple<>(s.getKey(), s.getNextStepKey()))
-            .collect(Collectors.toList());
+            .toList();
 
         StepKey checkNotWriteIndex = new StepKey(phase, ForceMergeAction.NAME, CheckNotDataStreamWriteIndexStep.NAME);
+        StepKey waitTimeSeriesEndTimePassesKey = new StepKey(phase, ForceMergeAction.NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
         StepKey noop = new StepKey(phase, ForceMergeAction.NAME, ReadOnlyAction.NAME);
         StepKey closeIndex = new StepKey(phase, ForceMergeAction.NAME, CloseIndexStep.NAME);
         StepKey updateCodec = new StepKey(phase, ForceMergeAction.NAME, UpdateSettingsStep.NAME);
@@ -119,7 +126,8 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         assertThat(
             stepKeys,
             contains(
-                new Tuple<>(checkNotWriteIndex, closeIndex),
+                new Tuple<>(checkNotWriteIndex, waitTimeSeriesEndTimePassesKey),
+                new Tuple<>(waitTimeSeriesEndTimePassesKey, closeIndex),
                 new Tuple<>(noop, closeIndex),
                 new Tuple<>(closeIndex, updateCodec),
                 new Tuple<>(updateCodec, openIndex),
@@ -130,7 +138,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
             )
         );
 
-        UpdateSettingsStep updateCodecStep = (UpdateSettingsStep) steps.get(4);
+        UpdateSettingsStep updateCodecStep = (UpdateSettingsStep) steps.get(5);
         assertThat(
             updateCodecStep.getSettings().get(EngineConfig.INDEX_CODEC_SETTING.getKey()),
             equalTo(CodecService.BEST_COMPRESSION_CODEC)

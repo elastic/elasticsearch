@@ -1,20 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanTermQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.io.IOException;
@@ -46,18 +49,16 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
 
     @Override
     protected void doAssertLuceneQuery(SpanTermQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
-        assertThat(query, instanceOf(SpanTermQuery.class));
-        SpanTermQuery spanTermQuery = (SpanTermQuery) query;
-
-        String expectedFieldName = expectedFieldName(queryBuilder.fieldName);
-        assertThat(spanTermQuery.getTerm().field(), equalTo(expectedFieldName));
-
         MappedFieldType mapper = context.getFieldType(queryBuilder.fieldName());
         if (mapper != null) {
+            String expectedFieldName = expectedFieldName(queryBuilder.fieldName);
+            assertThat(query, instanceOf(SpanTermQuery.class));
+            SpanTermQuery spanTermQuery = (SpanTermQuery) query;
+            assertThat(spanTermQuery.getTerm().field(), equalTo(expectedFieldName));
             Term term = ((TermQuery) mapper.termQuery(queryBuilder.value(), null)).getTerm();
             assertThat(spanTermQuery.getTerm(), equalTo(term));
         } else {
-            assertThat(spanTermQuery.getTerm().bytes(), equalTo(BytesRefs.toBytesRef(queryBuilder.value())));
+            assertThat(query, instanceOf(SpanMatchNoDocsQuery.class));
         }
     }
 
@@ -114,13 +115,21 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
         assertEquals("[span_term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 
-    public void testWithMetadataField() throws IOException {
+    public void testWithBoost() throws IOException {
         SearchExecutionContext context = createSearchExecutionContext();
-        for (String field : new String[] { "field1", "field2" }) {
+        for (String field : new String[] { TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME }) {
             SpanTermQueryBuilder spanTermQueryBuilder = new SpanTermQueryBuilder(field, "toto");
+            spanTermQueryBuilder.boost(10);
             Query query = spanTermQueryBuilder.toQuery(context);
-            Query expected = new SpanTermQuery(new Term(field, "toto"));
+            Query expected = new BoostQuery(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "toto")), 10);
             assertEquals(expected, query);
         }
+    }
+
+    public void testFieldWithoutPositions() {
+        SearchExecutionContext context = createSearchExecutionContext();
+        SpanTermQueryBuilder spanTermQueryBuilder = new SpanTermQueryBuilder(IdFieldMapper.NAME, "1234");
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> spanTermQueryBuilder.toQuery(context));
+        assertEquals("Span term query requires position data, but field _id was indexed without position data", iae.getMessage());
     }
 }

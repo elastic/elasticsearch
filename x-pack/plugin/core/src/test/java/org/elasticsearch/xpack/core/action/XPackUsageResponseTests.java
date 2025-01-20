@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -25,20 +25,24 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class XPackUsageResponseTests extends ESTestCase {
 
-    private static Version oldVersion;
-    private static Version newVersion;
+    private static TransportVersion oldVersion;
+    private static TransportVersion newVersion;
 
     @BeforeClass
     public static void setVersion() {
-        oldVersion = VersionUtils.randomVersionBetween(
+        oldVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            VersionUtils.getFirstVersion(),
-            VersionUtils.getPreviousVersion(VersionUtils.getPreviousMinorVersion())
+            TransportVersionUtils.getFirstVersion(),
+            TransportVersionUtils.getPreviousVersion(TransportVersion.current())
         );
-        newVersion = VersionUtils.randomVersionBetween(random(), VersionUtils.getPreviousMinorVersion(), Version.CURRENT);
+        newVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersionUtils.getNextVersion(oldVersion),
+            TransportVersion.current()
+        );
     }
 
-    public static class OldUsage extends XPackFeatureSet.Usage {
+    public static class OldUsage extends XPackFeatureUsage {
 
         public OldUsage() {
             super("old", randomBoolean(), randomBoolean());
@@ -49,13 +53,13 @@ public class XPackUsageResponseTests extends ESTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
+        public TransportVersion getMinimalSupportedVersion() {
             return oldVersion;
         }
 
     }
 
-    public static class NewUsage extends XPackFeatureSet.Usage {
+    public static class NewUsage extends XPackFeatureUsage {
 
         public NewUsage() {
             super("new", randomBoolean(), randomBoolean());
@@ -66,7 +70,7 @@ public class XPackUsageResponseTests extends ESTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
+        public TransportVersion getMinimalSupportedVersion() {
             return newVersion;
         }
 
@@ -75,13 +79,13 @@ public class XPackUsageResponseTests extends ESTestCase {
     public void testVersionDependentSerializationWriteToOldStream() throws IOException {
         final XPackUsageResponse before = new XPackUsageResponse(List.of(new OldUsage(), new NewUsage()));
         final BytesStreamOutput oldStream = new BytesStreamOutput();
-        oldStream.setVersion(VersionUtils.randomVersionBetween(random(), oldVersion, VersionUtils.getPreviousVersion(newVersion)));
+        oldStream.setTransportVersion(oldVersion);
         before.writeTo(oldStream);
 
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(
             List.of(
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, "old", OldUsage::new),
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, "new", NewUsage::new)
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, "old", OldUsage::new),
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, "new", NewUsage::new)
             )
         );
 
@@ -94,13 +98,13 @@ public class XPackUsageResponseTests extends ESTestCase {
     public void testVersionDependentSerializationWriteToNewStream() throws IOException {
         final XPackUsageResponse before = new XPackUsageResponse(List.of(new OldUsage(), new NewUsage()));
         final BytesStreamOutput newStream = new BytesStreamOutput();
-        newStream.setVersion(VersionUtils.randomVersionBetween(random(), newVersion, Version.CURRENT));
+        newStream.setTransportVersion(newVersion);
         before.writeTo(newStream);
 
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(
             List.of(
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, "old", OldUsage::new),
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, "new", NewUsage::new)
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, "old", OldUsage::new),
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, "new", NewUsage::new)
             )
         );
 

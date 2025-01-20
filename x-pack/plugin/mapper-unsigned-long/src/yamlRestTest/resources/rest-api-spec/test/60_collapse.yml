@@ -1,7 +1,11 @@
 setup:
-
   - skip:
-      version: " - 7.99.99"
+      reason: "https://github.com/elastic/elasticsearch/issues/109476"
+      known_issues:
+        - cluster_feature: "gte_v8.13.0"
+          fixed_by: "gte_v8.14.0"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "collapse on unsigned_long was added in 8.0"
 
   - do:

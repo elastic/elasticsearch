@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.discovery.ec2;
 
@@ -27,6 +28,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -116,14 +118,14 @@ public class AmazonEC2Fixture extends AbstractHttpFixture {
                 && HttpGet.METHOD_NAME.equals(request.getMethod())
                 && request.getHeaders().getOrDefault(X_AWS_EC_2_METADATA_TOKEN, "").equals(IMDSV_2_TOKEN))) {
             final Date expiration = new Date(new Date().getTime() + TimeUnit.DAYS.toMillis(1));
-            final String response = """
+            final String response = String.format(Locale.ROOT, """
                 {
                   "AccessKeyId": "ec2_integration_test_access_key",
                   "Expiration": "%s",
                   "RoleArn": "test",
                   "SecretAccessKey": "ec2_integration_test_secret_key",
                   "Token": "test"
-                }""".formatted(DateUtils.formatISO8601Date(expiration));
+                }""", DateUtils.formatISO8601Date(expiration));
 
             final Map<String, String> headers = new HashMap<>(contentType("application/json"));
             return new Response(RestStatus.OK.getStatus(), headers, response.getBytes(UTF_8));

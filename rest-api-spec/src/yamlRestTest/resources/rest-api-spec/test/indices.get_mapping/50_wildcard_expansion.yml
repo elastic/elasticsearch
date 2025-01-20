@@ -55,8 +55,6 @@ setup:
   - do:
       indices.close:
         index: test-xyy
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - do:
         cluster.health:
@@ -111,6 +109,7 @@ setup:
     indices.get_mapping:
         index: test-x*
         expand_wildcards: none
+        ignore_unavailable: true
 
  - match: { '':  {} }
 ---
@@ -121,6 +120,19 @@ setup:
         index: test-x*
         expand_wildcards: none
         allow_no_indices: false
+        ignore_unavailable: true
+---
+"Get test-* with wildcard_expansion=none ignore_unavailable=false":
+  - requires:
+      cluster_features: ["gte_v8.6.0"]
+      reason: "bug fixed in 8.6"
+  - do:
+      catch: missing
+      indices.get_mapping:
+        index: test-x*
+        expand_wildcards: none
+        allow_no_indices: true
+        ignore_unavailable: false
 ---
 "Get test-* with wildcard_expansion=open,closed":
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli.keystore;
@@ -14,6 +15,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.IOUtils;
@@ -51,9 +53,12 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class KeyStoreWrapperTests extends ESTestCase {
@@ -432,17 +437,8 @@ public class KeyStoreWrapperTests extends ESTestCase {
     public void testLegacyV3() throws GeneralSecurityException, IOException {
         assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         final Path configDir = createTempDir();
-        final Path keystore = configDir.resolve("elasticsearch.keystore");
-        try (
-            InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-elasticsearch.keystore");
-            OutputStream os = Files.newOutputStream(keystore)
-        ) {
-            final byte[] buffer = new byte[4096];
-            int readBytes;
-            while ((readBytes = is.read(buffer)) > 0) {
-                os.write(buffer, 0, readBytes);
-            }
-        }
+        copyKeyStoreFromResourceToConfigDir(configDir, "/format-v3-elasticsearch.keystore");
+
         final KeyStoreWrapper wrapper = KeyStoreWrapper.load(configDir);
         assertNotNull(wrapper);
         wrapper.decrypt(new char[0]);
@@ -452,6 +448,86 @@ public class KeyStoreWrapperTests extends ESTestCase {
         assertThat(toByteArray(wrapper.getFile("string_setting")), equalTo("string_value".getBytes(StandardCharsets.UTF_8)));
         assertThat(wrapper.getString("file_setting"), equalTo("file_value"));
         assertThat(toByteArray(wrapper.getFile("file_setting")), equalTo("file_value".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    public void testLegacyV5() throws GeneralSecurityException, IOException {
+        final Path configDir = createTempDir();
+        copyKeyStoreFromResourceToConfigDir(configDir, "/format-v5-with-password-elasticsearch.keystore");
+
+        final KeyStoreWrapper wrapper = KeyStoreWrapper.load(configDir);
+        assertNotNull(wrapper);
+        wrapper.decrypt("keystorepassword".toCharArray());
+        assertThat(wrapper.getFormatVersion(), equalTo(5));
+        assertThat(wrapper.getSettingNames(), equalTo(Set.of("keystore.seed")));
+    }
+
+    public void testLegacyV6() throws GeneralSecurityException, IOException {
+        final Path configDir = createTempDir();
+        copyKeyStoreFromResourceToConfigDir(configDir, "/format-v6-elasticsearch.keystore");
+
+        final KeyStoreWrapper wrapper = KeyStoreWrapper.load(configDir);
+        assertNotNull(wrapper);
+        wrapper.decrypt("keystorepassword".toCharArray());
+        assertThat(wrapper.getFormatVersion(), equalTo(6));
+        assertThat(wrapper.getSettingNames(), equalTo(Set.of("keystore.seed", "string")));
+        assertThat(wrapper.getString("string"), equalTo("value"));
+    }
+
+    private void copyKeyStoreFromResourceToConfigDir(Path configDir, String name) throws IOException {
+        final Path keystore = configDir.resolve("elasticsearch.keystore");
+        try (
+            InputStream is = KeyStoreWrapperTests.class.getResourceAsStream(name); //
+            OutputStream os = Files.newOutputStream(keystore)
+        ) {
+            final byte[] buffer = new byte[4096];
+            int readBytes;
+            while ((readBytes = is.read(buffer)) > 0) {
+                os.write(buffer, 0, readBytes);
+            }
+        }
+    }
+
+    public void testSerializationNewlyCreated() throws Exception {
+        final KeyStoreWrapper wrapper = KeyStoreWrapper.create();
+        wrapper.setString("string_setting", "string_value".toCharArray());
+
+        // testing when dataBytes[] is null
+        final BytesStreamOutput out = new BytesStreamOutput();
+        wrapper.writeTo(out);
+        final KeyStoreWrapper fromStream = new KeyStoreWrapper(out.bytes().streamInput());
+
+        assertThat(fromStream.getFormatVersion(), is(KeyStoreWrapper.CURRENT_VERSION));
+        assertThat(fromStream.getSettingNames(), hasSize(2));
+        assertThat(fromStream.getSettingNames(), containsInAnyOrder("string_setting", "keystore.seed"));
+
+        assertEquals(wrapper.getString("string_setting"), fromStream.getString("string_setting"));
+        assertFalse(wrapper.hasPassword());
+    }
+
+    public void testSerializationWhenLoadedFromFile() throws Exception {
+        final KeyStoreWrapper wrapper = KeyStoreWrapper.create();
+        wrapper.setString("string_setting", "string_value".toCharArray());
+
+        // testing with password and raw dataBytes[]
+        final char[] password = getPossibleKeystorePassword();
+        wrapper.save(env.configFile(), password);
+        final KeyStoreWrapper fromFile = KeyStoreWrapper.load(env.configFile());
+        fromFile.decrypt(password);
+
+        assertThat(fromFile.getSettingNames(), hasSize(2));
+        assertThat(fromFile.getSettingNames(), containsInAnyOrder("string_setting", "keystore.seed"));
+
+        assertEquals(wrapper.getString("string_setting"), fromFile.getString("string_setting"));
+
+        final BytesStreamOutput secondOut = new BytesStreamOutput();
+        fromFile.writeTo(secondOut);
+        final KeyStoreWrapper fromStreamSecond = new KeyStoreWrapper(secondOut.bytes().streamInput());
+
+        assertThat(fromStreamSecond.getSettingNames(), hasSize(2));
+        assertThat(fromStreamSecond.getSettingNames(), containsInAnyOrder("string_setting", "keystore.seed"));
+
+        assertEquals(wrapper.getString("string_setting"), fromStreamSecond.getString("string_setting"));
+        assertEquals(fromFile.hasPassword(), fromStreamSecond.hasPassword());
     }
 
     private byte[] toByteArray(final InputStream is) throws IOException {

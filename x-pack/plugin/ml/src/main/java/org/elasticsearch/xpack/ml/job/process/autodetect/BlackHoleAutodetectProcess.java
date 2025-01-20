@@ -101,7 +101,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
      */
     @Override
     public String flushJob(FlushJobParams params) {
-        FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement(FLUSH_ID, 0L);
+        FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement(FLUSH_ID, 0L, true);
         AutodetectResult result = new AutodetectResult(
             null,
             null,

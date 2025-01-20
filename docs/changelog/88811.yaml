@@ -1,5 +1,0 @@
-pr: 88811
-summary: Fix NPE when checking if the last snapshot was success
-area: Health
-type: bug
-issues: []

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,26 +23,24 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class TransformIndexerStats extends IndexerJobStats {
 
-    private static final String DEFAULT_TRANSFORM_ID = "_all";  // TODO remove when no longer needed for wire BWC
-
     public static final String NAME = "data_frame_indexer_transform_stats";
-    public static ParseField NUM_PAGES = new ParseField("pages_processed");
-    public static ParseField NUM_INPUT_DOCUMENTS = new ParseField("documents_processed");
-    public static ParseField NUM_OUTPUT_DOCUMENTS = new ParseField("documents_indexed");
-    public static ParseField NUM_DELETED_DOCUMENTS = new ParseField("documents_deleted");
-    public static ParseField NUM_INVOCATIONS = new ParseField("trigger_count");
-    public static ParseField INDEX_TIME_IN_MS = new ParseField("index_time_in_ms");
-    public static ParseField SEARCH_TIME_IN_MS = new ParseField("search_time_in_ms");
-    public static ParseField PROCESSING_TIME_IN_MS = new ParseField("processing_time_in_ms");
-    public static ParseField DELETE_TIME_IN_MS = new ParseField("delete_time_in_ms");
-    public static ParseField INDEX_TOTAL = new ParseField("index_total");
-    public static ParseField SEARCH_TOTAL = new ParseField("search_total");
-    public static ParseField PROCESSING_TOTAL = new ParseField("processing_total");
-    public static ParseField SEARCH_FAILURES = new ParseField("search_failures");
-    public static ParseField INDEX_FAILURES = new ParseField("index_failures");
-    public static ParseField EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS = new ParseField("exponential_avg_checkpoint_duration_ms");
-    public static ParseField EXPONENTIAL_AVG_DOCUMENTS_INDEXED = new ParseField("exponential_avg_documents_indexed");
-    public static ParseField EXPONENTIAL_AVG_DOCUMENTS_PROCESSED = new ParseField("exponential_avg_documents_processed");
+    public static final ParseField NUM_PAGES = new ParseField("pages_processed");
+    public static final ParseField NUM_INPUT_DOCUMENTS = new ParseField("documents_processed");
+    public static final ParseField NUM_OUTPUT_DOCUMENTS = new ParseField("documents_indexed");
+    public static final ParseField NUM_DELETED_DOCUMENTS = new ParseField("documents_deleted");
+    public static final ParseField NUM_INVOCATIONS = new ParseField("trigger_count");
+    public static final ParseField INDEX_TIME_IN_MS = new ParseField("index_time_in_ms");
+    public static final ParseField SEARCH_TIME_IN_MS = new ParseField("search_time_in_ms");
+    public static final ParseField PROCESSING_TIME_IN_MS = new ParseField("processing_time_in_ms");
+    public static final ParseField DELETE_TIME_IN_MS = new ParseField("delete_time_in_ms");
+    public static final ParseField INDEX_TOTAL = new ParseField("index_total");
+    public static final ParseField SEARCH_TOTAL = new ParseField("search_total");
+    public static final ParseField PROCESSING_TOTAL = new ParseField("processing_total");
+    public static final ParseField SEARCH_FAILURES = new ParseField("search_failures");
+    public static final ParseField INDEX_FAILURES = new ParseField("index_failures");
+    public static final ParseField EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS = new ParseField("exponential_avg_checkpoint_duration_ms");
+    public static final ParseField EXPONENTIAL_AVG_DOCUMENTS_INDEXED = new ParseField("exponential_avg_documents_indexed");
+    public static final ParseField EXPONENTIAL_AVG_DOCUMENTS_PROCESSED = new ParseField("exponential_avg_documents_processed");
 
     // This changes how much "weight" past calculations have.
     // The shorter the window, the less "smoothing" will occur.
@@ -174,35 +171,21 @@ public class TransformIndexerStats extends IndexerJobStats {
 
     public TransformIndexerStats(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_7_4_0)) {
-            in.readString(); // was transformId
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
-            this.expAvgCheckpointDurationMs = in.readDouble();
-            this.expAvgDocumentsIndexed = in.readDouble();
-            this.expAvgDocumentsProcessed = in.readDouble();
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            this.numDeletedDocuments = in.readVLong();
-            this.deleteTime = in.readVLong();
-        }
+        this.expAvgCheckpointDurationMs = in.readDouble();
+        this.expAvgDocumentsIndexed = in.readDouble();
+        this.expAvgDocumentsProcessed = in.readDouble();
+        this.numDeletedDocuments = in.readVLong();
+        this.deleteTime = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_7_4_0)) {
-            out.writeString(DEFAULT_TRANSFORM_ID);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
-            out.writeDouble(this.expAvgCheckpointDurationMs);
-            out.writeDouble(this.expAvgDocumentsIndexed);
-            out.writeDouble(this.expAvgDocumentsProcessed);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeVLong(numDeletedDocuments);
-            out.writeVLong(deleteTime);
-        }
+        out.writeDouble(this.expAvgCheckpointDurationMs);
+        out.writeDouble(this.expAvgDocumentsIndexed);
+        out.writeDouble(this.expAvgDocumentsProcessed);
+        out.writeVLong(numDeletedDocuments);
+        out.writeVLong(deleteTime);
     }
 
     @Override
@@ -278,7 +261,7 @@ public class TransformIndexerStats extends IndexerJobStats {
         }
     }
 
-    private double calculateExpAvg(double previousExpValue, double alpha, long observedValue) {
+    private static double calculateExpAvg(double previousExpValue, double alpha, long observedValue) {
         return alpha * observedValue + (1 - alpha) * previousExpValue;
     }
 

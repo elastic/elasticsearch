@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.alias;
@@ -11,11 +12,12 @@ package org.elasticsearch.action.admin.indices.alias;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse.AliasActionResult;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -29,10 +31,11 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -54,8 +57,10 @@ import static java.util.Collections.unmodifiableList;
 /**
  * Add/remove aliases action
  */
-public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNodeAction<IndicesAliasesRequest> {
+public class TransportIndicesAliasesAction extends TransportMasterNodeAction<IndicesAliasesRequest, IndicesAliasesResponse> {
 
+    public static final String NAME = "indices:admin/aliases";
+    public static final ActionType<IndicesAliasesResponse> TYPE = new ActionType<>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportIndicesAliasesAction.class);
 
     private final MetadataIndexAliasesService indexAliasesService;
@@ -74,14 +79,15 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
         final SystemIndices systemIndices
     ) {
         super(
-            IndicesAliasesAction.NAME,
+            NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
             IndicesAliasesRequest::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            IndicesAliasesResponse::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexAliasesService = indexAliasesService;
         this.requestValidators = Objects.requireNonNull(requestValidators);
@@ -102,15 +108,19 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
         Task task,
         final IndicesAliasesRequest request,
         final ClusterState state,
-        final ActionListener<AcknowledgedResponse> listener
+        final ActionListener<IndicesAliasesResponse> listener
     ) {
 
         // Expand the indices names
         List<AliasActions> actions = request.aliasActions();
         List<AliasAction> finalActions = new ArrayList<>();
+        List<AliasActionResult> actionResults = new ArrayList<>();
         // Resolve all the AliasActions into AliasAction instances and gather all the aliases
         Set<String> aliases = new HashSet<>();
         for (AliasActions action : actions) {
+            int numAliasesRemoved = 0;
+            List<String> resolvedIndices = new ArrayList<>();
+
             List<String> concreteDataStreams = indexNameExpressionResolver.dataStreamNames(
                 state,
                 request.indicesOptions(),
@@ -157,18 +167,24 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                                 finalActions.add(new AddDataStreamAlias(alias, dataStreamName, action.writeIndex(), action.filter()));
                             }
                         }
+
+                        actionResults.add(AliasActionResult.buildSuccess(concreteDataStreams, action));
                         continue;
                     }
                     case REMOVE -> {
                         for (String dataStreamName : concreteDataStreams) {
                             for (String alias : concreteDataStreamAliases(action, state.metadata(), dataStreamName)) {
                                 finalActions.add(new AliasAction.RemoveDataStreamAlias(alias, dataStreamName, action.mustExist()));
+                                numAliasesRemoved++;
                             }
                         }
+
                         if (nonBackingIndices.isEmpty() == false) {
                             // Regular aliases/indices match as well with the provided expression.
                             // (Only when adding new aliases, matching both data streams and indices is disallowed)
+                            resolvedIndices.addAll(concreteDataStreams);
                         } else {
+                            actionResults.add(AliasActionResult.build(concreteDataStreams, action, numAliasesRemoved));
                             continue;
                         }
                     }
@@ -220,6 +236,7 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                     case REMOVE:
                         for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
                             finalActions.add(new AliasAction.Remove(index.getName(), alias, action.mustExist()));
+                            numAliasesRemoved++;
                         }
                         break;
                     case REMOVE_INDEX:
@@ -229,14 +246,20 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                         throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");
                 }
             }
+
+            Arrays.stream(concreteIndices).map(Index::getName).forEach(resolvedIndices::add);
+            actionResults.add(AliasActionResult.build(resolvedIndices, action, numAliasesRemoved));
         }
         if (finalActions.isEmpty() && false == actions.isEmpty()) {
             throw new AliasesNotFoundException(aliases.toArray(new String[aliases.size()]));
         }
         request.aliasActions().clear();
-        IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(unmodifiableList(finalActions))
-            .ackTimeout(request.timeout())
-            .masterNodeTimeout(request.masterNodeTimeout());
+        IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(
+            request.masterNodeTimeout(),
+            request.ackTimeout(),
+            unmodifiableList(finalActions),
+            unmodifiableList(actionResults)
+        );
 
         indexAliasesService.indicesAliases(updateRequest, listener.delegateResponse((l, e) -> {
             logger.debug("failed to perform aliases", e);

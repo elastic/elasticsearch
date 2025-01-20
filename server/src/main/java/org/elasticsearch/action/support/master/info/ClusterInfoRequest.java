@@ -1,20 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.master.info;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -26,12 +28,31 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
-    public ClusterInfoRequest() {}
+    public ClusterInfoRequest(TimeValue masterTimeout) {
+        super(masterTimeout);
+    }
+
+    public ClusterInfoRequest(TimeValue masterTimeout, IndicesOptions indicesOptions) {
+        super(masterTimeout);
+        this.indicesOptions = indicesOptions;
+    }
+
+    @Deprecated(forRemoval = true)
+    public ClusterInfoRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
+
+    // So subclasses can override the default indices options, if needed
+    @Deprecated(forRemoval = true)
+    protected ClusterInfoRequest(IndicesOptions indicesOptions) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        this.indicesOptions = indicesOptions;
+    }
 
     public ClusterInfoRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readStringArray();
         }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
@@ -41,7 +62,7 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(indices);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
         indicesOptions.writeIndicesOptions(out);

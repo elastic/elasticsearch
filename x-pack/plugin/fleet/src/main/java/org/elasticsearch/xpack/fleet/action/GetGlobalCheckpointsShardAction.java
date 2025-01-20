@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,6 +28,7 @@ import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -44,7 +44,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
     public static final String NAME = "indices:monitor/fleet/global_checkpoints[s]";
 
     private GetGlobalCheckpointsShardAction() {
-        super(NAME, GetGlobalCheckpointsShardAction.Response::new);
+        super(NAME);
     }
 
     public static class Response extends ActionResponse {
@@ -153,7 +153,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
                 actionFilters,
                 indexNameExpressionResolver,
                 Request::new,
-                ThreadPool.Names.GENERIC
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
             this.indicesService = indicesService;
         }
@@ -206,7 +206,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
             }
         }
 
-        private void globalCheckpointAdvancementFailure(
+        private static void globalCheckpointAdvancementFailure(
             final IndexShard indexShard,
             final Request request,
             final Exception e,

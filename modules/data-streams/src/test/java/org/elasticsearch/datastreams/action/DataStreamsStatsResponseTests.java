@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams.action;
 
@@ -30,6 +31,11 @@ public class DataStreamsStatsResponseTests extends AbstractWireSerializingTestCa
         return randomStatsResponse();
     }
 
+    @Override
+    protected DataStreamsStatsAction.Response mutateInstance(DataStreamsStatsAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static DataStreamsStatsAction.Response randomStatsResponse() {
         int dataStreamCount = randomInt(10);
         int backingIndicesTotal = 0;
@@ -43,7 +49,12 @@ public class DataStreamsStatsResponseTests extends AbstractWireSerializingTestCa
             totalStoreSize += storeSize;
             long maximumTimestamp = randomRecentTimestamp();
             dataStreamStats.add(
-                new DataStreamsStatsAction.DataStreamStats(dataStreamName, backingIndices, new ByteSizeValue(storeSize), maximumTimestamp)
+                new DataStreamsStatsAction.DataStreamStats(
+                    dataStreamName,
+                    backingIndices,
+                    ByteSizeValue.ofBytes(storeSize),
+                    maximumTimestamp
+                )
             );
         }
         int totalShards = randomIntBetween(backingIndicesTotal, backingIndicesTotal * 3);
@@ -66,7 +77,7 @@ public class DataStreamsStatsResponseTests extends AbstractWireSerializingTestCa
             exceptions,
             dataStreamCount,
             backingIndicesTotal,
-            new ByteSizeValue(totalStoreSize),
+            ByteSizeValue.ofBytes(totalStoreSize),
             dataStreamStats.toArray(DataStreamsStatsAction.DataStreamStats[]::new)
         );
     }

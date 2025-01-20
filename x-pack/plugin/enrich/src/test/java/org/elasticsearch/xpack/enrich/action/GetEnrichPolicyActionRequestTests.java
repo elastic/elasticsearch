@@ -14,7 +14,12 @@ public class GetEnrichPolicyActionRequestTests extends AbstractWireSerializingTe
 
     @Override
     protected GetEnrichPolicyAction.Request createTestInstance() {
-        return new GetEnrichPolicyAction.Request(generateRandomStringArray(0, 4, false));
+        return new GetEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, generateRandomStringArray(0, 4, false));
+    }
+
+    @Override
+    protected GetEnrichPolicyAction.Request mutateInstance(GetEnrichPolicyAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

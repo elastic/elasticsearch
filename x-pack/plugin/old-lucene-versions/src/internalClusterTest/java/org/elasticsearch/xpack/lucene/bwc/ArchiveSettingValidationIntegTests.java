@@ -19,17 +19,16 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ArchiveSettingValidationIntegTests extends AbstractArchiveTestCase {
     public void testCannotRemoveWriteBlock() throws ExecutionException, InterruptedException {
-        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(repoName, snapshotName).indices(indexName).waitForCompletion(true);
+        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).indices(indexName)
+            .waitForCompletion(true);
 
-        final RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster().restoreSnapshot(req).get();
+        final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().restoreSnapshot(req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(indexName);
 
         final IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
+            () -> indicesAdmin().prepareUpdateSettings(indexName)
                 .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false))
                 .get()
         );
@@ -40,10 +39,6 @@ public class ArchiveSettingValidationIntegTests extends AbstractArchiveTestCase 
         assertNotNull(iae.getCause());
         assertThat(iae.getCause().getMessage(), containsString("Cannot remove write block from archive index"));
 
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true))
-            .get();
+        updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true), indexName);
     }
 }

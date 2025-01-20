@@ -51,8 +51,8 @@ setup:
 
 ---
 "Test pinned query with ID and index":
-  - skip:
-      version: " - 7.14.99"
+  - requires:
+      cluster_features: ["gte_v7.15.0"]
       reason: "the 'docs' option was added in 7.15"
   - do:
       search:
@@ -78,3 +78,146 @@ setup:
   - match: { hits.hits.2._index: "test1" }
   - match: { hits.hits.3._id: "b" }
 
+---
+"Test pinned query with docs":
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
+      reason: "'_index' was made optional in 8.11"
+  - do:
+      search:
+        index: test1,test2
+        body:
+          query:
+            pinned:
+              docs:
+                - { _id: a }
+                - { _id: c, _index: test2 }
+              organic:
+                match:
+                  title:
+                    query: "title"
+
+  - match: { hits.total.value: 4 }
+
+  - match: { hits.hits.0._id: "a" }
+  - match: { hits.hits.1._id: "a" }
+  - match: { hits.hits.2._id: "c" }
+  - match: { hits.hits.2._index: "test2" }
+  - match: { hits.hits.3._id: "b" }
+
+---
+"Test pinned query with docs and no index fail in previous versions":
+  - skip:
+      cluster_features: ["gte_v8.10.99"]
+      reason: "'_index' was made optional in 8.11, this test is for explicit failure tests"
+  - do:
+      catch: bad_request
+      search:
+        index: test1,test2
+        body:
+          query:
+            pinned:
+              docs:
+                - { _id: a }
+                - { _id: c, _index: test2 }
+              organic:
+                match:
+                  title:
+                    query: "title"
+
+---
+"Test pinned query with knn query":
+  - requires:
+      cluster_features: "gte_v8.12.0"
+      reason: 'knn as query added in 8.12'
+
+  - do:
+      indices.create:
+        index: my_index
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            dynamic: false
+            properties:
+              my_vector:
+                type: dense_vector
+                dims: 4
+                index : true
+                similarity : l2_norm
+              my_name:
+                type: keyword
+                store: true
+          aliases:
+            my_alias:
+              filter:
+                term:
+                  my_name: v2
+            my_alias1:
+              filter:
+                term:
+                  my_name: v1
+
+  - do:
+      bulk:
+        refresh: true
+        index: my_index
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"my_vector": [1, 1, 1, 1], "my_name": "v1"}'
+          - '{"index": {"_id": "2"}}'
+          - '{"my_vector": [1, 1, 1, 2], "my_name": "v2"}'
+          - '{"index": {"_id": "3"}}'
+          - '{"my_vector": [1, 1, 1, 3], "my_name": "v1"}'
+          - '{"index": {"_id": "4"}}'
+          - '{"my_vector": [1, 1, 1, 4], "my_name": "v2"}'
+          - '{"index": {"_id": "5"}}'
+          - '{"my_vector": [1, 1, 1, 5], "my_name": "v1"}'
+          - '{"index": {"_id": "6"}}'
+          - '{"my_vector": [1, 1, 1, 6], "my_name": "v2"}'
+          - '{"index": {"_id": "7"}}'
+          - '{"my_vector": [1, 1, 1, 7], "my_name": "v1"}'
+          - '{"index": {"_id": "8"}}'
+          - '{"my_vector": [1, 1, 1, 8], "my_name": "v2"}'
+          - '{"index": {"_id": "9"}}'
+          - '{"my_vector": [1, 1, 1, 9], "my_name": "v1"}'
+          - '{"index": {"_id": "10"}}'
+          - '{"my_vector": [1, 1, 1, 10], "my_name": "v2"}'
+  - do:
+      search:
+        index: my_index
+        body:
+          size: 10
+          fields: [ my_name ]
+          query:
+            pinned:
+              ids: [ 8, 9, 10 ]
+              organic:
+                knn: { field: my_vector, query_vector: [ 1, 1, 1, 1 ], num_candidates: 5 }
+  - match: { hits.total.value: 8 } # 5 knn results + extra results from pinned query
+  - match: { hits.hits.0._id: "8" }
+  - match: { hits.hits.1._id: "9" }
+  - match: { hits.hits.2._id: "10" }
+  - match: { hits.hits.3._id: "1" }
+  - match: { hits.hits.4._id: "2" }
+  - match: { hits.hits.5._id: "3" }
+  - match: { hits.hits.6._id: "4" }
+  - match: { hits.hits.7._id: "5" }
+
+  - do:
+      search:
+        index: my_index
+        body:
+          size: 10
+          fields: [ my_name ]
+          query:
+            pinned:
+              ids: [ 3, 4, 5 ]
+              organic:
+                knn: { field: my_vector, query_vector: [ 1, 1, 1, 1 ], num_candidates: 5 }
+  - match: { hits.total.value: 5 }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "4" }
+  - match: { hits.hits.2._id: "5" }
+  - match: { hits.hits.3._id: "1" }
+  - match: { hits.hits.4._id: "2" }

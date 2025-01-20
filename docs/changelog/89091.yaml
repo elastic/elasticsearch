@@ -1,5 +1,0 @@
-pr: 89091
-summary: Include start params in `_stats` for non-started model deployments
-area: Machine Learning
-type: bug
-issues: []

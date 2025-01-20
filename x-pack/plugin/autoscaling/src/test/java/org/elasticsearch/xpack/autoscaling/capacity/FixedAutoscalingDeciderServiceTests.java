@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.autoscaling.capacity;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.hamcrest.Matchers;
 
@@ -25,7 +26,9 @@ public class FixedAutoscalingDeciderServiceTests extends AutoscalingTestCase {
 
         ByteSizeValue storage = randomNullableByteSizeValue();
         ByteSizeValue memory = randomNullableByteSizeValue();
-        Float processors = (memory != null || storage != null) && randomBoolean() ? null : (float) randomInt(64);
+        Processors processors = (memory != null || storage != null) && randomBoolean()
+            ? null
+            : Processors.of((double) randomIntBetween(1, 64));
         if (storage != null) {
             configurationBuilder.put(FixedAutoscalingDeciderService.STORAGE.getKey(), storage);
         }
@@ -33,7 +36,7 @@ public class FixedAutoscalingDeciderServiceTests extends AutoscalingTestCase {
             configurationBuilder.put(FixedAutoscalingDeciderService.MEMORY.getKey(), memory);
         }
         if (processors != null) {
-            configurationBuilder.put(FixedAutoscalingDeciderService.PROCESSORS.getKey(), processors);
+            configurationBuilder.put(FixedAutoscalingDeciderService.PROCESSORS.getKey(), processors.count());
         }
         verify(
             configurationBuilder.build(),
@@ -58,10 +61,10 @@ public class FixedAutoscalingDeciderServiceTests extends AutoscalingTestCase {
     }
 
     private ByteSizeValue multiply(ByteSizeValue bytes, int nodes) {
-        return bytes == null ? null : new ByteSizeValue(bytes.getBytes() * nodes);
+        return bytes == null ? null : ByteSizeValue.ofBytes(bytes.getBytes() * nodes);
     }
 
-    private Float multiply(Float processors, int nodes) {
-        return processors == null ? null : processors * nodes;
+    private Processors multiply(Processors processors, int nodes) {
+        return processors == null ? null : processors.multiply(nodes);
     }
 }

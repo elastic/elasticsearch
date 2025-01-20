@@ -37,6 +37,11 @@ public class WeightedModeTests extends WeightedAggregatorTests<WeightedMode> {
     }
 
     @Override
+    protected WeightedMode mutateInstance(WeightedMode instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<WeightedMode> instanceReader() {
         return WeightedMode::new;
     }

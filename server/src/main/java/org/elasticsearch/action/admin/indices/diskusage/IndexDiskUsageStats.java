@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -55,13 +56,13 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     }
 
     public IndexDiskUsageStats(StreamInput in) throws IOException {
-        this.fields = new HashMap<>(in.readMap(StreamInput::readString, PerFieldDiskUsage::new));
+        this.fields = new HashMap<>(in.readMap(PerFieldDiskUsage::new));
         this.indexSizeInBytes = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(fields, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(fields, StreamOutput::writeWriteable);
         out.writeVLong(indexSizeInBytes);
     }
 
@@ -136,7 +137,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         final PerFieldDiskUsage total = total();
-        builder.field(STORE_SIZE, new ByteSizeValue(indexSizeInBytes));
+        builder.field(STORE_SIZE, ByteSizeValue.ofBytes(indexSizeInBytes));
         builder.field(STORE_SIZE_IN_BYTES, indexSizeInBytes);
 
         // all fields
@@ -189,7 +190,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             pointsBytes = in.readVLong();
             normsBytes = in.readVLong();
             termVectorsBytes = in.readVLong();
-            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 knnVectorsBytes = in.readVLong();
             }
         }
@@ -202,7 +203,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             out.writeVLong(pointsBytes);
             out.writeVLong(normsBytes);
             out.writeVLong(termVectorsBytes);
-            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 out.writeVLong(knnVectorsBytes);
             }
         }
@@ -252,30 +253,30 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             final long totalBytes = totalBytes();
-            builder.field(TOTAL, new ByteSizeValue(totalBytes));
+            builder.field(TOTAL, ByteSizeValue.ofBytes(totalBytes));
             builder.field(TOTAL_IN_BYTES, totalBytes);
 
             builder.startObject(INVERTED_INDEX);
-            builder.field(TOTAL, new ByteSizeValue(invertedIndexBytes));
+            builder.field(TOTAL, ByteSizeValue.ofBytes(invertedIndexBytes));
             builder.field(TOTAL_IN_BYTES, invertedIndexBytes);
             builder.endObject();
 
-            builder.field(STORED_FIELDS, new ByteSizeValue(storedFieldBytes));
+            builder.field(STORED_FIELDS, ByteSizeValue.ofBytes(storedFieldBytes));
             builder.field(STORED_FIELDS_IN_BYTES, storedFieldBytes);
 
-            builder.field(DOC_VALUES, new ByteSizeValue(docValuesBytes));
+            builder.field(DOC_VALUES, ByteSizeValue.ofBytes(docValuesBytes));
             builder.field(DOC_VALUES_IN_BYTES, docValuesBytes);
 
-            builder.field(POINTS, new ByteSizeValue(pointsBytes));
+            builder.field(POINTS, ByteSizeValue.ofBytes(pointsBytes));
             builder.field(POINTS_IN_BYTES, pointsBytes);
 
-            builder.field(NORMS, new ByteSizeValue(normsBytes));
+            builder.field(NORMS, ByteSizeValue.ofBytes(normsBytes));
             builder.field(NORMS_IN_BYTES, normsBytes);
 
-            builder.field(TERM_VECTORS, new ByteSizeValue(termVectorsBytes));
+            builder.field(TERM_VECTORS, ByteSizeValue.ofBytes(termVectorsBytes));
             builder.field(TERM_VECTORS_IN_BYTES, termVectorsBytes);
 
-            builder.field(KNN_VECTORS, new ByteSizeValue(knnVectorsBytes));
+            builder.field(KNN_VECTORS, ByteSizeValue.ofBytes(knnVectorsBytes));
             builder.field(KNN_VECTORS_IN_BYTES, knnVectorsBytes);
             return builder;
         }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
@@ -47,12 +48,16 @@ public class RepositoriesServiceIT extends ESIntegTestCase {
         final Settings.Builder repoSettings = Settings.builder().put("location", randomRepoPath());
 
         assertAcked(
-            client.admin().cluster().preparePutRepository(repositoryName).setType(FsRepository.TYPE).setSettings(repoSettings).get()
+            client.admin()
+                .cluster()
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repositoryName)
+                .setType(FsRepository.TYPE)
+                .setSettings(repoSettings)
         );
 
         final GetRepositoriesResponse originalGetRepositoriesResponse = client.admin()
             .cluster()
-            .prepareGetRepositories(repositoryName)
+            .prepareGetRepositories(TEST_REQUEST_TIMEOUT, repositoryName)
             .get();
 
         assertThat(originalGetRepositoriesResponse.repositories(), hasSize(1));
@@ -67,12 +72,16 @@ public class RepositoriesServiceIT extends ESIntegTestCase {
         final String updatedRepositoryType = updated ? "mock" : FsRepository.TYPE;
 
         assertAcked(
-            client.admin().cluster().preparePutRepository(repositoryName).setType(updatedRepositoryType).setSettings(repoSettings).get()
+            client.admin()
+                .cluster()
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repositoryName)
+                .setType(updatedRepositoryType)
+                .setSettings(repoSettings)
         );
 
         final GetRepositoriesResponse updatedGetRepositoriesResponse = client.admin()
             .cluster()
-            .prepareGetRepositories(repositoryName)
+            .prepareGetRepositories(TEST_REQUEST_TIMEOUT, repositoryName)
             .get();
 
         assertThat(updatedGetRepositoriesResponse.repositories(), hasSize(1));
@@ -87,7 +96,11 @@ public class RepositoriesServiceIT extends ESIntegTestCase {
         // it runs.
         internalCluster().startDataOnlyNode(Settings.builder().put(Environment.PATH_REPO_SETTING.getKey(), createTempDir()).build());
         assertAcked(
-            client.admin().cluster().preparePutRepository(repositoryName).setType(updatedRepositoryType).setSettings(repoSettings).get()
+            client.admin()
+                .cluster()
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repositoryName)
+                .setType(updatedRepositoryType)
+                .setSettings(repoSettings)
         );
     }
 }

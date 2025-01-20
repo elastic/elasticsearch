@@ -210,6 +210,21 @@ POST _snapshot/my_repository/snapshot-20200617/_restore
 <1> The indices to restore.
 +
 <2> We also want to restore the aliases.
++
+NOTE: If any <<feature-state,feature states>> need to be restored we'll need to specify them using the
+`feature_states` field and the indices that belong to the feature states we restore must not be specified under `indices`.
+The <<health-api, Health API>> returns both the `indices` and `feature_states` that need to be restored for the restore from snapshot diagnosis. e.g.:
++
+[source,console]
+----
+POST _snapshot/my_repository/snapshot-20200617/_restore
+{
+  "feature_states": [ "geoip" ],
+  "indices": "kibana_sample_data_flights,.ds-my-data-stream-2022.06.17-000001",
+  "include_aliases": true
+}
+----
+// TEST[skip:illustration purposes only]
 
 . Finally we can verify that the indices health is now `green` via the <<cat-indices,cat indices API>>.
 +
@@ -430,6 +445,21 @@ POST _snapshot/my_repository/snapshot-20200617/_restore
 <1> The indices to restore.
 +
 <2> We also want to restore the aliases.
++
+NOTE: If any <<feature-state,feature states>> need to be restored we'll need to specify them using the
+`feature_states` field and the indices that belong to the feature states we restore must not be specified under `indices`.
+The <<health-api, Health API>> returns both the `indices` and `feature_states` that need to be restored for the restore from snapshot diagnosis. e.g.:
++
+[source,console]
+----
+POST _snapshot/my_repository/snapshot-20200617/_restore
+{
+  "feature_states": [ "geoip" ],
+  "indices": "kibana_sample_data_flights,.ds-my-data-stream-2022.06.17-000001",
+  "include_aliases": true
+}
+----
+// TEST[skip:illustration purposes only]
 
 . Finally we can verify that the indices health is now `green` via the <<cat-indices,cat indices API>>.
 +

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.fs;
@@ -15,6 +16,8 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -40,9 +43,14 @@ import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 /**
  * Runs periodically and attempts to create a temp file to see if the filesystem is writable. If not then it marks the path as unhealthy.
  */
-public class FsHealthService extends AbstractLifecycleComponent implements NodeHealthService {
+public final class FsHealthService extends AbstractLifecycleComponent implements NodeHealthService {
 
     private static final Logger logger = LogManager.getLogger(FsHealthService.class);
+
+    private static final StatusInfo HEALTHY_DISABLED = new StatusInfo(HEALTHY, "health check disabled");
+    private static final StatusInfo UNHEALTHY_BROKEN_NODE_LOCK = new StatusInfo(UNHEALTHY, "health check failed due to broken node lock");
+    private static final StatusInfo HEALTHY_SUCCESS = new StatusInfo(HEALTHY, "health check passed");
+
     private final ThreadPool threadPool;
     private volatile boolean enabled;
     private volatile boolean brokenLock;
@@ -50,7 +58,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     private volatile TimeValue slowPathLoggingThreshold;
     private final NodeEnvironment nodeEnv;
     private final LongSupplier currentTimeMillisSupplier;
-    private volatile Scheduler.Cancellable scheduledFuture;
+    private Scheduler.Cancellable scheduledFuture; // accesses all synchronized on AbstractLifecycleComponent#lifecycle
 
     @Nullable
     private volatile Set<Path> unhealthyPaths;
@@ -80,7 +88,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         this.enabled = ENABLED_SETTING.get(settings);
         this.refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
         this.slowPathLoggingThreshold = SLOW_PATH_LOGGING_THRESHOLD_SETTING.get(settings);
-        this.currentTimeMillisSupplier = threadPool::relativeTimeInMillis;
+        this.currentTimeMillisSupplier = threadPool.relativeTimeInMillisSupplier();
         this.nodeEnv = nodeEnv;
         clusterSettings.addSettingsUpdateConsumer(SLOW_PATH_LOGGING_THRESHOLD_SETTING, this::setSlowPathLoggingThreshold);
         clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
@@ -88,7 +96,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
     @Override
     protected void doStart() {
-        scheduledFuture = threadPool.scheduleWithFixedDelay(new FsHealthMonitor(), refreshInterval, ThreadPool.Names.GENERIC);
+        scheduledFuture = threadPool.scheduleWithFixedDelay(new FsHealthMonitor(), refreshInterval, threadPool.generic());
     }
 
     @Override
@@ -109,42 +117,53 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
     @Override
     public StatusInfo getHealth() {
-        StatusInfo statusInfo;
-        Set<Path> unhealthyPaths = this.unhealthyPaths;
         if (enabled == false) {
-            statusInfo = new StatusInfo(HEALTHY, "health check disabled");
-        } else if (brokenLock) {
-            statusInfo = new StatusInfo(UNHEALTHY, "health check failed due to broken node lock");
-        } else if (unhealthyPaths == null) {
-            statusInfo = new StatusInfo(HEALTHY, "health check passed");
-        } else {
-            String info = "health check failed on ["
-                + unhealthyPaths.stream().map(k -> k.toString()).collect(Collectors.joining(","))
-                + "]";
-            statusInfo = new StatusInfo(UNHEALTHY, info);
+            return HEALTHY_DISABLED;
         }
 
-        return statusInfo;
+        if (brokenLock) {
+            return UNHEALTHY_BROKEN_NODE_LOCK;
+        }
+
+        var unhealthyPaths = this.unhealthyPaths; // single volatile read
+        if (unhealthyPaths != null) {
+            assert unhealthyPaths.isEmpty() == false;
+            return new StatusInfo(
+                UNHEALTHY,
+                "health check failed on [" + unhealthyPaths.stream().map(Path::toString).collect(Collectors.joining(",")) + "]"
+            );
+        }
+
+        return HEALTHY_SUCCESS;
     }
 
-    class FsHealthMonitor implements Runnable {
+    class FsHealthMonitor extends AbstractRunnable {
 
+        // Exposed for testing
         static final String TEMP_FILE_NAME = ".es_temp_file";
-        private byte[] bytesToWrite;
 
-        FsHealthMonitor() {
-            this.bytesToWrite = UUIDs.randomBase64UUID().getBytes(StandardCharsets.UTF_8);
+        private final byte[] bytesToWrite = UUIDs.randomBase64UUID().getBytes(StandardCharsets.UTF_8);
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.error("health check failed", e);
         }
 
         @Override
-        public void run() {
-            try {
-                if (enabled) {
-                    monitorFSHealth();
-                    logger.debug("health check succeeded");
-                }
-            } catch (Exception e) {
-                logger.error("health check failed", e);
+        public void onRejection(Exception e) {
+            if (e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown()) {
+                logger.debug("health check skipped (executor shut down)", e);
+            } else {
+                onFailure(e);
+                assert false : e;
+            }
+        }
+
+        @Override
+        public void doRun() {
+            if (enabled) {
+                monitorFSHealth();
+                logger.debug("health check completed");
             }
         }
 

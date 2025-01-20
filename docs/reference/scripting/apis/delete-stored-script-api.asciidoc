@@ -4,6 +4,12 @@
 <titleabbrev>Delete stored script</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-script[Script APIs].
+--
+
 Deletes a <<script-stored-scripts,stored script>> or <<search-template,search
 template>>.
 
@@ -47,4 +53,4 @@ Identifier for the stored script or search template.
 [[delete-stored-script-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]

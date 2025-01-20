@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.Step;
+import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -41,7 +43,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -49,8 +50,11 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXC
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_FROZEN;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.TIER_PREFERENCE;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.TIER_PREFERENCE_SETTING;
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
 import static org.elasticsearch.xpack.ilm.IndexLifecycleTransition.moveStateToNextActionAndUpdateCachedPhase;
@@ -182,9 +186,9 @@ public final class MetadataMigrateToDataTiersRoutingService {
     ) {
         if (dryRun == false) {
             IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
-            if (currentMetadata != null && currentMetadata.getOperationMode() != STOPPED) {
+            if (currentMetadata != null && currentILMMode(currentState) != STOPPED) {
                 throw new IllegalStateException(
-                    "stop ILM before migrating to data tiers, current state is [" + currentMetadata.getOperationMode() + "]"
+                    "stop ILM before migrating to data tiers, current state is [" + currentILMMode(currentState) + "]"
                 );
             }
         }
@@ -247,7 +251,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
     ) {
         IndexLifecycleMetadata currentLifecycleMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
         if (currentLifecycleMetadata == null) {
-            return Collections.emptyList();
+            return List.of();
         }
 
         List<String> migratedPolicies = new ArrayList<>();
@@ -274,7 +278,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
         }
 
         if (migratedPolicies.size() > 0) {
-            IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentLifecycleMetadata.getOperationMode());
+            IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentILMMode(currentState));
             mb.putCustom(IndexLifecycleMetadata.TYPE, newMetadata);
         }
         return migratedPolicies;
@@ -354,9 +358,9 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
             if (currentExState != null) {
                 Step.StepKey currentStepKey = Step.getCurrentStepKey(currentExState);
-                if (currentStepKey != null && phasesWithoutAllocateAction.contains(currentStepKey.getPhase())) {
+                if (currentStepKey != null && phasesWithoutAllocateAction.contains(currentStepKey.phase())) {
                     // the index is in a phase that doesn't contain the allocate action anymore
-                    if (currentStepKey.getAction().equals(AllocateAction.NAME)) {
+                    if (currentStepKey.action().equals(AllocateAction.NAME)) {
                         // this index is in the middle of executing the allocate action - which doesn't exist in the updated policy
                         // anymore so let's try to move the index to the next action
 
@@ -381,7 +385,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
                         LifecycleExecutionState.Builder updatedState = LifecycleExecutionState.builder(currentExState);
                         PhaseExecutionInfo phaseExecutionInfo = new PhaseExecutionInfo(
                             newPolicyMetadata.getPolicy().getName(),
-                            newPolicyMetadata.getPolicy().getPhases().get(currentStepKey.getPhase()),
+                            newPolicyMetadata.getPolicy().getPhases().get(currentStepKey.phase()),
                             newPolicyMetadata.getVersion(),
                             newPolicyMetadata.getModifiedDate()
                         );
@@ -544,6 +548,18 @@ public final class MetadataMigrateToDataTiersRoutingService {
                     finalSettings.remove(nodeAttrIndexIncludeRoutingSetting);
                 }
 
+                if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(newSettings)) {
+                    String configuredTierPreference = null;
+                    try {
+                        configuredTierPreference = TIER_PREFERENCE_SETTING.get(newSettings);
+                    } catch (IllegalArgumentException ignored) {
+                        // we'll configure the correct tier preference below
+                    }
+                    if (configuredTierPreference == null || configuredTierPreference.equals(DATA_FROZEN) == false) {
+                        finalSettings.put(TIER_PREFERENCE_SETTING.getKey(), DATA_FROZEN);
+                    }
+                }
+
                 mb.put(
                     IndexMetadata.builder(indexMetadata).settings(finalSettings).settingsVersion(indexMetadata.getSettingsVersion() + 1)
                 );
@@ -673,16 +689,12 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
                 if (settings.keySet().contains(requireRoutingSetting) || settings.keySet().contains(includeRoutingSetting)) {
                     Template currentInnerTemplate = composableTemplate.template();
-                    ComposableIndexTemplate.Builder migratedComposableTemplateBuilder = new ComposableIndexTemplate.Builder();
+                    ComposableIndexTemplate.Builder migratedComposableTemplateBuilder = ComposableIndexTemplate.builder();
                     Settings.Builder settingsBuilder = Settings.builder().put(settings);
                     settingsBuilder.remove(requireRoutingSetting);
                     settingsBuilder.remove(includeRoutingSetting);
                     settingsBuilder.remove(excludeRoutingSetting);
-                    Template migratedInnerTemplate = new Template(
-                        settingsBuilder.build(),
-                        currentInnerTemplate.mappings(),
-                        currentInnerTemplate.aliases()
-                    );
+                    Template migratedInnerTemplate = Template.builder(currentInnerTemplate).settings(settingsBuilder).build();
 
                     migratedComposableTemplateBuilder.indexPatterns(composableTemplate.indexPatterns());
                     migratedComposableTemplateBuilder.template(migratedInnerTemplate);
@@ -692,6 +704,9 @@ public final class MetadataMigrateToDataTiersRoutingService {
                     migratedComposableTemplateBuilder.metadata(composableTemplate.metadata());
                     migratedComposableTemplateBuilder.dataStreamTemplate(composableTemplate.getDataStreamTemplate());
                     migratedComposableTemplateBuilder.allowAutoCreate(composableTemplate.getAllowAutoCreate());
+                    migratedComposableTemplateBuilder.ignoreMissingComponentTemplates(
+                        composableTemplate.getIgnoreMissingComponentTemplates()
+                    );
 
                     mb.put(templateEntry.getKey(), migratedComposableTemplateBuilder.build());
                     migratedComposableTemplates.add(templateEntry.getKey());
@@ -720,16 +735,13 @@ public final class MetadataMigrateToDataTiersRoutingService {
                     settingsBuilder.remove(requireRoutingSetting);
                     settingsBuilder.remove(includeRoutingSetting);
                     settingsBuilder.remove(excludeRoutingSetting);
-                    Template migratedInnerTemplate = new Template(
-                        settingsBuilder.build(),
-                        currentInnerTemplate.mappings(),
-                        currentInnerTemplate.aliases()
-                    );
+                    Template migratedInnerTemplate = Template.builder(currentInnerTemplate).settings(settingsBuilder).build();
 
                     ComponentTemplate migratedComponentTemplate = new ComponentTemplate(
                         migratedInnerTemplate,
                         componentTemplate.version(),
-                        componentTemplate.metadata()
+                        componentTemplate.metadata(),
+                        componentTemplate.deprecated()
                     );
 
                     mb.put(componentEntry.getKey(), migratedComponentTemplate);
@@ -743,7 +755,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
     private static Settings migrateToDefaultTierPreference(ClusterState currentState, IndexMetadata indexMetadata) {
         Settings currentIndexSettings = indexMetadata.getSettings();
-        List<String> tierPreference = DataTier.parseTierList(currentIndexSettings.get(DataTier.TIER_PREFERENCE));
+        List<String> tierPreference = DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(currentIndexSettings));
         if (tierPreference.isEmpty() == false) {
             return currentIndexSettings;
         }
@@ -753,6 +765,15 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
         boolean isDataStream = currentState.metadata().findDataStreams(indexName).isEmpty() == false;
         String convertedTierPreference = isDataStream ? DataTier.DATA_HOT : DataTier.DATA_CONTENT;
+        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings())) {
+            if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(indexMetadata.getSettings())) {
+                // partially mounted index
+                convertedTierPreference = MountSearchableSnapshotRequest.Storage.SHARED_CACHE.defaultDataTiersPreference();
+            } else {
+                // fully mounted index
+                convertedTierPreference = MountSearchableSnapshotRequest.Storage.FULL_COPY.defaultDataTiersPreference();
+            }
+        }
         newSettingsBuilder.put(TIER_PREFERENCE, convertedTierPreference);
         logger.debug("index [{}]: configured setting [{}] to [{}]", indexName, TIER_PREFERENCE, convertedTierPreference);
         return newSettingsBuilder.build();
@@ -789,13 +810,12 @@ public final class MetadataMigrateToDataTiersRoutingService {
      * Represents the elasticsearch abstractions that were, in some way, migrated such that the system is managing indices lifecycles and
      * allocations using data tiers.
      */
-    public static final class MigratedEntities {
-        @Nullable
-        public final String removedIndexTemplateName;
-        public final List<String> migratedIndices;
-        public final List<String> migratedPolicies;
-        public final MigratedTemplates migratedTemplates;
-
+    public record MigratedEntities(
+        @Nullable String removedIndexTemplateName,
+        List<String> migratedIndices,
+        List<String> migratedPolicies,
+        MigratedTemplates migratedTemplates
+    ) {
         public MigratedEntities(
             @Nullable String removedIndexTemplateName,
             List<String> migratedIndices,
@@ -807,37 +827,17 @@ public final class MetadataMigrateToDataTiersRoutingService {
             this.migratedPolicies = Collections.unmodifiableList(migratedPolicies);
             this.migratedTemplates = migratedTemplates;
         }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            MigratedEntities that = (MigratedEntities) o;
-            return Objects.equals(removedIndexTemplateName, that.removedIndexTemplateName)
-                && Objects.equals(migratedIndices, that.migratedIndices)
-                && Objects.equals(migratedPolicies, that.migratedPolicies)
-                && Objects.equals(migratedTemplates, that.migratedTemplates);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(removedIndexTemplateName, migratedIndices, migratedPolicies, migratedTemplates);
-        }
     }
 
     /**
      * Represents the legacy, composable, and component templates that were migrated away from shard allocation settings based on custom
      * node attributes.
      */
-    public static final class MigratedTemplates {
-        public final List<String> migratedLegacyTemplates;
-        public final List<String> migratedComposableTemplates;
-        public final List<String> migratedComponentTemplates;
-
+    public record MigratedTemplates(
+        List<String> migratedLegacyTemplates,
+        List<String> migratedComposableTemplates,
+        List<String> migratedComponentTemplates
+    ) {
         public MigratedTemplates(
             List<String> migratedLegacyTemplates,
             List<String> migratedComposableTemplates,
@@ -846,25 +846,6 @@ public final class MetadataMigrateToDataTiersRoutingService {
             this.migratedLegacyTemplates = Collections.unmodifiableList(migratedLegacyTemplates);
             this.migratedComposableTemplates = Collections.unmodifiableList(migratedComposableTemplates);
             this.migratedComponentTemplates = Collections.unmodifiableList(migratedComponentTemplates);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            MigratedTemplates that = (MigratedTemplates) o;
-            return Objects.equals(migratedLegacyTemplates, that.migratedLegacyTemplates)
-                && Objects.equals(migratedComposableTemplates, that.migratedComposableTemplates)
-                && Objects.equals(migratedComponentTemplates, that.migratedComponentTemplates);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(migratedLegacyTemplates, migratedComposableTemplates, migratedComponentTemplates);
         }
     }
 }

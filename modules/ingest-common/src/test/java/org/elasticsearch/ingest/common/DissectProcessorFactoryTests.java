@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -12,14 +13,13 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DissectProcessorFactoryTests extends ESTestCase {
 
@@ -50,7 +50,7 @@ public class DissectProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("pattern", "%{a},%{b},%{c}");
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
-        assertThat(e.getMessage(), Matchers.equalTo("[field] required property is missing"));
+        assertThat(e.getMessage(), equalTo("[field] required property is missing"));
     }
 
     public void testCreateMissingPattern() {
@@ -58,7 +58,7 @@ public class DissectProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", randomAlphaOfLength(10));
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
-        assertThat(e.getMessage(), Matchers.equalTo("[pattern] required property is missing"));
+        assertThat(e.getMessage(), equalTo("[pattern] required property is missing"));
     }
 
     public void testCreateMissingOptionals() {

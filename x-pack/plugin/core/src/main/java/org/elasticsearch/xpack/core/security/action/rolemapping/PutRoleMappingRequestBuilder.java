@@ -9,8 +9,7 @@ package org.elasticsearch.xpack.core.security.action.rolemapping;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
@@ -35,8 +34,8 @@ public class PutRoleMappingRequestBuilder extends ActionRequestBuilder<PutRoleMa
     /**
      * Populate the put role request from the source and the role's name
      */
-    public PutRoleMappingRequestBuilder source(String name, BytesReference source, XContentType xContentType) throws IOException {
-        ExpressionRoleMapping mapping = ExpressionRoleMapping.parse(name, source, xContentType);
+    public PutRoleMappingRequestBuilder source(String name, XContentParser parser) throws IOException {
+        ExpressionRoleMapping mapping = ExpressionRoleMapping.parse(name, parser);
         request.setName(name);
         request.setEnabled(mapping.isEnabled());
         request.setRoles(mapping.getRoles());

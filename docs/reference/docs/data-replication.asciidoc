@@ -1,6 +1,6 @@
 
 [[docs-replication]]
-=== Reading and Writing documents
+=== Reading and writing documents
 
 [discrete]
 ==== Introduction
@@ -27,6 +27,8 @@ it has for various interactions between write and read operations.
 Every indexing operation in Elasticsearch is first resolved to a replication group using <<index-routing,routing>>,
 typically based on the document ID. Once the replication group has been determined, the operation is forwarded
 internally to the current _primary shard_ of the group. This stage of indexing is referred to as the _coordinating stage_.
+
+image::images/data_processing_flow.png[An example of a basic write model.]
 
 The next stage of indexing is the _primary stage_, performed on the primary shard. The primary shard is responsible
 for validating the operation and forwarding it to the other replicas. Since replicas can be offline, the primary

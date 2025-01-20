@@ -1,14 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.testclusters;
 
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.provider.Provider;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 
@@ -16,17 +19,25 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import javax.inject.Inject;
 
 public abstract class TestClustersRegistry implements BuildService<BuildServiceParameters.None> {
     private static final Logger logger = Logging.getLogger(TestClustersRegistry.class);
     private static final String TESTCLUSTERS_INSPECT_FAILURE = "testclusters.inspect.failure";
     private final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_INSPECT_FAILURE, "false"));
-    private final Map<ElasticsearchCluster, Integer> claimsInventory = new HashMap<>();
     private final Set<ElasticsearchCluster> runningClusters = new HashSet<>();
+    private final Map<String, Process> nodeProcesses = new HashMap<>();
+
+    @Inject
+    public abstract ProviderFactory getProviderFactory();
 
     public void claimCluster(ElasticsearchCluster cluster) {
-        cluster.freeze();
-        claimsInventory.put(cluster, claimsInventory.getOrDefault(cluster, 0) + 1);
+        int claims = cluster.addClaim();
+        if (claims > 1) {
+            cluster.setShared(true);
+        }
     }
 
     public void maybeStartCluster(ElasticsearchCluster cluster) {
@@ -35,6 +46,13 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
         }
         runningClusters.add(cluster);
         cluster.start();
+    }
+
+    public Provider<TestClusterInfo> getClusterInfo(String clusterName) {
+        return getProviderFactory().of(TestClusterValueSource.class, spec -> {
+            spec.getParameters().getService().set(TestClustersRegistry.this);
+            spec.getParameters().getClusterName().set(clusterName);
+        });
     }
 
     public void stopCluster(ElasticsearchCluster cluster, boolean taskFailed) {
@@ -61,9 +79,7 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
                 runningClusters.remove(cluster);
             }
         } else {
-            int currentClaims = claimsInventory.getOrDefault(cluster, 0) - 1;
-            claimsInventory.put(cluster, currentClaims);
-
+            int currentClaims = cluster.removeClaim();
             if (currentClaims <= 0 && runningClusters.contains(cluster)) {
                 cluster.stop(false);
                 runningClusters.remove(cluster);
@@ -71,4 +87,50 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
         }
     }
 
+    public TestClusterInfo getClusterDetails(String path, String clusterName) {
+        ElasticsearchCluster cluster = runningClusters.stream()
+            .filter(c -> c.getPath().equals(path))
+            .filter(c -> c.getName().equals(clusterName))
+            .findFirst()
+            .orElseThrow();
+        return new TestClusterInfo(
+            cluster.getAllHttpSocketURI(),
+            cluster.getAllTransportPortURI(),
+            cluster.getNodes().stream().map(n -> n.getAuditLog()).collect(Collectors.toList())
+        );
+    }
+
+    public void restart(String path, String clusterName) {
+        ElasticsearchCluster cluster = runningClusters.stream()
+            .filter(c -> c.getPath().equals(path))
+            .filter(c -> c.getName().equals(clusterName))
+            .findFirst()
+            .orElseThrow();
+        cluster.restart();
+    }
+
+    public void nextNodeToNextVersion(Provider<ElasticsearchCluster> cluster) {
+        nextNodeToNextVersion(cluster.get());
+    }
+
+    public void nextNodeToNextVersion(ElasticsearchCluster cluster) {
+        nextNodeToNextVersion(cluster.getPath(), cluster.getName());
+    }
+
+    public void nextNodeToNextVersion(String path, String clusterName) {
+        ElasticsearchCluster cluster = runningClusters.stream()
+            .filter(c -> c.getPath().equals(path))
+            .filter(c -> c.getName().equals(clusterName))
+            .findFirst()
+            .orElseThrow();
+        cluster.nextNodeToNextVersion();
+    }
+
+    public void storeProcess(String id, Process esProcess) {
+        nodeProcesses.put(id, esProcess);
+    }
+
+    public Process getProcess(String id) {
+        return nodeProcesses.get(id);
+    }
 }

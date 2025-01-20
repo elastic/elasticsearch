@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.recovery;
 
@@ -15,6 +16,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -114,6 +116,21 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         out.writeVInt(currentAsSource.get());
         out.writeVInt(currentAsTarget.get());
         out.writeLong(throttleTimeInNanos.get());
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RecoveryStats that = (RecoveryStats) o;
+        return currentAsSource() == that.currentAsSource()
+            && currentAsTarget() == that.currentAsTarget()
+            && Objects.equals(throttleTime(), that.throttleTime());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(currentAsSource(), currentAsTarget(), throttleTime());
     }
 
     @Override

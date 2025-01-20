@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 
 import java.util.Map;
@@ -24,11 +26,8 @@ public class SnapshotShardSizeInfo {
     }
 
     public Long getShardSize(ShardRouting shardRouting) {
-        if (shardRouting.primary()
-            && shardRouting.active() == false
-            && shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
-            final RecoverySource.SnapshotRecoverySource snapshotRecoverySource = (RecoverySource.SnapshotRecoverySource) shardRouting
-                .recoverySource();
+        if (shardRouting.active() == false && shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
+            final SnapshotRecoverySource snapshotRecoverySource = (SnapshotRecoverySource) shardRouting.recoverySource();
             return snapshotShardSizes.get(
                 new InternalSnapshotsInfoService.SnapshotShard(
                     snapshotRecoverySource.snapshot(),
@@ -47,5 +46,10 @@ public class SnapshotShardSizeInfo {
             return fallback;
         }
         return shardSize;
+    }
+
+    @Override
+    public String toString() {
+        return "SnapshotShardSizeInfo{snapshotShardSizes=" + snapshotShardSizes + '}';
     }
 }

@@ -6,6 +6,9 @@
 `max_snapshot_bytes_per_sec`::
 
     Throttles per node snapshot rate. Defaults to `40mb` per second.
+    Note that if the {ref}/recovery.html[recovery settings for managed services]
+    are set, then it defaults to unlimited, and the rate is additionally
+    throttled through {ref}/recovery.html[recovery settings].
 
 `readonly`::
 

@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -39,8 +37,8 @@ public class FillMaskConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<F
         return builder.build();
     }
 
-    public static FillMaskConfigUpdate mutateForVersion(FillMaskConfigUpdate instance, Version version) {
-        if (version.before(Version.V_8_1_0)) {
+    public static FillMaskConfigUpdate mutateForVersion(FillMaskConfigUpdate instance, TransportVersion version) {
+        if (version.before(TransportVersions.V_8_1_0)) {
             return new FillMaskConfigUpdate(instance.getNumTopClasses(), instance.getResultsField(), null);
         }
         return instance;
@@ -64,39 +62,19 @@ public class FillMaskConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<F
         return FillMaskConfigUpdate.fromMap(map);
     }
 
-    public void testIsNoop() {
-        assertTrue(new FillMaskConfigUpdate.Builder().build().isNoop(FillMaskConfigTests.createRandom()));
-
-        assertFalse(
-            new FillMaskConfigUpdate.Builder().setResultsField("foo")
-                .build()
-                .isNoop(new FillMaskConfig.Builder().setResultsField("bar").build())
-        );
-
-        assertFalse(
-            new FillMaskConfigUpdate.Builder().setTokenizationUpdate(new BertTokenizationUpdate(Tokenization.Truncate.SECOND, null))
-                .build()
-                .isNoop(new FillMaskConfig.Builder().setResultsField("bar").build())
-        );
-
-        assertTrue(
-            new FillMaskConfigUpdate.Builder().setNumTopClasses(3).build().isNoop(new FillMaskConfig.Builder().setNumTopClasses(3).build())
-        );
-    }
-
     public void testApply() {
         FillMaskConfig originalConfig = FillMaskConfigTests.createRandom();
 
-        assertThat(originalConfig, equalTo(new FillMaskConfigUpdate.Builder().build().apply(originalConfig)));
+        assertThat(originalConfig, equalTo(originalConfig.apply(new FillMaskConfigUpdate.Builder().build())));
 
         assertThat(
             new FillMaskConfig.Builder(originalConfig).setResultsField("ml-results").build(),
-            equalTo(new FillMaskConfigUpdate.Builder().setResultsField("ml-results").build().apply(originalConfig))
+            equalTo(originalConfig.apply(new FillMaskConfigUpdate.Builder().setResultsField("ml-results").build()))
         );
         assertThat(
             new FillMaskConfig.Builder(originalConfig).setNumTopClasses(originalConfig.getNumTopClasses() + 1).build(),
             equalTo(
-                new FillMaskConfigUpdate.Builder().setNumTopClasses(originalConfig.getNumTopClasses() + 1).build().apply(originalConfig)
+                originalConfig.apply(new FillMaskConfigUpdate.Builder().setNumTopClasses(originalConfig.getNumTopClasses() + 1).build())
             )
         );
 
@@ -105,9 +83,11 @@ public class FillMaskConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<F
         assertThat(
             new FillMaskConfig.Builder(originalConfig).setTokenization(tokenization).build(),
             equalTo(
-                new FillMaskConfigUpdate.Builder().setTokenizationUpdate(
-                    createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
-                ).build().apply(originalConfig)
+                originalConfig.apply(
+                    new FillMaskConfigUpdate.Builder().setTokenizationUpdate(
+                        createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
+                    ).build()
+                )
             )
         );
     }
@@ -128,17 +108,12 @@ public class FillMaskConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<F
     }
 
     @Override
-    protected FillMaskConfigUpdate mutateInstanceForVersion(FillMaskConfigUpdate instance, Version version) {
+    protected FillMaskConfigUpdate mutateInstance(FillMaskConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected FillMaskConfigUpdate mutateInstanceForVersion(FillMaskConfigUpdate instance, TransportVersion version) {
         return mutateForVersion(instance, version);
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new MlInferenceNamedXContentProvider().getNamedWriteables());
     }
 }

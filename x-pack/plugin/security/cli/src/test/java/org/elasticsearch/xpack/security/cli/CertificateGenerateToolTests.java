@@ -87,7 +87,6 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Unit tests for the tool used to simplify SSL certificate generation
  */
-// TODO baz - fix this to work in intellij+java9, its complaining about java.sql.Date not being on the classpath
 public class CertificateGenerateToolTests extends ESTestCase {
 
     private FileSystem jimfs;
@@ -515,8 +514,8 @@ public class CertificateGenerateToolTests extends ESTestCase {
                 assertThat(seq.getObjectAt(1), instanceOf(DLTaggedObject.class));
                 DLTaggedObject taggedName = (DLTaggedObject) seq.getObjectAt(1);
                 assertThat(taggedName.getTagNo(), equalTo(0));
-                assertThat(taggedName.getObject(), instanceOf(ASN1String.class));
-                assertThat(taggedName.getObject().toString(), is(in(certInfo.commonNames)));
+                assertThat(taggedName.getBaseObject(), instanceOf(ASN1String.class));
+                assertThat(taggedName.getBaseObject().toString(), is(in(certInfo.commonNames)));
             } else {
                 fail("unknown general name with tag " + generalName.getTagNo());
             }

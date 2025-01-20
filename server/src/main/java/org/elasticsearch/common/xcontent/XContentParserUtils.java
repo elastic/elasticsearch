@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -67,6 +69,20 @@ public final class XContentParserUtils {
     public static void ensureExpectedToken(Token expected, Token actual, XContentParser parser) {
         if (actual != expected) {
             throw parsingException(parser, expected, actual);
+        }
+    }
+
+    /**
+     * Makes sure the provided token {@linkplain Token#isValue() is a value type}
+     *
+     * @throws ParsingException if the token is not a value type
+     */
+    public static void expectValueToken(Token actual, XContentParser parser) {
+        if (actual.isValue() == false) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                String.format(Locale.ROOT, "Failed to parse object: expecting value token but found [%s]", actual)
+            );
         }
     }
 
@@ -176,6 +192,35 @@ public final class XContentParserUtils {
         do {
             list.add(valueParser.apply(parser));
         } while (parser.nextToken() != Token.END_ARRAY);
+        return list;
+    }
+
+    /**
+     * This is the same as {@link #parseList(XContentParser, CheckedFunction)}
+     * except that it passes the array index while parsing the array. Parses a list of a given type from the given {@code parser}
+     * while passing the valueParser the current array index.
+     * Assumes that the parser is currently positioned on a {@link Token#START_ARRAY} token and will fail if it is not.
+     * The returned list may or may not be mutable.
+     *
+     * @param parser      x-content parser
+     * @param valueParser parser for expected list value type
+     * @return list parsed from parser
+     */
+    public static <T> List<T> parseList(XContentParser parser, CheckedBiFunction<XContentParser, Integer, T, IOException> valueParser)
+        throws IOException {
+        XContentParserUtils.ensureExpectedToken(Token.START_ARRAY, parser.currentToken(), parser);
+
+        if (parser.nextToken() == Token.END_ARRAY) {
+            return List.of();
+        }
+
+        final ArrayList<T> list = new ArrayList<>();
+
+        int index = 0;
+        do {
+            list.add(valueParser.apply(parser, index++));
+        } while (parser.nextToken() != Token.END_ARRAY);
+
         return list;
     }
 }

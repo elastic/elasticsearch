@@ -14,8 +14,10 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -26,7 +28,6 @@ import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
 import java.util.List;
 import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
 
 public class TransportStopRollupAction extends TransportTasksAction<
     RollupJobTask,
@@ -50,15 +51,14 @@ public class TransportStopRollupAction extends TransportTasksAction<
             actionFilters,
             StopRollupJobAction.Request::new,
             StopRollupJobAction.Response::new,
-            StopRollupJobAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.threadPool = threadPool;
     }
 
     @Override
-    protected void processTasks(StopRollupJobAction.Request request, Consumer<RollupJobTask> operation) {
-        TransportTaskHelper.doProcessTasks(request.getId(), operation, taskManager);
+    protected List<RollupJobTask> processTasks(StopRollupJobAction.Request request) {
+        return TransportTaskHelper.doProcessTasks(request.getId(), taskManager);
     }
 
     @Override
@@ -68,7 +68,7 @@ public class TransportStopRollupAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         StopRollupJobAction.Request request,
         RollupJobTask jobTask,
         ActionListener<StopRollupJobAction.Response> listener

@@ -10,22 +10,17 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction.Request;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ForecastJobActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class ForecastJobActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     @Override
     protected Request doParseInstance(XContentParser parser) {
         return Request.parseRequest(null, parser);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
     }
 
     @Override
@@ -39,10 +34,15 @@ public class ForecastJobActionRequestTests extends AbstractSerializingTestCase<R
         }
         if (randomBoolean()) {
             request.setMaxModelMemory(
-                randomLongBetween(new ByteSizeValue(1, ByteSizeUnit.MB).getBytes(), new ByteSizeValue(499, ByteSizeUnit.MB).getBytes())
+                randomLongBetween(ByteSizeValue.of(1, ByteSizeUnit.MB).getBytes(), ByteSizeValue.of(499, ByteSizeUnit.MB).getBytes())
             );
         }
         return request;
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

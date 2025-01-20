@@ -8,22 +8,24 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.rest.root.MainResponse;
+import org.elasticsearch.test.BuildUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Date;
+import java.util.Map;
 
 /**
  * Base class for unit tests that need a web server for basic tests.
  */
 public abstract class WebServerTestCase extends ESTestCase {
 
-    private MockWebServer webServer = new MockWebServer();
+    private final MockWebServer webServer = new MockWebServer();
 
     @Before
     public void init() throws Exception {
@@ -40,16 +42,18 @@ public abstract class WebServerTestCase extends ESTestCase {
     }
 
     MainResponse createCurrentVersionMainResponse() {
-        return createMainResponse(Version.CURRENT);
+        return createMainResponse(VersionTests.current());
     }
 
-    MainResponse createMainResponse(Version version) {
+    MainResponse createMainResponse(SqlVersion version) {
+        // the SQL client only cares about node version,
+        // so ignore index & transport versions here (just set them to current)
         String clusterUuid = randomAlphaOfLength(10);
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
-        final String date = new Date(randomNonNegativeLong()).toString();
-        Build build = new Build(Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(), version.toString());
-        return new MainResponse(nodeName, version, clusterName, clusterUuid, build);
+        IndexVersion indexVersion = IndexVersion.current();
+        Build build = BuildUtils.newBuild(Build.current(), Map.of("version", version.toString()));
+        return new MainResponse(nodeName, indexVersion.luceneVersion().toString(), clusterName, clusterUuid, build);
     }
 
     String webServerAddress() {

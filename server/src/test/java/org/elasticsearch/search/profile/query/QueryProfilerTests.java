@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile.query;
@@ -19,7 +20,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LRUQueryCache;
-import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
@@ -27,7 +27,6 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -106,6 +105,7 @@ public class QueryProfilerTests extends ESTestCase {
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.COUNT_WEIGHT.toString()), equalTo(0L));
         assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.ADVANCE.toString()), equalTo(0L));
@@ -113,6 +113,7 @@ public class QueryProfilerTests extends ESTestCase {
         assertThat(breakdown.get(QueryTimingType.MATCH.toString()), equalTo(0L));
 
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count"), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.COUNT_WEIGHT.toString() + "_count"), equalTo(0L));
         assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString() + "_count"), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString() + "_count"), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.ADVANCE.toString() + "_count"), equalTo(0L));
@@ -149,6 +150,7 @@ public class QueryProfilerTests extends ESTestCase {
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.COUNT_WEIGHT.toString()), equalTo(0L));
         assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.ADVANCE.toString()), equalTo(0L));
@@ -156,6 +158,7 @@ public class QueryProfilerTests extends ESTestCase {
         assertThat(breakdown.get(QueryTimingType.MATCH.toString()), equalTo(0L));
 
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count"), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.COUNT_WEIGHT.toString() + "_count"), equalTo(0L));
         assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString() + "_count"), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString() + "_count"), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.ADVANCE.toString() + "_count"), equalTo(0L));
@@ -189,6 +192,7 @@ public class QueryProfilerTests extends ESTestCase {
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.COUNT_WEIGHT.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.ADVANCE.toString()), equalTo(0L));
@@ -196,6 +200,7 @@ public class QueryProfilerTests extends ESTestCase {
         assertThat(breakdown.get(QueryTimingType.MATCH.toString()), greaterThan(0L));
 
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count"), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.COUNT_WEIGHT.toString() + "_count"), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString() + "_count"), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString() + "_count"), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.ADVANCE.toString() + "_count"), equalTo(0L));
@@ -204,20 +209,6 @@ public class QueryProfilerTests extends ESTestCase {
 
         long rewriteTime = profiler.getRewriteTime();
         assertThat(rewriteTime, greaterThan(0L));
-    }
-
-    public void testCollector() throws IOException {
-        TotalHitCountCollector collector = new TotalHitCountCollector();
-        ProfileCollector profileCollector = new ProfileCollector(collector);
-        assertEquals(0, profileCollector.getTime());
-        final LeafCollector leafCollector = profileCollector.getLeafCollector(reader.leaves().get(0));
-        assertThat(profileCollector.getTime(), greaterThan(0L));
-        long time = profileCollector.getTime();
-        leafCollector.setScorer(null);
-        assertThat(profileCollector.getTime(), greaterThan(time));
-        time = profileCollector.getTime();
-        leafCollector.collect(0);
-        assertThat(profileCollector.getTime(), greaterThan(time));
     }
 
     private static class DummyQuery extends Query {
@@ -247,11 +238,6 @@ public class QueryProfilerTests extends ESTestCase {
             return new Weight(this) {
                 @Override
                 public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public Scorer scorer(LeafReaderContext context) throws IOException {
                     throw new UnsupportedOperationException();
                 }
 

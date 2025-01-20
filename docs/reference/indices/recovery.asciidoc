@@ -4,10 +4,15 @@
 <titleabbrev>Index recovery</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
+--
 
-Returns information about ongoing and completed shard recoveries for one or more
-indices. For data streams, the API returns information for the stream's backing
-indices.
+Returns information about ongoing and completed shard recoveries for one or
+more indices. For data streams, the API returns information for the stream's
+backing indices.
 
 [source,console]
 ----
@@ -33,24 +38,18 @@ index, or alias.
 [[index-recovery-api-desc]]
 ==== {api-description-title}
 
-Use the index recovery API
-to get information about ongoing and completed shard recoveries.
+Use the index recovery API to get information about ongoing and completed shard
+recoveries.
 
-// tag::shard-recovery-desc[]
-Shard recovery is the process
-of syncing a replica shard from a primary shard.
-Upon completion,
-the replica shard is available for search.
+include::{es-ref-dir}/modules/shard-recovery-desc.asciidoc[]
 
-Recovery automatically occurs during the following processes:
-
-* Node startup. This type of recovery is called a local store recovery.
-* Primary shard replication.
-* Relocation of a shard to a different node in the same cluster.
-* <<snapshots-restore-snapshot,Snapshot restore>> operation.
-* <<indices-clone-index,Clone>>, <<indices-shrink-index,shrink>>, or
-<<indices-split-index,split>> operation.
-// end::shard-recovery-desc[]
+The index recovery API reports information about completed recoveries only for
+shard copies that currently exist in the cluster. It only reports the last
+recovery for each shard copy and does not report historical information about
+earlier recoveries, nor does it report information about the recoveries of
+shard copies that no longer exist. This means that if a shard copy completes a
+recovery and then {es} relocates it onto a different node then the information
+about the original recovery will not be shown in the recovery API.
 
 [[index-recovery-api-path-params]]
 ==== {api-path-parms-title}
@@ -63,11 +62,11 @@ and indices, omit this parameter or use `*` or `_all`.
 [[index-recovery-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=active-only]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=active-only]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=detailed]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=detailed]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-query-parm]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-query-parm]
 
 
 [[index-recovery-api-response-body]]
@@ -353,7 +352,7 @@ The API returns the following response:
   "index1" : {
     "shards" : [ {
       "id" : 0,
-      "type" : "STORE",
+      "type" : "EXISTING_STORE",
       "stage" : "DONE",
       "primary" : true,
       "start_time" : "2014-02-24T12:38:06.349",

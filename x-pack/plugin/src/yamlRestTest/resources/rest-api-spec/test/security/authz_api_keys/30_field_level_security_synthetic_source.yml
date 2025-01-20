@@ -1,0 +1,369 @@
+---
+setup:
+  - skip:
+      features: headers
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+Filter single field:
+  - do:
+      indices.create:
+        index: index_fls
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              secret:
+                type: keyword
+
+  - do:
+      bulk:
+        index: index_fls
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"name": "A", "secret":"squirrel"}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "name" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_fls
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.secret: squirrel }
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.hits.0._source.name: A }
+  - is_false: "hits.hits.0._source.secret"
+
+---
+Filter fields in object:
+  - do:
+      indices.create:
+        index: index_fls
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              object:
+                type: object
+                properties:
+                  secret:
+                    type: keyword
+                  public:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: index_fls
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"name": "A", "object":{ "secret":"mission", "public":"interest" }}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls" ]
+                  privileges: [ "read", "monitor" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "object.secret" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_fls
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.object.secret: mission }
+  - match: { hits.hits.0._source.object.public: interest }
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.object.public: interest }
+  - is_false: "_source.object.secret"
+
+
+---
+Fields under a disabled object - uses _ignored_source:
+  - do:
+      indices.create:
+        index: index_fls
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              object:
+                type: object
+                enabled: false
+
+  - do:
+      bulk:
+        index: index_fls
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"name": "A", "object": [ { "secret":"mission1", "public":"interest1" }, { "secret":"mission2", "public":"interest2" } ] }'
+          - '{"create": { }}'
+          - '{"name": "B", "object": { "secret":"mission", "public":"interest" } }'
+          - '{"create": { }}'
+          - '{"name": "C", "object": { "foo":"bar", "public":"interest" } }'
+          - '{"create": { }}'
+          - '{"name": "D", "object": [10, 20, 30, 40] }'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls" ]
+                  privileges: [ "read", "monitor" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "object.secret" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_fls
+        sort: name
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.object.0.secret: mission1 }
+  - match: { hits.hits.0._source.object.0.public: interest1 }
+  - match: { hits.hits.0._source.object.1.secret: mission2 }
+  - match: { hits.hits.0._source.object.1.public: interest2 }
+  - match: { hits.hits.1._source.name: B }
+  - match: { hits.hits.1._source.object.secret: mission }
+  - match: { hits.hits.1._source.object.public: interest }
+  - match: { hits.hits.2._source.name: C }
+  - match: { hits.hits.2._source.object.foo: bar }
+  - match: { hits.hits.2._source.object.public: interest }
+  - match: { hits.hits.3._source.name: D }
+  - match: { hits.hits.3._source.object: [ 10, 20, 30, 40] }
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls
+        sort: name
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.object.0.public: interest1 }
+  - match: { hits.hits.0._source.object.1.public: interest2 }
+  - is_false: "hits.hits.0._source.object.0.secret"
+  - is_false: "hits.hits.0._source.object.1.secret"
+  - match: { hits.hits.1._source.name: "B" }
+  - match: { hits.hits.1._source.object.public: interest }
+  - is_false: "hits.hits.1._source.object.secret"
+  - match: { hits.hits.2._source.name: C }
+  - match: { hits.hits.2._source.object.foo: bar }
+  - match: { hits.hits.2._source.object.public: interest }
+  - match: { hits.hits.3._source.name: D }
+  - match: { hits.hits.3._source.object: [ 10, 20, 30, 40 ] }
+
+
+---
+Dynamic fields beyond limit - uses _ignored_source:
+  - do:
+      indices.create:
+        index: index_fls
+        body:
+          settings:
+            index:
+              mapping:
+                source.mode: synthetic
+                total_fields:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 2
+          mappings:
+            properties:
+              name:
+                type: keyword
+              object:
+                type: object
+
+  - do:
+      bulk:
+        index: index_fls
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"name": "A", "object":{ "secret":"mission", "public":"interest" }}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls" ]
+                  privileges: [ "read", "monitor" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "object.secret" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_fls
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.object.secret: mission }
+  - match: { hits.hits.0._source.object.public: interest }
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.object.public: interest }
+  - is_false: "hits.hits.0._source.object.secret"
+
+
+---
+Field with ignored_malformed:
+  - do:
+      indices.create:
+        index: index_fls
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              secret:
+                type: integer
+                ignore_malformed: true
+
+  - do:
+      bulk:
+        index: index_fls
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"name": "A", "secret":"squirrel"}'
+          - '{"create": { }}'
+          - '{"name": "B", "secret": [ 10, "squirrel", 20] }'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "name" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_fls
+        sort: name
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.secret: squirrel }
+  - match: { hits.hits.1._source.name: B }
+  - match: { hits.hits.1._source.secret: [ 10, 20, "squirrel"] }
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls
+        sort: name
+  - match: { hits.hits.0._source.name: A }
+  - is_false: "hits.hits.0._source.secret"
+  - match: { hits.hits.1._source.name: B }
+  - is_false: "hits.hits.1._source.secret"

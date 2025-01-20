@@ -11,7 +11,8 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xpack.aggregatemetric.fielddata.IndexAggregateDoubleMetricFieldData;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
@@ -49,8 +50,8 @@ public class AggregateMetricsValuesSource {
             }
 
             @Override
-            protected Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
-                throw new AggregationExecutionException("Can't round an [" + AggregateDoubleMetricFieldMapper.CONTENT_TYPE + "]");
+            protected Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException {
+                throw AggregationErrors.unsupportedRounding(AggregateDoubleMetricFieldMapper.CONTENT_TYPE);
             }
 
             public SortedNumericDoubleValues getAggregateMetricValues(LeafReaderContext context, Metric metric) throws IOException {

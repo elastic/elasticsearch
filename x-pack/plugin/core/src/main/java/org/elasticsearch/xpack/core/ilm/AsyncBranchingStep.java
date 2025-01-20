@@ -56,9 +56,9 @@ public class AsyncBranchingStep extends AsyncActionStep {
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
-        asyncPredicate.apply(indexMetadata, currentClusterState, listener.delegateFailure((delegateListener, value) -> {
+        asyncPredicate.apply(indexMetadata, currentClusterState, listener.safeMap(value -> {
             predicateValue.set(value);
-            delegateListener.onResponse(null);
+            return null;
         }));
     }
 

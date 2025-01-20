@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
-public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
+public class AccuracyTests extends AbstractXContentSerializingTestCase<Accuracy> {
 
     private static final EvaluationParameters EVALUATION_PARAMETERS = new EvaluationParameters(100);
     private static final EvaluationFields EVALUATION_FIELDS = new EvaluationFields("foo", "bar", null, null, null, true);
@@ -42,6 +42,11 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
     @Override
     protected Accuracy createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected Accuracy mutateInstance(Accuracy instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -59,11 +64,14 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
     }
 
     public void testProcess() {
-        Aggregations aggs = new Aggregations(
+        InternalAggregations aggs = InternalAggregations.from(
             List.of(
                 mockTerms(
                     "accuracy_" + MulticlassConfusionMatrix.STEP_1_AGGREGATE_BY_ACTUAL_CLASS,
-                    List.of(mockTermsBucket("dog", new Aggregations(List.of())), mockTermsBucket("cat", new Aggregations(List.of()))),
+                    List.of(
+                        mockTermsBucket("dog", InternalAggregations.from(List.of())),
+                        mockTermsBucket("cat", InternalAggregations.from(List.of()))
+                    ),
                     100L
                 ),
                 mockCardinality("accuracy_" + MulticlassConfusionMatrix.STEP_1_CARDINALITY_OF_ACTUAL_CLASS, 1000L),
@@ -73,7 +81,7 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
                         mockFiltersBucket(
                             "dog",
                             30,
-                            new Aggregations(
+                            InternalAggregations.from(
                                 List.of(
                                     mockFilters(
                                         "accuracy_" + MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
@@ -89,7 +97,7 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
                         mockFiltersBucket(
                             "cat",
                             70,
-                            new Aggregations(
+                            InternalAggregations.from(
                                 List.of(
                                     mockFilters(
                                         "accuracy_" + MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
@@ -120,11 +128,14 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
     }
 
     public void testProcess_GivenCardinalityTooHigh() {
-        Aggregations aggs = new Aggregations(
+        InternalAggregations aggs = InternalAggregations.from(
             List.of(
                 mockTerms(
                     "accuracy_" + MulticlassConfusionMatrix.STEP_1_AGGREGATE_BY_ACTUAL_CLASS,
-                    List.of(mockTermsBucket("dog", new Aggregations(List.of())), mockTermsBucket("cat", new Aggregations(List.of()))),
+                    List.of(
+                        mockTermsBucket("dog", InternalAggregations.from(List.of())),
+                        mockTermsBucket("cat", InternalAggregations.from(List.of()))
+                    ),
                     100L
                 ),
                 mockCardinality("accuracy_" + MulticlassConfusionMatrix.STEP_1_CARDINALITY_OF_ACTUAL_CLASS, 1001L),
@@ -134,7 +145,7 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
                         mockFiltersBucket(
                             "dog",
                             30,
-                            new Aggregations(
+                            InternalAggregations.from(
                                 List.of(
                                     mockFilters(
                                         "accuracy_" + MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
@@ -150,7 +161,7 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
                         mockFiltersBucket(
                             "cat",
                             70,
-                            new Aggregations(
+                            InternalAggregations.from(
                                 List.of(
                                     mockFilters(
                                         "accuracy_" + MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,

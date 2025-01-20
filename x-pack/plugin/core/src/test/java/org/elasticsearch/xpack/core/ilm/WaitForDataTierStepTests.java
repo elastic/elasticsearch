@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
@@ -19,7 +18,6 @@ import org.elasticsearch.common.UUIDs;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -66,9 +64,7 @@ public class WaitForDataTierStepTests extends AbstractStepTestCase<WaitForDataTi
 
     public void testConditionMet() {
         String notIncludedTier = randomFrom(DataTier.ALL_DATA_TIERS);
-        List<String> otherTiers = DataTier.ALL_DATA_TIERS.stream()
-            .filter(tier -> notIncludedTier.equals(tier) == false)
-            .collect(Collectors.toList());
+        List<String> otherTiers = DataTier.ALL_DATA_TIERS.stream().filter(tier -> notIncludedTier.equals(tier) == false).toList();
         List<String> includedTiers = randomSubsetOf(between(1, otherTiers.size()), otherTiers);
         String tierPreference = String.join(",", includedTiers);
         WaitForDataTierStep step = new WaitForDataTierStep(randomStepKey(), randomStepKey(), tierPreference);
@@ -81,11 +77,11 @@ public class WaitForDataTierStepTests extends AbstractStepTestCase<WaitForDataTi
 
     private void verify(WaitForDataTierStep step, ClusterState state, boolean complete, String message) {
         ClusterStateWaitStep.Result result = step.isConditionMet(null, state);
-        assertThat(result.isComplete(), is(complete));
+        assertThat(result.complete(), is(complete));
         if (message != null) {
-            assertThat(Strings.toString(result.getInfomationContext()), containsString(message));
+            assertThat(Strings.toString(result.informationContext()), containsString(message));
         } else {
-            assertThat(result.getInfomationContext(), is(nullValue()));
+            assertThat(result.informationContext(), is(nullValue()));
         }
     }
 
@@ -93,16 +89,14 @@ public class WaitForDataTierStepTests extends AbstractStepTestCase<WaitForDataTi
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         IntStream.range(0, between(1, 5))
             .mapToObj(
-                i -> new DiscoveryNode(
-                    "node_" + i,
-                    UUIDs.randomBase64UUID(),
-                    buildNewFakeTransportAddress(),
-                    Map.of(),
-                    randomSubsetOf(between(1, roles.size()), roles).stream()
-                        .map(DiscoveryNodeRole::getRoleFromRoleName)
-                        .collect(Collectors.toSet()),
-                    Version.CURRENT
-                )
+                i -> DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID())
+                    .name("node_" + i)
+                    .roles(
+                        randomSubsetOf(between(1, roles.size()), roles).stream()
+                            .map(DiscoveryNodeRole::getRoleFromRoleName)
+                            .collect(Collectors.toSet())
+                    )
+                    .build()
             )
             .forEach(builder::add);
         return ClusterState.builder(ClusterName.DEFAULT).nodes(builder).build();

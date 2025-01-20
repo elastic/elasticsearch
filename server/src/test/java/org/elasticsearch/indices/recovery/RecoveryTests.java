@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.VersionType;
@@ -48,6 +50,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,6 +60,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
@@ -208,7 +212,8 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                     Long.MAX_VALUE,
                     false,
                     randomBoolean(),
-                    randomBoolean()
+                    randomBoolean(),
+                    randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
                 )
             ) {
                 assertThat(snapshot, SnapshotMatchers.size(6));
@@ -231,7 +236,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             final String historyUUID = replica.getHistoryUUID();
             Translog.TranslogGeneration translogGeneration = getTranslog(replica).getGeneration();
             shards.removeReplica(replica);
-            replica.close("test", false);
+            closeShardNoCheck(replica);
             IndexWriterConfig iwc = new IndexWriterConfig(null).setCommitOnClose(false)
                 // we don't want merges to happen here - we call maybe merge on the engine
                 // later once we stared it up otherwise we would need to wait for it here
@@ -250,7 +255,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                     replica.getPendingPrimaryTerm()
                 );
             } else {
-                translogUUIDtoUse = translogGeneration.translogUUID;
+                translogUUIDtoUse = translogGeneration.translogUUID();
             }
             try (IndexWriter writer = new IndexWriter(replica.store().directory(), iwc)) {
                 userData.put(Engine.HISTORY_UUID_KEY, historyUUIDtoUse);
@@ -311,7 +316,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         }
         IndexShard replicaShard = newShard(primaryShard.shardId(), false);
         updateMappings(replicaShard, primaryShard.indexSettings().getIndexMetadata());
-        recoverReplica(replicaShard, primaryShard, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, null, null, recoveryListener) {
+        recoverReplica(replicaShard, primaryShard, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, 0L, null, null, recoveryListener) {
             @Override
             public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
                 super.prepareForTranslogOperations(totalTranslogOps, listener);
@@ -355,7 +360,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             if (randomBoolean()) {
                 shards.flush();
             }
-            replica.close("test", randomBoolean());
+            closeShardNoCheck(replica, randomBoolean());
             replica.store().close();
             final IndexShard newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
             shards.recoverReplica(newReplica);
@@ -423,6 +428,14 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                             }
                             return super.addDocument(doc);
                         }
+
+                        @Override
+                        public long addDocuments(Iterable<? extends Iterable<? extends IndexableField>> docs) throws IOException {
+                            @SuppressWarnings("unchecked")
+                            Collection<Iterable<? extends IndexableField>> col = asInstanceOf(Collection.class, docs);
+                            assertThat(col, hasSize(1));
+                            return addDocument(col.iterator().next());
+                        }
                     }, null, null, config);
                 }
             }
@@ -432,14 +445,18 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             allowShardFailures();
             IndexShard replica = group.addReplica();
             expectThrows(Exception.class, () -> group.recoverReplica(replica, (shard, sourceNode) -> {
-                return new RecoveryTarget(shard, sourceNode, null, null, new PeerRecoveryTargetService.RecoveryListener() {
+                return new RecoveryTarget(shard, sourceNode, 0L, null, null, new PeerRecoveryTargetService.RecoveryListener() {
                     @Override
-                    public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+                    public void onRecoveryDone(
+                        RecoveryState state,
+                        ShardLongFieldRange timestampMillisFieldRange,
+                        ShardLongFieldRange eventIngestedMillisFieldRange
+                    ) {
                         throw new AssertionError("recovery must fail");
                     }
 
                     @Override
-                    public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
+                    public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
                         assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("simulated"));
                     }
                 });
@@ -472,7 +489,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             }
             shards.syncGlobalCheckpoint();
             shards.promoteReplicaToPrimary(randomFrom(shards.getReplicas())).get();
-            oldPrimary.close("demoted", false);
+            closeShardNoCheck(oldPrimary);
             oldPrimary.store().close();
             oldPrimary = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
             shards.recoverReplica(oldPrimary);

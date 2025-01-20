@@ -20,7 +20,12 @@ public class GetAutoscalingCapacityActionRequestWireSerializingTests extends Abs
 
     @Override
     protected GetAutoscalingCapacityAction.Request createTestInstance() {
-        return new GetAutoscalingCapacityAction.Request();
+        return new GetAutoscalingCapacityAction.Request(TEST_REQUEST_TIMEOUT);
+    }
+
+    @Override
+    protected GetAutoscalingCapacityAction.Request mutateInstance(GetAutoscalingCapacityAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
 }

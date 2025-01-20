@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.analyze;
@@ -93,7 +94,7 @@ public class AnalyzeResponseTests extends AbstractWireSerializingTestCase<Analyz
      * Either add a token to the token list or change the details token list name
      */
     @Override
-    protected AnalyzeAction.Response mutateInstance(AnalyzeAction.Response instance) throws IOException {
+    protected AnalyzeAction.Response mutateInstance(AnalyzeAction.Response instance) {
         if (instance.getTokens() != null) {
             return new AnalyzeAction.Response(
                 CollectionUtils.appendToCopy(instance.getTokens(), RandomObjects.randomToken(random())),

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.precommit;
@@ -30,6 +31,7 @@ import java.lang.module.ModuleReference;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
@@ -97,14 +99,14 @@ public class JavaModulePrecommitTask extends PrecommitTask {
             return; // non-modular project, nothing to do
         }
         ModuleReference mod = esModuleFor(getClassesDirs().getSingleFile());
-        getLogger().info("%s checking module %s".formatted(this, mod));
+        getLogger().info("{} checking module {}", getPath(), mod);
         checkModuleVersion(mod);
         checkModuleNamePrefix(mod);
         checkModuleServices(mod);
     }
 
     private void checkModuleVersion(ModuleReference mref) {
-        getLogger().info("%s checking module version for %s".formatted(this, mref.descriptor().name()));
+        getLogger().info("{} checking module version for {}", this, mref.descriptor().name());
         String mVersion = mref.descriptor()
             .rawVersion()
             .orElseThrow(() -> new GradleException("no version found in module " + mref.descriptor().name()));
@@ -114,27 +116,30 @@ public class JavaModulePrecommitTask extends PrecommitTask {
     }
 
     private void checkModuleNamePrefix(ModuleReference mref) {
-        getLogger().info("%s checking module name prefix for %s".formatted(this, mref.descriptor().name()));
-        if (mref.descriptor().name().startsWith("org.elasticsearch.") == false) {
-            throw new GradleException("Expected name starting with \"org.elasticsearch.\", in " + mref.descriptor());
+        getLogger().info("{} checking module name prefix for {}", this, mref.descriptor().name());
+        if (mref.descriptor().name().startsWith("org.elasticsearch.") == false
+            && mref.descriptor().name().startsWith("co.elastic.") == false) {
+            throw new GradleException("Expected name starting with \"org.elasticsearch.\" or \"co.elastic\" in " + mref.descriptor());
         }
     }
 
     private void checkModuleServices(ModuleReference mref) {
-        getLogger().info("%s checking module services for %s".formatted(this, mref.descriptor().name()));
+        getLogger().info("{} checking module services for {}", getPath(), mref.descriptor().name());
         Set<String> modServices = mref.descriptor().provides().stream().map(ModuleDescriptor.Provides::service).collect(toSet());
         Path servicesRoot = getResourcesDir().toPath().resolve("META-INF").resolve("services");
-        getLogger().info("%s servicesRoot %s".formatted(this, servicesRoot));
+        getLogger().info("{} servicesRoot {}", getPath(), servicesRoot);
         if (Files.exists(servicesRoot)) {
             try (var paths = Files.walk(servicesRoot)) {
                 paths.filter(Files::isRegularFile)
                     .map(p -> servicesRoot.relativize(p))
                     .map(Path::toString)
-                    .peek(s -> getLogger().info("%s checking service %s".formatted(this, s)))
+                    .peek(s -> getLogger().info("%s checking service %s", this, s))
                     .forEach(service -> {
                         if (modServices.contains(service) == false) {
                             throw new GradleException(
-                                "Expected provides %s in module %s with provides %s.".formatted(
+                                String.format(
+                                    Locale.ROOT,
+                                    "Expected provides %s in module %s with provides %s.",
                                     service,
                                     mref.descriptor().name(),
                                     mref.descriptor().provides()
@@ -156,8 +161,7 @@ public class JavaModulePrecommitTask extends PrecommitTask {
         return ModuleFinder.of(filePath.toPath())
             .findAll()
             .stream()
-            .sorted(Comparator.comparing(ModuleReference::descriptor))
-            .findFirst()
+            .min(Comparator.comparing(ModuleReference::descriptor))
             .orElseThrow(() -> new GradleException("module not found in " + filePath));
     }
 }

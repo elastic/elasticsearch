@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.mustache;
@@ -54,7 +55,7 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
         scriptType = ScriptType.readFrom(in);
         script = in.readOptionalString();
         if (in.readBoolean()) {
-            scriptParams = in.readMap();
+            scriptParams = in.readGenericMap();
         }
     }
 
@@ -162,12 +163,12 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
         return validationException;
     }
 
-    private static ParseField ID_FIELD = new ParseField("id");
-    private static ParseField SOURCE_FIELD = new ParseField("source", "inline", "template");
+    private static final ParseField ID_FIELD = new ParseField("id");
+    private static final ParseField SOURCE_FIELD = new ParseField("source", "inline", "template");
 
-    private static ParseField PARAMS_FIELD = new ParseField("params");
-    private static ParseField EXPLAIN_FIELD = new ParseField("explain");
-    private static ParseField PROFILE_FIELD = new ParseField("profile");
+    private static final ParseField PARAMS_FIELD = new ParseField("params");
+    private static final ParseField EXPLAIN_FIELD = new ParseField("explain");
+    private static final ParseField PROFILE_FIELD = new ParseField("profile");
 
     private static final ObjectParser<SearchTemplateRequest, Void> PARSER;
     static {

@@ -1,17 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.query.NestedQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsKnnResults;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -21,7 +26,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.transport.Transport;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -35,24 +39,27 @@ import java.util.function.Function;
  * @see CountedCollector#onFailure(int, SearchShardTarget, Exception)
  */
 final class DfsQueryPhase extends SearchPhase {
-    private final QueryPhaseResultConsumer queryResult;
+
+    public static final String NAME = "dfs_query";
+
+    private final SearchPhaseResults<SearchPhaseResult> queryResult;
     private final List<DfsSearchResult> searchResults;
     private final AggregatedDfs dfs;
-    private final DfsKnnResults knnResults;
-    private final Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
-    private final SearchPhaseContext context;
+    private final List<DfsKnnResults> knnResults;
+    private final Function<SearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
+    private final AbstractSearchAsyncAction<?> context;
     private final SearchTransportService searchTransportService;
     private final SearchProgressListener progressListener;
 
     DfsQueryPhase(
         List<DfsSearchResult> searchResults,
         AggregatedDfs dfs,
-        DfsKnnResults knnResults,
-        QueryPhaseResultConsumer queryResult,
-        Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
-        SearchPhaseContext context
+        List<DfsKnnResults> knnResults,
+        SearchPhaseResults<SearchPhaseResult> queryResult,
+        Function<SearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
+        AbstractSearchAsyncAction<?> context
     ) {
-        super("dfs_query");
+        super(NAME);
         this.progressListener = context.getTask().getProgressListener();
         this.queryResult = queryResult;
         this.searchResults = searchResults;
@@ -61,66 +68,61 @@ final class DfsQueryPhase extends SearchPhase {
         this.nextPhaseFactory = nextPhaseFactory;
         this.context = context;
         this.searchTransportService = context.getSearchTransport();
-
-        // register the release of the query consumer to free up the circuit breaker memory
-        // at the end of the search
-        context.addReleasable(queryResult);
     }
 
     @Override
-    public void run() throws IOException {
+    protected void run() {
         // TODO we can potentially also consume the actual per shard results from the initial phase here in the aggregateDfs
         // to free up memory early
         final CountedCollector<SearchPhaseResult> counter = new CountedCollector<>(
             queryResult,
             searchResults.size(),
-            () -> context.executeNextPhase(this, nextPhaseFactory.apply(queryResult)),
+            () -> context.executeNextPhase(NAME, () -> nextPhaseFactory.apply(queryResult)),
             context
         );
 
         for (final DfsSearchResult dfsResult : searchResults) {
             final SearchShardTarget shardTarget = dfsResult.getSearchShardTarget();
-            Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
-            ShardSearchRequest shardRequest = rewriteShardSearchRequest(dfsResult.getShardSearchRequest());
+            final int shardIndex = dfsResult.getShardIndex();
             QuerySearchRequest querySearchRequest = new QuerySearchRequest(
-                context.getOriginalIndices(dfsResult.getShardIndex()),
+                context.getOriginalIndices(shardIndex),
                 dfsResult.getContextId(),
-                shardRequest,
+                rewriteShardSearchRequest(dfsResult.getShardSearchRequest()),
                 dfs
             );
-            final int shardIndex = dfsResult.getShardIndex();
+            final Transport.Connection connection;
+            try {
+                connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
+            } catch (Exception e) {
+                shardFailure(e, querySearchRequest, shardIndex, shardTarget, counter);
+                continue;
+            }
             searchTransportService.sendExecuteQuery(
                 connection,
                 querySearchRequest,
                 context.getTask(),
-                new SearchActionListener<QuerySearchResult>(shardTarget, shardIndex) {
+                new SearchActionListener<>(shardTarget, shardIndex) {
 
                     @Override
                     protected void innerOnResponse(QuerySearchResult response) {
                         try {
+                            response.setSearchProfileDfsPhaseResult(dfsResult.searchProfileDfsPhaseResult());
                             counter.onResult(response);
                         } catch (Exception e) {
-                            context.onPhaseFailure(DfsQueryPhase.this, "", e);
+                            context.onPhaseFailure(NAME, "", e);
                         }
                     }
 
                     @Override
                     public void onFailure(Exception exception) {
                         try {
-                            context.getLogger()
-                                .debug(() -> "[" + querySearchRequest.contextId() + "] Failed to execute query phase", exception);
-                            progressListener.notifyQueryFailure(shardIndex, shardTarget, exception);
-                            counter.onFailure(shardIndex, shardTarget, exception);
+                            shardFailure(exception, querySearchRequest, shardIndex, shardTarget, counter);
                         } finally {
                             if (context.isPartOfPointInTime(querySearchRequest.contextId()) == false) {
                                 // the query might not have been executed at all (for example because thread pool rejected
                                 // execution) and the search context that was created in dfs phase might not be released.
                                 // release it again to be in the safe side
-                                context.sendReleaseSearchContext(
-                                    querySearchRequest.contextId(),
-                                    connection,
-                                    context.getOriginalIndices(shardIndex)
-                                );
+                                context.sendReleaseSearchContext(querySearchRequest.contextId(), connection);
                             }
                         }
                     }
@@ -129,29 +131,53 @@ final class DfsQueryPhase extends SearchPhase {
         }
     }
 
-    private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
+    private void shardFailure(
+        Exception exception,
+        QuerySearchRequest querySearchRequest,
+        int shardIndex,
+        SearchShardTarget shardTarget,
+        CountedCollector<SearchPhaseResult> counter
+    ) {
+        context.getLogger().debug(() -> "[" + querySearchRequest.contextId() + "] Failed to execute query phase", exception);
+        progressListener.notifyQueryFailure(shardIndex, shardTarget, exception);
+        counter.onFailure(shardIndex, shardTarget, exception);
+    }
+
+    // package private for testing
+    ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
         SearchSourceBuilder source = request.source();
-        if (source == null || source.knnSearch() == null) {
+        if (source == null || source.knnSearch().isEmpty()) {
             return request;
         }
 
-        List<ScoreDoc> scoreDocs = new ArrayList<>();
-        for (ScoreDoc scoreDoc : knnResults.scoreDocs()) {
-            if (scoreDoc.shardIndex == request.shardRequestIndex()) {
-                scoreDocs.add(scoreDoc);
+        List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>(source.subSearches());
+
+        int i = 0;
+        for (DfsKnnResults dfsKnnResults : knnResults) {
+            List<ScoreDoc> scoreDocs = new ArrayList<>();
+            for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
+                if (scoreDoc.shardIndex == request.shardRequestIndex()) {
+                    scoreDocs.add(scoreDoc);
+                }
             }
+            scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
+            String nestedPath = dfsKnnResults.getNestedPath();
+            QueryBuilder query = new KnnScoreDocQueryBuilder(
+                scoreDocs.toArray(Lucene.EMPTY_SCORE_DOCS),
+                source.knnSearch().get(i).getField(),
+                source.knnSearch().get(i).getQueryVector(),
+                source.knnSearch().get(i).getSimilarity()
+            ).boost(source.knnSearch().get(i).boost()).queryName(source.knnSearch().get(i).queryName());
+            if (nestedPath != null) {
+                query = new NestedQueryBuilder(nestedPath, query, ScoreMode.Max).innerHit(source.knnSearch().get(i).innerHit());
+            }
+            subSearchSourceBuilders.add(new SubSearchSourceBuilder(query));
+            i++;
         }
-        scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
-        KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
 
-        SearchSourceBuilder newSource = source.shallowCopy().knnSearch(null);
-        if (source.query() == null) {
-            newSource.query(knnQuery);
-        } else {
-            newSource.query(new BoolQueryBuilder().should(knnQuery).should(source.query()));
-        }
+        source = source.shallowCopy().subSearches(subSearchSourceBuilders).knnSearch(List.of());
+        request.source(source);
 
-        request.source(newSource);
         return request;
     }
 }

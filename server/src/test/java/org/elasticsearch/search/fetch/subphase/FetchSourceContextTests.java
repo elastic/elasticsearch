@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -19,7 +20,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class FetchSourceContextTests extends AbstractSerializingTestCase<FetchSourceContext> {
+public class FetchSourceContextTests extends AbstractXContentSerializingTestCase<FetchSourceContext> {
     @Override
     protected FetchSourceContext doParseInstance(XContentParser parser) throws IOException {
         return FetchSourceContext.fromXContent(parser);
@@ -37,6 +38,11 @@ public class FetchSourceContextTests extends AbstractSerializingTestCase<FetchSo
             randomArray(0, 5, String[]::new, () -> randomAlphaOfLength(5)),
             randomArray(0, 5, String[]::new, () -> randomAlphaOfLength(5))
         );
+    }
+
+    @Override
+    protected FetchSourceContext mutateInstance(FetchSourceContext instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public void testFromXContentException() throws IOException {

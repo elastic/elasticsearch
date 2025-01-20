@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.precommit
@@ -172,14 +173,15 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
 
     def "applies conventions on yaml-rest-test tests"() {
         given:
+        buildApiRestrictionsDisabled = true
         clazz(dir('src/yamlRestTest/java'), "org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase")
         buildFile << """
-        apply plugin:'elasticsearch.internal-yaml-rest-test'
-        
+        apply plugin:'elasticsearch.legacy-yaml-rest-test'
+
         dependencies {
             yamlRestTestImplementation "org.apache.lucene:tests.util:1.0"
             yamlRestTestImplementation "org.junit:junit:4.42"
-        }    
+        }
         """
 
         clazz(dir("src/yamlRestTest/java"), "org.acme.valid.SomeMatchingIT", "org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase") {
@@ -211,16 +213,17 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
     @Unroll
     def "applies conventions on #sourceSetName tests"() {
         given:
+        buildApiRestrictionsDisabled = pluginName.contains('legacy')
         clazz(dir("src/${sourceSetName}/java"), "org.elasticsearch.test.ESIntegTestCase")
         clazz(dir("src/${sourceSetName}/java"), "org.elasticsearch.test.rest.ESRestTestCase")
         buildFile << """
         import org.elasticsearch.gradle.internal.precommit.TestingConventionsCheckTask
         apply plugin:'$pluginName'
-        
+
         dependencies {
             ${sourceSetName}Implementation "org.apache.lucene:tests.util:1.0"
             ${sourceSetName}Implementation "org.junit:junit:4.42"
-        }    
+        }
         tasks.withType(TestingConventionsCheckTask).configureEach {
             suffix 'IT'
             suffix 'Tests'
@@ -252,19 +255,19 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
         )
 
         where:
-        pluginName                              | taskName                                | sourceSetName
-        "elasticsearch.internal-java-rest-test" | ":javaRestTestTestingConventions"       | "javaRestTest"
+        pluginName                              | taskName                                 | sourceSetName
+        "elasticsearch.legacy-java-rest-test"   | ":javaRestTestTestingConventions"        | "javaRestTest"
         "elasticsearch.internal-cluster-test"   | ":internalClusterTestTestingConventions" | "internalClusterTest"
     }
 
     private void simpleJavaBuild() {
         buildFile << """
         apply plugin:'java'
-                
+
         dependencies {
             testImplementation "org.apache.lucene:tests.util:1.0"
             testImplementation "org.junit:junit:4.42"
-        }    
+        }
         """
     }
 }

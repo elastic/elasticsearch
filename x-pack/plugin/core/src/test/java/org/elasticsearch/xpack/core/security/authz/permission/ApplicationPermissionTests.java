@@ -11,6 +11,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,7 +41,7 @@ public class ApplicationPermissionTests extends ESTestCase {
 
     private ApplicationPrivilege storePrivilege(String app, String name, String... patterns) {
         store.add(new ApplicationPrivilegeDescriptor(app, name, Sets.newHashSet(patterns), Collections.emptyMap()));
-        return new ApplicationPrivilege(app, name, patterns);
+        return ApplicationPrivilegeTests.createPrivilege(app, name, patterns);
     }
 
     public void testCheckSimplePermission() {

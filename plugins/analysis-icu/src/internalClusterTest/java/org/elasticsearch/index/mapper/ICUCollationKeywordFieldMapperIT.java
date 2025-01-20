@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -12,7 +13,6 @@ import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -31,6 +31,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
@@ -64,13 +65,13 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         // both values should collate to same value
         indexRandom(
             true,
-            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
-            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
+            prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
+            prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         // searching for either of the terms should return both results since they collate to the same value
@@ -82,10 +83,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                     .sort("id", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
 
-        SearchResponse response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 2L);
-        assertOrderedSearchHits(response, "2", "1");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 2L);
+            assertOrderedSearchHits(response, "2", "1");
+        });
     }
 
     public void testMultipleValues() throws Exception {
@@ -105,15 +107,14 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         // everything should be indexed fine, no exceptions
         indexRandom(
             true,
-            client().prepareIndex(index)
-                .setId("1")
+            prepareIndex(index).setId("1")
                 .setSource("{\"id\":\"1\", \"collate\":[\"" + equivalent[0] + "\", \"" + equivalent[1] + "\"]}", XContentType.JSON),
-            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[2] + "\"}", XContentType.JSON)
+            prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[2] + "\"}", XContentType.JSON)
         );
 
         // using sort mode = max, values B and C will be used for the sort
@@ -126,10 +127,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                     .sort("id", SortOrder.DESC) // will be ignored
             );
 
-        SearchResponse response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 2L);
-        assertOrderedSearchHits(response, "1", "2");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 2L);
+            assertOrderedSearchHits(response, "1", "2");
+        });
 
         // same thing, using different sort mode that will use a for both docs
         request = new SearchRequest().indices(index)
@@ -141,10 +143,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                     .sort("id", SortOrder.DESC) // will NOT be ignored and will determine order
             );
 
-        response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 2L);
-        assertOrderedSearchHits(response, "2", "1");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 2L);
+            assertOrderedSearchHits(response, "2", "1");
+        });
     }
 
     /*
@@ -169,12 +172,12 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         indexRandom(
             true,
-            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
-            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
+            prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
+            prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         // searching for either of the terms should return both results since they collate to the same value
@@ -186,10 +189,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                     .sort("id", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
 
-        SearchResponse response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 2L);
-        assertOrderedSearchHits(response, "2", "1");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 2L);
+            assertOrderedSearchHits(response, "2", "1");
+        });
     }
 
     /*
@@ -214,12 +218,12 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         indexRandom(
             true,
-            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
-            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
+            prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
+            prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest().indices(index)
@@ -230,10 +234,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                     .sort("id", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
 
-        SearchResponse response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 2L);
-        assertOrderedSearchHits(response, "2", "1");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 2L);
+            assertOrderedSearchHits(response, "2", "1");
+        });
     }
 
     /*
@@ -259,12 +264,12 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         indexRandom(
             true,
-            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
-            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
+            prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
+            prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest().indices(index)
@@ -275,10 +280,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                     .sort("id", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
 
-        SearchResponse response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 2L);
-        assertOrderedSearchHits(response, "2", "1");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 2L);
+            assertOrderedSearchHits(response, "2", "1");
+        });
     }
 
     /*
@@ -304,13 +310,13 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         indexRandom(
             true,
-            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"foo bar\"}", XContentType.JSON),
-            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"foobar\"}", XContentType.JSON),
-            client().prepareIndex(index).setId("3").setSource("{\"id\":\"3\",\"collate\":\"foo-bar\"}", XContentType.JSON)
+            prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"foo bar\"}", XContentType.JSON),
+            prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"foobar\"}", XContentType.JSON),
+            prepareIndex(index).setId("3").setSource("{\"id\":\"3\",\"collate\":\"foo-bar\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest().indices(index)
@@ -321,10 +327,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                     .sort("id", SortOrder.ASC)
             );
 
-        SearchResponse response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 3L);
-        assertOrderedSearchHits(response, "3", "1", "2");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 3L);
+            assertOrderedSearchHits(response, "3", "1", "2");
+        });
     }
 
     /*
@@ -345,19 +352,20 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
-        indexRandom(true, client().prepareIndex(index).setId("1").setSource("""
-            {"collate":"foobar-10"}""", XContentType.JSON), client().prepareIndex(index).setId("2").setSource("""
+        indexRandom(true, prepareIndex(index).setId("1").setSource("""
+            {"collate":"foobar-10"}""", XContentType.JSON), prepareIndex(index).setId("2").setSource("""
             {"collate":"foobar-9"}""", XContentType.JSON));
 
         SearchRequest request = new SearchRequest().indices(index)
             .source(new SearchSourceBuilder().fetchSource(false).sort("collate", SortOrder.ASC));
 
-        SearchResponse response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 2L);
-        assertOrderedSearchHits(response, "2", "1");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 2L);
+            assertOrderedSearchHits(response, "2", "1");
+        });
     }
 
     /*
@@ -382,21 +390,22 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
-        indexRandom(true, client().prepareIndex(index).setId("1").setSource("""
-            {"id":"1","collate":"résumé"}""", XContentType.JSON), client().prepareIndex(index).setId("2").setSource("""
-            {"id":"2","collate":"Resume"}""", XContentType.JSON), client().prepareIndex(index).setId("3").setSource("""
-            {"id":"3","collate":"resume"}""", XContentType.JSON), client().prepareIndex(index).setId("4").setSource("""
+        indexRandom(true, prepareIndex(index).setId("1").setSource("""
+            {"id":"1","collate":"résumé"}""", XContentType.JSON), prepareIndex(index).setId("2").setSource("""
+            {"id":"2","collate":"Resume"}""", XContentType.JSON), prepareIndex(index).setId("3").setSource("""
+            {"id":"3","collate":"resume"}""", XContentType.JSON), prepareIndex(index).setId("4").setSource("""
             {"id":"4","collate":"Résumé"}""", XContentType.JSON));
 
         SearchRequest request = new SearchRequest().indices(index)
             .source(new SearchSourceBuilder().fetchSource(false).sort("collate", SortOrder.ASC).sort("id", SortOrder.DESC));
 
-        SearchResponse response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 4L);
-        assertOrderedSearchHits(response, "3", "1", "4", "2");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 4L);
+            assertOrderedSearchHits(response, "3", "1", "4", "2");
+        });
     }
 
     /*
@@ -418,21 +427,22 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         indexRandom(
             true,
-            client().prepareIndex(index).setId("1").setSource("{\"collate\":\"resume\"}", XContentType.JSON),
-            client().prepareIndex(index).setId("2").setSource("{\"collate\":\"Resume\"}", XContentType.JSON)
+            prepareIndex(index).setId("1").setSource("{\"collate\":\"resume\"}", XContentType.JSON),
+            prepareIndex(index).setId("2").setSource("{\"collate\":\"Resume\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest().indices(index)
             .source(new SearchSourceBuilder().fetchSource(false).sort("collate", SortOrder.ASC));
 
-        SearchResponse response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 2L);
-        assertOrderedSearchHits(response, "2", "1");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 2L);
+            assertOrderedSearchHits(response, "2", "1");
+        });
     }
 
     /*
@@ -466,12 +476,12 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         indexRandom(
             true,
-            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
-            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
+            prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
+            prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest().indices(index)
@@ -482,9 +492,10 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                     .sort("id", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
 
-        SearchResponse response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 2L);
-        assertOrderedSearchHits(response, "2", "1");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 2L);
+            assertOrderedSearchHits(response, "2", "1");
+        });
     }
 }

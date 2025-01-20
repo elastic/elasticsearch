@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.template;
@@ -24,9 +25,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class IndexTemplateBlocksIT extends ESIntegTestCase {
     public void testIndexTemplatesWithBlocks() throws IOException {
         // creates a simple index template
-        client().admin()
-            .indices()
-            .preparePutTemplate("template_blocks")
+        indicesAdmin().preparePutTemplate("template_blocks")
             .setPatterns(Collections.singletonList("te*"))
             .setOrder(0)
             .setMapping(
@@ -46,25 +45,22 @@ public class IndexTemplateBlocksIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
 
         try {
             setClusterReadOnly(true);
 
-            GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates("template_blocks").execute().actionGet();
+            GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT, "template_blocks").get();
             assertThat(response.getIndexTemplates(), hasSize(1));
 
             assertBlocked(
-                client().admin()
-                    .indices()
-                    .preparePutTemplate("template_blocks_2")
+                indicesAdmin().preparePutTemplate("template_blocks_2")
                     .setPatterns(Collections.singletonList("block*"))
                     .setOrder(0)
                     .addAlias(new Alias("alias_1"))
             );
 
-            assertBlocked(client().admin().indices().prepareDeleteTemplate("template_blocks"));
+            assertBlocked(indicesAdmin().prepareDeleteTemplate("template_blocks"));
 
         } finally {
             setClusterReadOnly(false);

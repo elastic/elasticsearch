@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -20,7 +20,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -37,14 +37,15 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
-abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetricsAggregation> extends ESIntegTestCase {
+abstract class BucketMetricsPipeLineAggregationTestCase<T extends InternalNumericMetricsAggregation> extends ESIntegTestCase {
 
     static final String SINGLE_VALUED_FIELD_NAME = "l_value";
 
@@ -77,7 +78,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").setMapping("tag", "type=keyword").get());
+        assertAcked(indicesAdmin().prepareCreate("idx").setMapping("tag", "type=keyword").get());
         createIndex("idx_unmapped");
 
         numDocs = randomIntBetween(6, 20);
@@ -94,13 +95,9 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(minRandomValue, maxRandomValue);
             builders.add(
-                client().prepareIndex("idx")
-                    .setSource(
-                        jsonBuilder().startObject()
-                            .field(SINGLE_VALUED_FIELD_NAME, fieldValue)
-                            .field("tag", "tag" + (i % interval))
-                            .endObject()
-                    )
+                prepareIndex("idx").setSource(
+                    jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, fieldValue).field("tag", "tag" + (i % interval)).endObject()
+                )
             );
             final int bucket = (fieldValue / interval); // + (fieldValue < 0 ? -1 : 0) - (minRandomValue / interval - 1);
             valueCounts[bucket]++;
@@ -109,8 +106,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
         assertAcked(prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx")
-                    .setId("" + i)
+                prepareIndex("empty_bucket_idx").setId("" + i)
                     .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject())
             );
         }
@@ -127,38 +123,36 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
     }
 
     public void testDocCountTopLevel() {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").addAggregation(
                 histogram(histoName).field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
-            )
-            .addAggregation(BucketMetricsPipelineAgg("pipeline_agg", histoName + ">_count"))
-            .get();
+            ).addAggregation(BucketMetricsPipelineAgg("pipeline_agg", histoName + ">_count")),
+            response -> {
+                Histogram histo = response.getAggregations().get(histoName);
+                assertThat(histo, notNullValue());
+                assertThat(histo.getName(), equalTo(histoName));
+                List<? extends Histogram.Bucket> buckets = histo.getBuckets();
+                assertThat(buckets.size(), equalTo(numValueBuckets));
 
-        assertSearchResponse(response);
+                for (int i = 0; i < numValueBuckets; ++i) {
+                    Histogram.Bucket bucket = buckets.get(i);
+                    assertThat(bucket, notNullValue());
+                    assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
+                    assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
+                }
 
-        Histogram histo = response.getAggregations().get(histoName);
-        assertThat(histo, notNullValue());
-        assertThat(histo.getName(), equalTo(histoName));
-        List<? extends Histogram.Bucket> buckets = histo.getBuckets();
-        assertThat(buckets.size(), equalTo(numValueBuckets));
+                T pipelineBucket = response.getAggregations().get("pipeline_agg");
+                assertThat(pipelineBucket, notNullValue());
+                assertThat(pipelineBucket.getName(), equalTo("pipeline_agg"));
 
-        for (int i = 0; i < numValueBuckets; ++i) {
-            Histogram.Bucket bucket = buckets.get(i);
-            assertThat(bucket, notNullValue());
-            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
-            assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
-        }
-
-        T pipelineBucket = response.getAggregations().get("pipeline_agg");
-        assertThat(pipelineBucket, notNullValue());
-        assertThat(pipelineBucket.getName(), equalTo("pipeline_agg"));
-
-        assertResult((i) -> buckets.get(i).getDocCount(), (i) -> buckets.get(i).getKeyAsString(), numValueBuckets, pipelineBucket);
+                assertResult((i) -> buckets.get(i).getDocCount(), (i) -> buckets.get(i).getKeyAsString(), numValueBuckets, pipelineBucket);
+            }
+        );
     }
 
     public void testDocCountAsSubAgg() {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").addAggregation(
                 terms(termsName).field("tag")
                     .order(BucketOrder.key(true))
                     .subAggregation(
@@ -167,77 +161,80 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
                             .extendedBounds(minRandomValue, maxRandomValue)
                     )
                     .subAggregation(BucketMetricsPipelineAgg("pipeline_agg", histoName + ">_count"))
-            )
-            .get();
+            ),
+            response -> {
+                Terms terms = response.getAggregations().get(termsName);
+                assertThat(terms, notNullValue());
+                assertThat(terms.getName(), equalTo(termsName));
+                List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
+                assertThat(termsBuckets.size(), equalTo(interval));
 
-        assertSearchResponse(response);
+                for (int i = 0; i < interval; ++i) {
+                    Terms.Bucket termsBucket = termsBuckets.get(i);
+                    assertThat(termsBucket, notNullValue());
+                    assertThat((String) termsBucket.getKey(), equalTo("tag" + (i % interval)));
 
-        Terms terms = response.getAggregations().get(termsName);
-        assertThat(terms, notNullValue());
-        assertThat(terms.getName(), equalTo(termsName));
-        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
-        assertThat(termsBuckets.size(), equalTo(interval));
+                    Histogram histo = termsBucket.getAggregations().get(histoName);
+                    assertThat(histo, notNullValue());
+                    assertThat(histo.getName(), equalTo(histoName));
+                    List<? extends Histogram.Bucket> buckets = histo.getBuckets();
 
-        for (int i = 0; i < interval; ++i) {
-            Terms.Bucket termsBucket = termsBuckets.get(i);
-            assertThat(termsBucket, notNullValue());
-            assertThat((String) termsBucket.getKey(), equalTo("tag" + (i % interval)));
+                    for (int j = 0; j < numValueBuckets; ++j) {
+                        Histogram.Bucket bucket = buckets.get(j);
+                        assertThat(bucket, notNullValue());
+                        assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) j * interval));
+                    }
 
-            Histogram histo = termsBucket.getAggregations().get(histoName);
-            assertThat(histo, notNullValue());
-            assertThat(histo.getName(), equalTo(histoName));
-            List<? extends Histogram.Bucket> buckets = histo.getBuckets();
+                    T pipelineBucket = termsBucket.getAggregations().get("pipeline_agg");
+                    assertThat(pipelineBucket, notNullValue());
+                    assertThat(pipelineBucket.getName(), equalTo("pipeline_agg"));
 
-            for (int j = 0; j < numValueBuckets; ++j) {
-                Histogram.Bucket bucket = buckets.get(j);
-                assertThat(bucket, notNullValue());
-                assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) j * interval));
+                    assertResult(
+                        (k) -> buckets.get(k).getDocCount(),
+                        (k) -> buckets.get(k).getKeyAsString(),
+                        numValueBuckets,
+                        pipelineBucket
+                    );
+                }
             }
-
-            T pipelineBucket = termsBucket.getAggregations().get("pipeline_agg");
-            assertThat(pipelineBucket, notNullValue());
-            assertThat(pipelineBucket.getName(), equalTo("pipeline_agg"));
-
-            assertResult((k) -> buckets.get(k).getDocCount(), (k) -> buckets.get(k).getKeyAsString(), numValueBuckets, pipelineBucket);
-        }
+        );
     }
 
     public void testMetricTopLevel() {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(terms(termsName).field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-            .addAggregation(BucketMetricsPipelineAgg("pipeline_agg", termsName + ">sum"))
-            .get();
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").addAggregation(terms(termsName).field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
+                .addAggregation(BucketMetricsPipelineAgg("pipeline_agg", termsName + ">sum")),
+            response -> {
+                Terms terms = response.getAggregations().get(termsName);
+                assertThat(terms, notNullValue());
+                assertThat(terms.getName(), equalTo(termsName));
+                List<? extends Terms.Bucket> buckets = terms.getBuckets();
+                assertThat(buckets.size(), equalTo(interval));
 
-        assertSearchResponse(response);
+                for (int i = 0; i < interval; ++i) {
+                    Terms.Bucket bucket = buckets.get(i);
+                    assertThat(bucket, notNullValue());
+                    assertThat((String) bucket.getKey(), equalTo("tag" + (i % interval)));
+                    assertThat(bucket.getDocCount(), greaterThan(0L));
+                }
 
-        Terms terms = response.getAggregations().get(termsName);
-        assertThat(terms, notNullValue());
-        assertThat(terms.getName(), equalTo(termsName));
-        List<? extends Terms.Bucket> buckets = terms.getBuckets();
-        assertThat(buckets.size(), equalTo(interval));
+                T pipelineBucket = response.getAggregations().get("pipeline_agg");
+                assertThat(pipelineBucket, notNullValue());
+                assertThat(pipelineBucket.getName(), equalTo("pipeline_agg"));
 
-        for (int i = 0; i < interval; ++i) {
-            Terms.Bucket bucket = buckets.get(i);
-            assertThat(bucket, notNullValue());
-            assertThat((String) bucket.getKey(), equalTo("tag" + (i % interval)));
-            assertThat(bucket.getDocCount(), greaterThan(0L));
-        }
-
-        T pipelineBucket = response.getAggregations().get("pipeline_agg");
-        assertThat(pipelineBucket, notNullValue());
-        assertThat(pipelineBucket.getName(), equalTo("pipeline_agg"));
-
-        IntToDoubleFunction function = (i) -> {
-            Sum sum = buckets.get(i).getAggregations().get("sum");
-            assertThat(sum, notNullValue());
-            return sum.value();
-        };
-        assertResult(function, (i) -> buckets.get(i).getKeyAsString(), interval, pipelineBucket);
+                IntToDoubleFunction function = (i) -> {
+                    Sum sum = buckets.get(i).getAggregations().get("sum");
+                    assertThat(sum, notNullValue());
+                    return sum.value();
+                };
+                assertResult(function, (i) -> buckets.get(i).getKeyAsString(), interval, pipelineBucket);
+            }
+        );
     }
 
     public void testMetricAsSubAgg() {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").addAggregation(
                 terms(termsName).field("tag")
                     .order(BucketOrder.key(true))
                     .subAggregation(
@@ -247,53 +244,52 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
                             .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
                     )
                     .subAggregation(BucketMetricsPipelineAgg("pipeline_agg", histoName + ">sum"))
-            )
-            .get();
+            ),
+            response -> {
+                Terms terms = response.getAggregations().get(termsName);
+                assertThat(terms, notNullValue());
+                assertThat(terms.getName(), equalTo(termsName));
+                List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
+                assertThat(termsBuckets.size(), equalTo(interval));
 
-        assertSearchResponse(response);
+                for (int i = 0; i < interval; ++i) {
+                    Terms.Bucket termsBucket = termsBuckets.get(i);
+                    assertThat(termsBucket, notNullValue());
+                    assertThat((String) termsBucket.getKey(), equalTo("tag" + (i % interval)));
 
-        Terms terms = response.getAggregations().get(termsName);
-        assertThat(terms, notNullValue());
-        assertThat(terms.getName(), equalTo(termsName));
-        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
-        assertThat(termsBuckets.size(), equalTo(interval));
+                    Histogram histo = termsBucket.getAggregations().get(histoName);
+                    assertThat(histo, notNullValue());
+                    assertThat(histo.getName(), equalTo(histoName));
+                    List<? extends Histogram.Bucket> buckets = histo.getBuckets();
 
-        for (int i = 0; i < interval; ++i) {
-            Terms.Bucket termsBucket = termsBuckets.get(i);
-            assertThat(termsBucket, notNullValue());
-            assertThat((String) termsBucket.getKey(), equalTo("tag" + (i % interval)));
+                    List<Histogram.Bucket> notNullBuckets = new ArrayList<>();
+                    for (int j = 0; j < numValueBuckets; ++j) {
+                        Histogram.Bucket bucket = buckets.get(j);
+                        assertThat(bucket, notNullValue());
+                        assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) j * interval));
+                        if (bucket.getDocCount() != 0) {
+                            notNullBuckets.add(bucket);
+                        }
+                    }
 
-            Histogram histo = termsBucket.getAggregations().get(histoName);
-            assertThat(histo, notNullValue());
-            assertThat(histo.getName(), equalTo(histoName));
-            List<? extends Histogram.Bucket> buckets = histo.getBuckets();
+                    T pipelineBucket = termsBucket.getAggregations().get("pipeline_agg");
+                    assertThat(pipelineBucket, notNullValue());
+                    assertThat(pipelineBucket.getName(), equalTo("pipeline_agg"));
 
-            List<Histogram.Bucket> notNullBuckets = new ArrayList<>();
-            for (int j = 0; j < numValueBuckets; ++j) {
-                Histogram.Bucket bucket = buckets.get(j);
-                assertThat(bucket, notNullValue());
-                assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) j * interval));
-                if (bucket.getDocCount() != 0) {
-                    notNullBuckets.add(bucket);
+                    IntToDoubleFunction function = (k) -> {
+                        Sum sum = notNullBuckets.get(k).getAggregations().get("sum");
+                        assertThat(sum, notNullValue());
+                        return sum.value();
+                    };
+                    assertResult(function, (k) -> notNullBuckets.get(k).getKeyAsString(), notNullBuckets.size(), pipelineBucket);
                 }
             }
-
-            T pipelineBucket = termsBucket.getAggregations().get("pipeline_agg");
-            assertThat(pipelineBucket, notNullValue());
-            assertThat(pipelineBucket.getName(), equalTo("pipeline_agg"));
-
-            IntToDoubleFunction function = (k) -> {
-                Sum sum = notNullBuckets.get(k).getAggregations().get("sum");
-                assertThat(sum, notNullValue());
-                return sum.value();
-            };
-            assertResult(function, (k) -> notNullBuckets.get(k).getKeyAsString(), notNullBuckets.size(), pipelineBucket);
-        }
+        );
     }
 
     public void testMetricAsSubAggWithInsertZeros() {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").addAggregation(
                 terms(termsName).field("tag")
                     .order(BucketOrder.key(true))
                     .subAggregation(
@@ -305,74 +301,71 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
                     .subAggregation(
                         BucketMetricsPipelineAgg("pipeline_agg", histoName + ">sum").gapPolicy(BucketHelpers.GapPolicy.INSERT_ZEROS)
                     )
-            )
-            .get();
+            ),
+            response -> {
+                Terms terms = response.getAggregations().get(termsName);
+                assertThat(terms, notNullValue());
+                assertThat(terms.getName(), equalTo(termsName));
+                List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
+                assertThat(termsBuckets.size(), equalTo(interval));
 
-        assertSearchResponse(response);
+                for (int i = 0; i < interval; ++i) {
+                    Terms.Bucket termsBucket = termsBuckets.get(i);
+                    assertThat(termsBucket, notNullValue());
+                    assertThat((String) termsBucket.getKey(), equalTo("tag" + (i % interval)));
 
-        Terms terms = response.getAggregations().get(termsName);
-        assertThat(terms, notNullValue());
-        assertThat(terms.getName(), equalTo(termsName));
-        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
-        assertThat(termsBuckets.size(), equalTo(interval));
+                    Histogram histo = termsBucket.getAggregations().get(histoName);
+                    assertThat(histo, notNullValue());
+                    assertThat(histo.getName(), equalTo(histoName));
+                    List<? extends Histogram.Bucket> buckets = histo.getBuckets();
 
-        for (int i = 0; i < interval; ++i) {
-            Terms.Bucket termsBucket = termsBuckets.get(i);
-            assertThat(termsBucket, notNullValue());
-            assertThat((String) termsBucket.getKey(), equalTo("tag" + (i % interval)));
+                    for (int j = 0; j < numValueBuckets; ++j) {
+                        Histogram.Bucket bucket = buckets.get(j);
+                        assertThat(bucket, notNullValue());
+                        assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) j * interval));
+                    }
 
-            Histogram histo = termsBucket.getAggregations().get(histoName);
-            assertThat(histo, notNullValue());
-            assertThat(histo.getName(), equalTo(histoName));
-            List<? extends Histogram.Bucket> buckets = histo.getBuckets();
+                    T pipelineBucket = termsBucket.getAggregations().get("pipeline_agg");
+                    assertThat(pipelineBucket, notNullValue());
+                    assertThat(pipelineBucket.getName(), equalTo("pipeline_agg"));
 
-            for (int j = 0; j < numValueBuckets; ++j) {
-                Histogram.Bucket bucket = buckets.get(j);
-                assertThat(bucket, notNullValue());
-                assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) j * interval));
+                    IntToDoubleFunction function = (k) -> {
+                        Sum sum = buckets.get(k).getAggregations().get("sum");
+                        assertThat(sum, notNullValue());
+                        return sum.value();
+                    };
+                    assertResult(function, (k) -> buckets.get(k).getKeyAsString(), numValueBuckets, pipelineBucket);
+                }
             }
-
-            T pipelineBucket = termsBucket.getAggregations().get("pipeline_agg");
-            assertThat(pipelineBucket, notNullValue());
-            assertThat(pipelineBucket.getName(), equalTo("pipeline_agg"));
-
-            IntToDoubleFunction function = (k) -> {
-                Sum sum = buckets.get(k).getAggregations().get("sum");
-                assertThat(sum, notNullValue());
-                return sum.value();
-            };
-            assertResult(function, (k) -> buckets.get(k).getKeyAsString(), numValueBuckets, pipelineBucket);
-        }
+        );
     }
 
     public void testNoBuckets() {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").addAggregation(
                 terms(termsName).field("tag")
                     .includeExclude(new IncludeExclude(null, "tag.*", null, null))
                     .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
-            )
-            .addAggregation(BucketMetricsPipelineAgg("pipeline_agg", termsName + ">sum"))
-            .get();
+            ).addAggregation(BucketMetricsPipelineAgg("pipeline_agg", termsName + ">sum")),
+            response -> {
+                Terms terms = response.getAggregations().get(termsName);
+                assertThat(terms, notNullValue());
+                assertThat(terms.getName(), equalTo(termsName));
+                List<? extends Terms.Bucket> buckets = terms.getBuckets();
+                assertThat(buckets.size(), equalTo(0));
 
-        assertSearchResponse(response);
+                T pipelineBucket = response.getAggregations().get("pipeline_agg");
+                assertThat(pipelineBucket, notNullValue());
+                assertThat(pipelineBucket.getName(), equalTo("pipeline_agg"));
 
-        Terms terms = response.getAggregations().get(termsName);
-        assertThat(terms, notNullValue());
-        assertThat(terms.getName(), equalTo(termsName));
-        List<? extends Terms.Bucket> buckets = terms.getBuckets();
-        assertThat(buckets.size(), equalTo(0));
-
-        T pipelineBucket = response.getAggregations().get("pipeline_agg");
-        assertThat(pipelineBucket, notNullValue());
-        assertThat(pipelineBucket.getName(), equalTo("pipeline_agg"));
-
-        assertResult((k) -> 0.0, (k) -> "", 0, pipelineBucket);
+                assertResult((k) -> 0.0, (k) -> "", 0, pipelineBucket);
+            }
+        );
     }
 
     public void testNested() {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").addAggregation(
                 terms(termsName).field("tag")
                     .order(BucketOrder.key(true))
                     .subAggregation(
@@ -381,50 +374,53 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
                             .extendedBounds(minRandomValue, maxRandomValue)
                     )
                     .subAggregation(BucketMetricsPipelineAgg("nested_histo_bucket", histoName + ">_count"))
-            )
-            .addAggregation(BucketMetricsPipelineAgg("nested_terms_bucket", termsName + ">nested_histo_bucket." + nestedMetric()))
-            .get();
+            ).addAggregation(BucketMetricsPipelineAgg("nested_terms_bucket", termsName + ">nested_histo_bucket." + nestedMetric())),
+            response -> {
+                Terms terms = response.getAggregations().get(termsName);
+                assertThat(terms, notNullValue());
+                assertThat(terms.getName(), equalTo(termsName));
+                List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
+                assertThat(termsBuckets.size(), equalTo(interval));
 
-        assertSearchResponse(response);
+                List<T> allBuckets = new ArrayList<>();
+                List<String> nestedTags = new ArrayList<>();
+                for (int i = 0; i < interval; ++i) {
+                    Terms.Bucket termsBucket = termsBuckets.get(i);
+                    assertThat(termsBucket, notNullValue());
+                    assertThat((String) termsBucket.getKey(), equalTo("tag" + (i % interval)));
 
-        Terms terms = response.getAggregations().get(termsName);
-        assertThat(terms, notNullValue());
-        assertThat(terms.getName(), equalTo(termsName));
-        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
-        assertThat(termsBuckets.size(), equalTo(interval));
+                    Histogram histo = termsBucket.getAggregations().get(histoName);
+                    assertThat(histo, notNullValue());
+                    assertThat(histo.getName(), equalTo(histoName));
+                    List<? extends Histogram.Bucket> buckets = histo.getBuckets();
 
-        List<T> allBuckets = new ArrayList<>();
-        List<String> nestedTags = new ArrayList<>();
-        for (int i = 0; i < interval; ++i) {
-            Terms.Bucket termsBucket = termsBuckets.get(i);
-            assertThat(termsBucket, notNullValue());
-            assertThat((String) termsBucket.getKey(), equalTo("tag" + (i % interval)));
+                    for (int j = 0; j < numValueBuckets; ++j) {
+                        Histogram.Bucket bucket = buckets.get(j);
+                        assertThat(bucket, notNullValue());
+                        assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) j * interval));
+                    }
 
-            Histogram histo = termsBucket.getAggregations().get(histoName);
-            assertThat(histo, notNullValue());
-            assertThat(histo.getName(), equalTo(histoName));
-            List<? extends Histogram.Bucket> buckets = histo.getBuckets();
+                    T pipelineBucket = termsBucket.getAggregations().get("nested_histo_bucket");
+                    assertThat(pipelineBucket, notNullValue());
+                    assertThat(pipelineBucket.getName(), equalTo("nested_histo_bucket"));
 
-            for (int j = 0; j < numValueBuckets; ++j) {
-                Histogram.Bucket bucket = buckets.get(j);
-                assertThat(bucket, notNullValue());
-                assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) j * interval));
+                    assertResult(
+                        (k) -> buckets.get(k).getDocCount(),
+                        (k) -> buckets.get(k).getKeyAsString(),
+                        numValueBuckets,
+                        pipelineBucket
+                    );
+                    allBuckets.add(pipelineBucket);
+                    nestedTags.add(termsBucket.getKeyAsString());
+                }
+
+                T pipelineBucket = response.getAggregations().get("nested_terms_bucket");
+                assertThat(pipelineBucket, notNullValue());
+                assertThat(pipelineBucket.getName(), equalTo("nested_terms_bucket"));
+
+                assertResult((k) -> getNestedMetric(allBuckets.get(k)), (k) -> nestedTags.get(k), allBuckets.size(), pipelineBucket);
             }
-
-            T pipelineBucket = termsBucket.getAggregations().get("nested_histo_bucket");
-            assertThat(pipelineBucket, notNullValue());
-            assertThat(pipelineBucket.getName(), equalTo("nested_histo_bucket"));
-
-            assertResult((k) -> buckets.get(k).getDocCount(), (k) -> buckets.get(k).getKeyAsString(), numValueBuckets, pipelineBucket);
-            allBuckets.add(pipelineBucket);
-            nestedTags.add(termsBucket.getKeyAsString());
-        }
-
-        T pipelineBucket = response.getAggregations().get("nested_terms_bucket");
-        assertThat(pipelineBucket, notNullValue());
-        assertThat(pipelineBucket.getName(), equalTo("nested_terms_bucket"));
-
-        assertResult((k) -> getNestedMetric(allBuckets.get(k)), (k) -> nestedTags.get(k), allBuckets.size(), pipelineBucket);
+        );
     }
 
     /**
@@ -465,7 +461,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
             .endObject()
           .endObject();
         // end::noformat
-        assertAcked(client().admin().indices().prepareCreate("foo_2").setMapping(builder).get());
+        assertAcked(indicesAdmin().prepareCreate("foo_2").setMapping(builder).get());
         // tag::noformat
         XContentBuilder docBuilder = jsonBuilder().startObject()
             .startObject("license")
@@ -475,9 +471,9 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
             .field("@timestamp", "2018-07-08T08:07:00.599Z")
           .endObject();
         // end::noformat
-        client().prepareIndex("foo_2").setSource(docBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        prepareIndex("foo_2").setSource(docBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
-        client().admin().indices().prepareRefresh();
+        indicesAdmin().prepareRefresh();
 
         TermsAggregationBuilder groupByLicenseAgg = terms("group_by_license_partnumber").field("license.partnumber.keyword");
 
@@ -488,8 +484,9 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
         groupByLicenseAgg.subAggregation(licensePerDayBuilder);
         groupByLicenseAgg.subAggregation(BucketMetricsPipelineAgg("peak", "licenses_per_day>total_licenses"));
 
-        SearchResponse response = client().prepareSearch("foo_*").setSize(0).addAggregation(groupByLicenseAgg).get();
-        BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON, false);
-        XContentHelper.convertToMap(bytes, false, XContentType.JSON);
+        assertCheckedResponse(prepareSearch("foo_*").setSize(0).addAggregation(groupByLicenseAgg), response -> {
+            BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON, false);
+            XContentHelper.convertToMap(bytes, false, XContentType.JSON);
+        });
     }
 }

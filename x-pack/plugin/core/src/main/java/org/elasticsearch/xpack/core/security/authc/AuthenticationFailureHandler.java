@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.transport.TransportMessage;
 
 /**
@@ -39,7 +39,7 @@ public interface AuthenticationFailureHandler {
      * @param context The context of the request that failed authentication that could not be authenticated
      * @return ElasticsearchSecurityException with the appropriate headers and message
      */
-    ElasticsearchSecurityException failedAuthentication(RestRequest request, AuthenticationToken token, ThreadContext context);
+    ElasticsearchSecurityException failedAuthentication(HttpPreRequest request, AuthenticationToken token, ThreadContext context);
 
     /**
      * This method is called when there has been an authentication failure for the given message and token
@@ -66,7 +66,7 @@ public interface AuthenticationFailureHandler {
      * @param context The context of the request that failed authentication that could not be authenticated
      * @return ElasticsearchSecurityException with the appropriate headers and message
      */
-    ElasticsearchSecurityException exceptionProcessingRequest(RestRequest request, Exception e, ThreadContext context);
+    ElasticsearchSecurityException exceptionProcessingRequest(HttpPreRequest request, Exception e, ThreadContext context);
 
     /**
      * The method is called when an exception has occurred while processing the transport message. This could be an error that
@@ -88,7 +88,7 @@ public interface AuthenticationFailureHandler {
      * @param context The context of the request that failed authentication that could not be authenticated
      * @return ElasticsearchSecurityException with the appropriate headers and message
      */
-    ElasticsearchSecurityException missingToken(RestRequest request, ThreadContext context);
+    ElasticsearchSecurityException missingToken(HttpPreRequest request, ThreadContext context);
 
     /**
      * This method is called when a transport message is received and no authentication token could be extracted AND

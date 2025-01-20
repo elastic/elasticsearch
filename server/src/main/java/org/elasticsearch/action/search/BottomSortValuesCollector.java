@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.search.DocValueFormat;
@@ -35,7 +37,7 @@ class BottomSortValuesCollector {
         this.reverseMuls = new int[sortFields.length];
         this.sortFields = sortFields;
         for (int i = 0; i < sortFields.length; i++) {
-            comparators[i] = sortFields[i].getComparator(1, false);
+            comparators[i] = sortFields[i].getComparator(1, Pruning.NONE);
             reverseMuls[i] = sortFields[i].getReverse() ? -1 : 1;
         }
     }
@@ -52,7 +54,7 @@ class BottomSortValuesCollector {
     }
 
     synchronized void consumeTopDocs(TopFieldDocs topDocs, DocValueFormat[] sortValuesFormat) {
-        totalHits += topDocs.totalHits.value;
+        totalHits += topDocs.totalHits.value();
         if (validateShardSortFields(topDocs.fields) == false) {
             return;
         }

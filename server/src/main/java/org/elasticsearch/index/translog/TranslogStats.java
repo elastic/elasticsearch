@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.translog;
 
@@ -16,6 +17,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class TranslogStats implements Writeable, ToXContentFragment {
 
@@ -106,9 +108,9 @@ public class TranslogStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("translog");
         builder.field("operations", numberOfOperations);
-        builder.humanReadableField("size_in_bytes", "size", new ByteSizeValue(translogSizeInBytes));
+        builder.humanReadableField("size_in_bytes", "size", ByteSizeValue.ofBytes(translogSizeInBytes));
         builder.field("uncommitted_operations", uncommittedOperations);
-        builder.humanReadableField("uncommitted_size_in_bytes", "uncommitted_size", new ByteSizeValue(uncommittedSizeInBytes));
+        builder.humanReadableField("uncommitted_size_in_bytes", "uncommitted_size", ByteSizeValue.ofBytes(uncommittedSizeInBytes));
         builder.field("earliest_last_modified_age", earliestLastModifiedAge);
         builder.endObject();
         return builder;
@@ -126,5 +128,28 @@ public class TranslogStats implements Writeable, ToXContentFragment {
         out.writeVInt(uncommittedOperations);
         out.writeVLong(uncommittedSizeInBytes);
         out.writeVLong(earliestLastModifiedAge);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TranslogStats that = (TranslogStats) o;
+        return numberOfOperations == that.numberOfOperations
+            && translogSizeInBytes == that.translogSizeInBytes
+            && uncommittedOperations == that.uncommittedOperations
+            && uncommittedSizeInBytes == that.uncommittedSizeInBytes
+            && earliestLastModifiedAge == that.earliestLastModifiedAge;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            numberOfOperations,
+            translogSizeInBytes,
+            uncommittedOperations,
+            uncommittedSizeInBytes,
+            earliestLastModifiedAge
+        );
     }
 }

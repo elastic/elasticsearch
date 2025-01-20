@@ -60,7 +60,7 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
         return true;
     }
 
-    private void handleText(CliTerminal terminal, String str) {
+    private static void handleText(CliTerminal terminal, String str) {
         terminal.print(str);
     }
 }

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.common.validation;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -70,8 +70,8 @@ public final class SourceDestValidator {
     public static final String REMOTE_CLUSTER_LICENSE_INACTIVE = "License check failed for remote cluster "
         + "alias [{0}], license is not active";
     public static final String REMOTE_SOURCE_INDICES_NOT_SUPPORTED = "remote source indices are not supported";
-    public static final String REMOTE_CLUSTERS_TOO_OLD =
-        "remote clusters are expected to run at least version [{0}] (reason: [{1}]), but the following clusters were too old: [{2}]";
+    public static final String REMOTE_CLUSTERS_TRANSPORT_TOO_OLD =
+        "remote clusters are expected to run at least version [{0}] (reason: [{1}])," + " but the following clusters were too old: [{2}]";
     public static final String PIPELINE_MISSING = "Pipeline with id [{0}] could not be found";
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -223,8 +223,8 @@ public final class SourceDestValidator {
         }
 
         // convenience method to make testing easier
-        public Version getRemoteClusterVersion(String cluster) {
-            return remoteClusterService.getConnection(cluster).getVersion();
+        public TransportVersion getRemoteClusterVersion(String cluster) {
+            return remoteClusterService.getConnection(cluster).getTransportVersion();
         }
 
         private void resolveLocalAndRemoteSource() {
@@ -318,19 +318,18 @@ public final class SourceDestValidator {
             license
         );
 
-        ActionListener<Context> validationListener = ActionListener.wrap(c -> {
+        ActionListener<Context> validationListener = listener.delegateFailureAndWrap((l, c) -> {
             if (c.getValidationException() != null) {
-                listener.onFailure(c.getValidationException());
+                l.onFailure(c.getValidationException());
             } else {
-                listener.onResponse(true);
+                l.onResponse(true);
             }
-        }, listener::onFailure);
+        });
 
         // We traverse the validations in reverse order as we chain the listeners from back to front
         for (int i = validations.size() - 1; i >= 0; i--) {
             SourceDestValidation validation = validations.get(i);
-            final ActionListener<Context> previousValidationListener = validationListener;
-            validationListener = ActionListener.wrap(c -> validation.validate(c, previousValidationListener), listener::onFailure);
+            validationListener = validationListener.delegateFailureAndWrap((l, c) -> validation.validate(c, l));
         }
 
         validationListener.onResponse(context);
@@ -449,15 +448,15 @@ public final class SourceDestValidator {
 
     public static class RemoteClusterMinimumVersionValidation implements SourceDestValidation {
 
-        private final Version minExpectedVersion;
+        private final TransportVersion minExpectedVersion;
         private final String reason;
 
-        public RemoteClusterMinimumVersionValidation(Version minExpectedVersion, String reason) {
+        public RemoteClusterMinimumVersionValidation(TransportVersion minExpectedVersion, String reason) {
             this.minExpectedVersion = minExpectedVersion;
             this.reason = reason;
         }
 
-        public Version getMinExpectedVersion() {
+        public TransportVersion getMinExpectedTransportVersion() {
             return minExpectedVersion;
         }
 
@@ -468,7 +467,7 @@ public final class SourceDestValidator {
         @Override
         public void validate(Context context, ActionListener<Context> listener) {
             List<String> remoteIndices = new ArrayList<>(context.resolveRemoteSource());
-            Map<String, Version> remoteClusterVersions;
+            Map<String, TransportVersion> remoteClusterVersions;
             try {
                 List<String> remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(
                     context.getRegisteredRemoteClusterNames(),
@@ -484,19 +483,19 @@ public final class SourceDestValidator {
                 listener.onResponse(context);
                 return;
             }
-            Map<String, Version> oldRemoteClusterVersions = remoteClusterVersions.entrySet()
+            Map<String, TransportVersion> oldRemoteClusterVersions = remoteClusterVersions.entrySet()
                 .stream()
                 .filter(entry -> entry.getValue().before(minExpectedVersion))
                 .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
             if (oldRemoteClusterVersions.isEmpty() == false) {
                 context.addValidationError(
-                    REMOTE_CLUSTERS_TOO_OLD,
-                    minExpectedVersion,
+                    REMOTE_CLUSTERS_TRANSPORT_TOO_OLD,
+                    minExpectedVersion.toReleaseVersion(),
                     reason,
                     oldRemoteClusterVersions.entrySet()
                         .stream()
                         .sorted(comparingByKey())  // sort to have a deterministic order among clusters in the resulting string
-                        .map(e -> e.getKey() + " (" + e.getValue() + ")")
+                        .map(e -> e.getKey() + " (" + e.getValue().toReleaseVersion() + ")")
                         .collect(joining(", "))
                 );
             }

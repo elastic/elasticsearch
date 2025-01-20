@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.coordination;
@@ -17,10 +18,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper;
 import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -36,7 +38,7 @@ public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoA
     public static final String NAME = "internal:cluster/formation/info";
 
     private ClusterFormationInfoAction() {
-        super(NAME, ClusterFormationInfoAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {
@@ -124,7 +126,13 @@ public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoA
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, Coordinator coordinator) {
-            super(ClusterFormationInfoAction.NAME, transportService, actionFilters, ClusterFormationInfoAction.Request::new);
+            super(
+                ClusterFormationInfoAction.NAME,
+                transportService,
+                actionFilters,
+                ClusterFormationInfoAction.Request::new,
+                transportService.getThreadPool().executor(ThreadPool.Names.CLUSTER_COORDINATION)
+            );
             this.coordinator = coordinator;
         }
 

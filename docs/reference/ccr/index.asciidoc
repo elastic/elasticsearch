@@ -54,6 +54,12 @@ https://www.elastic.co/webinars/replicate-elasticsearch-data-with-cross-cluster-
 Then, <<ccr-getting-started-tutorial,set up {ccr}>> on your local machine and work
 through the demo from the webinar.
 
+IMPORTANT: In all of these use cases, you must
+<<manually-configure-security,configure security>> independently on every
+cluster. The security configuration is not replicated when configuring {ccr} for 
+disaster recovery. To ensure that the {es} `security` feature state is backed up,
+<<back-up-specific-feature-state,take snapshots>> regularly. You can then restore
+the native users, roles, and tokens from your security configuration.
 [discrete]
 [[ccr-disaster-recovery]]
 ==== Disaster recovery and high availability
@@ -193,7 +199,7 @@ follower shard pauses
 ==== Processing updates
 You can't manually modify a follower index's mappings or aliases. To make
 changes, you must update the leader index. Because they are read-only, follower
-indices reject writes in all configurations. 
+indices reject writes in all configurations.
 
 NOTE: Although changes to aliases on the leader index are replicated to follower
 indices, write indices are ignored. Follower indices can't accept direct writes,
@@ -307,7 +313,35 @@ and use {ccr}:
 * <<ccr-auto-follow>>
 * <<ccr-upgrading>>
 
+[discrete]
+[[ccr-limitations]]
+=== {ccr-cap} limitations
+{ccr-cap} is designed to replicate user-generated indices only, and doesn't 
+currently replicate any of the following:
+
+* <<system-indices,System indices>>
+* {ml-docs}/machine-learning-intro.html[Machine learning jobs]
+* <<index-templates,index templates>>
+* <<index-lifecycle-management,{ilm-cap}>> and
+<<snapshot-lifecycle-management-api,{slm}>> polices
+* {ref}/mapping-roles.html[User permissions and role mappings]
+* <<snapshots-register-repository,Snapshot repository settings>>
+* <<modules-cluster,Cluster settings>>
+* <<searchable-snapshots,Searchable snapshot>>
+
+If you want to replicate any of this data, you must replicate it to a remote
+cluster manually. 
+
+NOTE: Data for <<searchable-snapshots,searchable snapshot>> indices is stored in 
+the snapshot repository. {ccr-cap} won't replicate these indices completely, even
+though they're either partially or fully-cached on the {es} nodes. To achieve
+searchable snapshots in a remote cluster, configure snapshot repositories on
+the remote cluster and use the same {ilm} policy from the local cluster to move 
+data into the cold or frozen tiers on the remote cluster.
+
 include::getting-started.asciidoc[]
 include::managing.asciidoc[]
 include::auto-follow.asciidoc[]
 include::upgrading.asciidoc[]
+include::uni-directional-disaster-recovery.asciidoc[]
+include::bi-directional-disaster-recovery.asciidoc[]

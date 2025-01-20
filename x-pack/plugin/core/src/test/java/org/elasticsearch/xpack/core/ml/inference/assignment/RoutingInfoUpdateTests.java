@@ -24,6 +24,11 @@ public class RoutingInfoUpdateTests extends AbstractWireSerializingTestCase<Rout
         return randomInstance();
     }
 
+    @Override
+    protected RoutingInfoUpdate mutateInstance(RoutingInfoUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static RoutingInfoUpdate randomInstance() {
         if (randomBoolean()) {
             return RoutingInfoUpdate.updateNumberOfAllocations(randomIntBetween(1, Integer.MAX_VALUE));

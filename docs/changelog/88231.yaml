@@ -1,5 +1,0 @@
-pr: 88231
-summary: Use faster maths to project WGS84 to mercator
-area: Geo
-type: enhancement
-issues: []

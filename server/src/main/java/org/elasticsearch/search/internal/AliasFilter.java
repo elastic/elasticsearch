@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.internal;
@@ -30,14 +31,22 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
 
     public static final AliasFilter EMPTY = new AliasFilter(null, Strings.EMPTY_ARRAY);
 
-    public AliasFilter(QueryBuilder filter, String... aliases) {
+    private AliasFilter(QueryBuilder filter, String... aliases) {
         this.aliases = aliases == null ? Strings.EMPTY_ARRAY : aliases;
         this.filter = filter;
     }
 
-    public AliasFilter(StreamInput input) throws IOException {
-        aliases = input.readStringArray();
-        filter = input.readOptionalNamedWriteable(QueryBuilder.class);
+    public static AliasFilter of(QueryBuilder filter, String... aliases) {
+        if (filter == null && (aliases == null || aliases.length == 0)) {
+            return EMPTY;
+        }
+        return new AliasFilter(filter, aliases);
+    }
+
+    public static AliasFilter readFrom(StreamInput in) throws IOException {
+        final String[] aliases = in.readStringArray();
+        final QueryBuilder filter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        return of(filter, aliases);
     }
 
     @Override

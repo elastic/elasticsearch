@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.routing;
@@ -33,21 +34,17 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         createIndex("test-0");
         createIndex("test-1");
         ensureGreen();
-        client().admin().indices().prepareAliases().addAlias("test-0", "alias-0").addAlias("test-1", "alias-1").get();
-        client().admin().indices().prepareClose("test-1").get();
+        indicesAdmin().prepareAliases().addAlias("test-0", "alias-0").addAlias("test-1", "alias-1").get();
+        indicesAdmin().prepareClose("test-1").get();
         indexRandom(
             true,
-            client().prepareIndex("test-0").setId("1").setSource("field1", "the quick brown fox jumps"),
-            client().prepareIndex("test-0").setId("2").setSource("field1", "quick brown"),
-            client().prepareIndex("test-0").setId("3").setSource("field1", "quick")
+            prepareIndex("test-0").setId("1").setSource("field1", "the quick brown fox jumps"),
+            prepareIndex("test-0").setId("2").setSource("field1", "quick brown"),
+            prepareIndex("test-0").setId("3").setSource("field1", "quick")
         );
         refresh("test-*");
         assertHitCount(
-            client().prepareSearch()
-                .setIndices("alias-*")
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setQuery(queryStringQuery("quick"))
-                .get(),
+            prepareSearch().setIndices("alias-*").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(queryStringQuery("quick")),
             3L
         );
     }
@@ -55,11 +52,9 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
     public void testResolveIndexRouting() {
         createIndex("test1");
         createIndex("test2");
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
-        client().admin()
-            .indices()
-            .prepareAliases()
+        indicesAdmin().prepareAliases()
             .addAliasAction(AliasActions.add().index("test1").alias("alias"))
             .addAliasAction(AliasActions.add().index("test1").alias("alias10").routing("0"))
             .addAliasAction(AliasActions.add().index("test1").alias("alias110").searchRouting("1,0"))
@@ -99,11 +94,9 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         createIndex("test1");
         createIndex("test2");
         createIndex("test3");
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
-        client().admin()
-            .indices()
-            .prepareAliases()
+        indicesAdmin().prepareAliases()
             .addAliasAction(AliasActions.add().index("test1").alias("alias"))
             .addAliasAction(AliasActions.add().index("test1").alias("alias10").routing("0"))
             .addAliasAction(AliasActions.add().index("test2").alias("alias20").routing("0"))

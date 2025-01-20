@@ -1,7 +1,7 @@
 {
   "indices.simulate_template":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-simulate-template.html",
       "description": "Simulate resolving the given template name or body"
     },
     "stability":"stable",
@@ -46,6 +46,10 @@
       "master_timeout":{
         "type":"time",
         "description":"Specify timeout for connection to master"
+      },
+      "include_defaults":{
+        "type":"boolean",
+        "description":"Return all relevant default configurations for this template simulation (default: false)"
       }
     },
     "body":{

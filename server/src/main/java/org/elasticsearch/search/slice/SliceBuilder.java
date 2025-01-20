@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.slice;
@@ -11,7 +12,6 @@ package org.elasticsearch.search.slice;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -90,25 +90,14 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     }
 
     public SliceBuilder(StreamInput in) throws IOException {
-        if (in.getVersion().before(Version.V_7_15_0)) {
-            field = in.readString();
-        } else {
-            field = in.readOptionalString();
-        }
-
-        this.id = in.readVInt();
-        this.max = in.readVInt();
+        field = in.readOptionalString();
+        id = in.readVInt();
+        max = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // Before 7.15.0 we always defaulted to _id when the field wasn't provided
-        if (out.getVersion().before(Version.V_7_15_0)) {
-            String sliceField = field != null ? field : IdFieldMapper.NAME;
-            out.writeString(sliceField);
-        } else {
-            out.writeOptionalString(field);
-        }
+        out.writeOptionalString(field);
         out.writeVInt(id);
         out.writeVInt(max);
     }

@@ -2,7 +2,7 @@
 "order by sub agg containing join":
   - skip:
         reason: "https://github.com/elastic/elasticsearch/issues/66876"
-        version: "7.11.1 - "
+        cluster_features: ["gte_v7.11.1"]
   - do:
       indices.create:
           index: test_1
@@ -73,7 +73,7 @@
 "order by sub agg containing join and nested":
   - skip:
       reason: "https://github.com/elastic/elasticsearch/issues/66876"
-      version: "7.11.1 - "
+      cluster_features: ["gte_v7.11.1"]
   - do:
       indices.create:
           index: test_1
@@ -153,7 +153,7 @@
 "order by sub agg containing join and nested and filter":
   - skip:
       reason: "https://github.com/elastic/elasticsearch/issues/66876"
-      version: "7.11.1 - "
+      cluster_features: ["gte_v7.11.1"]
   - do:
       indices.create:
           index: test_1

@@ -15,6 +15,6 @@ public class GetServiceAccountAction extends ActionType<GetServiceAccountRespons
     public static final GetServiceAccountAction INSTANCE = new GetServiceAccountAction();
 
     public GetServiceAccountAction() {
-        super(NAME, GetServiceAccountResponse::new);
+        super(NAME);
     }
 }

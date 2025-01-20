@@ -33,8 +33,6 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.OptionalInt;
 
-import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizerUtils.numUtf8Bytes;
-
 /**
  * This is custom normalizer logic purpose built to replicate the logic in DoubleArray Trie System (darts)
  * object and the sentence piece normalizer.
@@ -55,9 +53,9 @@ public class PrecompiledCharMapNormalizer extends BaseCharFilter {
 
     record Config(int[] offsets, String utf8str) {}
 
-    static Config fromBase64Str(String s) {
+    static Config fromBase64EncodedResource(String resourcePath) throws IOException {
+        byte[] bytes = Base64.getDecoder().wrap(PrecompiledCharMapNormalizer.class.getResourceAsStream(resourcePath)).readAllBytes();
         int offset = 0;
-        byte[] bytes = Base64.getDecoder().decode(s);
         int trieSize = ByteBuffer.wrap(bytes, offset, 4).order(java.nio.ByteOrder.LITTLE_ENDIAN).getInt();
         offset += 4;
         int size = trieSize / 4;
@@ -75,10 +73,8 @@ public class PrecompiledCharMapNormalizer extends BaseCharFilter {
     private final int[] offsets;
     // The entire normalized bytes representations delimited by NULL
     private final byte[] normalizedStrUtf8Bytes;
-    // Continually reused to copy a single char into utf8 bytes
-    private final byte[] reusableCharByteBuffer = new byte[4];
     // reusable char buffer for decoding utf8 bytes to determine char offset corrections
-    private final char[] reusableCharDecodeBuffer = new char[8];
+    private final char[] reusableCharDecodeBuffer = new char[64];
     private Reader transformedInput;
 
     public PrecompiledCharMapNormalizer(int[] offsets, String normalizedStr, Reader in) {
@@ -87,19 +83,19 @@ public class PrecompiledCharMapNormalizer extends BaseCharFilter {
         this.normalizedStrUtf8Bytes = normalizedStr.getBytes(StandardCharsets.UTF_8);
     }
 
-    private boolean hasLeaf(int v) {
+    private static boolean hasLeaf(int v) {
         return ((v >>> 8) & 1) == 1;
     }
 
-    private int label(int v) {
+    private static int label(int v) {
         return (v & ((1 << 31) | 0xFF));
     }
 
-    private int value(int v) {
+    private static int value(int v) {
         return (v & ((1 << 31) - 1));
     }
 
-    private int offset(int v) {
+    private static int offset(int v) {
         return (v >>> 10) << ((v & (1 << 9)) >>> 6);
     }
 
@@ -174,24 +170,18 @@ public class PrecompiledCharMapNormalizer extends BaseCharFilter {
         ByteBuffer byteBuffer = StandardCharsets.UTF_8.encode(CharBuffer.wrap(str));
         byte[] strBytes = new byte[byteBuffer.limit()];
         byteBuffer.get(strBytes);
-        int[] strCp = str.codePoints().toArray();
         BreakIterator b = BreakIterator.getCharacterInstance(Locale.ROOT);
         b.setText(str);
         // We iterate the whole string, so b.first() is always `0`
         int startIter = b.first();
-        int codePointPos = 0;
         CharsRefBuilder strBuilder = new CharsRefBuilder();
         strBuilder.grow(strBytes.length);
         int bytePos = 0;
         int normalizedCharPos = 0;
         // Keep in mind, these break points aren't necessarily surrogate pairs, but also codepoints that contain a combining mark
         for (int end = b.next(); end != BreakIterator.DONE; startIter = end, end = b.next()) {
-            int byteLen = 0;
-            int numCp = Character.codePointCount(str, startIter, end);
-            for (int i = codePointPos; i < numCp + codePointPos; i++) {
-                byteLen += numUtf8Bytes(strCp[i]);
-            }
-            codePointPos += numCp;
+            int byteLen = UnicodeUtil.calcUTF16toUTF8Length(str, startIter, end - startIter);
+
             // The trie only go up to a depth of 5 bytes.
             // So even looking at it for graphemes (with combining, surrogate, etc.) that are 6+ bytes in length is useless.
             if (byteLen < 6) {
@@ -200,17 +190,32 @@ public class PrecompiledCharMapNormalizer extends BaseCharFilter {
                     BytesRef subStr = maybeSubStr.get();
                     int numChars = UnicodeUtil.UTF8toUTF16(subStr.bytes, subStr.offset, subStr.length, reusableCharDecodeBuffer);
                     normalizedCharPos += numChars;
-                    if (numChars != end - startIter) {
-                        addOffCorrectMap(normalizedCharPos, getLastCumulativeDiff() + end - startIter - numChars);
+                    int charDelta = numChars - (end - startIter); // output length - input length
+                    if (charDelta < 0) {
+                        // normalised form is shorter
+                        int lastDiff = getLastCumulativeDiff();
+                        addOffCorrectMap(normalizedCharPos, lastDiff - charDelta);
+                    } else if (charDelta > 0) {
+                        // inserted chars, add the offset in the output stream
+                        int lastDiff = getLastCumulativeDiff();
+                        int startOffset = normalizedCharPos - charDelta;
+                        for (int i = 1; i <= charDelta; i++) {
+                            addOffCorrectMap(startOffset + i, lastDiff - i);
+                        }
                     }
+
                     strBuilder.append(reusableCharDecodeBuffer, 0, numChars);
                     bytePos += byteLen;
                     continue;
                 }
             }
             int charByteIndex = 0;
-            for (int i = startIter; i < end; i++) {
-                int utf8CharBytes = numUtf8Bytes(str.charAt(i));
+            int i = startIter;
+            while (i < end) {
+                boolean isSurrogatePair = (i + 1 < end && Character.isSurrogatePair(str.charAt(i), str.charAt(i + 1)));
+                int numUtf16Chars = isSurrogatePair ? 2 : 1;
+
+                int utf8CharBytes = UnicodeUtil.calcUTF16toUTF8Length(str, i, numUtf16Chars);
                 Optional<BytesRef> maybeSubStr = normalizePart(strBytes, charByteIndex + bytePos, utf8CharBytes);
                 if (maybeSubStr.isPresent()) {
                     BytesRef subStr = maybeSubStr.get();
@@ -226,8 +231,13 @@ public class PrecompiledCharMapNormalizer extends BaseCharFilter {
                 } else {
                     normalizedCharPos += 1;
                     strBuilder.append(str.charAt(i));
+                    if (isSurrogatePair) {
+                        strBuilder.append(str.charAt(i + 1));
+                    }
                 }
                 charByteIndex += utf8CharBytes;
+
+                i = i + numUtf16Chars;
             }
             bytePos += byteLen;
         }

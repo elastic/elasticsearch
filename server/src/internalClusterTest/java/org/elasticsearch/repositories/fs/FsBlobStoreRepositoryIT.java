@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.fs;
@@ -20,7 +21,7 @@ public class FsBlobStoreRepositoryIT extends ESFsBasedRepositoryIntegTestCase {
         final Settings.Builder settings = Settings.builder().put("compress", randomBoolean()).put("location", randomRepoPath());
         if (randomBoolean()) {
             long size = 1 << randomInt(10);
-            settings.put("chunk_size", new ByteSizeValue(size, ByteSizeUnit.KB));
+            settings.put("chunk_size", ByteSizeValue.of(size, ByteSizeUnit.KB));
         }
         return settings.build();
     }

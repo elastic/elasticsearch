@@ -1,5 +1,0 @@
-pr: 87672
-summary: Move the master stability logic into its own service separate from the `HealthIndicatorService`
-area: Health
-type: enhancement
-issues: []

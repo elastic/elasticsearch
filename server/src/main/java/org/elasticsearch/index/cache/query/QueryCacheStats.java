@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.cache.query;
@@ -18,6 +19,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class QueryCacheStats implements Writeable, ToXContentFragment {
 
@@ -46,6 +48,9 @@ public class QueryCacheStats implements Writeable, ToXContentFragment {
     }
 
     public void add(QueryCacheStats stats) {
+        if (stats == null) {
+            return;
+        }
         ramBytesUsed += stats.ramBytesUsed;
         hitCount += stats.hitCount;
         missCount += stats.missCount;
@@ -53,12 +58,16 @@ public class QueryCacheStats implements Writeable, ToXContentFragment {
         cacheSize += stats.cacheSize;
     }
 
+    public void addRamBytesUsed(long additionalRamBytesUsed) {
+        ramBytesUsed += additionalRamBytesUsed;
+    }
+
     public long getMemorySizeInBytes() {
         return ramBytesUsed;
     }
 
     public ByteSizeValue getMemorySize() {
-        return new ByteSizeValue(ramBytesUsed);
+        return ByteSizeValue.ofBytes(ramBytesUsed);
     }
 
     /**
@@ -110,6 +119,23 @@ public class QueryCacheStats implements Writeable, ToXContentFragment {
         out.writeLong(missCount);
         out.writeLong(cacheCount);
         out.writeLong(cacheSize);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        QueryCacheStats that = (QueryCacheStats) o;
+        return ramBytesUsed == that.ramBytesUsed
+            && hitCount == that.hitCount
+            && missCount == that.missCount
+            && cacheCount == that.cacheCount
+            && cacheSize == that.cacheSize;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(ramBytesUsed, hitCount, missCount, cacheCount, cacheSize);
     }
 
     @Override

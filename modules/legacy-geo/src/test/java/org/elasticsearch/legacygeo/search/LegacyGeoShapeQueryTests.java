@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.legacygeo.search;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.settings.Settings;
@@ -16,7 +16,6 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.legacygeo.test.TestLegacyGeoShapeFieldMapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -33,6 +32,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.index.query.QueryBuilders.geoIntersectionQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
@@ -58,7 +58,7 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
             .endObject()
             .endObject()
             .endObject();
-        client().admin().indices().prepareCreate(indexName).setMapping(xcb).setSettings(settings).get();
+        indicesAdmin().prepareCreate(indexName).setMapping(xcb).setSettings(settings).get();
     }
 
     @Override
@@ -82,29 +82,25 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
                 .endObject()
         );
 
-        client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).get();
+        indicesAdmin().prepareCreate("geo_points_only").setMapping(mapping).get();
         ensureGreen();
 
         // MULTIPOINT
         MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(false);
-        client().prepareIndex("geo_points_only")
-            .setId("1")
+        prepareIndex("geo_points_only").setId("1")
             .setSource(GeoJson.toXContent(multiPoint, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
         // POINT
         Point point = GeometryTestUtils.randomPoint(false);
-        client().prepareIndex("geo_points_only")
-            .setId("2")
+        prepareIndex("geo_points_only").setId("2")
             .setSource(GeoJson.toXContent(point, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
         // test that point was inserted
-        SearchResponse response = client().prepareSearch("geo_points_only").setQuery(matchAllQuery()).get();
-
-        assertEquals(2, response.getHits().getTotalHits().value);
+        assertHitCount(client().prepareSearch("geo_points_only").setQuery(matchAllQuery()), 2L);
     }
 
     public void testPointsOnly() throws Exception {
@@ -123,27 +119,23 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
                 .endObject()
         );
 
-        client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).get();
+        indicesAdmin().prepareCreate("geo_points_only").setMapping(mapping).get();
         ensureGreen();
 
         Geometry geometry = GeometryTestUtils.randomGeometry(false);
         try {
-            client().prepareIndex("geo_points_only")
-                .setId("1")
+            prepareIndex("geo_points_only").setId("1")
                 .setSource(GeoJson.toXContent(geometry, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
-        } catch (MapperParsingException e) {
+        } catch (Exception e) {
             // Random geometry generator created something other than a POINT type, verify the correct exception is thrown
             assertThat(e.getMessage(), containsString("is configured for points only"));
             return;
         }
 
         // test that point was inserted
-        SearchResponse response = client().prepareSearch("geo_points_only")
-            .setQuery(geoIntersectionQuery(defaultFieldName, geometry))
-            .get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+        assertHitCount(client().prepareSearch("geo_points_only").setQuery(geoIntersectionQuery(defaultFieldName, geometry)), 1L);
     }
 
     public void testFieldAlias() throws IOException {
@@ -163,18 +155,16 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
                 .endObject()
         );
 
-        client().admin().indices().prepareCreate(defaultIndexName).setMapping(mapping).get();
+        indicesAdmin().prepareCreate(defaultIndexName).setMapping(mapping).get();
         ensureGreen();
 
         MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(false);
-        client().prepareIndex(defaultIndexName)
-            .setId("1")
+        prepareIndex(defaultIndexName).setId("1")
             .setSource(GeoJson.toXContent(multiPoint, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        SearchResponse response = client().prepareSearch(defaultIndexName).setQuery(geoShapeQuery("alias", multiPoint)).get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+        assertHitCount(client().prepareSearch(defaultIndexName).setQuery(geoShapeQuery("alias", multiPoint)), 1L);
     }
 
     /**

@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -185,17 +186,7 @@ public abstract class MultiChunkTransfer<Source, Request extends MultiChunkTrans
 
     protected abstract void handleError(Source resource, Exception e) throws Exception;
 
-    private static class FileChunkResponseItem<Source> {
-        final long requestSeqId;
-        final Source source;
-        final Exception failure;
-
-        FileChunkResponseItem(long requestSeqId, Source source, Exception failure) {
-            this.requestSeqId = requestSeqId;
-            this.source = source;
-            this.failure = failure;
-        }
-    }
+    private record FileChunkResponseItem<Source>(long requestSeqId, Source source, Exception failure) {}
 
     public interface ChunkRequest {
         /**

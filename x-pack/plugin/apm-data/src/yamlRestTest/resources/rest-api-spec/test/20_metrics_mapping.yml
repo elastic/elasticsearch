@@ -1,0 +1,65 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+---
+"Test metrics-apm.app-* dynamic mapping":
+  - do:
+      bulk:
+        index: metrics-apm.app.svc1-testing
+        refresh: true
+        body:
+          - create: {}
+          - "@timestamp": "2017-06-22"
+            data_stream.type: metrics
+            data_stream.dataset: apm.app.svc1
+            data_stream.namespace: testing
+            metricset:
+              name: app
+              samples:
+                - name: double_metric
+                  type: gauge
+                  value: 123
+                - name: summary_metric
+                  type: summary
+                  value_count: 123
+                  sum: 456.789
+                - name: histogram_metric
+                  type: histogram
+                  counts: [1, 2, 3]
+                  values: [1.5, 2.5, 3.5]
+  - set:
+      items.0.create._index: index
+  - do:
+      # Wait for cluster state changes to be applied before
+      # querying field mappings.
+      cluster.health:
+        wait_for_events: languid
+  - do:
+      indices.get_field_mapping:
+        index: metrics-apm.app.svc1-testing
+        fields: [double_metric, summary_metric, histogram_metric]
+  - match:
+      $body:
+        $index:
+          mappings:
+            double_metric:
+              full_name: double_metric
+              mapping:
+                double_metric:
+                  type: double
+                  index: false
+            summary_metric:
+              full_name: summary_metric
+              mapping:
+                summary_metric:
+                  type: aggregate_metric_double
+                  metrics : [sum, value_count]
+                  default_metric: value_count
+            histogram_metric:
+              full_name: histogram_metric
+              mapping:
+                histogram_metric:
+                  type: histogram

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.security.profile;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -18,6 +18,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
@@ -41,7 +42,6 @@ import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
-import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 
@@ -130,7 +130,11 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
             final List<String> taskActions = tasks.stream().map(Task::getAction).toList();
             assertThat(
                 taskActions,
-                hasItems(equalTo(SuggestProfilesAction.NAME), equalTo(SearchAction.NAME), startsWith(SearchAction.NAME))
+                hasItems(
+                    equalTo(SuggestProfilesAction.NAME),
+                    equalTo(TransportSearchAction.TYPE.name()),
+                    startsWith(TransportSearchAction.TYPE.name())
+                )
             );
             assertThat(isShardSearchBlocked(), is(true));
             tasks.forEach(t -> {
@@ -307,7 +311,6 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
     private boolean isCheckPrivilegesBlocked() {
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
             if (pluginsService.filterPlugins(LocalStateWithDummyAuthorizationEngineExtension.class)
-                .stream()
                 .anyMatch(LocalStateWithDummyAuthorizationEngineExtension::isBlockedOnCheckPrivileges)) {
                 return true;
             }
@@ -317,7 +320,7 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
 
     private boolean isShardSearchBlocked() {
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            if (pluginsService.filterPlugins(SearchBlockPlugin.class).stream().anyMatch(SearchBlockPlugin::isShardSearchBlocked)) {
+            if (pluginsService.filterPlugins(SearchBlockPlugin.class).anyMatch(SearchBlockPlugin::isShardSearchBlocked)) {
                 return true;
             }
         }
@@ -407,10 +410,10 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
                     RequestInfo requestInfo,
                     AuthorizationInfo authorizationInfo,
                     AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                    Map<String, IndexAbstraction> aliasOrIndexLookup,
+                    Metadata metadata,
                     ActionListener<IndexAuthorizationResult> listener
                 ) {
-                    listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
+                    listener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);
                 }
 
                 @Override
@@ -418,7 +421,7 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
                     RequestInfo requestInfo,
                     AuthorizationInfo authorizationInfo,
                     Map<String, IndexAbstraction> indicesLookup,
-                    ActionListener<Set<String>> listener
+                    ActionListener<AuthorizationEngine.AuthorizedIndices> listener
                 ) {
                     listener.onFailure(new UnsupportedOperationException("not implemented"));
                 }

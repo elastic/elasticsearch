@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
@@ -14,8 +15,10 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.comparators.TermOrdValComparator;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
@@ -67,13 +70,13 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
     protected void setScorer(Scorable scorer) {}
 
     @Override
-    public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
+    public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning enableSkipping, boolean reversed) {
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final boolean sortMissingLast = sortMissingLast(missingValue) ^ reversed;
         final BytesRef missingBytes = (BytesRef) missingObject(missingValue, reversed);
         if (indexFieldData instanceof IndexOrdinalsFieldData) {
-            return new FieldComparator.TermOrdValComparator(numHits, null, sortMissingLast) {
+            return new TermOrdValComparator(numHits, null, sortMissingLast, reversed, Pruning.NONE) {
 
                 @Override
                 protected SortedDocValues getSortedDocValues(LeafReaderContext context, String field) throws IOException {
@@ -96,11 +99,6 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                     }
                 }
 
-                @Override
-                public void setScorer(Scorable scorer) {
-                    BytesRefFieldComparatorSource.this.setScorer(scorer);
-                }
-
             };
         }
 
@@ -116,7 +114,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                     final BitSet rootDocs = nested.rootDocs(context);
                     final DocIdSetIterator innerDocs = nested.innerDocs(context);
                     final int maxChildren = nested.getNestedSort() != null ? nested.getNestedSort().getMaxChildren() : Integer.MAX_VALUE;
-                    selectedValues = sortMode.select(values, missingBytes, rootDocs, innerDocs, context.reader().maxDoc(), maxChildren);
+                    selectedValues = sortMode.select(values, missingBytes, rootDocs, innerDocs, maxChildren);
                 }
                 return selectedValues;
             }

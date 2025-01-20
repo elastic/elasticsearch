@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
@@ -22,6 +22,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
 
 /**
  * An abstract class that implements basic functionality for allocating
@@ -58,23 +60,11 @@ public abstract class BaseGatewayShardAllocator {
             unassignedAllocationHandler.initialize(
                 allocateUnassignedDecision.getTargetNode().getId(),
                 allocateUnassignedDecision.getAllocationId(),
-                getExpectedShardSize(shardRouting, allocation),
+                getExpectedShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation),
                 allocation.changes()
             );
         } else {
             unassignedAllocationHandler.removeAndIgnore(allocateUnassignedDecision.getAllocationStatus(), allocation.changes());
-        }
-    }
-
-    protected static long getExpectedShardSize(ShardRouting shardRouting, RoutingAllocation allocation) {
-        if (shardRouting.primary()) {
-            if (shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
-                return allocation.snapshotShardSizeInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
-            } else {
-                return ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
-            }
-        } else {
-            return allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         }
     }
 

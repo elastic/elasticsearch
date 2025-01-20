@@ -73,7 +73,6 @@ import static java.util.regex.Pattern.quote;
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_DRIVER_VERSION;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
-import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.UNSIGNED_LONG_TYPE_NAME;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asDate;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asTime;
@@ -814,8 +813,8 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         updateMappingForNumericValuesTests("test", singletonList(UNSIGNED_LONG_FIELD));
 
         byte randomNonNegativeByte = randomNonNegativeByte();
-        short randomNonNegativeShort = (short) (Math.abs(randomShort()) - 1);
-        int randomNonNegativeInt = Math.abs(randomInt()) - 1;
+        short randomNonNegativeShort = (short) (randomShort() & Short.MAX_VALUE);
+        int randomNonNegativeInt = randomNonNegativeInt();
         long randomNonNegativeLong = randomNonNegativeLong();
         double randomNonNegativeFloat = (float) randomDoubleBetween(0, UNSIGNED_LONG_MAX.doubleValue(), true);
         double randomNonNegativeDouble = randomDoubleBetween(0, UNSIGNED_LONG_MAX.doubleValue(), true);
@@ -846,6 +845,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     // Double values testing
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testGettingValidDoubleWithoutCasting() throws IOException, SQLException {
         List<Double> doubleTestValues = createTestDataForNumericValueTests(ESTestCase::randomDouble);
         double random1 = doubleTestValues.get(0);
@@ -1019,17 +1019,21 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     //
     // BigDecimal fetching testing
     //
-    static final Map<Class<? extends Number>, Integer> JAVA_TO_SQL_NUMERIC_TYPES_MAP = new HashMap<>() {
-        {
-            put(Byte.class, Types.TINYINT);
-            put(Short.class, Types.SMALLINT);
-            put(Integer.class, Types.INTEGER);
-            put(Long.class, Types.BIGINT);
-            put(Float.class, Types.REAL);
-            put(Double.class, Types.DOUBLE);
-            // TODO: no half & scaled float testing
-        }
-    };
+    static final Map<Class<? extends Number>, Integer> JAVA_TO_SQL_NUMERIC_TYPES_MAP = Map.of(
+        Byte.class,
+        Types.TINYINT,
+        Short.class,
+        Types.SMALLINT,
+        Integer.class,
+        Types.INTEGER,
+        Long.class,
+        Types.BIGINT,
+        Float.class,
+        Types.REAL,
+        Double.class,
+        Types.DOUBLE
+        // TODO: no half & scaled float testing
+    );
 
     private static <T extends Number> void validateBigDecimalWithoutCasting(ResultSet results, List<T> testValues) throws SQLException {
 
@@ -1154,6 +1158,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testGettingValidBigDecimalFromDoubleWithoutCasting() throws IOException, SQLException {
         List<Double> doubleTestValues = createTestDataForNumericValueTests(ESTestCase::randomDouble);
         doWithQuery(
@@ -1345,8 +1350,8 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
         indexSimpleDocumentWithBooleanValues("1", true, randomLongDate, randomLongDateNanos);
         index("test", "2", builder -> {
-            builder.timeField("test_date", null);
-            builder.timeField("test_date_nanos", null);
+            builder.timestampField("test_date", null);
+            builder.timestampField("test_date_nanos", null);
         });
     }
 
@@ -1401,6 +1406,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testGettingDateWithCalendar() throws Exception {
         long randomLongDate = randomMillisUpToYear9999();
         setupDataForDateTimeTests(randomLongDate);
@@ -1430,6 +1436,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testGettingDateWithCalendarWithNanos() throws Exception {
         assumeTrue(
             "Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
@@ -1593,6 +1600,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testGettingTimestampWithoutCalendarWithNanos() throws Exception {
         assumeTrue(
             "Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
@@ -1925,6 +1933,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testValidGetObjectCalls() throws IOException, SQLException {
         createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test");

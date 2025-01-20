@@ -2,12 +2,19 @@
 [[transform-apis]]
 = {transform-cap} APIs
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-transform[{transform-cap} APIs].
+--
+
 * <<put-transform>> 
 * <<delete-transform>>
 * <<get-transform>>
 * <<get-transform-stats>>
 * <<preview-transform>>
 * <<reset-transform>>
+* <<schedule-now-transform>>
 * <<start-transform>>
 * <<stop-transform>>
 * <<update-transform>>

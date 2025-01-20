@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,7 +31,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/job/flush";
 
     private FlushJobAction() {
-        super(NAME, FlushJobAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends JobTaskRequest<Request> implements ToXContentObject {
@@ -62,6 +63,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
 
         private boolean calcInterim = false;
         private boolean waitForNormalization = true;
+        private boolean refreshRequired = true;
         private String start;
         private String end;
         private String advanceTime;
@@ -77,6 +79,9 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             advanceTime = in.readOptionalString();
             skipTime = in.readOptionalString();
             waitForNormalization = in.readBoolean();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                refreshRequired = in.readBoolean();
+            }
         }
 
         @Override
@@ -88,6 +93,9 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             out.writeOptionalString(advanceTime);
             out.writeOptionalString(skipTime);
             out.writeBoolean(waitForNormalization);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                out.writeBoolean(refreshRequired);
+            }
         }
 
         public Request(String jobId) {
@@ -138,8 +146,12 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             return waitForNormalization;
         }
 
+        public boolean isRefreshRequired() {
+            return refreshRequired;
+        }
+
         /**
-         * Used internally. Datafeeds do not need to wait renormalization to complete before continuing.
+         * Used internally. Datafeeds do not need to wait for renormalization to complete before continuing.
          *
          * For large jobs, renormalization can take minutes, causing datafeeds to needlessly pause execution.
          */
@@ -147,9 +159,19 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             this.waitForNormalization = waitForNormalization;
         }
 
+        /**
+         * Used internally. For datafeeds, there is no need for the results to be searchable after the flush,
+         * as the datafeed itself does not search them immediately.
+         *
+         * Particularly for short bucket spans these refreshes could be a significant cost.
+         **/
+        public void setRefreshRequired(boolean refreshRequired) {
+            this.refreshRequired = refreshRequired;
+        }
+
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, calcInterim, start, end, advanceTime, skipTime, waitForNormalization);
+            return Objects.hash(jobId, calcInterim, start, end, advanceTime, skipTime, waitForNormalization, refreshRequired);
         }
 
         @Override
@@ -164,6 +186,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             return Objects.equals(jobId, other.jobId)
                 && calcInterim == other.calcInterim
                 && waitForNormalization == other.waitForNormalization
+                && refreshRequired == other.refreshRequired
                 && Objects.equals(start, other.start)
                 && Objects.equals(end, other.end)
                 && Objects.equals(advanceTime, other.advanceTime)
@@ -232,7 +255,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             builder.startObject();
             builder.field("flushed", flushed);
             if (lastFinalizedBucketEnd != null) {
-                builder.timeField(
+                builder.timestampFieldsFromUnixEpochMillis(
                     FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName(),
                     FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName() + "_string",
                     lastFinalizedBucketEnd.toEpochMilli()

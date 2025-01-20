@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -48,7 +49,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         this.routingRequired = docMapper.routingFieldMapper().required();
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "this-escape", "unchecked" })
     public MappingMetadata(CompressedXContent mapping) {
         this.source = mapping;
         Map<String, Object> mappingMap = XContentHelper.convertToMap(mapping.compressedReference(), true).v2();
@@ -59,7 +60,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         this.routingRequired = routingRequired((Map<String, Object>) mappingMap.get(this.type));
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "this-escape", "unchecked" })
     public MappingMetadata(String type, Map<String, Object> mapping) {
         this.type = type;
         try {
@@ -75,7 +76,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
     }
 
     public static void writeMappingMetadata(StreamOutput out, Map<String, MappingMetadata> mappings) throws IOException {
-        out.writeMap(mappings, StreamOutput::writeString, out.getVersion().before(Version.V_8_0_0) ? (o, v) -> {
+        out.writeMap(mappings, out.getTransportVersion().before(TransportVersions.V_8_0_0) ? (o, v) -> {
             o.writeVInt(v == EMPTY_MAPPINGS ? 0 : 1);
             if (v != EMPTY_MAPPINGS) {
                 o.writeString(MapperService.SINGLE_MAPPING_NAME);

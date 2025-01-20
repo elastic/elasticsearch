@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.geo;
@@ -30,7 +31,6 @@ public abstract class GenericPointParser<T> {
     private static final String X_FIELD = "x";
     private static final String Y_FIELD = "y";
     private static final String Z_FIELD = "z";
-    private static final String GEOHASH = "geohash";
     private static final String TYPE = "type";
     private static final String COORDINATES = "coordinates";
     private final Map<String, FieldParser<?>> fields;
@@ -112,9 +112,8 @@ public abstract class GenericPointParser<T> {
      * @param mapType whether the parser is for 'geo_point' or 'point'
      * @param xField the name of the first coordinate when constructing points (either 'x' or 'lat')
      * @param yField the name of the second coordinate when constructing points (either 'y' or 'lon')
-     * @param supportGeohash whether to support parsing geohash values (only geo_point supports this currently)
      */
-    public GenericPointParser(String mapType, String xField, String yField, boolean supportGeohash) {
+    public GenericPointParser(String mapType, String xField, String yField) {
         this.mapType = mapType;
         this.xField = xField;
         this.yField = yField;
@@ -124,9 +123,6 @@ public abstract class GenericPointParser<T> {
         fields.put(Z_FIELD, new DoubleFieldParser(Z_FIELD, Z_FIELD));
         fields.put(TYPE, new StringFieldParser(TYPE));
         fields.put(COORDINATES, new DoubleArrayFieldParser(COORDINATES));
-        if (supportGeohash) {
-            fields.put(GEOHASH, new StringFieldParser(GEOHASH));
-        }
     }
 
     public abstract void assertZValue(boolean ignoreZValue, double zValue);
@@ -142,11 +138,10 @@ public abstract class GenericPointParser<T> {
      * @param ignoreZValue {@link XContentParser} to not throw an error if 3 dimensional data is provided
      * @return new Point parsed from the parser
      */
-    public T parsePoint(XContentParser parser, boolean ignoreZValue, Function<String, T> fromString, Function<String, T> fromGeohash)
-        throws IOException, ElasticsearchParseException {
+    public T parsePoint(XContentParser parser, boolean ignoreZValue, Function<String, T> fromString) throws IOException,
+        ElasticsearchParseException {
         double x = Double.NaN;
         double y = Double.NaN;
-        String geohash = null;
         String geojsonType = null;
         List<Double> coordinates = null;
 
@@ -162,7 +157,6 @@ public abstract class GenericPointParser<T> {
                                 case X_FIELD -> x = (Double) fieldParser.parseField(subParser);
                                 case Y_FIELD -> y = (Double) fieldParser.parseField(subParser);
                                 case Z_FIELD -> assertZValue(ignoreZValue, (Double) fieldParser.parseField(subParser));
-                                case GEOHASH -> geohash = (String) fieldParser.parseField(subParser);
                                 case TYPE -> geojsonType = (String) fieldParser.parseField(subParser);
                                 case COORDINATES -> coordinates = ((DoubleArrayFieldParser) fieldParser).parseField(subParser);
                             }
@@ -175,16 +169,7 @@ public abstract class GenericPointParser<T> {
                     }
                 }
             }
-            assertOnlyOneFormat(
-                geohash != null,
-                Double.isNaN(x) == false,
-                Double.isNaN(y) == false,
-                coordinates != null,
-                geojsonType != null
-            );
-            if (geohash != null) {
-                return fromGeohash.apply(geohash);
-            }
+            assertOnlyOneFormat(Double.isNaN(x) == false, Double.isNaN(y) == false, coordinates != null, geojsonType != null);
             if (coordinates != null) {
                 if (geojsonType == null || geojsonType.toLowerCase(Locale.ROOT).equals("point") == false) {
                     throw new ElasticsearchParseException("[type] for {} can only be 'Point'", mapType);
@@ -241,20 +226,12 @@ public abstract class GenericPointParser<T> {
         }
     }
 
-    private void assertOnlyOneFormat(boolean geohash, boolean x, boolean y, boolean coordinates, boolean type) {
-        boolean xy = x && y;
-        boolean geojson = coordinates && type;
-        var found = new ArrayList<String>();
-        if (geohash) found.add("geohash");
-        if (xy) found.add(xField + "/" + yField);
-        if (geojson) found.add("GeoJSON");
-        if (found.size() > 1) {
-            throw new ElasticsearchParseException("fields matching more than one point format found: {}", found);
-        } else if (geohash) {
-            if (x || y || type || coordinates) {
-                throw new ElasticsearchParseException(fieldError());
-            }
-        } else if (found.size() == 0) {
+    private void assertOnlyOneFormat(boolean x, boolean y, boolean coordinates, boolean type) {
+        final boolean xy = x && y;
+        final boolean geojson = coordinates && type;
+        if (xy && geojson) {
+            throw new ElasticsearchParseException("fields matching more than one point format");
+        } else if ((xy || geojson) == false) {
             if (x) {
                 throw new ElasticsearchParseException("Required [{}]", yField);
             } else if (y) {

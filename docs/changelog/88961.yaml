@@ -1,5 +1,0 @@
-pr: 88961
-summary: Add deprecation message for deprecated plugin APIs
-area: Infra/Plugins
-type: enhancement
-issues: []

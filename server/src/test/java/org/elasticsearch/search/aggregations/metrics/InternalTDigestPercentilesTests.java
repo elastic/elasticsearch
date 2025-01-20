@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -30,18 +31,21 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
         boolean keyed,
         DocValueFormat format,
         double[] percents,
-        double[] values
+        double[] values,
+        boolean empty
     ) {
-        final TDigestState state = new TDigestState(100);
+        if (empty) {
+            return new InternalTDigestPercentiles(name, percents, null, keyed, format, metadata);
+        }
+        final TDigestState state = TDigestState.createWithoutCircuitBreaking(100);
         Arrays.stream(values).forEach(state::add);
 
-        assertEquals(state.centroidCount(), values.length);
         return new InternalTDigestPercentiles(name, percents, state, keyed, format, metadata);
     }
 
     @Override
     protected void assertReduced(InternalTDigestPercentiles reduced, List<InternalTDigestPercentiles> inputs) {
-        final TDigestState expectedState = new TDigestState(reduced.state.compression());
+        final TDigestState expectedState = TDigestState.createUsingParamsFrom(reduced.state);
 
         long totalCount = 0;
         for (InternalTDigestPercentiles input : inputs) {
@@ -72,11 +76,6 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
     }
 
     @Override
-    protected Class<? extends ParsedPercentiles> implementationClass() {
-        return ParsedTDigestPercentiles.class;
-    }
-
-    @Override
     protected InternalTDigestPercentiles mutateInstance(InternalTDigestPercentiles instance) {
         String name = instance.getName();
         double[] percents = instance.keys;
@@ -92,7 +91,7 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
                 Arrays.sort(percents);
             }
             case 2 -> {
-                TDigestState newState = new TDigestState(state.compression());
+                TDigestState newState = TDigestState.createUsingParamsFrom(state);
                 newState.add(state);
                 for (int i = 0; i < between(10, 100); i++) {
                     newState.add(randomDouble());
@@ -126,7 +125,8 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
             false,
             randomNumericDocValueFormat(),
             percents,
-            values
+            values,
+            false
         );
 
         Iterator<Percentile> iterator = aggregation.iterator();
@@ -138,10 +138,10 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
             String percentileName = nameIterator.next();
 
             assertEquals(percent, Double.valueOf(percentileName), 0.0d);
-            assertEquals(percent, percentile.getPercent(), 0.0d);
+            assertEquals(percent, percentile.percent(), 0.0d);
 
-            assertEquals(aggregation.percentile(percent), percentile.getValue(), 0.0d);
-            assertEquals(aggregation.value(String.valueOf(percent)), percentile.getValue(), 0.0d);
+            assertEquals(aggregation.percentile(percent), percentile.value(), 0.0d);
+            assertEquals(aggregation.value(String.valueOf(percent)), percentile.value(), 0.0d);
         }
         assertFalse(iterator.hasNext());
         assertFalse(nameIterator.hasNext());

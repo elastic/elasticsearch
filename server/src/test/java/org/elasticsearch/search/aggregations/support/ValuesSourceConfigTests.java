@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -403,6 +404,26 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             assertEquals(1, values.docValueCount());
             assertEquals(new BytesRef("value"), values.nextValue());
             assertTrue(config.alignesWithSearchIndex());
+        });
+    }
+
+    public void testFlattened() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "flattened")));
+        withAggregationContext(mapperService, List.of(source(b -> b.startObject("field").field("key", "abc").endObject())), context -> {
+            ValuesSourceConfig config;
+            config = ValuesSourceConfig.resolve(context, null, "field.key", null, null, null, null, CoreValuesSourceType.KEYWORD);
+
+            ValuesSource.Bytes valuesSource = (ValuesSource.Bytes) config.getValuesSource();
+            LeafReaderContext ctx = context.searcher().getIndexReader().leaves().get(0);
+            SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            assertEquals(new BytesRef("abc"), values.nextValue());
+
+            // flattened supports ordinals, but _not_ global ordinals
+            assertTrue(config.hasOrdinals());
+            ValuesSource.Bytes.WithOrdinals valuesSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+            assertFalse(valuesSourceWithOrdinals.supportsGlobalOrdinalsMapping());
         });
     }
 }

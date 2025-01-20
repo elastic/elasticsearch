@@ -1,2 +1,7 @@
 operator:
   - usernames: ["test_operator"]
+  - usernames: [ "elastic/kibana" ]
+    realm_type: "_service_account"
+    auth_type: "token"
+    token_source: "file"
+    token_names: [ "kibana-token"]

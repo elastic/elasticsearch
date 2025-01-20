@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -16,15 +17,19 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsCluster
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -35,11 +40,14 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 
@@ -51,46 +59,49 @@ import static org.elasticsearch.index.IndexSettings.same;
 public class MetadataUpdateSettingsService {
     private static final Logger logger = LogManager.getLogger(MetadataUpdateSettingsService.class);
 
-    private final ClusterService clusterService;
     private final AllocationService allocationService;
     private final IndexScopedSettings indexScopedSettings;
     private final IndicesService indicesService;
     private final ShardLimitValidator shardLimitValidator;
-    private final ClusterStateTaskExecutor<UpdateSettingsTask> executor;
+    private final MasterServiceTaskQueue<UpdateSettingsTask> taskQueue;
 
     public MetadataUpdateSettingsService(
         ClusterService clusterService,
         AllocationService allocationService,
         IndexScopedSettings indexScopedSettings,
         IndicesService indicesService,
-        ShardLimitValidator shardLimitValidator
+        ShardLimitValidator shardLimitValidator,
+        ThreadPool threadPool
     ) {
-        this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
-        this.executor = batchExecutionContext -> {
-            ClusterState state = batchExecutionContext.initialState();
+        this.taskQueue = clusterService.createTaskQueue("update-settings", Priority.URGENT, batchExecutionContext -> {
+            var listener = new AllocationActionMultiListener<AcknowledgedResponse>(threadPool.getThreadContext());
+            var state = batchExecutionContext.initialState();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 try {
                     final var task = taskContext.getTask();
                     try (var ignored = taskContext.captureResponseHeaders()) {
                         state = task.execute(state);
                     }
-                    taskContext.success(task.getAckListener());
+                    taskContext.success(task.getAckListener(listener));
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                 }
+
             }
             if (state != batchExecutionContext.initialState()) {
                 // reroute in case things change that require it (like number of replicas)
                 try (var ignored = batchExecutionContext.dropHeadersContext()) {
-                    state = allocationService.reroute(state, "settings update");
+                    state = allocationService.reroute(state, "settings update", listener.reroute());
                 }
+            } else {
+                listener.noRerouteNeeded();
             }
             return state;
-        };
+        });
     }
 
     private final class UpdateSettingsTask implements ClusterStateTaskListener {
@@ -102,7 +113,7 @@ public class MetadataUpdateSettingsService {
             this.listener = listener;
         }
 
-        private ClusterStateAckListener getAckListener() {
+        private ClusterStateAckListener getAckListener(AllocationActionMultiListener<AcknowledgedResponse> multiListener) {
             return new ClusterStateAckListener() {
                 @Override
                 public boolean mustAck(DiscoveryNode discoveryNode) {
@@ -111,17 +122,17 @@ public class MetadataUpdateSettingsService {
 
                 @Override
                 public void onAllNodesAcked() {
-                    listener.onResponse(AcknowledgedResponse.of(true));
+                    multiListener.delay(listener).onResponse(AcknowledgedResponse.of(true));
                 }
 
                 @Override
                 public void onAckFailure(Exception e) {
-                    listener.onFailure(e);
+                    multiListener.delay(listener).onFailure(e);
                 }
 
                 @Override
                 public void onAckTimeout() {
-                    listener.onResponse(AcknowledgedResponse.of(false));
+                    multiListener.delay(listener).onResponse(AcknowledgedResponse.of(false));
                 }
 
                 @Override
@@ -134,11 +145,6 @@ public class MetadataUpdateSettingsService {
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "should not be called";
         }
 
         ClusterState execute(ClusterState currentState) {
@@ -170,7 +176,7 @@ public class MetadataUpdateSettingsService {
             }
             final Settings closedSettings = settingsForClosedIndices.build();
             final Settings openSettings = settingsForOpenIndices.build();
-            final boolean preserveExisting = request.isPreserveExisting();
+            final boolean preserveExisting = request.onExisting() == UpdateSettingsClusterStateUpdateRequest.OnExisting.PRESERVE;
 
             RoutingTable.Builder routingTableBuilder = null;
             Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
@@ -184,6 +190,7 @@ public class MetadataUpdateSettingsService {
                 Index index = request.indices()[i];
                 actualIndices[i] = index.getName();
                 final IndexMetadata metadata = currentState.metadata().getIndexSafe(index);
+
                 if (metadata.getState() == IndexMetadata.State.OPEN) {
                     openIndices.add(index);
                 } else {
@@ -192,16 +199,69 @@ public class MetadataUpdateSettingsService {
             }
 
             if (skippedSettings.isEmpty() == false && openIndices.isEmpty() == false) {
-                throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "Can't update non dynamic settings [%s] for open indices %s", skippedSettings, openIndices)
-                );
+                if (request.onStaticSetting() == UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES) {
+                    // We have non-dynamic settings and open indices. We will unassign all of the shards in these indices so that the new
+                    // changed settings are applied when the shards are re-assigned.
+                    routingTableBuilder = RoutingTable.builder(
+                        allocationService.getShardRoutingRoleStrategy(),
+                        currentState.routingTable()
+                    );
+                    for (Index index : openIndices) {
+                        // We only want to take on the expense of reopening all shards for an index if the setting is really changing
+                        Settings existingSettings = currentState.getMetadata().index(index).getSettings();
+                        boolean needToReopenIndex = false;
+                        for (String setting : skippedSettings) {
+                            String newValue = request.settings().get(setting);
+                            if (Objects.equals(newValue, existingSettings.get(setting)) == false) {
+                                needToReopenIndex = true;
+                                break;
+                            }
+                        }
+                        if (needToReopenIndex) {
+                            List<ShardRouting> shardRoutingList = currentState.routingTable().allShards(index.getName());
+                            IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+                            for (ShardRouting shardRouting : shardRoutingList) {
+                                if (ShardRoutingState.UNASSIGNED.equals(shardRouting.state()) == false) {
+                                    indexRoutingTableBuilder.addShard(
+                                        shardRouting.moveToUnassigned(
+                                            new UnassignedInfo(
+                                                UnassignedInfo.Reason.INDEX_REOPENED,
+                                                "Unassigning shards to update static settings"
+                                            )
+                                        )
+                                    );
+                                } else {
+                                    indexRoutingTableBuilder.addShard(shardRouting);
+                                }
+                            }
+                            routingTableBuilder.add(indexRoutingTableBuilder.build());
+                            openIndices.remove(index);
+                            closedIndices.add(index);
+                        }
+                    }
+                } else {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "Can't update non dynamic settings [%s] for open indices %s unless the `reopen` query parameter is set to "
+                                + "true. Alternatively, close the indices, apply the settings changes, and reopen the indices",
+                            skippedSettings,
+                            openIndices
+                        )
+                    );
+                }
             }
 
             if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(openSettings)) {
                 final int updatedNumberOfReplicas = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(openSettings);
                 if (preserveExisting == false) {
                     // Verify that this won't take us over the cluster shard limit.
-                    shardLimitValidator.validateShardLimitOnReplicaUpdate(currentState, request.indices(), updatedNumberOfReplicas);
+                    shardLimitValidator.validateShardLimitOnReplicaUpdate(
+                        currentState.nodes(),
+                        currentState.metadata(),
+                        request.indices(),
+                        updatedNumberOfReplicas
+                    );
 
                     /*
                      * We do not update the in-sync allocation IDs as they will be removed upon the first index operation
@@ -209,7 +269,12 @@ public class MetadataUpdateSettingsService {
                      *
                      * TODO: should we update the in-sync allocation IDs once the data is deleted by the node?
                      */
-                    routingTableBuilder = RoutingTable.builder(currentState.routingTable());
+                    if (routingTableBuilder == null) {
+                        routingTableBuilder = RoutingTable.builder(
+                            allocationService.getShardRoutingRoleStrategy(),
+                            currentState.routingTable()
+                        );
+                    }
                     routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                     metadataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                     logger.info("updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
@@ -299,14 +364,18 @@ public class MetadataUpdateSettingsService {
 
             return updatedState;
         }
+
+        @Override
+        public String toString() {
+            return request.toString();
+        }
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask(
+        taskQueue.submitTask(
             "update-settings " + Arrays.toString(request.indices()),
             new UpdateSettingsTask(request, listener),
-            ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()),
-            this.executor
+            request.masterNodeTimeout()
         );
     }
 
@@ -319,6 +388,8 @@ public class MetadataUpdateSettingsService {
     ) {
         for (Index index : indices) {
             IndexMetadata indexMetadata = metadataBuilder.getSafe(index);
+            // We validate the settings for removed deprecated settings, since we have the indexMetadata now.
+            indexScopedSettings.validate(indexMetadata.getSettings(), true, true, true);
             Settings.Builder indexSettings = Settings.builder().put(indexMetadata.getSettings());
             if (settingUpdater.apply(index, indexSettings)) {
                 if (preserveExisting) {

@@ -1,21 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class ContextInfoTests extends AbstractSerializingTestCase<PainlessContextInfo> {
+public class ContextInfoTests extends AbstractXContentSerializingTestCase<PainlessContextInfo> {
 
     @Override
     protected PainlessContextInfo doParseInstance(XContentParser parser) {
@@ -170,6 +171,11 @@ public class ContextInfoTests extends AbstractSerializingTestCase<PainlessContex
         }
 
         return new PainlessContextInfo(randomAlphaOfLength(20), classes, importedMethods, classBindings, instanceBindings);
+    }
+
+    @Override
+    protected PainlessContextInfo mutateInstance(PainlessContextInfo instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

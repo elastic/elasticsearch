@@ -1,0 +1,79 @@
+---
+setup:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 1
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:   { "test": 10, "sort_val": 1}
+  # we issue an 'indices.refresh' action to flush all data and create new leaves to cover that when rescoring
+  # we will take into account & iterate through all the results (up to window_size)
+  - do:
+      indices.refresh: {}
+  - do:
+      index:
+        index:  test
+        id:     "2"
+        body:   { "test": 50, "sort_val": 2}
+  - do:
+      indices.refresh: {}
+  - do:
+      index:
+        index:  test
+        id:     "3"
+        body:   { "test": 20, "sort_val": 3}
+  - do:
+      indices.refresh: {}
+
+---
+"simple rescore using a factor field":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          rescore:
+            example:
+              factor: 1
+              factor_field: test
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._score: 50 }
+  - match: { hits.hits.1._score: 20 }
+  - match: { hits.hits.2._score: 10 }
+
+---
+"sorted based on a numeric field and rescored based on a factor field using a window size":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            function_score:
+              query:
+                match_all: { }
+              functions:
+                - field_value_factor:
+                    field: "sort_val"
+                    factor: 1.0
+                    modifier: "none"
+              boost_mode: "replace"
+          rescore:
+            window_size: 2
+            example:
+              factor: 1
+              factor_field: test
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0._score: 100 }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1._score: 60 }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.2._score: 1}

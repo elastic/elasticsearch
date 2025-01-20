@@ -3,6 +3,12 @@
 
 NOTE: {cloud-only}
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-shutdown[Node lifecycle APIs].
+--
+
 Retrieves the status of a node that's being prepared for shutdown.
 
 [[get-shutdown-api-request]]
@@ -37,10 +43,8 @@ Use to monitor the shut down process after calling <<put-shutdown, put shutdown>
 The ID of a node that is being prepared for shutdown.
 If no ID is specified, returns the status of all nodes being prepared for shutdown.
 
-[[get-shutdown-api-params]]
-==== {api-query-parms-title}
-
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+//[[get-shutdown-api-params]]
+//==== {api-query-parms-title}
 
 [[get-shutdown-api-example]]
 ==== {api-examples-title}
@@ -74,6 +78,7 @@ including the status of shard migration, task migration, and plugin cleanup:
     "nodes": [
         {
             "node_id": "USpTGYaBSIKbgSUJR2Z9lg",
+            "node_ephemeral_id": null,
             "type": "RESTART",
             "reason": "Demonstrating how the node shutdown API works",
             "shutdown_startedmillis": 1624406108685,

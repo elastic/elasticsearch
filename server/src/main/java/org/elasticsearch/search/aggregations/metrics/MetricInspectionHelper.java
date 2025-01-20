@@ -1,13 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
-
-import org.elasticsearch.search.aggregations.pipeline.InternalDerivative;
 
 /**
  * Counterpart to {@link org.elasticsearch.search.aggregations.support.AggregationInspectionHelper}, providing
@@ -52,16 +51,12 @@ public class MetricInspectionHelper {
     }
 
     public static boolean hasValue(InternalTopHits agg) {
-        return (agg.getHits().getTotalHits().value == 0
+        return (agg.getHits().getTotalHits().value() == 0
             && Double.isNaN(agg.getHits().getMaxScore())
             && Double.isNaN(agg.getTopDocs().maxScore)) == false;
     }
 
     public static boolean hasValue(InternalWeightedAvg agg) {
         return (agg.getSum() == 0.0 && agg.getWeight() == 0L) == false;
-    }
-
-    public static boolean hasValue(InternalDerivative agg) {
-        return true;
     }
 }

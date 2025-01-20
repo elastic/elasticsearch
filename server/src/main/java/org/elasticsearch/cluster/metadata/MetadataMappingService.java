@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -15,23 +16,24 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterState
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -48,12 +50,13 @@ public class MetadataMappingService {
     private final ClusterService clusterService;
     private final IndicesService indicesService;
 
-    final PutMappingExecutor putMappingExecutor = new PutMappingExecutor();
+    private final MasterServiceTaskQueue<PutMappingClusterStateUpdateTask> taskQueue;
 
     @Inject
     public MetadataMappingService(ClusterService clusterService, IndicesService indicesService) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
+        taskQueue = clusterService.createTaskQueue("put-mapping", Priority.HIGH, new PutMappingExecutor());
     }
 
     record PutMappingClusterStateUpdateTask(PutMappingClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
@@ -132,6 +135,7 @@ public class MetadataMappingService {
             final CompressedXContent mappingUpdateSource = request.source();
             final Metadata metadata = currentState.metadata();
             final List<IndexMetadata> updateList = new ArrayList<>();
+            MergeReason reason = request.autoUpdate() ? MergeReason.MAPPING_AUTO_UPDATE : MergeReason.MAPPING_UPDATE;
             for (Index index : request.indices()) {
                 MapperService mapperService = indexMapperServices.get(index);
                 // IMPORTANT: always get the metadata from the state since it get's batched
@@ -146,8 +150,8 @@ public class MetadataMappingService {
                 updateList.add(indexMetadata);
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
                 // first, simulate: just call merge and ignore the result
-                Mapping mapping = mapperService.parseMapping(MapperService.SINGLE_MAPPING_NAME, mappingUpdateSource);
-                MapperService.mergeMappings(mapperService.documentMapper(), mapping, MergeReason.MAPPING_UPDATE);
+                Mapping mapping = mapperService.parseMapping(MapperService.SINGLE_MAPPING_NAME, reason, mappingUpdateSource);
+                MapperService.mergeMappings(mapperService.documentMapper(), mapping, reason, mapperService.getIndexSettings());
             }
             Metadata.Builder builder = Metadata.builder(metadata);
             boolean updated = false;
@@ -163,11 +167,7 @@ public class MetadataMappingService {
                 if (existingMapper != null) {
                     existingSource = existingMapper.mappingSource();
                 }
-                DocumentMapper mergedMapper = mapperService.merge(
-                    MapperService.SINGLE_MAPPING_NAME,
-                    mappingUpdateSource,
-                    MergeReason.MAPPING_UPDATE
-                );
+                DocumentMapper mergedMapper = mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappingUpdateSource, reason);
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
 
                 if (existingSource != null) {
@@ -195,12 +195,14 @@ public class MetadataMappingService {
                 IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
                 // Mapping updates on a single type may have side-effects on other types so we need to
                 // update mapping metadata on all types
-                DocumentMapper mapper = mapperService.documentMapper();
-                if (mapper != null) {
-                    indexMetadataBuilder.putMapping(new MappingMetadata(mapper));
+                DocumentMapper docMapper = mapperService.documentMapper();
+                if (docMapper != null) {
+                    indexMetadataBuilder.putMapping(new MappingMetadata(docMapper));
+                    indexMetadataBuilder.putInferenceFields(docMapper.mappers().inferenceFields());
                 }
                 if (updatedMapping) {
-                    indexMetadataBuilder.mappingVersion(1 + indexMetadataBuilder.mappingVersion());
+                    indexMetadataBuilder.mappingVersion(1 + indexMetadataBuilder.mappingVersion())
+                        .mappingsUpdatedVersion(IndexVersion.current());
                 }
                 /*
                  * This implicitly increments the index metadata version and builds the index metadata. This means that we need to have
@@ -246,12 +248,10 @@ public class MetadataMappingService {
             return;
         }
 
-        final PutMappingClusterStateUpdateTask task = new PutMappingClusterStateUpdateTask(request, listener);
-        clusterService.submitStateUpdateTask(
+        taskQueue.submitTask(
             "put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
-            task,
-            ClusterStateTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),
-            putMappingExecutor
+            new PutMappingClusterStateUpdateTask(request, listener),
+            request.masterNodeTimeout()
         );
     }
 }

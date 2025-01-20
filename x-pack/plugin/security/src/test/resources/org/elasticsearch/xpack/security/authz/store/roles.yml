@@ -78,3 +78,23 @@ role_query_invalid:
       privileges:
         - READ
       query: '{ "unknown": {} }'
+
+role_remote:
+  remote_indices:
+    - clusters:
+        - 'remote-*'
+      names:
+        - 'shared-index'
+      privileges:
+        - READ
+  remote_cluster:
+    - clusters:
+        - 'remote-*'
+      privileges:
+        - "monitor_enrich"
+
+role_with_description:
+  description:
+    "Allows all security-related operations!"
+  cluster:
+    - manage_security

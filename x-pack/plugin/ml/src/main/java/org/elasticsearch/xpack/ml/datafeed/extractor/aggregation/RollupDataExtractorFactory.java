@@ -20,7 +20,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.core.rollup.action.RollableIndexCaps;
@@ -28,6 +27,7 @@ import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps.RollupFieldCaps;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
 import java.time.ZoneId;
@@ -42,14 +42,15 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils.getHistogramAggregation;
-import static org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils.getHistogramIntervalMillis;
-import static org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils.validateAndGetCalendarInterval;
+import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils.getHistogramAggregation;
+import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils.getHistogramIntervalMillis;
+import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils.validateAndGetCalendarInterval;
 
 public class RollupDataExtractorFactory implements DataExtractorFactory {
 
     private final Client client;
     private final DatafeedConfig datafeedConfig;
+    private final QueryBuilder extraFilters;
     private final Job job;
     private final NamedXContentRegistry xContentRegistry;
     private final DatafeedTimingStatsReporter timingStatsReporter;
@@ -57,12 +58,14 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
     private RollupDataExtractorFactory(
         Client client,
         DatafeedConfig datafeedConfig,
+        QueryBuilder extraFilters,
         Job job,
         NamedXContentRegistry xContentRegistry,
         DatafeedTimingStatsReporter timingStatsReporter
     ) {
         this.client = Objects.requireNonNull(client);
         this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
+        this.extraFilters = extraFilters;
         this.job = Objects.requireNonNull(job);
         this.xContentRegistry = xContentRegistry;
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
@@ -80,19 +83,10 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
 
     @Override
     public DataExtractor newExtractor(long start, long end) {
-        return buildExtractor(start, end, datafeedConfig.getParsedQuery(xContentRegistry));
-    }
-
-    @Override
-    public DataExtractor newExtractor(long start, long end, QueryBuilder queryBuilder) {
-        return buildExtractor(
-            start,
-            end,
-            QueryBuilders.boolQuery().filter(datafeedConfig.getParsedQuery(xContentRegistry)).filter(queryBuilder)
-        );
-    }
-
-    private DataExtractor buildExtractor(long start, long end, QueryBuilder queryBuilder) {
+        QueryBuilder queryBuilder = datafeedConfig.getParsedQuery(xContentRegistry);
+        if (extraFilters != null) {
+            queryBuilder = QueryBuilders.boolQuery().filter(queryBuilder).filter(extraFilters);
+        }
         long histogramInterval = datafeedConfig.getHistogramIntervalMillis(xContentRegistry);
         AggregationDataExtractorContext dataExtractorContext = new AggregationDataExtractorContext(
             job.getId(),
@@ -114,6 +108,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
     public static void create(
         Client client,
         DatafeedConfig datafeed,
+        QueryBuilder extraFilters,
         Job job,
         Map<String, RollableIndexCaps> rollupJobsWithCaps,
         NamedXContentRegistry xContentRegistry,
@@ -146,7 +141,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
 
         List<ParsedRollupCaps> validIntervalCaps = rollupCapsSet.stream()
             .filter(rollupCaps -> validInterval(datafeedInterval, rollupCaps))
-            .collect(Collectors.toList());
+            .toList();
 
         if (validIntervalCaps.isEmpty()) {
             listener.onFailure(
@@ -171,7 +166,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
             return;
         }
 
-        listener.onResponse(new RollupDataExtractorFactory(client, datafeed, job, xContentRegistry, timingStatsReporter));
+        listener.onResponse(new RollupDataExtractorFactory(client, datafeed, extraFilters, job, xContentRegistry, timingStatsReporter));
     }
 
     private static boolean validInterval(long datafeedInterval, ParsedRollupCaps rollupJobGroupConfig) {

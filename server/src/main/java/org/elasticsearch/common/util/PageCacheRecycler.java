@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -99,7 +100,7 @@ public class PageCacheRecycler {
         final int maxPageCount = (int) Math.min(Integer.MAX_VALUE, limit / PAGE_SIZE_IN_BYTES);
 
         final int maxBytePageCount = (int) (bytesWeight * maxPageCount / totalWeight);
-        bytePage = build(type, maxBytePageCount, allocatedProcessors, new AbstractRecyclerC<byte[]>() {
+        bytePage = build(type, maxBytePageCount, allocatedProcessors, new AbstractRecyclerC<>() {
             @Override
             public byte[] newInstance() {
                 return new byte[BYTE_PAGE_SIZE];
@@ -109,10 +110,15 @@ public class PageCacheRecycler {
             public void recycle(byte[] value) {
                 // nothing to do
             }
+
+            @Override
+            public int pageSize() {
+                return BYTE_PAGE_SIZE;
+            }
         });
 
         final int maxObjectPageCount = (int) (objectsWeight * maxPageCount / totalWeight);
-        objectPage = build(type, maxObjectPageCount, allocatedProcessors, new AbstractRecyclerC<Object[]>() {
+        objectPage = build(type, maxObjectPageCount, allocatedProcessors, new AbstractRecyclerC<>() {
             @Override
             public Object[] newInstance() {
                 return new Object[OBJECT_PAGE_SIZE];
@@ -121,6 +127,11 @@ public class PageCacheRecycler {
             @Override
             public void recycle(Object[] value) {
                 Arrays.fill(value, null); // we need to remove the strong refs on the objects stored in the array
+            }
+
+            @Override
+            public int pageSize() {
+                return OBJECT_PAGE_SIZE;
             }
         });
 

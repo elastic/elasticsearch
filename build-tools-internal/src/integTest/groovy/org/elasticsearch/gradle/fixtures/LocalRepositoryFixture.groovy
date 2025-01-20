@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.fixtures
@@ -17,7 +18,7 @@ class LocalRepositoryFixture extends ExternalResource {
 
     private TemporaryFolder temporaryFolder
 
-    LocalRepositoryFixture(){
+    LocalRepositoryFixture() {
         this.temporaryFolder = new TemporaryFolder()
     }
 
@@ -33,22 +34,27 @@ class LocalRepositoryFixture extends ExternalResource {
         temporaryFolder.after()
     }
 
-    void generateJar(String group, String module, String version, String... clazzNames){
+    void generateJar(String group, String module, String version, String... clazzNames) {
         def baseGroupFolderPath = group.replace('.', '/')
         def targetFolder = new File(repoDir, "${baseGroupFolderPath}/$module/$version")
         targetFolder.mkdirs()
 
         def jarFile = new File(targetFolder, "${module}-${version}.jar")
-        clazzNames.each {clazzName ->
-            DynamicType.Unloaded<?> dynamicType = new ByteBuddy().subclass(Object.class)
-                    .name(clazzName)
-                    .make()
-            if(jarFile.exists()) {
-                dynamicType.inject(jarFile);
-            }else {
-                dynamicType.toJar(jarFile);
+        if (clazzNames.size() == 0) {
+            jarFile.write("blubb")
+        } else {
+            clazzNames.each { clazzName ->
+                DynamicType.Unloaded<?> dynamicType = new ByteBuddy().subclass(Object.class)
+                        .name(clazzName)
+                        .make()
+                if (jarFile.exists()) {
+                    dynamicType.inject(jarFile);
+                } else {
+                    dynamicType.toJar(jarFile);
+                }
             }
         }
+
     }
 
     void configureBuild(File buildFile) {
@@ -61,7 +67,7 @@ class LocalRepositoryFixture extends ExternalResource {
               artifact()
             }
           }
-        }  
+        }
         """
     }
 

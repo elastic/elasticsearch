@@ -25,6 +25,11 @@ public class PreviewDataFrameAnalyticsActionResponseTests extends AbstractWireSe
         );
     }
 
+    @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     private static Map<String, Object> randomHashMap(String... keys) {
         return Arrays.stream(keys).collect(Collectors.toMap(Function.identity(), k -> randomAlphaOfLength(10)));
 

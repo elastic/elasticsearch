@@ -8,11 +8,9 @@
 package org.elasticsearch.xpack.core.ccr;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
@@ -414,11 +412,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         this.writeBufferSizeInBytes = in.readVLong();
         this.followerMappingVersion = in.readVLong();
         this.followerSettingsVersion = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-            this.followerAliasesVersion = in.readVLong();
-        } else {
-            this.followerAliasesVersion = 0L;
-        }
+        this.followerAliasesVersion = in.readVLong();
         this.totalReadTimeMillis = in.readVLong();
         this.totalReadRemoteExecTimeMillis = in.readVLong();
         this.successfulReadRequests = in.readVLong();
@@ -458,9 +452,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         out.writeVLong(writeBufferSizeInBytes);
         out.writeVLong(followerMappingVersion);
         out.writeVLong(followerSettingsVersion);
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-            out.writeVLong(followerAliasesVersion);
-        }
+        out.writeVLong(followerAliasesVersion);
         out.writeVLong(totalReadTimeMillis);
         out.writeVLong(totalReadRemoteExecTimeMillis);
         out.writeVLong(successfulReadRequests);
@@ -505,7 +497,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         builder.humanReadableField(
             WRITE_BUFFER_SIZE_IN_BYTES_FIELD.getPreferredName(),
             "write_buffer_size",
-            new ByteSizeValue(writeBufferSizeInBytes)
+            ByteSizeValue.ofBytes(writeBufferSizeInBytes)
         );
         builder.field(FOLLOWER_MAPPING_VERSION_FIELD.getPreferredName(), followerMappingVersion);
         builder.field(FOLLOWER_SETTINGS_VERSION_FIELD.getPreferredName(), followerSettingsVersion);
@@ -523,7 +515,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         builder.field(SUCCESSFUL_READ_REQUESTS_FIELD.getPreferredName(), successfulReadRequests);
         builder.field(FAILED_READ_REQUESTS_FIELD.getPreferredName(), failedReadRequests);
         builder.field(OPERATIONS_READ_FIELD.getPreferredName(), operationsReads);
-        builder.humanReadableField(BYTES_READ.getPreferredName(), "total_read", new ByteSizeValue(bytesRead, ByteSizeUnit.BYTES));
+        builder.humanReadableField(BYTES_READ.getPreferredName(), "total_read", ByteSizeValue.ofBytes(bytesRead));
         builder.humanReadableField(
             TOTAL_WRITE_TIME_MILLIS_FIELD.getPreferredName(),
             "total_write_time",

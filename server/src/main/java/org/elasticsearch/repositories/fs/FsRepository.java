@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.fs;
@@ -45,7 +46,7 @@ public class FsRepository extends BlobStoreRepository {
 
     public static final String TYPE = "fs";
 
-    public static final Setting<String> LOCATION_SETTING = new Setting<>("location", "", Function.identity(), Property.NodeScope);
+    public static final Setting<String> LOCATION_SETTING = Setting.simpleString("location", Property.NodeScope);
     public static final Setting<String> REPOSITORIES_LOCATION_SETTING = new Setting<>(
         "repositories.fs.location",
         LOCATION_SETTING,
@@ -54,16 +55,16 @@ public class FsRepository extends BlobStoreRepository {
     );
     public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
         "chunk_size",
-        new ByteSizeValue(Long.MAX_VALUE),
-        new ByteSizeValue(5),
-        new ByteSizeValue(Long.MAX_VALUE),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
+        ByteSizeValue.ofBytes(5),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
         Property.NodeScope
     );
     public static final Setting<ByteSizeValue> REPOSITORIES_CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
         "repositories.fs.chunk_size",
-        new ByteSizeValue(Long.MAX_VALUE),
-        new ByteSizeValue(5),
-        new ByteSizeValue(Long.MAX_VALUE),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
+        ByteSizeValue.ofBytes(5),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
         Property.NodeScope
     );
     private final Environment environment;

@@ -11,8 +11,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
@@ -20,6 +18,8 @@ import org.elasticsearch.protocol.xpack.graph.Hop;
 import org.elasticsearch.protocol.xpack.graph.VertexRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -30,7 +30,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.graph.action.GraphExploreAction.INSTANCE;
@@ -38,11 +38,8 @@ import static org.elasticsearch.xpack.core.graph.action.GraphExploreAction.INSTA
 /**
  * @see GraphExploreRequest
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestGraphAction extends BaseRestHandler {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGraphAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" + " Specifying types in graph requests is deprecated.";
-    private static final String URI_BASE = "/_xpack";
 
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField SIGNIFICANCE_FIELD = new ParseField("use_significance");
@@ -65,22 +62,7 @@ public class RestGraphAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(GET, "/{index}/_graph/explore")
-                .replaces(GET, "/{index}" + URI_BASE + "/graph/_explore", RestApiVersion.V_7)
-                .build(),
-            Route.builder(POST, "/{index}/_graph/explore")
-                .replaces(POST, "/{index}" + URI_BASE + "/graph/_explore", RestApiVersion.V_7)
-                .build(),
-            Route.builder(GET, "/{index}/{type}/_graph/explore").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(GET, "/{index}/{type}" + URI_BASE + "/graph/_explore")
-                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build(),
-            Route.builder(POST, "/{index}/{type}/_graph/explore").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}" + URI_BASE + "/graph/_explore")
-                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build()
-        );
+        return List.of(new Route(GET, "/{index}/_graph/explore"), new Route(POST, "/{index}/_graph/explore"));
     }
 
     @Override
@@ -90,11 +72,6 @@ public class RestGraphAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
-            deprecationLogger.compatibleCritical("graph_with_types", TYPES_DEPRECATION_MESSAGE);
-            request.param("type");
-        }
-
         GraphExploreRequest graphRequest = new GraphExploreRequest(Strings.splitStringByCommaToArray(request.param("index")));
         graphRequest.indicesOptions(IndicesOptions.fromRequest(request, graphRequest.indicesOptions()));
         graphRequest.routing(request.param("routing"));
@@ -123,7 +100,7 @@ public class RestGraphAction extends BaseRestHandler {
         return channel -> client.execute(INSTANCE, graphRequest, new RestToXContentListener<>(channel));
     }
 
-    private void parseHop(XContentParser parser, Hop currentHop, GraphExploreRequest graphRequest) throws IOException {
+    private static void parseHop(XContentParser parser, Hop currentHop, GraphExploreRequest graphRequest) throws IOException {
         String fieldName = null;
         XContentParser.Token token;
 
@@ -139,7 +116,7 @@ public class RestGraphAction extends BaseRestHandler {
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (QUERY_FIELD.match(fieldName, parser.getDeprecationHandler())) {
-                    currentHop.guidingQuery(parseInnerQueryBuilder(parser));
+                    currentHop.guidingQuery(parseTopLevelQuery(parser));
                 } else if (CONNECTIONS_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                     parseHop(parser, graphRequest.createNextHop(null), graphRequest);
                 } else if (CONTROLS_FIELD.match(fieldName, parser.getDeprecationHandler())) {
@@ -160,7 +137,7 @@ public class RestGraphAction extends BaseRestHandler {
         }
     }
 
-    private void parseVertices(XContentParser parser, Hop currentHop) throws IOException {
+    private static void parseVertices(XContentParser parser, Hop currentHop) throws IOException {
         XContentParser.Token token;
 
         String fieldName = null;
@@ -317,7 +294,7 @@ public class RestGraphAction extends BaseRestHandler {
 
     }
 
-    private void parseControls(XContentParser parser, GraphExploreRequest graphRequest) throws IOException {
+    private static void parseControls(XContentParser parser, GraphExploreRequest graphRequest) throws IOException {
         XContentParser.Token token;
 
         String fieldName = null;

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -12,6 +13,7 @@ import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.time.ZoneId;
+import java.util.function.LongSupplier;
 
 /**
  * {@link ValuesSourceType} represents a collection of fields that share a common set of operations, for example all numeric fields.
@@ -55,23 +57,22 @@ public interface ValuesSourceType {
      * Return a {@link ValuesSource} wrapping a field for the given type.  All {@link ValuesSource}s must implement this method.
      *
      * @param fieldContext - The field being wrapped
-     * @param script - Optional script that might be applied over the field
-     * @param context context for the aggregation fetching the field
+     * @param script       - Optional script that might be applied over the field
      * @return - Field specialization of the base {@link ValuesSource}
      */
-    ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context);
+    ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script);
 
     /**
      * Apply the given missing value to an already-constructed {@link ValuesSource}.  Types which do not support missing values should throw
      * {@link org.elasticsearch.search.aggregations.AggregationExecutionException}
      *
-     * @param valuesSource - The original {@link ValuesSource}
-     * @param rawMissing - The missing value we got from the parser, typically a string or number
+     * @param valuesSource   - The original {@link ValuesSource}
+     * @param rawMissing     - The missing value we got from the parser, typically a string or number
      * @param docValueFormat - The format to use for further parsing the user supplied value, e.g. a date format
-     * @param context - Context for this aggregation used to handle {@link AggregationContext#nowInMillis() "now"}
+     * @param nowInMillis    - supplier of current time and date in milliseconds
      * @return - Wrapper over the provided {@link ValuesSource} to apply the given missing value
      */
-    ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, AggregationContext context);
+    ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier nowInMillis);
 
     /**
      * This method provides a hook for specifying a type-specific formatter.  When {@link ValuesSourceConfig} can resolve a
@@ -92,4 +93,15 @@ public interface ValuesSourceType {
      * @return the name of the Values Source Type
      */
     String typeName();
+
+    /**
+     * Returns the exception to throw in case the registry (type, aggregator) entry
+     * is not registered.
+     *
+     * @param message the message for the exception
+     * @return the exception to throw
+     */
+    default RuntimeException getUnregisteredException(String message) {
+        return new IllegalArgumentException(message);
+    }
 }

@@ -1,5 +1,0 @@
-pr: 87298
-summary: Allow start cluster with unreachable remote clusters
-area: Network
-type: enhancement
-issues: []

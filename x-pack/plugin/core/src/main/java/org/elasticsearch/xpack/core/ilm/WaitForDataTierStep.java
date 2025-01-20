@@ -37,7 +37,8 @@ public class WaitForDataTierStep extends ClusterStateWaitStep {
         boolean present = DataTierAllocationDecider.preferredAvailableTier(
             DataTier.parseTierList(tierPreference),
             clusterState.nodes(),
-            DesiredNodes.latestFromClusterState(clusterState)
+            DesiredNodes.latestFromClusterState(clusterState),
+            clusterState.metadata().nodeShutdowns()
         ).isPresent();
         SingleMessageFieldInfo info = present ? null : new SingleMessageFieldInfo("no nodes for tiers [" + tierPreference + "] available");
         return new Result(present, info);

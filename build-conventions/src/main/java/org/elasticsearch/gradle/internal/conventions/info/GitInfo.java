@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.conventions.info;
@@ -21,6 +22,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -75,18 +77,25 @@ public class GitInfo {
                 head = dotGit.resolve("HEAD");
                 gitDir = dotGit;
             } else {
-                // this is a git worktree, follow the pointer to the repository
-                final Path workTree = Paths.get(readFirstLine(dotGit).substring("gitdir:".length()).trim());
-                if (Files.exists(workTree) == false) {
-                    return new GitInfo("unknown", "unknown");
-                }
-                head = workTree.resolve("HEAD");
-                final Path commonDir = Paths.get(readFirstLine(workTree.resolve("commondir")));
-                if (commonDir.isAbsolute()) {
-                    gitDir = commonDir;
+                // this is a git worktree or submodule, follow the pointer to the repository
+                final Path reference = Paths.get(readFirstLine(dotGit).substring("gitdir:".length()).trim());
+                if (reference.getParent().endsWith("modules")) {
+                    // this is a git submodule so follow the reference to the git repo
+                    gitDir = rootDir.toPath().resolve(reference);
+                    head = gitDir.resolve("HEAD");
                 } else {
-                    // this is the common case
-                    gitDir = workTree.resolve(commonDir);
+                    // this is a worktree so resolve the root repo directory
+                    if (Files.exists(reference) == false) {
+                        return new GitInfo("unknown", "unknown");
+                    }
+                    head = reference.resolve("HEAD");
+                    final Path commonDir = Paths.get(readFirstLine(reference.resolve("commondir")));
+                    if (commonDir.isAbsolute()) {
+                        gitDir = commonDir;
+                    } else {
+                        // this is the common case
+                        gitDir = reference.resolve(commonDir);
+                    }
                 }
             }
             final String ref = readFirstLine(head);
@@ -182,4 +191,15 @@ public class GitInfo {
         }
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        GitInfo gitInfo = (GitInfo) o;
+        return Objects.equals(revision, gitInfo.revision) && Objects.equals(origin, gitInfo.origin);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(revision, origin);
+    }
 }

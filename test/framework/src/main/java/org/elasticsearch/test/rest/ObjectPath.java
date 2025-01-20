@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.rest;
 
@@ -11,6 +12,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -21,6 +23,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Holds an object and allows extraction of specific values from it, given their path
@@ -37,7 +40,7 @@ public class ObjectPath {
     }
 
     public static ObjectPath createFromXContent(XContent xContent, BytesReference input) throws IOException {
-        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, input.streamInput())) {
+        try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, input, xContent.type())) {
             if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
                 return new ObjectPath(parser.listOrderedMap());
             }
@@ -67,11 +70,24 @@ public class ObjectPath {
     /**
      * Returns the object corresponding to the provided path if present, null otherwise
      */
-    @SuppressWarnings("unchecked")
     public <T> T evaluate(String path, Stash stash) throws IOException {
-        String[] parts = parsePath(path);
+        return evaluateExact(stash, parsePath(path));
+    }
+
+    /**
+     * Returns the object corresponding to the provided path if present, null otherwise
+     */
+    public <T> T evaluateExact(String... path) throws IOException {
+        return evaluateExact(Stash.EMPTY, path);
+    }
+
+    /**
+     * Returns the object corresponding to the provided path if present, null otherwise
+     */
+    @SuppressWarnings("unchecked")
+    public <T> T evaluateExact(Stash stash, String... path) throws IOException {
         Object result = this.object;
-        for (String part : parts) {
+        for (String part : path) {
             result = evaluate(part, result, stash);
             if (result == null) {
                 return null;
@@ -81,7 +97,7 @@ public class ObjectPath {
     }
 
     @SuppressWarnings("unchecked")
-    private Object evaluate(String key, Object objectToEvaluate, Stash stash) throws IOException {
+    private static Object evaluate(String key, Object objectToEvaluate, Stash stash) throws IOException {
         if (stash.containsStashedValue(key)) {
             key = stash.getValue(key).toString();
         }
@@ -118,7 +134,7 @@ public class ObjectPath {
         );
     }
 
-    private String[] parsePath(String path) {
+    private static String[] parsePath(String path) {
         List<String> list = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean escape = false;
@@ -165,5 +181,20 @@ public class ObjectPath {
             throw new UnsupportedOperationException("Only ObjectPath created from a map supported.");
         }
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        return "ObjectPath[" + object + "]";
+    }
+
+    public int evaluateArraySize(String path) throws IOException {
+        final List<?> list = evaluate(path);
+        return list.size();
+    }
+
+    public Set<String> evaluateMapKeys(String path) throws IOException {
+        final Map<String, ?> map = evaluate(path);
+        return map.keySet();
     }
 }

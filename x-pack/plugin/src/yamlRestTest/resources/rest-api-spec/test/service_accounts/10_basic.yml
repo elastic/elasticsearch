@@ -31,17 +31,21 @@ teardown:
 "Test get service accounts":
   - do:
       security.get_service_accounts: {}
-  - length: { '': 3 }
+  - length: { '': 5 }
+  - is_true: "elastic/auto-ops"
   - is_true: "elastic/enterprise-search-server"
   - is_true: "elastic/fleet-server"
+  - is_true: "elastic/fleet-server-remote"
   - is_true: "elastic/kibana"
 
   - do:
       security.get_service_accounts:
         namespace: elastic
-  - length: { '': 3 }
+  - length: { '': 5 }
+  - is_true: "elastic/auto-ops"
   - is_true: "elastic/enterprise-search-server"
   - is_true: "elastic/fleet-server"
+  - is_true: "elastic/fleet-server-remote"
   - is_true: "elastic/kibana"
 
   - do:

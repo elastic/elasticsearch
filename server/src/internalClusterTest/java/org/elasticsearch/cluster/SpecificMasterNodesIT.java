@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -36,12 +38,9 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
         try {
             assertThat(
-                client().admin()
-                    .cluster()
-                    .prepareState()
-                    .setMasterNodeTimeout("100ms")
-                    .execute()
-                    .actionGet()
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                    .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+                    .get()
                     .getState()
                     .nodes()
                     .getMasterNodeId(),
@@ -57,9 +56,8 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             internalCluster().nonMasterClient()
                 .admin()
                 .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
                 .getState()
                 .nodes()
                 .getMasterNode()
@@ -70,9 +68,8 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             internalCluster().masterClient()
                 .admin()
                 .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
                 .getState()
                 .nodes()
                 .getMasterNode()
@@ -86,12 +83,9 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
 
         try {
             assertThat(
-                client().admin()
-                    .cluster()
-                    .prepareState()
-                    .setMasterNodeTimeout("100ms")
-                    .execute()
-                    .actionGet()
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                    .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+                    .get()
                     .getState()
                     .nodes()
                     .getMasterNodeId(),
@@ -110,9 +104,8 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             internalCluster().nonMasterClient()
                 .admin()
                 .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
                 .getState()
                 .nodes()
                 .getMasterNode()
@@ -123,9 +116,8 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             internalCluster().masterClient()
                 .admin()
                 .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
                 .getState()
                 .nodes()
                 .getMasterNode()
@@ -140,12 +132,9 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
         try {
             assertThat(
-                client().admin()
-                    .cluster()
-                    .prepareState()
-                    .setMasterNodeTimeout("100ms")
-                    .execute()
-                    .actionGet()
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                    .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+                    .get()
                     .getState()
                     .nodes()
                     .getMasterNodeId(),
@@ -161,9 +150,8 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             internalCluster().nonMasterClient()
                 .admin()
                 .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
                 .getState()
                 .nodes()
                 .getMasterNode()
@@ -174,9 +162,8 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             internalCluster().masterClient()
                 .admin()
                 .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
                 .getState()
                 .nodes()
                 .getMasterNode()
@@ -190,22 +177,8 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             internalCluster().nonMasterClient()
                 .admin()
                 .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
-                .getState()
-                .nodes()
-                .getMasterNode()
-                .getName(),
-            equalTo(masterNodeName)
-        );
-        assertThat(
-            internalCluster().nonMasterClient()
-                .admin()
-                .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
                 .getState()
                 .nodes()
                 .getMasterNode()
@@ -216,9 +189,8 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             internalCluster().masterClient()
                 .admin()
                 .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
                 .getState()
                 .nodes()
                 .getMasterNode()
@@ -227,16 +199,18 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         );
 
         logger.info("--> closing master node (1)");
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(masterNodeName)).get();
+        client().execute(
+            TransportAddVotingConfigExclusionsAction.TYPE,
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, masterNodeName)
+        ).get();
         // removing the master from the voting configuration immediately triggers the master to step down
         assertBusy(() -> {
             assertThat(
                 internalCluster().nonMasterClient()
                     .admin()
                     .cluster()
-                    .prepareState()
-                    .execute()
-                    .actionGet()
+                    .prepareState(TEST_REQUEST_TIMEOUT)
+                    .get()
                     .getState()
                     .nodes()
                     .getMasterNode()
@@ -247,9 +221,8 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
                 internalCluster().masterClient()
                     .admin()
                     .cluster()
-                    .prepareState()
-                    .execute()
-                    .actionGet()
+                    .prepareState(TEST_REQUEST_TIMEOUT)
+                    .get()
                     .getState()
                     .nodes()
                     .getMasterNode()
@@ -262,9 +235,8 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             internalCluster().nonMasterClient()
                 .admin()
                 .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
                 .getState()
                 .nodes()
                 .getMasterNode()
@@ -275,9 +247,8 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             internalCluster().masterClient()
                 .admin()
                 .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
                 .getState()
                 .nodes()
                 .getMasterNode()
@@ -310,9 +281,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
                 }
               }
             }"""));
-        client().admin()
-            .indices()
-            .prepareAliases()
+        indicesAdmin().prepareAliases()
             .addAlias(
                 "test",
                 "a_test",

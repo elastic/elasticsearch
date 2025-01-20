@@ -62,7 +62,7 @@ SendSIGKILL=no
 SuccessExitStatus=143
 
 # Allow a slow startup before the systemd notifier module kicks in to extend the timeout
-TimeoutStartSec=75
+TimeoutStartSec=900
 
 [Install]
 WantedBy=multi-user.target

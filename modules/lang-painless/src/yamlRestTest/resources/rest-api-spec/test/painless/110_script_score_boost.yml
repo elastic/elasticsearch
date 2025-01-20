@@ -1,7 +1,7 @@
 # Integration tests for ScriptScoreQuery using Painless
 setup:
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "boost was corrected in script_score query from 8.0"
   - do:
       indices.create:

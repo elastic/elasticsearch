@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -20,8 +21,9 @@ import java.util.Optional;
 /**
  * This provides information around the current sampling context for aggregations
  */
-public record SamplingContext(double probability, int seed) {
-    public static SamplingContext NONE = new SamplingContext(1.0, 0);
+public record SamplingContext(double probability, int seed, Integer shardSeed) {
+
+    public static final SamplingContext NONE = new SamplingContext(1.0, 0, null);
 
     public boolean isSampled() {
         return probability < 1.0;
@@ -97,20 +99,22 @@ public record SamplingContext(double probability, int seed) {
         }
         BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
         queryBuilder.add(rewritten, BooleanClause.Occur.FILTER);
-        queryBuilder.add(new RandomSamplingQuery(probability(), seed(), context.shardRandomSeed()), BooleanClause.Occur.FILTER);
+        queryBuilder.add(
+            new RandomSamplingQuery(probability(), seed(), shardSeed == null ? context.shardRandomSeed() : shardSeed),
+            BooleanClause.Occur.FILTER
+        );
         return queryBuilder.build();
     }
 
     /**
      * @param context The current aggregation context
      * @return the sampling query if the sampling context indicates that sampling is required
-     * @throws IOException thrown on query build failure
      */
-    public Optional<Query> buildSamplingQueryIfNecessary(AggregationContext context) throws IOException {
+    public Optional<Query> buildSamplingQueryIfNecessary(AggregationContext context) {
         if (isSampled() == false) {
             return Optional.empty();
         }
-        return Optional.of(new RandomSamplingQuery(probability(), seed(), context.shardRandomSeed()));
+        return Optional.of(new RandomSamplingQuery(probability(), seed(), shardSeed == null ? context.shardRandomSeed() : shardSeed));
     }
 
 }

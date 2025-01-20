@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -14,7 +15,6 @@ import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -75,7 +75,7 @@ public class FingerprintProcessorFactoryTests extends ESTestCase {
 
         // invalid method
         String invalidMethod = randomValueOtherThanMany(
-            m -> Arrays.asList(FingerprintProcessor.Factory.SUPPORTED_DIGESTS).contains(m),
+            m -> List.of(FingerprintProcessor.Factory.SUPPORTED_DIGESTS).contains(m),
             () -> randomAlphaOfLengthBetween(5, 9)
         );
         config.put("fields", fieldList);

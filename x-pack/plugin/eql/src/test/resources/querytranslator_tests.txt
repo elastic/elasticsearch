@@ -208,14 +208,14 @@ twoFunctionsEqualsBooleanLiterals-caseSensitive
 process where endsWith(process_path, "x") == true and endsWith(process_path, "yx") != true
 ;
 {"bool":{"must":[{"wildcard":{"process_path":{"wildcard":"*x","boost":1.0}}},
-{"bool":{"must_not":[{"wildcard":{"process_path":{"wildcard":"*yx","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
+{"bool":{"must_not":[{"wildcard":{"process_path":{"wildcard":"*yx","boost":1.0}}}],"boost":1.0}}
 ;
 
 twoFunctionsEqualsBooleanLiterals-insensitive
 process where endsWith~(process_path, "x") == true and endsWith~(process_path, "yx") != true
 ;
 {"bool":{"must":[{"wildcard":{"process_path":{"wildcard":"*x","case_insensitive":true,"boost":1.0}}},
-{"bool":{"must_not":[{"wildcard":{"process_path":{"wildcard":"*yx","case_insensitive":true,"boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
+{"bool":{"must_not":[{"wildcard":{"process_path":{"wildcard":"*yx","case_insensitive":true,"boost":1.0}}}],"boost":1.0}}
 ;
 
 endsWithKeywordFieldFunction-caseSensitive
@@ -769,7 +769,7 @@ process where command_line regex "^.*?net.exe"
 regexSingleArgInsensitive
 process where command_line regex~ "^.*?net.exe"
 ;
-"regexp":{"command_line":{"value":"^.*?net.exe","flags_value":255,"case_insensitive":true
+"regexp":{"command_line":{"value":"^.*?net.exe","flags_value":65791,"case_insensitive":true
 ;
 
 regexMultiArg
@@ -781,7 +781,7 @@ process where command_line regex ("^.*?net.exe", "net\\.exe")
 regexMultiArgInsensitive
 process where command_line regex~ ("^.*?net.exe", "net\\.exe")
 ;
-"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe","flags_value":255,"case_insensitive":true
+"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe","flags_value":65791,"case_insensitive":true
 ;
 
 regexMultiMultiArgVariant
@@ -793,7 +793,7 @@ process where command_line regex ("^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\
 regexMultiMultiArgVariantInsensitive
 process where command_line regex~ ("^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
 ;
-"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+","flags_value":255,"case_insensitive":true
+"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+","flags_value":65791,"case_insensitive":true
 ;
 
 regexMultiArgWithScript
@@ -876,7 +876,7 @@ process where null == (exit_code > -1)
 isNull
 process where pid != null
 ;
-{"bool":{"must_not":[{"bool":{"must_not":[{"exists":{"field":"pid"
+"must":[{"term":{"event.category":{"value":"process"}}},{"exists":{"field":"pid","boost":1.0}}]
 ;
 
 disjunctionOfFunctionAndNegatedFunction

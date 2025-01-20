@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.test.rest;
 
@@ -15,6 +16,7 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.IgnoreEmptyDirectories;
@@ -22,6 +24,8 @@ import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputDirectory;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
@@ -43,7 +47,7 @@ import static org.elasticsearch.gradle.util.GradleUtils.getProjectPathFromTask;
  *
  * @see RestResourcesPlugin
  */
-public class CopyRestTestsTask extends DefaultTask {
+public abstract class CopyRestTestsTask extends DefaultTask {
     private static final String REST_TEST_PREFIX = "rest-api-spec/test";
     private final ListProperty<String> includeCore;
     private final ListProperty<String> includeXpack;
@@ -61,6 +65,9 @@ public class CopyRestTestsTask extends DefaultTask {
     private final PatternFilterable xpackPatternSet;
     private final ProjectLayout projectLayout;
     private final FileSystemOperations fileSystemOperations;
+
+    @Inject
+    public abstract FileOperations getFileOperations();
 
     @Inject
     public CopyRestTestsTask(
@@ -101,6 +108,7 @@ public class CopyRestTestsTask extends DefaultTask {
     @SkipWhenEmpty
     @IgnoreEmptyDirectories
     @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
     public FileTree getInputDir() {
         FileTree coreFileTree = null;
         FileTree xpackFileTree = null;

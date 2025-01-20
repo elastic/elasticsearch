@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.authc.saml;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -15,12 +16,15 @@ import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizatio
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
+
+import static org.elasticsearch.xpack.core.security.authc.support.SecuritySettingsUtil.verifyNonNullNotEmpty;
 
 public class SamlRealmSettings {
 
@@ -45,6 +49,18 @@ public class SamlRealmSettings {
         RealmSettings.realmSettingPrefix(TYPE),
         IDP_METADATA_SETTING_PREFIX + "http.refresh",
         key -> Setting.timeSetting(key, TimeValue.timeValueHours(1), Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<TimeValue> IDP_METADATA_HTTP_MIN_REFRESH = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        IDP_METADATA_SETTING_PREFIX + "http.minimum_refresh",
+        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(5), TimeValue.timeValueMillis(500), Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<Boolean> IDP_METADATA_HTTP_FAIL_ON_ERROR = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        IDP_METADATA_SETTING_PREFIX + "http.fail_on_error",
+        key -> Setting.boolSetting(key, false, Setting.Property.NodeScope)
     );
 
     public static final Setting.AffixSetting<Boolean> IDP_SINGLE_LOGOUT = Setting.affixKeySetting(
@@ -92,7 +108,7 @@ public class SamlRealmSettings {
     );
 
     public static final AttributeSetting PRINCIPAL_ATTRIBUTE = new AttributeSetting("principal");
-    public static final AttributeSetting GROUPS_ATTRIBUTE = new AttributeSetting("groups");
+    public static final AttributeSettingWithDelimiter GROUPS_ATTRIBUTE = new AttributeSettingWithDelimiter("groups");
     public static final AttributeSetting DN_ATTRIBUTE = new AttributeSetting("dn");
     public static final AttributeSetting NAME_ATTRIBUTE = new AttributeSetting("name");
     public static final AttributeSetting MAIL_ATTRIBUTE = new AttributeSetting("mail");
@@ -114,19 +130,60 @@ public class SamlRealmSettings {
     public static final Setting.AffixSetting<List<String>> SIGNING_MESSAGE_TYPES = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "signing.saml_messages",
-        key -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(), Setting.Property.NodeScope)
+        key -> Setting.stringListSetting(key, List.of("*"), Setting.Property.NodeScope)
     );
 
     public static final Setting.AffixSetting<List<String>> REQUESTED_AUTHN_CONTEXT_CLASS_REF = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "req_authn_context_class_ref",
-        key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Setting.Property.NodeScope)
+        key -> Setting.stringListSetting(key, Setting.Property.NodeScope)
     );
 
     public static final Setting.AffixSetting<TimeValue> CLOCK_SKEW = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "allowed_clock_skew",
         key -> Setting.positiveTimeSetting(key, TimeValue.timeValueMinutes(3), Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<List<String>> EXCLUDE_ROLES = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "exclude_roles",
+        key -> Setting.stringListSetting(key, new Setting.Validator<>() {
+
+            @Override
+            public void validate(List<String> excludedRoles) {
+                excludedRoles.forEach(excludedRole -> verifyNonNullNotEmpty(key, excludedRole));
+            }
+
+            @Override
+            public void validate(List<String> excludedRoles, Map<Setting<?>, Object> settings) {
+                if (false == excludedRoles.isEmpty()) {
+                    final String namespace = EXCLUDE_ROLES.getNamespace(EXCLUDE_ROLES.getConcreteSetting(key));
+                    final Setting<List<String>> authorizationRealmsSetting = DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(TYPE)
+                        .getConcreteSettingForNamespace(namespace);
+                    @SuppressWarnings("unchecked")
+                    final List<String> authorizationRealms = (List<String>) settings.get(authorizationRealmsSetting);
+                    if (authorizationRealms != null && false == authorizationRealms.isEmpty()) {
+                        throw new SettingsException(
+                            "Setting ["
+                                + EXCLUDE_ROLES.getConcreteSettingForNamespace(namespace).getKey()
+                                + "] is not permitted when setting ["
+                                + authorizationRealmsSetting.getKey()
+                                + "] is configured."
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final String namespace = EXCLUDE_ROLES.getNamespace(EXCLUDE_ROLES.getConcreteSetting(key));
+                final List<Setting<?>> settings = List.of(
+                    DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(TYPE).getConcreteSettingForNamespace(namespace)
+                );
+                return settings.iterator();
+            }
+        }, Setting.Property.NodeScope)
     );
 
     public static final String SSL_PREFIX = "ssl.";
@@ -141,6 +198,8 @@ public class SamlRealmSettings {
             IDP_ENTITY_ID,
             IDP_METADATA_PATH,
             IDP_METADATA_HTTP_REFRESH,
+            IDP_METADATA_HTTP_MIN_REFRESH,
+            IDP_METADATA_HTTP_FAIL_ON_ERROR,
             IDP_SINGLE_LOGOUT,
             SP_ENTITY_ID,
             SP_ACS,
@@ -207,6 +266,42 @@ public class SamlRealmSettings {
 
         public Setting.AffixSetting<String> getPattern() {
             return pattern;
+        }
+    }
+
+    /**
+     * The SAML realm offers a setting where a multivalued attribute can be configured to have a delimiter for its values, for the case
+     * when all values are provided in a single string item, separated by a delimiter.
+     * As in {@link AttributeSetting} there are two settings:
+     * <ul>
+     * <li>The name of the SAML attribute to use</li>
+     * <li>A delimiter to apply to that attribute value in order to extract the substrings that should be used.</li>
+     * </ul>
+     * For example, the Elasticsearch Group could be configured to come from the SAML "department" attribute, where all groups are provided
+     * as a csv value in a single list item.
+     */
+    public static final class AttributeSettingWithDelimiter {
+        public static final String ATTRIBUTE_DELIMITERS_PREFIX = "attribute_delimiters.";
+        private final Setting.AffixSetting<String> delimiter;
+        private final AttributeSetting attributeSetting;
+
+        public AttributeSetting getAttributeSetting() {
+            return attributeSetting;
+        }
+
+        public AttributeSettingWithDelimiter(String name) {
+            this.attributeSetting = new AttributeSetting(name);
+            this.delimiter = RealmSettings.simpleString(TYPE, ATTRIBUTE_DELIMITERS_PREFIX + name, Setting.Property.NodeScope);
+        }
+
+        public Setting.AffixSetting<String> getDelimiter() {
+            return this.delimiter;
+        }
+
+        public Collection<Setting.AffixSetting<?>> settings() {
+            List<Setting.AffixSetting<?>> settings = new ArrayList<>(attributeSetting.settings());
+            settings.add(getDelimiter());
+            return settings;
         }
     }
 }

@@ -1,28 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
@@ -82,9 +83,9 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         state.metadata(Metadata.builder().generateClusterUuidIfNeeded());
         state.routingTable(RoutingTable.builder().build());
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
-        nodes.add(DiscoveryNode.createLocal(settings, buildNewFakeTransportAddress(), "this_node"));
+        nodes.add(DiscoveryNodeUtils.builder("this_node").applySettings(settings).build());
         for (int i = 0; i < nonLocalNodesCount; i++) {
-            nodes.add(new DiscoveryNode("other_node_" + i, buildNewFakeTransportAddress(), Version.CURRENT));
+            nodes.add(DiscoveryNodeUtils.create("other_node_" + i));
         }
         nodes.localNodeId("this_node");
         state.nodes(nodes);
@@ -95,7 +96,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
         @SuppressWarnings("unchecked")
         PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
-        when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
+        when(action.getExecutor()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(action.getTaskName()).thenReturn(TestPersistentTasksExecutor.NAME);
         int nonLocalNodesCount = randomInt(10);
         // need to account for 5 original tasks on each node and their relocations
@@ -209,7 +210,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
         @SuppressWarnings("unchecked")
         PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
-        when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
+        when(action.getExecutor()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(action.getTaskName()).thenReturn(TestPersistentTasksExecutor.NAME);
         TaskId parentId = new TaskId("cluster", 1);
         AllocatedPersistentTask nodeTask = new TestPersistentTasksPlugin.TestTask(
@@ -254,12 +255,17 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
     public void testTaskCancellation() {
         AtomicLong capturedTaskId = new AtomicLong();
-        AtomicReference<ActionListener<CancelTasksResponse>> capturedListener = new AtomicReference<>();
+        AtomicReference<ActionListener<ListTasksResponse>> capturedListener = new AtomicReference<>();
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         PersistentTasksService persistentTasksService = new PersistentTasksService(null, null, client) {
             @Override
-            void sendCancelRequest(final long taskId, final String reason, final ActionListener<CancelTasksResponse> listener) {
+            void sendCancelRequest(
+                final long taskId,
+                final String reason,
+                final TimeValue timeout,
+                final ActionListener<ListTasksResponse> listener
+            ) {
                 capturedTaskId.set(taskId);
                 capturedListener.set(listener);
             }
@@ -270,6 +276,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                 final long taskAllocationId,
                 final Exception taskFailure,
                 final String localAbortReason,
+                final TimeValue timeout,
                 final ActionListener<PersistentTask<?>> listener
             ) {
                 fail("Shouldn't be called during Cluster State cancellation");
@@ -277,7 +284,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         };
         @SuppressWarnings("unchecked")
         PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
-        when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
+        when(action.getExecutor()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(action.getTaskName()).thenReturn("test");
         when(action.createTask(anyLong(), anyString(), anyString(), any(), any(), any())).thenReturn(
             new TestPersistentTasksPlugin.TestTask(1, "persistent", "test", "", new TaskId("cluster", 1), Collections.emptyMap())
@@ -328,8 +335,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         // That should trigger cancellation request
         assertThat(capturedTaskId.get(), equalTo(localId));
         // Notify successful cancellation
-        capturedListener.get()
-            .onResponse(new CancelTasksResponse(Collections.emptyList(), Collections.emptyList(), Collections.emptyList()));
+        capturedListener.get().onResponse(new ListTasksResponse(Collections.emptyList(), Collections.emptyList(), Collections.emptyList()));
 
         // finish or fail task
         if (randomBoolean()) {
@@ -350,7 +356,12 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         PersistentTasksService persistentTasksService = new PersistentTasksService(null, null, client) {
             @Override
-            void sendCancelRequest(final long taskId, final String reason, final ActionListener<CancelTasksResponse> listener) {
+            void sendCancelRequest(
+                final long taskId,
+                final String reason,
+                final TimeValue timeout,
+                final ActionListener<ListTasksResponse> listener
+            ) {
                 fail("Shouldn't be called during local abort");
             }
 
@@ -360,6 +371,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                 final long taskAllocationId,
                 final Exception taskFailure,
                 final String localAbortReason,
+                final TimeValue timeout,
                 final ActionListener<PersistentTask<?>> listener
             ) {
                 assertThat(taskId, not(nullValue()));
@@ -372,7 +384,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         };
         @SuppressWarnings("unchecked")
         PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
-        when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
+        when(action.getExecutor()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(action.getTaskName()).thenReturn("test");
         when(action.createTask(anyLong(), anyString(), anyString(), any(), any(), any())).thenReturn(
             new TestPersistentTasksPlugin.TestTask(1, "persistent", "test", "", new TaskId("cluster", 1), Collections.emptyMap())
@@ -468,6 +480,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                 long taskAllocationId,
                 Exception taskFailure,
                 String localAbortReason,
+                TimeValue timeout,
                 ActionListener<PersistentTask<?>> listener
             ) {
                 assertThat(taskFailure, instanceOf(RuntimeException.class));
@@ -480,7 +493,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
-        when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
+        when(action.getExecutor()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(action.getTaskName()).thenReturn(TestPersistentTasksExecutor.NAME);
         when(action.createTask(anyLong(), anyString(), anyString(), any(), any(), any())).thenThrow(
             new RuntimeException("Something went wrong")
@@ -561,7 +574,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             .build();
     }
 
-    private class Execution {
+    private static class Execution {
 
         private final PersistentTaskParams params;
         private final AllocatedPersistentTask task;
@@ -575,11 +588,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
     }
 
     private class MockExecutor extends NodePersistentTasksExecutor {
-        private List<Execution> executions = new ArrayList<>();
-
-        MockExecutor() {
-            super(null);
-        }
+        private final List<Execution> executions = new ArrayList<>();
 
         @Override
         public <Params extends PersistentTaskParams> void executeTask(

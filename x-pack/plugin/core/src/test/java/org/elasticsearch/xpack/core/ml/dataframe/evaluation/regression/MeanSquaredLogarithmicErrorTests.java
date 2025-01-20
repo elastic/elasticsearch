@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 
@@ -20,7 +20,7 @@ import java.util.Collections;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockSingleValue;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MeanSquaredLogarithmicErrorTests extends AbstractSerializingTestCase<MeanSquaredLogarithmicError> {
+public class MeanSquaredLogarithmicErrorTests extends AbstractXContentSerializingTestCase<MeanSquaredLogarithmicError> {
 
     @Override
     protected MeanSquaredLogarithmicError doParseInstance(XContentParser parser) throws IOException {
@@ -33,6 +33,11 @@ public class MeanSquaredLogarithmicErrorTests extends AbstractSerializingTestCas
     }
 
     @Override
+    protected MeanSquaredLogarithmicError mutateInstance(MeanSquaredLogarithmicError instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<MeanSquaredLogarithmicError> instanceReader() {
         return MeanSquaredLogarithmicError::new;
     }
@@ -42,7 +47,7 @@ public class MeanSquaredLogarithmicErrorTests extends AbstractSerializingTestCas
     }
 
     public void testEvaluate() {
-        Aggregations aggs = new Aggregations(
+        InternalAggregations aggs = InternalAggregations.from(
             Arrays.asList(mockSingleValue("regression_msle", 0.8123), mockSingleValue("some_other_single_metric_agg", 0.2377))
         );
 
@@ -55,7 +60,9 @@ public class MeanSquaredLogarithmicErrorTests extends AbstractSerializingTestCas
     }
 
     public void testEvaluate_GivenMissingAggs() {
-        Aggregations aggs = new Aggregations(Collections.singletonList(mockSingleValue("some_other_single_metric_agg", 0.2377)));
+        InternalAggregations aggs = InternalAggregations.from(
+            Collections.singletonList(mockSingleValue("some_other_single_metric_agg", 0.2377))
+        );
 
         MeanSquaredLogarithmicError msle = new MeanSquaredLogarithmicError((Double) null);
         msle.process(aggs);

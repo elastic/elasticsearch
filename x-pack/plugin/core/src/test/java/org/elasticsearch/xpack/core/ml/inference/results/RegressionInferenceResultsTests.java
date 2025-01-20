@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults.writeResult;
+import static org.elasticsearch.inference.InferenceResults.writeResult;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -69,6 +69,11 @@ public class RegressionInferenceResultsTests extends InferenceResultsTestCase<Re
     }
 
     @Override
+    protected RegressionInferenceResults mutateInstance(RegressionInferenceResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<RegressionInferenceResults> instanceReader() {
         return RegressionInferenceResults::new;
     }
@@ -83,17 +88,14 @@ public class RegressionInferenceResultsTests extends InferenceResultsTestCase<Re
         RegressionFeatureImportance fi = new RegressionFeatureImportance("foo", 1.0);
         result = new RegressionInferenceResults(1.0, resultsField, Collections.singletonList(fi));
         stringRep = Strings.toString(result);
-        expected = """
+        expected = Strings.format("""
             {"%s":1.0,"feature_importance":[{"feature_name":"foo","importance":1.0}]}\
-            """.formatted(resultsField);
+            """, resultsField);
         assertEquals(expected, stringRep);
     }
 
     @Override
-    void assertFieldValues(RegressionInferenceResults createdInstance, IngestDocument document, String resultsField) {
-        assertThat(
-            document.getFieldValue(resultsField + "." + createdInstance.getResultsField(), Double.class),
-            closeTo(createdInstance.value(), 1e-10)
-        );
+    void assertFieldValues(RegressionInferenceResults createdInstance, IngestDocument document, String parentField, String resultsField) {
+        assertThat(document.getFieldValue(parentField + resultsField, Double.class), closeTo(createdInstance.value(), 1e-10));
     }
 }

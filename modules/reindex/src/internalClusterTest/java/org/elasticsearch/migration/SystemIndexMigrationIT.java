@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.migration;
@@ -27,10 +28,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.upgrades.SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME;
@@ -77,14 +75,10 @@ public class SystemIndexMigrationIT extends AbstractFeatureMigrationIntegTest {
             if (task != null
                 && task.getState() != null // Make sure the task is really started
                 && hasBlocked.compareAndSet(false, true)) {
-                try {
-                    logger.info("Task created");
-                    taskCreated.await(10, TimeUnit.SECONDS); // now we can test internalCluster().restartNode
 
-                    shutdownCompleted.await(10, TimeUnit.SECONDS); // waiting until the node has stopped
-                } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
-                    throw new AssertionError(e);
-                }
+                logger.info("Task created");
+                safeAwait(taskCreated); // now we can test internalCluster().restartNode
+                safeAwait(shutdownCompleted); // waiting until the node has stopped
             }
 
         };
@@ -92,28 +86,28 @@ public class SystemIndexMigrationIT extends AbstractFeatureMigrationIntegTest {
         clusterService.addListener(clusterStateListener);
 
         // create task by calling API
-        final PostFeatureUpgradeRequest req = new PostFeatureUpgradeRequest();
+        final PostFeatureUpgradeRequest req = new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT);
         client().execute(PostFeatureUpgradeAction.INSTANCE, req);
         logger.info("migrate feature api called");
 
-        taskCreated.await(10, TimeUnit.SECONDS); // waiting when the task is created
+        safeAwait(taskCreated); // waiting when the task is created
 
         internalCluster().restartNode(masterAndDataNode, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                shutdownCompleted.await(10, TimeUnit.SECONDS);// now we can release the master thread
+                safeAwait(shutdownCompleted); // now we can release the master thread
                 return super.onNodeStopped(nodeName);
             }
         });
 
         assertBusy(() -> {
             // Wait for the node we restarted to completely rejoin the cluster
-            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             assertThat("expected restarted node to rejoin cluster", clusterState.getNodes().size(), equalTo(2));
 
             GetFeatureUpgradeStatusResponse statusResponse = client().execute(
                 GetFeatureUpgradeStatusAction.INSTANCE,
-                new GetFeatureUpgradeStatusRequest()
+                new GetFeatureUpgradeStatusRequest(TEST_REQUEST_TIMEOUT)
             ).get();
             assertThat(
                 "expected migration to fail due to restarting only data node",

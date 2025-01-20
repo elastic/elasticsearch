@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.unit;
@@ -72,12 +73,12 @@ public class ByteSizeUnitTests extends ESTestCase {
 
     public void testToString() {
         int v = randomIntBetween(1, 1023);
-        assertThat(new ByteSizeValue(PB.toBytes(v)).toString(), equalTo(v + "pb"));
-        assertThat(new ByteSizeValue(TB.toBytes(v)).toString(), equalTo(v + "tb"));
-        assertThat(new ByteSizeValue(GB.toBytes(v)).toString(), equalTo(v + "gb"));
-        assertThat(new ByteSizeValue(MB.toBytes(v)).toString(), equalTo(v + "mb"));
-        assertThat(new ByteSizeValue(KB.toBytes(v)).toString(), equalTo(v + "kb"));
-        assertThat(new ByteSizeValue(BYTES.toBytes(v)).toString(), equalTo(v + "b"));
+        assertThat(ByteSizeValue.ofBytes(PB.toBytes(v)).toString(), equalTo(v + "pb"));
+        assertThat(ByteSizeValue.ofBytes(TB.toBytes(v)).toString(), equalTo(v + "tb"));
+        assertThat(ByteSizeValue.ofBytes(GB.toBytes(v)).toString(), equalTo(v + "gb"));
+        assertThat(ByteSizeValue.ofBytes(MB.toBytes(v)).toString(), equalTo(v + "mb"));
+        assertThat(ByteSizeValue.ofBytes(KB.toBytes(v)).toString(), equalTo(v + "kb"));
+        assertThat(ByteSizeValue.ofBytes(BYTES.toBytes(v)).toString(), equalTo(v + "b"));
     }
 
     public void testSerialization() throws IOException {

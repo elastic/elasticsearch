@@ -1,6 +1,0 @@
-pr: 88883
-summary: Fix `SqlSearchIT` `testAllTypesWithRequestToOldNodes`
-area: SQL
-type: bug
-issues:
- - 88866

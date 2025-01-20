@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -12,7 +13,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,8 +20,8 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -34,7 +34,7 @@ public class ValueSourceTests extends ESTestCase {
         for (int i = 0; i < iterations; i++) {
             Map<String, Object> map = RandomDocumentPicks.randomSource(random());
             ValueSource valueSource = ValueSource.wrap(map, TestTemplateService.instance());
-            Object copy = valueSource.copyAndResolve(Collections.emptyMap());
+            Object copy = valueSource.copyAndResolve(Map.of());
             assertThat("iteration: " + i, copy, equalTo(map));
             assertThat("iteration: " + i, copy, not(sameInstance(map)));
         }
@@ -46,7 +46,7 @@ public class ValueSourceTests extends ESTestCase {
 
         IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         ingestDocument.setFieldValue(
-            new TestTemplateService.MockTemplateScript.Factory("field1"),
+            ingestDocument.renderTemplate(new TestTemplateService.MockTemplateScript.Factory("field1")),
             ValueSource.wrap(myPreciousMap, TestTemplateService.instance())
         );
         ingestDocument.removeField("field1.field2");
@@ -61,7 +61,7 @@ public class ValueSourceTests extends ESTestCase {
 
         IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         ingestDocument.setFieldValue(
-            new TestTemplateService.MockTemplateScript.Factory("field1"),
+            ingestDocument.renderTemplate(new TestTemplateService.MockTemplateScript.Factory("field1")),
             ValueSource.wrap(myPreciousList, TestTemplateService.instance())
         );
         ingestDocument.removeField("field1.0");
@@ -86,7 +86,7 @@ public class ValueSourceTests extends ESTestCase {
         String compiledValue = randomAlphaOfLength(10);
         when(scriptService.compile(any(), any())).thenReturn(new TestTemplateService.MockTemplateScript.Factory(compiledValue));
         ValueSource result = ValueSource.wrap(propertyValue, scriptService);
-        assertThat(result.copyAndResolve(Collections.emptyMap()), equalTo(compiledValue));
+        assertThat(result.copyAndResolve(Map.of()), equalTo(compiledValue));
         verify(scriptService, times(1)).compile(any(), any());
     }
 }

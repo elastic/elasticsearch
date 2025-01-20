@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.eql.planner;
 
 import org.elasticsearch.xpack.eql.execution.search.Limit;
+import org.elasticsearch.xpack.eql.plan.logical.AbstractJoin;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
+import org.elasticsearch.xpack.eql.plan.logical.Sample;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.FilterExec;
@@ -19,6 +21,7 @@ import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.eql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.eql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.eql.plan.physical.SequenceExec;
 import org.elasticsearch.xpack.eql.plan.physical.UnplannedExec;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
@@ -47,8 +50,8 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
     }
 
     @Override
-    protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
-        Batch conversion = new Batch("Mapping", new SimpleExecMapper());
+    protected Iterable<RuleExecutor.Batch<PhysicalPlan>> batches() {
+        var conversion = new Batch<>("Mapping", new SimpleExecMapper());
 
         return Arrays.asList(conversion);
     }
@@ -61,16 +64,23 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
 
         @Override
         protected PhysicalPlan map(LogicalPlan p) {
-
-            if (p instanceof Sequence s) {
-                List<List<Attribute>> keys = new ArrayList<>(s.children().size());
+            if (p instanceof AbstractJoin join) {
+                List<List<Attribute>> keys = new ArrayList<>(join.children().size());
+                boolean[] missing = new boolean[join.children().size()];
                 List<PhysicalPlan> matches = new ArrayList<>(keys.size());
 
-                for (KeyedFilter keyed : s.queries()) {
+                for (int i = 0; i < join.queries().size(); i++) {
+                    KeyedFilter keyed = join.queries().get(i);
                     keys.add(Expressions.asAttributes(keyed.keys()));
                     matches.add(map(keyed.child()));
+                    missing[i] = keyed.isMissingEventFilter();
                 }
 
+                if (p instanceof Sample sample) {
+                    return new SampleExec(p.source(), matches, keys);
+                }
+
+                Sequence s = (Sequence) p;
                 return new SequenceExec(
                     p.source(),
                     keys,
@@ -80,7 +90,8 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                     s.timestamp(),
                     s.tiebreaker(),
                     s.direction(),
-                    s.maxSpan()
+                    s.maxSpan(),
+                    missing
                 );
             }
 
@@ -128,7 +139,6 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
         }
 
         @SuppressWarnings("unchecked")
-        @Override
         protected final PhysicalPlan rule(UnplannedExec plan) {
             LogicalPlan subPlan = plan.plan();
             if (subPlanToken.isInstance(subPlan)) {

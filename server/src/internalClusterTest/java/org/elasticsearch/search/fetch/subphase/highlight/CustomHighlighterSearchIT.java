@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -39,17 +40,17 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
     protected void setup() throws Exception {
         indexRandom(
             true,
-            client().prepareIndex("test").setId("1").setSource("name", "arbitrary content", "other_name", "foo", "other_other_name", "bar"),
-            client().prepareIndex("test").setId("2").setSource("other_name", "foo", "other_other_name", "bar")
+            prepareIndex("test").setId("1").setSource("name", "arbitrary content", "other_name", "foo", "other_other_name", "bar"),
+            prepareIndex("test").setId("2").setSource("other_name", "foo", "other_other_name", "bar")
         );
     }
 
     public void testThatCustomHighlightersAreSupported() throws IOException {
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.matchAllQuery())
-            .highlighter(new HighlightBuilder().field("name").highlighterType("test-custom"))
-            .get();
-        assertHighlight(searchResponse, 0, "name", 0, equalTo("standard response for name at position 1"));
+        assertResponse(
+            prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
+                .highlighter(new HighlightBuilder().field("name").highlighterType("test-custom")),
+            response -> assertHighlight(response, 0, "name", 0, equalTo("standard response for name at position 1"))
+        );
     }
 
     public void testThatCustomHighlighterCanBeConfiguredPerField() throws Exception {
@@ -59,45 +60,49 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
         options.put("myFieldOption", "someValue");
         highlightConfig.options(options);
 
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.matchAllQuery())
-            .highlighter(new HighlightBuilder().field(highlightConfig))
-            .get();
-
-        assertHighlight(searchResponse, 0, "name", 0, equalTo("standard response for name at position 1"));
-        assertHighlight(searchResponse, 0, "name", 1, equalTo("field:myFieldOption:someValue"));
+        assertResponse(
+            prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).highlighter(new HighlightBuilder().field(highlightConfig)),
+            response -> {
+                assertHighlight(response, 0, "name", 0, equalTo("standard response for name at position 1"));
+                assertHighlight(response, 0, "name", 1, equalTo("field:myFieldOption:someValue"));
+            }
+        );
     }
 
     public void testThatCustomHighlighterCanBeConfiguredGlobally() throws Exception {
         Map<String, Object> options = new HashMap<>();
         options.put("myGlobalOption", "someValue");
 
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.matchAllQuery())
-            .highlighter(new HighlightBuilder().field("name").highlighterType("test-custom").options(options))
-            .get();
-
-        assertHighlight(searchResponse, 0, "name", 0, equalTo("standard response for name at position 1"));
-        assertHighlight(searchResponse, 0, "name", 1, equalTo("field:myGlobalOption:someValue"));
+        assertResponse(
+            prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
+                .highlighter(new HighlightBuilder().field("name").highlighterType("test-custom").options(options)),
+            response -> {
+                assertHighlight(response, 0, "name", 0, equalTo("standard response for name at position 1"));
+                assertHighlight(response, 0, "name", 1, equalTo("field:myGlobalOption:someValue"));
+            }
+        );
     }
 
     public void testThatCustomHighlighterReceivesFieldsInOrder() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).should(QueryBuilders.termQuery("name", "arbitrary")))
-            .highlighter(
-                new HighlightBuilder().highlighterType("test-custom")
-                    .field("name")
-                    .field("other_name")
-                    .field("other_other_name")
-                    .useExplicitFieldOrder(true)
+        assertResponse(
+            prepareSearch("test").setQuery(
+                QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).should(QueryBuilders.termQuery("name", "arbitrary"))
             )
-            .get();
-
-        assertHighlight(searchResponse, 0, "name", 0, equalTo("standard response for name at position 1"));
-        assertHighlight(searchResponse, 0, "other_name", 0, equalTo("standard response for other_name at position 2"));
-        assertHighlight(searchResponse, 0, "other_other_name", 0, equalTo("standard response for other_other_name at position 3"));
-        assertHighlight(searchResponse, 1, "name", 0, equalTo("standard response for name at position 1"));
-        assertHighlight(searchResponse, 1, "other_name", 0, equalTo("standard response for other_name at position 2"));
-        assertHighlight(searchResponse, 1, "other_other_name", 0, equalTo("standard response for other_other_name at position 3"));
+                .highlighter(
+                    new HighlightBuilder().highlighterType("test-custom")
+                        .field("name")
+                        .field("other_name")
+                        .field("other_other_name")
+                        .useExplicitFieldOrder(true)
+                ),
+            response -> {
+                assertHighlight(response, 0, "name", 0, equalTo("standard response for name at position 1"));
+                assertHighlight(response, 0, "other_name", 0, equalTo("standard response for other_name at position 2"));
+                assertHighlight(response, 0, "other_other_name", 0, equalTo("standard response for other_other_name at position 3"));
+                assertHighlight(response, 1, "name", 0, equalTo("standard response for name at position 1"));
+                assertHighlight(response, 1, "other_name", 0, equalTo("standard response for other_name at position 2"));
+                assertHighlight(response, 1, "other_other_name", 0, equalTo("standard response for other_other_name at position 3"));
+            }
+        );
     }
 }

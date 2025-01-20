@@ -16,7 +16,8 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -52,7 +53,7 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
             EnrichStatsAction.Request::new,
             indexNameExpressionResolver,
             EnrichStatsAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
     }
@@ -63,9 +64,9 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
         EnrichStatsAction.Request request,
         ClusterState state,
         ActionListener<EnrichStatsAction.Response> listener
-    ) throws Exception {
+    ) {
         EnrichCoordinatorStatsAction.Request statsRequest = new EnrichCoordinatorStatsAction.Request();
-        ActionListener<EnrichCoordinatorStatsAction.Response> statsListener = ActionListener.wrap(response -> {
+        ActionListener<EnrichCoordinatorStatsAction.Response> statsListener = listener.delegateFailureAndWrap((delegate, response) -> {
             if (response.hasFailures()) {
                 // Report failures even if some node level requests succeed:
                 Exception failure = null;
@@ -76,14 +77,14 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
                         failure.addSuppressed(nodeFailure);
                     }
                 }
-                listener.onFailure(failure);
+                delegate.onFailure(failure);
                 return;
             }
 
             List<CoordinatorStats> coordinatorStats = response.getNodes()
                 .stream()
                 .map(EnrichCoordinatorStatsAction.NodeResponse::getCoordinatorStats)
-                .sorted(Comparator.comparing(CoordinatorStats::getNodeId))
+                .sorted(Comparator.comparing(CoordinatorStats::nodeId))
                 .collect(Collectors.toList());
             List<ExecutingPolicy> policyExecutionTasks = taskManager.getTasks()
                 .values()
@@ -91,16 +92,16 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
                 .filter(t -> t.getAction().equals(EnrichPolicyExecutor.TASK_ACTION))
                 .map(t -> t.taskInfo(clusterService.localNode().getId(), true))
                 .map(t -> new ExecutingPolicy(t.description(), t))
-                .sorted(Comparator.comparing(ExecutingPolicy::getName))
+                .sorted(Comparator.comparing(ExecutingPolicy::name))
                 .collect(Collectors.toList());
             List<EnrichStatsAction.Response.CacheStats> cacheStats = response.getNodes()
                 .stream()
                 .map(EnrichCoordinatorStatsAction.NodeResponse::getCacheStats)
                 .filter(Objects::nonNull)
-                .sorted(Comparator.comparing(EnrichStatsAction.Response.CacheStats::getNodeId))
+                .sorted(Comparator.comparing(EnrichStatsAction.Response.CacheStats::nodeId))
                 .collect(Collectors.toList());
-            listener.onResponse(new EnrichStatsAction.Response(policyExecutionTasks, coordinatorStats, cacheStats));
-        }, listener::onFailure);
+            delegate.onResponse(new EnrichStatsAction.Response(policyExecutionTasks, coordinatorStats, cacheStats));
+        });
         client.execute(EnrichCoordinatorStatsAction.INSTANCE, statsRequest, statsListener);
     }
 

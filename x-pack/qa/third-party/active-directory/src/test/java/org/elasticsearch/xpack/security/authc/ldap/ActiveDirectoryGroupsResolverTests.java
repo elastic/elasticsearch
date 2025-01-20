@@ -6,15 +6,19 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.unboundid.ldap.sdk.Filter;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.fixtures.smb.SmbTestContainer;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.util.List;
 import java.util.regex.Pattern;
@@ -24,11 +28,15 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
 
     private static final String BRUCE_BANNER_DN = "cn=Bruce Banner,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
 
     private static final RealmConfig.RealmIdentifier REALM_ID = new RealmConfig.RealmIdentifier("active_directory", "ad");
+
+    @ClassRule
+    public static final SmbTestContainer smbFixture = new SmbTestContainer();
 
     @Before
     public void setReferralFollowing() {
@@ -145,7 +153,7 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
 
     @Override
     protected String ldapUrl() {
-        return ActiveDirectorySessionFactoryTests.AD_LDAP_URL;
+        return smbFixture.getAdLdapUrl();
     }
 
     @Override

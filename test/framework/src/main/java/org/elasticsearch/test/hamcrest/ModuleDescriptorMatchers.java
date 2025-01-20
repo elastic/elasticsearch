@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.hamcrest;
@@ -69,7 +70,7 @@ public class ModuleDescriptorMatchers {
 
         @Override
         public void describeTo(final Description description) {
-            description.appendText("Exports[%s]".formatted(exportsToString(source, targets)));
+            description.appendText(String.format(java.util.Locale.ROOT, "Exports[%s]", exportsToString(source, targets)));
         }
 
         @Override
@@ -78,7 +79,7 @@ public class ModuleDescriptorMatchers {
             if (item == null) {
                 mismatchDescription.appendText("was null");
             } else {
-                mismatchDescription.appendText(", actual Exports[%s]".formatted(exportsToString(item)));
+                mismatchDescription.appendText(String.format(java.util.Locale.ROOT, ", actual Exports[%s]", exportsToString(item)));
             }
         }
 
@@ -153,7 +154,7 @@ public class ModuleDescriptorMatchers {
 
         @Override
         public void describeTo(final Description description) {
-            description.appendText("Opens[%s]".formatted(opensToString(source, targets)));
+            description.appendText(String.format(java.util.Locale.ROOT, "Opens[%s]", opensToString(source, targets)));
         }
 
         @Override
@@ -162,7 +163,7 @@ public class ModuleDescriptorMatchers {
             if (item == null) {
                 mismatchDescription.appendText("was null");
             } else {
-                mismatchDescription.appendText(", actual Opens[%s]".formatted(opensToString(item)));
+                mismatchDescription.appendText(String.format(java.util.Locale.ROOT, ", actual Opens[%s]", opensToString(item)));
             }
         }
 
@@ -203,7 +204,7 @@ public class ModuleDescriptorMatchers {
 
         @Override
         public void describeTo(final Description description) {
-            description.appendText("Provides[%s]".formatted(providesToString(service, providers)));
+            description.appendText(String.format(java.util.Locale.ROOT, "Provides[%s]", providesToString(service, providers)));
         }
 
         @Override
@@ -212,7 +213,7 @@ public class ModuleDescriptorMatchers {
             if (item == null) {
                 mismatchDescription.appendText("was null");
             } else {
-                mismatchDescription.appendText(", actual Provides[%s]".formatted(item));
+                mismatchDescription.appendText(String.format(java.util.Locale.ROOT, ", actual Provides[%s]", item));
             }
         }
 

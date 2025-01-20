@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -11,7 +12,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,9 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-
-import static org.elasticsearch.core.RestApiVersion.V_8;
-import static org.elasticsearch.core.RestApiVersion.onOrAfter;
 
 public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetadata> {
 
@@ -182,7 +179,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
     public static IndexTemplateMetadata readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.order(in.readInt());
-        builder.patterns(in.readStringList());
+        builder.patterns(in.readStringCollectionAsList());
         builder.settings(Settings.readSettingsFromStream(in));
         int mappingsSize = in.readVInt();
         for (int i = 0; i < mappingsSize; i++) {
@@ -207,7 +204,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         out.writeInt(order);
         out.writeStringCollection(patterns);
         settings.writeTo(out);
-        out.writeMap(mappings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(mappings, StreamOutput::writeWriteable);
         out.writeCollection(aliases.values());
         out.writeOptionalVInt(version);
     }
@@ -225,7 +222,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         }
     }
 
-    public static class Builder {
+    public static final class Builder {
 
         private static final Set<String> VALID_FIELDS = Set.of("order", "mappings", "settings", "index_patterns", "aliases", "version");
 
@@ -316,14 +313,14 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
          * This method is used for serializing templates before storing them in the cluster metadata,
          * and also in the REST layer when returning a deprecated typed response.
          */
-        public static void toXContentWithTypes(
+        public static XContentBuilder toXContentWithTypes(
             IndexTemplateMetadata indexTemplateMetadata,
             XContentBuilder builder,
             ToXContent.Params params
         ) throws IOException {
             builder.startObject(indexTemplateMetadata.name());
             toInnerXContent(indexTemplateMetadata, builder, params, true);
-            builder.endObject();
+            return builder.endObject();
         }
 
         /**
@@ -379,9 +376,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
             indexTemplateMetadata.settings().toXContent(builder, params);
             builder.endObject();
 
-            if (builder.getRestApiVersion().matches(onOrAfter(V_8))) {
-                includeTypeName &= (params.paramAsBoolean("reduce_mappings", false) == false);
-            }
+            includeTypeName &= (params.paramAsBoolean("reduce_mappings", false) == false);
 
             CompressedXContent m = indexTemplateMetadata.mappings();
             if (m != null) {
@@ -440,11 +435,10 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
                             } else if (token == XContentParser.Token.START_OBJECT) {
-                                String mappingType = currentFieldName;
-                                Map<String, Object> mappingSource = MapBuilder.<String, Object>newMapBuilder()
-                                    .put(mappingType, parser.mapOrdered())
-                                    .map();
-                                builder.putMapping(mappingType, Strings.toString(XContentFactory.jsonBuilder().map(mappingSource)));
+                                builder.putMapping(
+                                    currentFieldName,
+                                    Strings.toString(XContentFactory.jsonBuilder().map(Map.of(currentFieldName, parser.mapOrdered())))
+                                );
                             }
                         }
                     } else if ("aliases".equals(currentFieldName)) {

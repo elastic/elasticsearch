@@ -65,11 +65,6 @@ public enum DatafeedState implements PersistentTaskState {
         return builder;
     }
 
-    @Override
-    public boolean isFragment() {
-        return false;
-    }
-
     public static DatafeedState fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }

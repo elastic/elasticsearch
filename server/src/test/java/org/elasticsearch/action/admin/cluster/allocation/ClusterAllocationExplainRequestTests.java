@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.allocation;
@@ -15,6 +16,7 @@ public class ClusterAllocationExplainRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         ClusterAllocationExplainRequest request = new ClusterAllocationExplainRequest(
+            randomTimeValue(),
             randomAlphaOfLength(4),
             randomIntBetween(0, Integer.MAX_VALUE),
             randomBoolean(),
@@ -26,6 +28,7 @@ public class ClusterAllocationExplainRequestTests extends ESTestCase {
         request.writeTo(output);
 
         ClusterAllocationExplainRequest actual = new ClusterAllocationExplainRequest(output.bytes().streamInput());
+        assertEquals(request.masterNodeTimeout(), actual.masterNodeTimeout());
         assertEquals(request.getIndex(), actual.getIndex());
         assertEquals(request.getShard(), actual.getShard());
         assertEquals(request.isPrimary(), actual.isPrimary());

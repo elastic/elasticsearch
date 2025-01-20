@@ -14,7 +14,12 @@ public class ExecuteEnrichPolicyActionRequestTests extends AbstractWireSerializi
 
     @Override
     protected ExecuteEnrichPolicyAction.Request createTestInstance() {
-        return new ExecuteEnrichPolicyAction.Request(randomAlphaOfLength(3));
+        return new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, randomAlphaOfLength(3));
+    }
+
+    @Override
+    protected ExecuteEnrichPolicyAction.Request mutateInstance(ExecuteEnrichPolicyAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

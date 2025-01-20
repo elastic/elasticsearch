@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -202,7 +203,6 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     private static class HyperLogLog extends AbstractHyperLogLog implements Releasable {
         private final BigArrays bigArrays;
-        private final int precision;
         // array for holding the runlens.
         private ByteArray runLens;
 
@@ -210,7 +210,6 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             super(precision);
             this.runLens = bigArrays.newByteArray(initialBucketCount << precision);
             this.bigArrays = bigArrays;
-            this.precision = precision;
         }
 
         public long maxOrd() {
@@ -246,7 +245,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
         private final HyperLogLog hll;
         int pos;
-        long start;
+        final long start;
         private byte value;
 
         HyperLogLogIterator(HyperLogLog hll, long bucket) {

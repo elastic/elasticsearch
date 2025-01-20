@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.release;
@@ -19,7 +20,6 @@ import org.gradle.api.file.Directory;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.util.PatternSet;
 
 import java.io.File;
@@ -48,25 +48,24 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
         final Version version = VersionProperties.getElasticsearchVersion();
 
+        project.getTasks()
+            .register("updateVersions", UpdateVersionsTask.class, t -> project.getTasks().named("spotlessApply").get().mustRunAfter(t));
+
+        project.getTasks().register("extractCurrentVersions", ExtractCurrentVersionsTask.class);
+        project.getTasks().register("tagVersions", TagVersionsTask.class);
+        project.getTasks().register("setCompatibleVersions", SetCompatibleVersionsTask.class, t -> t.setThisVersion(version));
+
         final FileTree yamlFiles = projectDirectory.dir("docs/changelog")
             .getAsFileTree()
             .matching(new PatternSet().include("**/*.yml", "**/*.yaml"));
 
-        final Provider<ValidateYamlAgainstSchemaTask> validateChangelogsAgainstYamlTask = project.getTasks()
-            .register("validateChangelogsAgainstSchema", ValidateYamlAgainstSchemaTask.class, task -> {
+        final Provider<ValidateYamlAgainstSchemaTask> validateChangelogsTask = project.getTasks()
+            .register("validateChangelogs", ValidateYamlAgainstSchemaTask.class, task -> {
                 task.setGroup("Documentation");
                 task.setDescription("Validate that the changelog YAML files comply with the changelog schema");
                 task.setInputFiles(yamlFiles);
                 task.setJsonSchema(new File(project.getRootDir(), RESOURCES + "changelog-schema.json"));
                 task.setReport(new File(project.getBuildDir(), "reports/validateYaml.txt"));
-            });
-
-        final TaskProvider<ValidateChangelogEntryTask> validateChangelogsTask = project.getTasks()
-            .register("validateChangelogs", ValidateChangelogEntryTask.class, task -> {
-                task.setGroup("Documentation");
-                task.setDescription("Validate that all changelog YAML files are well-formed");
-                task.setChangelogs(yamlFiles);
-                task.dependsOn(validateChangelogsAgainstYamlTask);
             });
 
         final Function<Boolean, Action<GenerateReleaseNotesTask>> configureGenerateTask = shouldConfigureYamlFiles -> task -> {

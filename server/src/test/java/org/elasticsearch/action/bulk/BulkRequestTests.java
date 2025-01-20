@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -34,12 +35,14 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -119,7 +122,7 @@ public class BulkRequestTests extends ESTestCase {
     }
 
     public void testBulkAddIterable() {
-        BulkRequest bulkRequest = Requests.bulkRequest();
+        BulkRequest bulkRequest = new BulkRequest();
         List<DocWriteRequest<?>> requests = new ArrayList<>();
         requests.add(new IndexRequest("test").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
         requests.add(new UpdateRequest("test", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"));
@@ -289,13 +292,13 @@ public class BulkRequestTests extends ESTestCase {
                 builder.endObject();
                 builder.endObject();
             }
-            out.write(xContentType.xContent().streamSeparator());
+            out.write(xContentType.xContent().bulkSeparator());
             try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
                 builder.startObject();
                 builder.field("field", "value");
                 builder.endObject();
             }
-            out.write(xContentType.xContent().streamSeparator());
+            out.write(xContentType.xContent().bulkSeparator());
             data = out.bytes();
         }
 
@@ -326,7 +329,7 @@ public class BulkRequestTests extends ESTestCase {
                 builder.endObject();
                 builder.endObject();
             }
-            out.write(xContentType.xContent().streamSeparator());
+            out.write(xContentType.xContent().bulkSeparator());
             try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
                 builder.startObject();
                 builder.startObject("doc").endObject();
@@ -337,7 +340,7 @@ public class BulkRequestTests extends ESTestCase {
                 builder.field("upsert", values);
                 builder.endObject();
             }
-            out.write(xContentType.xContent().streamSeparator());
+            out.write(xContentType.xContent().bulkSeparator());
             data = out.bytes();
         }
         BulkRequest bulkRequest = new BulkRequest();
@@ -403,7 +406,7 @@ public class BulkRequestTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new BulkRequest().add(updateWithDynamicTemplates, null, XContentType.JSON)
         );
-        assertThat(error.getMessage(), equalTo("Update request in line [2] does not accept dynamic_templates"));
+        assertThat(error.getMessage(), equalTo("Update request in line [1] does not accept dynamic_templates"));
 
         BytesArray invalidDynamicTemplates = new BytesArray("""
             { "index":{"_index":"test","dynamic_templates":[]}
@@ -424,12 +427,12 @@ public class BulkRequestTests extends ESTestCase {
             { "field1" : "value1" }
             """;
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
-
-        assertWarnings(
-            "A bulk action wasn't closed properly with the closing brace. Malformed objects are currently accepted"
-                + " but will be rejected in a future version."
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
         );
+
+        assertThat(ex.getMessage(), containsString("Unexpected end of file"));
     }
 
     public void testBulkActionWithAdditionalKeys() throws Exception {
@@ -438,12 +441,12 @@ public class BulkRequestTests extends ESTestCase {
             { "field1" : "value1" }
             """;
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
-
-        assertWarnings(
-            "A bulk action object contained multiple keys. Additional keys are currently ignored but will be "
-                + "rejected in a future version."
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
         );
+
+        assertThat(ex.getMessage(), is("Malformed action/metadata line [1], expected END_OBJECT but found [FIELD_NAME]"));
     }
 
     public void testBulkActionWithTrailingData() throws Exception {
@@ -452,24 +455,45 @@ public class BulkRequestTests extends ESTestCase {
             { "field1" : "value1" }
             """;
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
+        );
 
-        assertWarnings(
-            "A bulk action contained trailing data after the closing brace. This is currently ignored "
-                + "but will be rejected in a future version."
+        assertThat(ex.getMessage(), is("Malformed action/metadata line [1], unexpected data after the closing brace"));
+    }
+
+    public void testUnsupportedAction() {
+        final var bulkRequest = new BulkRequest();
+        final var requestBytes = """
+            { "get":{"_index":"test","_id":"1"} }
+            """.getBytes(StandardCharsets.UTF_8);
+        assertThat(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> bulkRequest.add(requestBytes, 0, requestBytes.length, null, XContentType.JSON)
+            ).getMessage(),
+            allOf(containsString("Malformed action/metadata line [1]"), containsString("found [get"))
         );
     }
 
-    public void testUnsupportedAction() throws Exception {
-        String bulkAction = """
-            { "get":{"_index":"test","_id":"1"} }
-            """;
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
-
-        assertWarnings(
-            "Unsupported action: [get]. Supported values are [create], [delete], [index], and [update]. "
-                + "Unsupported actions are currently accepted but will be rejected in a future version."
-        );
+    public void testShallowClone() {
+        BulkRequest bulkRequest = new BulkRequest(randomBoolean() ? null : randomAlphaOfLength(10));
+        bulkRequest.setRefreshPolicy(randomFrom(RefreshPolicy.values()));
+        bulkRequest.waitForActiveShards(randomIntBetween(1, 10));
+        bulkRequest.timeout(randomTimeValue());
+        bulkRequest.pipeline(randomBoolean() ? null : randomAlphaOfLength(10));
+        bulkRequest.routing(randomBoolean() ? null : randomAlphaOfLength(10));
+        bulkRequest.requireAlias(randomBoolean());
+        bulkRequest.requireDataStream(randomBoolean());
+        BulkRequest shallowCopy = bulkRequest.shallowClone();
+        assertThat(shallowCopy.requests, equalTo(List.of()));
+        assertThat(shallowCopy.getRefreshPolicy(), equalTo(bulkRequest.getRefreshPolicy()));
+        assertThat(shallowCopy.waitForActiveShards(), equalTo(bulkRequest.waitForActiveShards()));
+        assertThat(shallowCopy.timeout(), equalTo(bulkRequest.timeout()));
+        assertThat(shallowCopy.pipeline(), equalTo(bulkRequest.pipeline()));
+        assertThat(shallowCopy.routing(), equalTo(bulkRequest.routing()));
+        assertThat(shallowCopy.requireAlias(), equalTo(bulkRequest.requireAlias()));
+        assertThat(shallowCopy.requireDataStream(), equalTo(bulkRequest.requireDataStream()));
     }
 }

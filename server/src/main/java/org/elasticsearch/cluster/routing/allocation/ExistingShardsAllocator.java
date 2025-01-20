@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.routing.allocation;
 
@@ -17,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.GatewayAllocator;
 
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * Searches for, and allocates, shards for which there is an existing on-disk copy somewhere in the cluster. The default implementation is
@@ -43,7 +45,7 @@ public interface ExistingShardsAllocator {
      * Called during a round of allocation after attempting to allocate all the primaries but before any replicas, allowing the allocator
      * to prepare for replica allocation.
      */
-    void afterPrimariesBeforeReplicas(RoutingAllocation allocation);
+    void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate);
 
     /**
      * Allocate any unassigned shards in the given {@link RoutingAllocation} for which this {@link ExistingShardsAllocator} is responsible.

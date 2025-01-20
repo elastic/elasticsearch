@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -48,10 +49,12 @@ public class JavadocExtractor {
         + " modify it under the terms of the GNU General Public License version 2 only, as published"
         + " by the Free Software Foundation.";
 
-    private static final String ESv2 = "Copyright Elasticsearch B.V. and/or licensed to Elasticsearch"
-        + " B.V. under one or more contributor license agreements. Licensed under the Elastic License 2.0"
-        + " and the Server Side Public License, v 1; you may not use this file except in compliance with,"
-        + " at your election, the Elastic License 2.0 or the Server Side Public License, v 1.";
+    private static final String ESv2 = "Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one"
+        + " or more contributor license agreements. Licensed under the \"Elastic License"
+        + " 2.0\", the \"GNU Affero General Public License v3.0 only\", and the \"Server Side"
+        + " Public License v 1\"; you may not use this file except in compliance with, at"
+        + " your election, the \"Elastic License 2.0\", the \"GNU Affero General Public"
+        + " License v3.0 only\", or the \"Server Side Public License, v 1\".";
 
     private static final String[] LICENSES = new String[] { GPLv2, ESv2 };
 
@@ -269,11 +272,6 @@ public class JavadocExtractor {
             }
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public boolean isFragment() {
-            return true;
         }
     }
 

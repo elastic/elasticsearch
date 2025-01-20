@@ -8,7 +8,7 @@ each time it changes.
 The following processes and settings are part of discovery and cluster
 formation:
 
-<<modules-discovery-hosts-providers>>::
+<<discovery-hosts-providers>>::
 
     Discovery is the process where nodes find each other when the master is
     unknown, such as when a node has just started up or when the previous
@@ -34,7 +34,7 @@ formation:
     <<dev-vs-prod-mode,production mode>> requires bootstrapping to be
     <<modules-discovery-bootstrap-cluster,explicitly configured>>.
 
-<<modules-discovery-adding-removing-nodes,Adding and removing master-eligible nodes>>::
+<<add-elasticsearch-nodes,Adding and removing master-eligible nodes>>::
 
     It is recommended to have a small and fixed number of master-eligible nodes
     in a cluster, and to scale the cluster up and down by adding and removing

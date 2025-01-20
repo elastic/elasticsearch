@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 
 import java.util.concurrent.TimeUnit;
 
@@ -27,9 +30,23 @@ final class InternalIndexingStats implements IndexingOperationListener {
      * is returned for them. If they are set, then only types provided will be returned, or
      * {@code _all} for all types.
      */
-    IndexingStats stats(boolean isThrottled, long currentThrottleInMillis) {
-        IndexingStats.Stats total = totalStats.stats(isThrottled, currentThrottleInMillis);
+    IndexingStats stats(
+        boolean isThrottled,
+        long currentThrottleInMillis,
+        long indexingTimeBeforeShardStartedInNanos,
+        long timeSinceShardStartedInNanos
+    ) {
+        IndexingStats.Stats total = totalStats.stats(
+            isThrottled,
+            currentThrottleInMillis,
+            indexingTimeBeforeShardStartedInNanos,
+            timeSinceShardStartedInNanos
+        );
         return new IndexingStats(total);
+    }
+
+    long totalIndexingTimeInNanos() {
+        return totalStats.indexMetric.sum();
     }
 
     @Override
@@ -63,6 +80,9 @@ final class InternalIndexingStats implements IndexingOperationListener {
         if (index.origin().isRecovery() == false) {
             totalStats.indexCurrent.dec();
             totalStats.indexFailed.inc();
+            if (ExceptionsHelper.unwrapCause(ex) instanceof VersionConflictEngineException) {
+                totalStats.indexFailedDueToVersionConflicts.inc();
+            }
         }
     }
 
@@ -109,21 +129,32 @@ final class InternalIndexingStats implements IndexingOperationListener {
         private final MeanMetric deleteMetric = new MeanMetric();
         private final CounterMetric indexCurrent = new CounterMetric();
         private final CounterMetric indexFailed = new CounterMetric();
+        private final CounterMetric indexFailedDueToVersionConflicts = new CounterMetric();
         private final CounterMetric deleteCurrent = new CounterMetric();
         private final CounterMetric noopUpdates = new CounterMetric();
 
-        IndexingStats.Stats stats(boolean isThrottled, long currentThrottleMillis) {
+        IndexingStats.Stats stats(
+            boolean isThrottled,
+            long currentThrottleMillis,
+            long indexingTimeBeforeShardStartedInNanos,
+            long timeSinceShardStartedInNanos
+        ) {
+            final long totalIndexingTimeInNanos = indexMetric.sum();
+            final long totalIndexingTimeSinceShardStartedInNanos = totalIndexingTimeInNanos - indexingTimeBeforeShardStartedInNanos;
             return new IndexingStats.Stats(
                 indexMetric.count(),
-                TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()),
+                TimeUnit.NANOSECONDS.toMillis(totalIndexingTimeInNanos),
                 indexCurrent.count(),
                 indexFailed.count(),
+                indexFailedDueToVersionConflicts.count(),
                 deleteMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()),
                 deleteCurrent.count(),
                 noopUpdates.count(),
                 isThrottled,
-                TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis)
+                TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis),
+                totalIndexingTimeSinceShardStartedInNanos,
+                timeSinceShardStartedInNanos
             );
         }
     }

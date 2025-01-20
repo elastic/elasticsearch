@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -14,11 +15,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -26,11 +25,10 @@ import java.util.Objects;
 /**
  * Holds the results of migrating a single feature. See also {@link FeatureMigrationResults}.
  */
-public class SingleFeatureMigrationResult implements SimpleDiffable<SingleFeatureMigrationResult>, Writeable, ToXContent {
-    private static final String NAME = "feature_migration_status";
-    private static final ParseField SUCCESS_FIELD = new ParseField("successful");
-    private static final ParseField FAILED_INDEX_NAME_FIELD = new ParseField("failed_index");
-    private static final ParseField EXCEPTION_FIELD = new ParseField("exception");
+public class SingleFeatureMigrationResult implements SimpleDiffable<SingleFeatureMigrationResult>, Writeable, ToXContentObject {
+    static final ParseField SUCCESS_FIELD = new ParseField("successful");
+    static final ParseField FAILED_INDEX_NAME_FIELD = new ParseField("failed_index");
+    static final ParseField EXCEPTION_FIELD = new ParseField("exception");
 
     private final boolean successful;
     @Nullable
@@ -38,23 +36,7 @@ public class SingleFeatureMigrationResult implements SimpleDiffable<SingleFeatur
     @Nullable
     private final Exception exception;
 
-    @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<SingleFeatureMigrationResult, Void> PARSER = new ConstructingObjectParser<>(
-        NAME,
-        a -> new SingleFeatureMigrationResult((boolean) a[0], (String) a[1], (Exception) a[2])
-    );
-
-    static {
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), SUCCESS_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FAILED_INDEX_NAME_FIELD);
-        PARSER.declareObject(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> ElasticsearchException.fromXContent(p),
-            EXCEPTION_FIELD
-        );
-    }
-
-    private SingleFeatureMigrationResult(boolean successful, String failedIndexName, Exception exception) {
+    SingleFeatureMigrationResult(boolean successful, String failedIndexName, Exception exception) {
         this.successful = successful;
         if (successful == false) {
             Objects.requireNonNull(failedIndexName, "failed index name must be present for failed feature migration statuses");
@@ -73,10 +55,6 @@ public class SingleFeatureMigrationResult implements SimpleDiffable<SingleFeatur
             this.failedIndexName = null;
             this.exception = null;
         }
-    }
-
-    public static SingleFeatureMigrationResult fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
     }
 
     /**
@@ -143,11 +121,6 @@ public class SingleFeatureMigrationResult implements SimpleDiffable<SingleFeatur
         }
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public boolean isFragment() {
-        return false;
     }
 
     @Override

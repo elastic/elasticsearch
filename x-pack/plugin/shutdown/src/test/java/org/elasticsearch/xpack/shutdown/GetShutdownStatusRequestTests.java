@@ -11,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -20,22 +19,23 @@ public class GetShutdownStatusRequestTests extends AbstractWireSerializingTestCa
 
     @Override
     protected Writeable.Reader<GetShutdownStatusAction.Request> instanceReader() {
-        return GetShutdownStatusAction.Request::readFrom;
+        return GetShutdownStatusAction.Request::new;
     }
 
     @Override
     protected GetShutdownStatusAction.Request createTestInstance() {
         return new GetShutdownStatusAction.Request(
+            TEST_REQUEST_TIMEOUT,
             randomList(0, 20, () -> randomAlphaOfLengthBetween(15, 25)).toArray(Strings.EMPTY_ARRAY)
         );
     }
 
     @Override
-    protected GetShutdownStatusAction.Request mutateInstance(GetShutdownStatusAction.Request instance) throws IOException {
+    protected GetShutdownStatusAction.Request mutateInstance(GetShutdownStatusAction.Request instance) {
         Set<String> oldIds = new HashSet<>(Arrays.asList(instance.getNodeIds()));
         String[] newNodeIds = randomList(1, 20, () -> randomValueOtherThanMany(oldIds::contains, () -> randomAlphaOfLengthBetween(15, 25)))
             .toArray(Strings.EMPTY_ARRAY);
 
-        return new GetShutdownStatusAction.Request(newNodeIds);
+        return new GetShutdownStatusAction.Request(TEST_REQUEST_TIMEOUT, newNodeIds);
     }
 }

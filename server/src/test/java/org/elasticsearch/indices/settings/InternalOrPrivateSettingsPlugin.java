@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.settings;
@@ -23,11 +24,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
@@ -38,6 +40,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+
+import static org.elasticsearch.test.ESTestCase.TEST_REQUEST_TIMEOUT;
 
 public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlugin {
 
@@ -58,22 +62,15 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
         return Arrays.asList(INDEX_INTERNAL_SETTING, INDEX_PRIVATE_SETTING);
     }
 
-    public static class UpdateInternalOrPrivateAction extends ActionType<UpdateInternalOrPrivateAction.Response> {
+    public static class UpdateInternalOrPrivateAction {
 
-        public static final UpdateInternalOrPrivateAction INSTANCE = new UpdateInternalOrPrivateAction();
-        private static final String NAME = "indices:admin/settings/update-internal-or-private-index";
-
-        public UpdateInternalOrPrivateAction() {
-            super(NAME, UpdateInternalOrPrivateAction.Response::new);
-        }
+        public static final ActionType<Response> INSTANCE = new ActionType<>("indices:admin/settings/update-internal-or-private-index");
 
         public static class Request extends MasterNodeRequest<Request> {
 
             private String index;
             private String key;
             private String value;
-
-            Request() {}
 
             Request(StreamInput in) throws IOException {
                 super(in);
@@ -83,6 +80,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
             }
 
             public Request(final String index, final String key, final String value) {
+                super(TEST_REQUEST_TIMEOUT);
                 this.index = index;
                 this.key = key;
                 this.value = value;
@@ -129,7 +127,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
             final IndexNameExpressionResolver indexNameExpressionResolver
         ) {
             super(
-                UpdateInternalOrPrivateAction.NAME,
+                UpdateInternalOrPrivateAction.INSTANCE.name(),
                 transportService,
                 clusterService,
                 threadPool,
@@ -137,7 +135,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                 UpdateInternalOrPrivateAction.Request::new,
                 indexNameExpressionResolver,
                 UpdateInternalOrPrivateAction.Response::new,
-                ThreadPool.Names.SAME
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
         }
 

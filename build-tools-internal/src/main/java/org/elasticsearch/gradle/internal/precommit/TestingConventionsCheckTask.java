@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.precommit;
@@ -38,6 +39,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
@@ -128,7 +130,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
             var mismatchingBaseClasses = testClassesCandidate.stream()
                 .filter(testClassDefaultPredicate)
                 .filter(TestingConventionsCheckWorkAction::seemsLikeATest)
-                .collect(Collectors.toList());
+                .toList();
             if (mismatchingBaseClasses.isEmpty() == false) {
                 throw new GradleException(
                     "Following test classes do not extend any supported base class:\n\t"
@@ -141,7 +143,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
             // ensure base class matching do match suffix
             var matchingBaseClassNotMatchingSuffix = matchingBaseClass.stream()
                 .filter(c -> suffixes.stream().allMatch(s -> c.getName().endsWith(s) == false))
-                .collect(Collectors.toList());
+                .toList();
             if (matchingBaseClassNotMatchingSuffix.isEmpty() == false) {
                 throw new GradleException(
                     "Following test classes do not match naming convention to use suffix "
@@ -202,8 +204,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
         }
 
         private static boolean isAnnotated(Method method, Class<?> annotation) {
-            return List.of(method.getAnnotations())
-                .stream()
+            return Stream.of(method.getAnnotations())
                 .anyMatch(presentAnnotation -> annotation.isAssignableFrom(presentAnnotation.getClass()));
         }
 

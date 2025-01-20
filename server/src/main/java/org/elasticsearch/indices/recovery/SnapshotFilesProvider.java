@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
@@ -49,7 +51,12 @@ public class SnapshotFilesProvider {
             inputStream = new SlicedInputStream(fileInfo.numberOfParts()) {
                 @Override
                 protected InputStream openSlice(int slice) throws IOException {
-                    return container.readBlob(fileInfo.partName(slice));
+                    return container.readBlob(OperationPurpose.SNAPSHOT_DATA, fileInfo.partName(slice));
+                }
+
+                @Override
+                public boolean markSupported() {
+                    return false;
                 }
             };
         }

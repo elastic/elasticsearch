@@ -1,31 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.tasks;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.service.PendingClusterTask;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
-public class PendingClusterTasksResponse extends ActionResponse implements Iterable<PendingClusterTask>, ToXContentObject {
+public class PendingClusterTasksResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private final List<PendingClusterTask> pendingTasks;
 
     public PendingClusterTasksResponse(StreamInput in) throws IOException {
         super(in);
-        pendingTasks = in.readList(PendingClusterTask::new);
+        pendingTasks = in.readCollectionAsList(PendingClusterTask::new);
     }
 
     PendingClusterTasksResponse(List<PendingClusterTask> pendingTasks) {
@@ -36,23 +38,11 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
         return pendingTasks;
     }
 
-    /**
-     * The pending cluster tasks
-     */
-    public List<PendingClusterTask> getPendingTasks() {
-        return pendingTasks();
-    }
-
-    @Override
-    public Iterator<PendingClusterTask> iterator() {
-        return pendingTasks.iterator();
-    }
-
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("tasks: (").append(pendingTasks.size()).append("):\n");
-        for (PendingClusterTask pendingClusterTask : this) {
+        for (PendingClusterTask pendingClusterTask : pendingTasks) {
             sb.append(pendingClusterTask.getInsertOrder())
                 .append("/")
                 .append(pendingClusterTask.getPriority())
@@ -66,10 +56,12 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.startArray(Fields.TASKS);
-        for (PendingClusterTask pendingClusterTask : this) {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(Iterators.single((builder, p) -> {
+            builder.startObject();
+            builder.startArray(Fields.TASKS);
+            return builder;
+        }), Iterators.map(pendingTasks.iterator(), pendingClusterTask -> (builder, p) -> {
             builder.startObject();
             builder.field(Fields.INSERT_ORDER, pendingClusterTask.getInsertOrder());
             builder.field(Fields.PRIORITY, pendingClusterTask.getPriority());
@@ -78,10 +70,12 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
             builder.field(Fields.TIME_IN_QUEUE_MILLIS, pendingClusterTask.getTimeInQueueInMillis());
             builder.field(Fields.TIME_IN_QUEUE, pendingClusterTask.getTimeInQueue());
             builder.endObject();
-        }
-        builder.endArray();
-        builder.endObject();
-        return builder;
+            return builder;
+        }), Iterators.single((builder, p) -> {
+            builder.endArray();
+            builder.endObject();
+            return builder;
+        }));
     }
 
     static final class Fields {
@@ -98,7 +92,7 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(pendingTasks);
+        out.writeCollection(pendingTasks);
     }
 
 }

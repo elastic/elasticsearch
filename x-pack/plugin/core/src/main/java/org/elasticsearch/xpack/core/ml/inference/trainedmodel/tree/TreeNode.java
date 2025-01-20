@@ -203,7 +203,7 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
         return builder;
     }
 
-    private void addOptionalDouble(XContentBuilder builder, ParseField field, double value) throws IOException {
+    private static void addOptionalDouble(XContentBuilder builder, ParseField field, double value) throws IOException {
         if (Numbers.isValidDouble(value)) {
             builder.field(field.getPreferredName(), value);
         }

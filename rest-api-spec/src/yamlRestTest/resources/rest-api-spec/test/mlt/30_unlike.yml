@@ -3,9 +3,7 @@
   - do:
       indices.create:
         index: test_1
-        body:
-          settings:
-            number_of_replicas: 0
+
   - do:
       index:
           index:  test_1
@@ -26,10 +24,6 @@
 
   - do:
       indices.refresh: {}
-
-  - do:
-      cluster.health:
-           wait_for_status: green
 
   - do:
       search:

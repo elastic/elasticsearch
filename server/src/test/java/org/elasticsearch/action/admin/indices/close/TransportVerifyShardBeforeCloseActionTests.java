@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.close;
 
@@ -62,7 +63,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -154,11 +155,11 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
             phase1,
             taskId
         );
-        final PlainActionFuture<Void> res = PlainActionFuture.newFuture();
-        action.shardOperationOnPrimary(request, indexShard, ActionListener.wrap(r -> {
+        final PlainActionFuture<Void> res = new PlainActionFuture<>();
+        action.shardOperationOnPrimary(request, indexShard, res.delegateFailureAndWrap((l, r) -> {
             assertNotNull(r);
-            res.onResponse(null);
-        }, res::onFailure));
+            l.onResponse(null);
+        }));
         try {
             res.get();
         } catch (InterruptedException e) {
@@ -170,7 +171,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
     public void testShardIsFlushed() throws Throwable {
         final ArgumentCaptor<FlushRequest> flushRequest = ArgumentCaptor.forClass(FlushRequest.class);
-        doNothing().when(indexShard).flush(flushRequest.capture());
+        doReturn(true).when(indexShard).flush(flushRequest.capture());
         executeOnPrimaryOrReplica();
         verify(indexShard, times(1)).flush(any(FlushRequest.class));
         assertThat(flushRequest.getValue().force(), is(true));
@@ -234,7 +235,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         final long primaryTerm = indexMetadata.primaryTerm(0);
 
         final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(0);
-        final Set<String> trackedShards = shardRoutingTable.getAllAllocationIds();
+        final Set<String> trackedShards = shardRoutingTable.getPromotableAllocationIds();
 
         List<ShardRouting> unavailableShards = randomSubsetOf(randomIntBetween(1, nbReplicas), shardRoutingTable.replicaShards());
         IndexShardRoutingTable.Builder shardRoutingTableBuilder = new IndexShardRoutingTable.Builder(shardRoutingTable);

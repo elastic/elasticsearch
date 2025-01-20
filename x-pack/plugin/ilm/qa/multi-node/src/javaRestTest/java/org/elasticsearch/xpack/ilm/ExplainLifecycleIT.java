@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +21,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -27,9 +30,11 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.junit.Before;
 
+import java.util.Formatter;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createFullPolicy;
@@ -38,6 +43,8 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPol
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explain;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -72,7 +79,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         {
             // Create a "shrink-only-policy"
             Map<String, LifecycleAction> warmActions = new HashMap<>();
-            warmActions.put(ShrinkAction.NAME, new ShrinkAction(17, null));
+            warmActions.put(ShrinkAction.NAME, new ShrinkAction(17, null, false));
             Map<String, Phase> phases = new HashMap<>();
             phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
             LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-only-policy", phases);
@@ -198,13 +205,119 @@ public class ExplainLifecycleIT extends ESRestTestCase {
             assertThat(explainIndexWithMissingPolicy.get("policy"), is(missingPolicyName));
             assertThat(explainIndexWithMissingPolicy.get("phase"), is(nullValue()));
             assertThat(explainIndexWithMissingPolicy.get("action"), is(nullValue()));
-            assertThat(explainIndexWithMissingPolicy.get("step"), is(nullValue()));
+            assertThat(explainIndexWithMissingPolicy.get("step"), is(ErrorStep.NAME));
             assertThat(explainIndexWithMissingPolicy.get("age"), is(nullValue()));
             assertThat(explainIndexWithMissingPolicy.get("failed_step"), is(nullValue()));
             Map<String, Object> stepInfo = (Map<String, Object>) explainIndexWithMissingPolicy.get("step_info");
             assertThat(stepInfo, is(notNullValue()));
             assertThat(stepInfo.get("reason"), is("policy [missing_policy_] does not exist"));
         });
+    }
+
+    public void testExplainOrder() throws Exception {
+        createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE, TimeValue.timeValueDays(100));
+        createIndexWithSettings(
+            client(),
+            "order-aaa-foo",
+            "alias-1",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+        );
+        createIndexWithSettings(
+            client(),
+            "order-ccc-foo",
+            "alias-2",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+        );
+        createIndexWithSettings(
+            client(),
+            "order-bbb-foo",
+            "alias-3",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+        );
+        ensureGreen("order-*");
+
+        Request req = new Request("GET", "/order-*/_ilm/explain?filter_path=indices.*.index");
+        Response resp = client().performRequest(req);
+        String respString = EntityUtils.toString(resp.getEntity());
+        // Assert that indices are ordered based on a natural ordering of their index name
+        assertThat(
+            respString,
+            containsString(
+                "{\"indices\":{"
+                    + "\"order-aaa-foo\":{\"index\":\"order-aaa-foo\"},"
+                    + "\"order-bbb-foo\":{\"index\":\"order-bbb-foo\"},"
+                    + "\"order-ccc-foo\":{\"index\":\"order-ccc-foo\"}}}"
+            )
+        );
+    }
+
+    public void testStepInfoPreservedOnAutoRetry() throws Exception {
+        String policyName = "policy-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+
+        Request createPolice = new Request("PUT", "_ilm/policy/" + policyName);
+        createPolice.setJsonEntity("""
+            {
+              "policy": {
+                "phases": {
+                  "hot": {
+                    "actions": {
+                      "rollover": {
+                        "max_docs": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(createPolice));
+
+        String aliasName = "step-info-test";
+        String indexName = aliasName + "-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+
+        Request templateRequest = new Request("PUT", "_index_template/template_" + policyName);
+
+        String templateBodyTemplate = """
+            {
+              "index_patterns": ["%s-*"],
+              "template": {
+                "settings": {
+                  "index.lifecycle.name": "%s",
+                  "index.lifecycle.rollover_alias": "%s"
+                }
+              }
+            }
+            """;
+        Formatter formatter = new Formatter(Locale.ROOT);
+        templateRequest.setJsonEntity(formatter.format(templateBodyTemplate, aliasName, policyName, aliasName).toString());
+
+        assertOK(client().performRequest(templateRequest));
+
+        Request indexRequest = new Request("POST", "/" + indexName + "/_doc/1");
+        indexRequest.setJsonEntity("{\"test\":\"value\"}");
+        assertOK(client().performRequest(indexRequest));
+
+        assertBusy(() -> {
+            Map<String, Object> explainIndex = explainIndex(client(), indexName);
+            var assertionMessage = "Assertion failed for the following response: " + explainIndex;
+            assertThat(assertionMessage, explainIndex.get("failed_step_retry_count"), notNullValue());
+            assertThat(assertionMessage, explainIndex.get("previous_step_info"), notNullValue());
+            assertThat(assertionMessage, (int) explainIndex.get("failed_step_retry_count"), greaterThan(0));
+            assertThat(
+                assertionMessage,
+                explainIndex.get("previous_step_info").toString(),
+                containsString("rollover_alias [" + aliasName + "] does not point to index [" + indexName + "]")
+            );
+        }, 30, TimeUnit.SECONDS);
     }
 
     private void assertUnmanagedIndex(Map<String, Object> explainIndexMap) {

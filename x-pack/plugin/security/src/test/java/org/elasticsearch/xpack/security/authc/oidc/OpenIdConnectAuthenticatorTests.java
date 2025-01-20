@@ -77,7 +77,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
@@ -822,10 +822,9 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             .build()
             .toJSONObject();
 
-        final IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> { OpenIdConnectAuthenticator.mergeObjects(idTokenObject, wrongTypeInfo); }
-        );
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            OpenIdConnectAuthenticator.mergeObjects(idTokenObject, wrongTypeInfo);
+        });
 
         // Userinfo Claims overwrite ID Token claims
         Map<String, Object> overwriteUserInfo = new JWTClaimsSet.Builder().claim("given_name", "Jane Doe")
@@ -936,7 +935,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
 
         this.authenticator = buildAuthenticator();
-        this.authenticator.handleUserinfoResponse(response, idClaims, future);
+        OpenIdConnectAuthenticator.handleUserinfoResponse(response, idClaims, future);
 
         final JWTClaimsSet finalClaims = future.get();
         assertThat(finalClaims.getSubject(), equalTo(sub));
@@ -958,7 +957,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
 
         this.authenticator = buildAuthenticator();
-        this.authenticator.handleUserinfoResponse(response, idClaims, future);
+        OpenIdConnectAuthenticator.handleUserinfoResponse(response, idClaims, future);
 
         final ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(
@@ -971,9 +970,6 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
     public void testLogIdTokenAndNonce() throws URISyntaxException, BadJOSEException, JOSEException, IllegalAccessException {
         final Logger logger = LogManager.getLogger(OpenIdConnectAuthenticator.class);
-        final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        Loggers.addAppender(logger, appender);
         Loggers.setLevel(logger, Level.DEBUG);
 
         final RealmConfig config = buildConfig(getBasicRealmSettings().build(), threadContext);
@@ -1000,12 +996,12 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
         final Nonce expectedNonce = new Nonce(randomAlphaOfLength(10));
 
-        try {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation("JWT header", logger.getName(), Level.DEBUG, "ID Token Header: " + headerString)
+        try (var mockLog = MockLog.capture(OpenIdConnectAuthenticator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation("JWT header", logger.getName(), Level.DEBUG, "ID Token Header: " + headerString)
             );
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "JWT exception",
                     logger.getName(),
                     Level.DEBUG,
@@ -1017,10 +1013,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
             assertThat(e.getCause(), is(joseException));
             // The logging message assertion is the only thing we actually care in this test
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
             Loggers.setLevel(logger, (Level) null);
             openIdConnectAuthenticator.close();
         }
@@ -1063,13 +1057,11 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
         // In addition, capture logs to show that kept alive (TTL) is honored
         final Logger logger = LogManager.getLogger(PoolingNHttpClientConnectionManager.class);
-        final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        Loggers.addAppender(logger, appender);
+        // Note: Setting an org.apache.http logger to DEBUG requires es.insecure_network_trace_enabled=true
         Loggers.setLevel(logger, Level.DEBUG);
-        try {
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+        try (var mockLog = MockLog.capture(PoolingNHttpClientConnectionManager.class)) {
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "log",
                     logger.getName(),
                     Level.DEBUG,
@@ -1098,11 +1090,9 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
                 latch.await();
                 Thread.sleep(1500);
             }
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
             assertThat(portTested.get(), is(true));
         } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
             Loggers.setLevel(logger, (Level) null);
             authenticator.close();
             httpServer.stop(1);
@@ -1210,13 +1200,10 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         authenticator = new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(env), null);
 
         final Logger logger = LogManager.getLogger(OpenIdConnectAuthenticator.class);
-        final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        Loggers.addAppender(logger, appender);
         Loggers.setLevel(logger, Level.DEBUG);
-        try {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(OpenIdConnectAuthenticator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "log",
                     logger.getName(),
                     Level.DEBUG,
@@ -1225,10 +1212,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             );
             final ConnectionKeepAliveStrategy keepAliveStrategy = authenticator.getKeepAliveStrategy();
             assertThat(keepAliveStrategy.getKeepAliveDuration(httpResponse, null), equalTo(effectiveTtlInMs));
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
             Loggers.setLevel(logger, (Level) null);
             authenticator.close();
         }

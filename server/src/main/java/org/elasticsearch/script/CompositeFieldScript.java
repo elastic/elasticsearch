@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.ArrayList;
@@ -27,7 +29,12 @@ public abstract class CompositeFieldScript extends AbstractFieldScript {
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        CompositeFieldScript.LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
+        CompositeFieldScript.LeafFactory newFactory(
+            String fieldName,
+            Map<String, Object> params,
+            SearchLookup searchLookup,
+            OnScriptError onScriptError
+        );
     }
 
     public interface LeafFactory {
@@ -36,8 +43,14 @@ public abstract class CompositeFieldScript extends AbstractFieldScript {
 
     private final Map<String, List<Object>> fieldValues = new HashMap<>();
 
-    public CompositeFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(fieldName, params, searchLookup, ctx);
+    public CompositeFieldScript(
+        String fieldName,
+        Map<String, Object> params,
+        SearchLookup searchLookup,
+        OnScriptError onScriptError,
+        LeafReaderContext ctx
+    ) {
+        super(fieldName, params, searchLookup, ctx, onScriptError);
     }
 
     /**
@@ -47,17 +60,19 @@ public abstract class CompositeFieldScript extends AbstractFieldScript {
      */
     public final List<Object> getValues(String field) {
         // TODO for now we re-run the script every time a leaf field is accessed, but we could cache the values?
-        fieldValues.clear();
+        prepareExecute();
         execute();
         List<Object> values = fieldValues.get(field);
         fieldValues.clear();    // don't hold on to values unnecessarily
         return values;
     }
 
-    public final Map<String, List<Object>> runForDoc(int doc) {
-        setDocument(doc);
+    @Override
+    protected void prepareExecute() {
         fieldValues.clear();
-        execute();
+    }
+
+    public final Map<String, List<Object>> getFieldValues() {
         return fieldValues;
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -21,6 +22,7 @@ public class SearchTask extends CancellableTask {
     // generating description in a lazy way since source can be quite big
     private final Supplier<String> descriptionSupplier;
     private SearchProgressListener progressListener = SearchProgressListener.NOOP;
+    private Supplier<SearchResponseMerger> searchResponseMergerSupplier;  // used for CCS minimize_roundtrips=true
 
     public SearchTask(
         long id,
@@ -53,4 +55,26 @@ public class SearchTask extends CancellableTask {
         return progressListener;
     }
 
+    /**
+     * @return the Supplier of {@link SearchResponseMerger} attached to this task. Will be null
+     * for local-only search and cross-cluster searches with minimize_roundtrips=false.
+     */
+    public Supplier<SearchResponseMerger> getSearchResponseMergerSupplier() {
+        return searchResponseMergerSupplier;
+    }
+
+    /**
+     * @param supplier Attach a Supplier of {@link SearchResponseMerger} to this task.
+     *                 For use with CCS minimize_roundtrips=true
+     */
+    public void setSearchResponseMergerSupplier(Supplier<SearchResponseMerger> supplier) {
+        this.searchResponseMergerSupplier = supplier;
+    }
+
+    /**
+     * Is this async search?
+     */
+    public boolean isAsync() {
+        return false;
+    }
 }

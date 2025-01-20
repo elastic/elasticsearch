@@ -27,14 +27,14 @@ public class ClearDeploymentCacheAction extends ActionType<ClearDeploymentCacheA
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/clear_cache";
 
     private ClearDeploymentCacheAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> {
         private final String deploymentId;
 
         public Request(String deploymentId) {
-            this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, "deployment_id");
+            this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, InferModelAction.Request.ID);
         }
 
         public Request(StreamInput in) throws IOException {

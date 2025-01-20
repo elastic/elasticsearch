@@ -1,20 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.compress;
 
-import org.elasticsearch.Assertions;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Streams;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -150,18 +150,24 @@ public class DeflateCompressor implements Compressor {
             inflater = new Inflater(true);
             releasable = inflater::end;
         }
-        return new BufferedInputStream(new InflaterInputStream(in, inflater, BUFFER_SIZE) {
+        return new InflaterInputStream(in, inflater, BUFFER_SIZE) {
+
+            private Releasable release = releasable;
+
             @Override
             public void close() throws IOException {
+                if (release == null) {
+                    return;
+                }
                 try {
                     super.close();
                 } finally {
-                    // We are ensured to only call this once since we wrap this stream in a BufferedInputStream that will only close
-                    // its delegate once
-                    releasable.close();
+                    // We need to ensure that we only call this once
+                    release.close();
+                    release = null;
                 }
             }
-        }, BUFFER_SIZE);
+        };
     }
 
     @Override

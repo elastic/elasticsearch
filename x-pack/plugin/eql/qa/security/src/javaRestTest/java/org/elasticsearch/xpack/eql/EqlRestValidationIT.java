@@ -8,13 +8,22 @@
 package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.eql.EqlRestValidationTestCase;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.eql.SecurityUtils.secureClientSettings;
 
 public class EqlRestValidationIT extends EqlRestValidationTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = EqlSecurityTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     protected Settings restClientSettings() {
@@ -23,6 +32,11 @@ public class EqlRestValidationIT extends EqlRestValidationTestCase {
 
     @Override
     protected String getInexistentIndexErrorMessage() {
+        return "\"root_cause\":[{\"type\":\"verification_exception\",\"reason\":\"Found 1 problem\\nline -1:-1: Unknown index ";
+    }
+
+    @Override
+    protected String getInexistentWildcardErrorMessage() {
         return """
             "root_cause":[{"type":"verification_exception","reason":"Found 1 problem\\nline -1:-1: Unknown index [*,-*]"}],\
             "type":"index_not_found_exception","reason":"no such index\s""";
@@ -38,9 +52,9 @@ public class EqlRestValidationIT extends EqlRestValidationTestCase {
             "root_cause":[{"type":"index_not_found_exception","reason":"no such index [inexistent*]\"""");
         // TODO: revisit the next two tests when https://github.com/elastic/elasticsearch/issues/64190 is closed
         assertErrorMessage("inexistent", reqParameter, """
-            "root_cause":[{"type":"index_not_found_exception","reason":"no such index [[inexistent]]\"""");
+            "root_cause":[{"type":"index_not_found_exception","reason":"no such index [inexistent]\"""");
         assertErrorMessage("inexistent1,inexistent2", reqParameter, """
-            "root_cause":[{"type":"index_not_found_exception","reason":"no such index [[inexistent1, inexistent2]]\"""");
+            "root_cause":[{"type":"index_not_found_exception","reason":"no such index [null]\"""");
     }
 
 }

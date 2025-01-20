@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -52,6 +52,11 @@ public class BoostedTreeParamsTests extends AbstractBWCSerializationTestCase<Boo
         return createRandom();
     }
 
+    @Override
+    protected BoostedTreeParams mutateInstance(BoostedTreeParams instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static BoostedTreeParams createRandom() {
         return BoostedTreeParams.builder()
             .setLambda(randomBoolean() ? null : randomDoubleBetween(0.0, Double.MAX_VALUE, true))
@@ -69,7 +74,7 @@ public class BoostedTreeParamsTests extends AbstractBWCSerializationTestCase<Boo
             .build();
     }
 
-    public static BoostedTreeParams mutateForVersion(BoostedTreeParams instance, Version version) {
+    public static BoostedTreeParams mutateForVersion(BoostedTreeParams instance, TransportVersion version) {
         return instance;
     }
 
@@ -322,7 +327,7 @@ public class BoostedTreeParamsTests extends AbstractBWCSerializationTestCase<Boo
     }
 
     @Override
-    protected BoostedTreeParams mutateInstanceForVersion(BoostedTreeParams instance, Version version) {
+    protected BoostedTreeParams mutateInstanceForVersion(BoostedTreeParams instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 }

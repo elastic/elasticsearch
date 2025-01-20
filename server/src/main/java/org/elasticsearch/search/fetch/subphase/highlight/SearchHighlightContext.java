@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
@@ -22,32 +23,17 @@ import java.util.Set;
 public class SearchHighlightContext {
 
     private final Map<String, Field> fields;
-    private final boolean globalForceSource;
 
     public SearchHighlightContext(Collection<Field> fields) {
-        this(fields, false);
-    }
-
-    public SearchHighlightContext(Collection<Field> fields, boolean globalForceSource) {
         assert fields != null;
         this.fields = Maps.newLinkedHashMapWithExpectedSize(fields.size());
         for (Field field : fields) {
             this.fields.put(field.field, field);
         }
-        this.globalForceSource = globalForceSource;
     }
 
     public Collection<Field> fields() {
         return fields.values();
-    }
-
-    public boolean forceSource(Field field) {
-        if (globalForceSource) {
-            return true;
-        }
-
-        Field _field = fields.get(field.field);
-        return _field == null ? false : _field.fieldOptions.forceSource;
     }
 
     public static class Field {
@@ -95,15 +81,13 @@ public class SearchHighlightContext {
 
         private String highlighterType;
 
-        private Boolean forceSource;
-
         private String fragmenter;
 
         private BoundaryScannerType boundaryScannerType;
 
         private int boundaryMaxScan = -1;
 
-        private Character[] boundaryChars = null;
+        private char[] boundaryChars = null;
 
         private Locale boundaryScannerLocale;
 
@@ -173,7 +157,7 @@ public class SearchHighlightContext {
             return boundaryMaxScan;
         }
 
-        public Character[] boundaryChars() {
+        public char[] boundaryChars() {
             return boundaryChars;
         }
 
@@ -260,11 +244,6 @@ public class SearchHighlightContext {
                 return this;
             }
 
-            Builder forceSource(boolean forceSource) {
-                fieldOptions.forceSource = forceSource;
-                return this;
-            }
-
             Builder fragmenter(String fragmenter) {
                 fieldOptions.fragmenter = fragmenter;
                 return this;
@@ -280,7 +259,7 @@ public class SearchHighlightContext {
                 return this;
             }
 
-            Builder boundaryChars(Character[] boundaryChars) {
+            Builder boundaryChars(char[] boundaryChars) {
                 fieldOptions.boundaryChars = boundaryChars;
                 return this;
             }
@@ -373,9 +352,6 @@ public class SearchHighlightContext {
                 }
                 if (fieldOptions.noMatchSize == -1) {
                     fieldOptions.noMatchSize = globalOptions.noMatchSize;
-                }
-                if (fieldOptions.forceSource == null) {
-                    fieldOptions.forceSource = globalOptions.forceSource;
                 }
                 if (fieldOptions.phraseLimit == -1) {
                     fieldOptions.phraseLimit = globalOptions.phraseLimit;

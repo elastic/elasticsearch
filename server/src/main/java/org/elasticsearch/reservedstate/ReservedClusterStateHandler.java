@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reservedstate;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -78,6 +80,20 @@ public interface ReservedClusterStateHandler<T> {
     }
 
     /**
+     * List of optional dependent handler names for this handler.
+     *
+     * <p>
+     * These are dependent handlers which may or may not exist for this handler to be
+     * processed. If the optional dependency exists, then they are simply ordered to be
+     * merged into the cluster state before this handler.
+     *
+     * @return a collection of optional reserved state handler names
+     */
+    default Collection<String> optionalDependencies() {
+        return Collections.emptyList();
+    }
+
+    /**
      * Generic validation helper method that throws consistent exception for all handlers.
      *
      * <p>
@@ -107,4 +123,9 @@ public interface ReservedClusterStateHandler<T> {
      * @throws IOException
      */
     T fromXContent(XContentParser parser) throws IOException;
+
+    /**
+     * Reserved-state handlers create master-node requests but never actually send them to the master node so the timeouts are not relevant.
+     */
+    TimeValue RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT = TimeValue.THIRTY_SECONDS;
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.seqno;
 
@@ -99,7 +100,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         final ShardRouting replicaShardRouting = replicationTracker.routingTable.replicaShards().get(0);
         final IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(replicationTracker.routingTable);
         builder.removeShard(replicaShardRouting);
-        builder.addShard(replicaShardRouting.moveToStarted());
+        builder.addShard(replicaShardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
         replicationTracker.updateFromMaster(
             replicationTracker.appliedClusterStateVersion + 1,
             RoutingNodesHelper.asStream(replicationTracker.routingTable).map(sr -> sr.allocationId().getId()).collect(Collectors.toSet()),

@@ -17,10 +17,8 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 
 import java.time.ZoneId;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configuration {
 
@@ -31,6 +29,9 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final TaskId taskId;
     private final EqlSearchTask task;
     private final int fetchSize;
+    private final int maxSamplesPerKey;
+    private final boolean allowPartialSearchResults;
+    private final boolean allowPartialSequenceResults;
 
     @Nullable
     private final QueryBuilder filter;
@@ -50,12 +51,14 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         TimeValue requestTimeout,
         IndicesOptions indicesOptions,
         int fetchSize,
+        int maxSamplesPerKey,
+        boolean allowPartialSearchResults,
+        boolean allowPartialSequenceResults,
         String clientId,
         TaskId taskId,
-        EqlSearchTask task,
-        Function<String, Collection<String>> versionIncompatibleClusters
+        EqlSearchTask task
     ) {
-        super(zi, username, clusterName, versionIncompatibleClusters);
+        super(zi, username, clusterName);
 
         this.indices = indices;
         this.filter = filter;
@@ -67,6 +70,9 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.taskId = taskId;
         this.task = task;
         this.fetchSize = fetchSize;
+        this.maxSamplesPerKey = maxSamplesPerKey;
+        this.allowPartialSearchResults = allowPartialSearchResults;
+        this.allowPartialSequenceResults = allowPartialSequenceResults;
     }
 
     public String[] indices() {
@@ -83,6 +89,18 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public int fetchSize() {
         return fetchSize;
+    }
+
+    public int maxSamplesPerKey() {
+        return maxSamplesPerKey;
+    }
+
+    public boolean allowPartialSearchResults() {
+        return allowPartialSearchResults;
+    }
+
+    public boolean allowPartialSequenceResults() {
+        return allowPartialSequenceResults;
     }
 
     public QueryBuilder filter() {

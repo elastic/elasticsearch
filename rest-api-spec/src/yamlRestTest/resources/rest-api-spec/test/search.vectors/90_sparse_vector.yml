@@ -1,0 +1,591 @@
+---
+"Indexing and searching sparse vectors in >=8.11":
+
+  - skip:
+      cluster_features: [ "gte_v8.15.0" ]
+      reason: "sparse_vector field type was updated to support multi-value sparse vectors in 8.15.0"
+  - requires:
+      cluster_features: [ "gte_v8.11.0" ]
+      reason: "sparse_vector field type reintroduced in 8.11"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              ml.tokens:
+                type: sparse_vector
+              embeddings:
+                type: sparse_vector
+
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          text: "running is good for you"
+          ml:
+            tokens:
+              running: 2.4097164
+              good: 2.170997
+              run: 2.052153
+              race: 1.4575411
+              for: 1.1908325
+              runner: 1.1803857
+              exercise: 1.1652642
+              you: 0.9654308
+              training: 0.94999343
+              sports: 0.93650943
+              fitness: 0.83129317
+              best: 0.820365
+              bad: 0.7385934
+              health: 0.7098149
+              marathon: 0.61555296
+              gym: 0.5652374
+
+  - match: { result: "created" }
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          text: "walking is a healthy exercise"
+          ml:
+            tokens:
+              walking: 2.4797723
+              exercise: 2.074234
+              healthy: 1.971596
+              walk: 1.6458614
+              health: 1.5291847
+              walker: 1.4736869
+              activity: 1.0793462
+              good: 1.0597849
+              fitness: 0.91855437
+              training: 0.86342937
+              movement: 0.7657065
+              normal: 0.6694081
+              foot: 0.5892523
+              physical: 0.4926789
+
+  - match: { result: "created" }
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          text: "empty array with no nested values - should not be retrieved in exists queries"
+          ml:
+            tokens: [ ]
+  - do:
+      index:
+        index: test
+        id: "4"
+        body:
+          text: "should still respond to exists queries if when empty"
+          ml:
+            tokens: { }
+
+  - match: { result: "created" }
+
+  - do:
+      index:
+        index: test
+        id: "5"
+        body:
+          text: "other embeddings available only"
+          embeddings:
+            aardvark: 0.5
+
+  - match: { result: "created" }
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            bool:
+              should:
+                - term:
+                    ml.tokens:
+                      value: "walk"
+                      boost: 1.9790847
+                - term:
+                    ml.tokens:
+                      value: "walking"
+                      boost: 1.7092685
+                - term:
+                    ml.tokens:
+                      value: "exercise"
+                      boost: 0.84076905
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            exists:
+              field: ml.tokens
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            exists:
+              field: embeddings
+  - match: { hits.total: 1 }
+
+---
+"Indexing and searching multi-value sparse vectors in >=8.15":
+
+  - requires:
+      cluster_features: [ "gte_v8.15.0" ]
+      reason: "sparse_vector field type added multi-value support in 8.15"
+      test_runner_features: "close_to"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              ml.tokens:
+                type: sparse_vector
+              embeddings:
+                type: sparse_vector
+
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          text: "running is good for you"
+          ml:
+            tokens:
+              - running: 2.4097164
+                good: 2.170997
+                run: 2.052153
+                race: 0.1
+                for: 1.1908325
+                runner: 1.1803857
+                exercise: 0.1
+                you: 0.9654308
+                training: 0.94999343
+                sports: 0.93650943
+                fitness: 0.83129317
+                best: 0.820365
+                bad: 0.1
+                health: 0.1
+                marathon: 0.61555296
+                gym: 0.5652374
+              - running: 0.1
+                good: 0.1
+                run: 0.1
+                race: 1.4575411
+                for: 0.1
+                runner: 0.1
+                exercise: 1.1652642
+                you: 0.1
+                training: 0.1
+                sports: 0.1
+                fitness: 0.1
+                best: 0.1
+                bad: 0.7385934
+                health: 0.7098149
+                marathon: 0.1
+                gym: 0.1
+
+  - match: { result: "created" }
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          text: "walking is a healthy exercise"
+          ml:
+            tokens:
+              walking: 2.4797723
+              exercise: 2.074234
+              healthy: 1.971596
+              walk: 1.6458614
+              health: 1.5291847
+              walker: 1.4736869
+              activity: 1.0793462
+              good: 1.0597849
+              fitness: 0.91855437
+              training: 0.86342937
+              movement: 0.7657065
+              normal: 0.6694081
+              foot: 0.5892523
+              physical: 0.4926789
+
+  - match: { result: "created" }
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          text: "empty array with no values - should not be retrieved in exists queries"
+          ml:
+            tokens: [ ]
+  - do:
+      index:
+        index: test
+        id: "4"
+        body:
+          text: "should still respond to exists queries if when empty"
+          ml:
+            tokens: { }
+
+  - match: { result: "created" }
+
+  - do:
+      index:
+        index: test
+        id: "5"
+        body:
+          text: "other embeddings available only"
+          embeddings:
+            aardvark: 0.5
+
+  - match: { result: "created" }
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            bool:
+              should:
+                - term:
+                    ml.tokens:
+                      value: "walk"
+                      boost: 1.9790847
+                - term:
+                    ml.tokens:
+                      value: "walking"
+                      boost: 1.7092685
+                - term:
+                    ml.tokens:
+                      value: "exercise"
+                      boost: 0.84076905
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
+
+  - close_to: { hits.hits.1._score: { value: 0.9797, error: 0.01 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            exists:
+              field: ml.tokens
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            exists:
+              field: embeddings
+  - match: { hits.total: 1 }
+
+---
+"Sparse vector in 7.x":
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+  - skip:
+      cluster_features: [ "gte_v8.0.0" ]
+      reason: "sparse_vector field type supported in 7.x"
+  - do:
+      allowed_warnings:
+        - "The [sparse_vector] field type is deprecated and will be removed in 8.0."
+        - "[sparse_vector] field type in old 7.x indices is allowed to contain [sparse_vector] fields, but they cannot be indexed or searched."
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              ml.tokens:
+                type: sparse_vector
+
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - "[sparse_vector] field type in old 7.x indices is allowed to contain [sparse_vector] fields, but they cannot be indexed or searched."
+      search:
+        index: test
+        body:
+          query:
+            exists:
+              field: ml.tokens
+---
+"Sparse vector in 8.0.0 <= x < 8.11.0":
+  - skip:
+      cluster_features: [ "gte_v8.11.0" ]
+      reason: "sparse_vector field type not supported in 8.x until 8.11.0"
+  - requires:
+      cluster_features: [ "gte_v8.0.0" ]
+      reason: "sparse_vector field type not supported in 8.x until 8.11.0"
+  - do:
+      catch: /The \[sparse_vector\] field type .* supported/
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              ml.tokens:
+                type: sparse_vector
+  - do:
+      catch: /\[sparse_vector\] fields do not support \[exists\] queries|no such index.*/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            exists:
+              field: ml.tokens
+
+---
+"sparse_vector synthetic source":
+
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              ml.tokens:
+                type: sparse_vector
+
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          ml:
+            tokens:
+              running: 2.4097164
+              good: 2.170997
+              run: 2.052153
+              race: 1.4575411
+              for: 1.1908325
+
+  - match: { result: "created" }
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          ml:
+            tokens: []
+
+  - match: { result: "created" }
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          ml:
+            tokens: {}
+
+  - match: { result: "created" }
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - match:
+      _source:
+        ml:
+          tokens:
+            running: 2.4097164
+            good: 2.170997
+            run: 2.052153
+            race: 1.4575411
+            for: 1.1908325
+
+  - do:
+      get:
+        index: test
+        id: "2"
+
+  - match:
+      _source.ml.tokens: []
+
+  - do:
+      get:
+        index: test
+        id: "3"
+
+  - match:
+      _source.ml.tokens: {}
+
+---
+"stored sparse_vector":
+
+  - requires:
+      cluster_features: [ "mapper.sparse_vector.store_support" ]
+      reason: "sparse_vector supports store parameter"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              ml.tokens:
+                type: sparse_vector
+                store: true
+
+  - match: { acknowledged: true }
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          ml:
+            tokens:
+              running: 2
+              good: 3
+              run: 5
+              race: 7
+              for: 9
+
+  - match: { result: "created" }
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "ml.tokens" ]
+
+  - length: { hits.hits.0.fields.ml\\.tokens: 1 }
+  - length: { hits.hits.0.fields.ml\\.tokens.0: 5 }
+  - match:  { hits.hits.0.fields.ml\\.tokens.0.running: 2.0 }
+  - match:  { hits.hits.0.fields.ml\\.tokens.0.good: 3.0 }
+  - match:  { hits.hits.0.fields.ml\\.tokens.0.run: 5.0 }
+  - match:  { hits.hits.0.fields.ml\\.tokens.0.race: 7.0 }
+  - match:  { hits.hits.0.fields.ml\\.tokens.0.for: 9.0 }
+
+---
+"stored sparse_vector synthetic source":
+
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting", "mapper.sparse_vector.store_support" ]
+      reason: "sparse_vector supports store parameter"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              ml.tokens:
+                type: sparse_vector
+                store: true
+
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          ml:
+            tokens:
+              running: 2
+              good: 3
+              run: 5
+              race: 7
+              for: 9
+
+  - match: { result: "created" }
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "ml.tokens" ]
+
+  - match:
+      hits.hits.0._source: {
+        ml: {
+          tokens: {
+            running: 2.0,
+            good: 3.0,
+            run: 5.0,
+            race: 7.0,
+            for: 9.0
+          }
+        }
+      }
+
+  - length: { hits.hits.0.fields.ml\\.tokens: 1 }
+  - length: { hits.hits.0.fields.ml\\.tokens.0: 5 }
+  - match:  { hits.hits.0.fields.ml\\.tokens.0.running: 2.0 }
+  - match:  { hits.hits.0.fields.ml\\.tokens.0.good: 3.0 }
+  - match:  { hits.hits.0.fields.ml\\.tokens.0.run: 5.0 }
+  - match:  { hits.hits.0.fields.ml\\.tokens.0.race: 7.0 }
+  - match:  { hits.hits.0.fields.ml\\.tokens.0.for: 9.0 }

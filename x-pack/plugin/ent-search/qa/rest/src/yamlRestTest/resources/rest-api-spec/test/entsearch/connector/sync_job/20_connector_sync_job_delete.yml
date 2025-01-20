@@ -1,0 +1,67 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: Introduced in 8.12.0
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-test
+          name: my-connector
+          language: de
+          is_native: false
+          service_type: super-connector
+
+---
+"Delete Connector Sync Job":
+  - do:
+      connector.sync_job_post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand
+
+  - set: { id: sync-job-id-to-delete }
+
+  - do:
+      connector.sync_job_delete:
+        connector_sync_job_id: $sync-job-id-to-delete
+
+  - match: { acknowledged: true }
+
+  - do:
+      connector.sync_job_get:
+        connector_sync_job_id: $sync-job-id-to-delete
+      catch: missing
+
+---
+"Delete Connector Sync Job - Connector Sync Job does not exist":
+  - do:
+      connector.sync_job_delete:
+        connector_sync_job_id: test-nonexistent-connector-sync-job-id
+      catch: missing
+
+---
+"Delete connector fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      connector.sync_job_post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand
+
+  - set: { id: sync-job-id-to-delete }
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
+      connector.sync_job_delete:
+        connector_sync_job_id: $sync-job-id-to-delete
+
+  - do:
+      connector.sync_job_delete:
+        connector_sync_job_id: $sync-job-id-to-delete
+

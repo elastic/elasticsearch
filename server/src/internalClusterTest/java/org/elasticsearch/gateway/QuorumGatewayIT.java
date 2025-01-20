@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -18,7 +20,6 @@ import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.client.internal.Requests.clusterHealthRequest;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -42,15 +43,15 @@ public class QuorumGatewayIT extends ESIntegTestCase {
         final NumShards test = getNumShards("test");
 
         logger.info("--> indexing...");
-        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         // We don't check for failures in the flush response: if we do we might get the following:
         // FlushNotAllowedEngineException[[test][1] recovery is in progress, flush [COMMIT_TRANSLOG] is not allowed]
         flush();
-        client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
+        prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
         refresh();
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2L);
+            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 2L);
         }
         logger.info("--> restart all nodes");
         internalCluster().fullRestart(new RestartCallback() {
@@ -62,7 +63,9 @@ public class QuorumGatewayIT extends ESIntegTestCase {
                         ClusterHealthResponse clusterHealth = activeClient.admin()
                             .cluster()
                             .health(
-                                clusterHealthRequest().waitForYellowStatus().waitForNodes("2").waitForActiveShards(test.numPrimaries * 2)
+                                new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, new String[] {}).waitForYellowStatus()
+                                    .waitForNodes("2")
+                                    .waitForActiveShards(test.numPrimaries * 2)
                             )
                             .actionGet();
                         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
@@ -77,7 +80,7 @@ public class QuorumGatewayIT extends ESIntegTestCase {
                         .get();
                     assertNoFailures(activeClient.admin().indices().prepareRefresh().get());
                     for (int i = 0; i < 10; i++) {
-                        assertHitCount(activeClient.prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 3L);
+                        assertHitCount(activeClient.prepareSearch().setSize(0).setQuery(matchAllQuery()), 3L);
                     }
                 }
             }
@@ -88,7 +91,7 @@ public class QuorumGatewayIT extends ESIntegTestCase {
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 3L);
+            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 3L);
         }
     }
 }

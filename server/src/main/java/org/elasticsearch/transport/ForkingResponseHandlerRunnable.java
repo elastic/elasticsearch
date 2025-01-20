@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -11,8 +12,10 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -30,7 +33,15 @@ abstract class ForkingResponseHandlerRunnable extends AbstractRunnable {
     private final TransportException transportException;
 
     ForkingResponseHandlerRunnable(TransportResponseHandler<?> handler, @Nullable TransportException transportException) {
-        assert handler.executor().equals(ThreadPool.Names.SAME) == false : "forking handler required, but got " + handler;
+        this(handler, transportException, handler.executor());
+    }
+
+    ForkingResponseHandlerRunnable(
+        TransportResponseHandler<?> handler,
+        @Nullable TransportException transportException,
+        Executor executorUsed
+    ) {
+        assert executorUsed != EsExecutors.DIRECT_EXECUTOR_SERVICE : "forking handler required, but got " + handler;
         this.handler = handler;
         this.transportException = transportException;
     }

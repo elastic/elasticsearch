@@ -59,6 +59,96 @@ setup:
         policy: "my_timeseries_lifecycle"
 
 ---
+"Test Policy Get":
+  - do:
+      ilm.put_lifecycle:
+        policy: "my_timeseries_lifecycle_1"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "warm": {
+                  "min_age": "10s",
+                  "actions": {
+                    "forcemerge": {
+                      "max_num_segments": 10000
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+  - do:
+      ilm.put_lifecycle:
+        policy: "my_timeseries_lifecycle_2"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                 "delete": {
+                   "min_age": "30s",
+                   "actions": {
+                     "delete": {}
+                   }
+                 }
+              }
+            }
+          }
+
+  - do:
+      ilm.put_lifecycle:
+        policy: "other_lifecycle"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "warm": {
+                  "min_age": "10s",
+                  "actions": {
+                    "forcemerge": {
+                      "max_num_segments": 10000
+                    }
+                  }
+                },
+                "delete": {
+                  "min_age": "30s",
+                  "actions": {
+                    "delete": {}
+                  }
+                }
+              }
+            }
+          }
+
+  - do:
+      ilm.get_lifecycle:
+        policy: "my_timeseries*"
+  - match: { my_timeseries_lifecycle_1.version: 1 }
+  - match: { my_timeseries_lifecycle_2.version: 1 }
+
+  - do:
+      ilm.get_lifecycle:
+        policy: "my_timeseries_lifecycle_1,my_timeseries_lifecycle_2"
+  - match: { my_timeseries_lifecycle_1.version: 1 }
+  - match: { my_timeseries_lifecycle_2.version: 1 }
+
+  - do:
+      catch: missing
+      ilm.get_lifecycle:
+        policy: "lifecycle_not_found"
+
+  - do:
+      catch: /wildcard only supports a single value, please use comma-separated values or a single wildcard value/
+      ilm.get_lifecycle:
+        policy: "my_timeseries*,other_lifecycle"
+
+  - do:
+      catch: missing
+      ilm.get_lifecycle:
+        policy: "other_lifecycle,lifecycle_not_found"
+
+---
 "Test Policy Update":
   - do:
       ilm.put_lifecycle:

@@ -22,14 +22,16 @@ import java.util.Set;
 
 public class AuditUtil {
 
-    private static final String AUDIT_REQUEST_ID = "_xpack_audit_request_id";
+    // We need to expose this to allow-list as a header passed for cross cluster requests; see `CrossClusterAccessServerTransportFilter`
+    public static final String AUDIT_REQUEST_ID = "_xpack_audit_request_id";
 
     public static String restRequestContent(RestRequest request) {
         if (request.hasContent()) {
+            var content = request.content();
             try {
-                return XContentHelper.convertToJson(request.content(), false, false, request.getXContentType());
+                return XContentHelper.convertToJson(content, false, false, request.getXContentType());
             } catch (IOException ioe) {
-                return "Invalid Format: " + request.content().utf8ToString();
+                return "Invalid Format: " + content.utf8ToString();
             }
         }
         return "";

@@ -5,6 +5,12 @@
 <titleabbrev>Delete data stream</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-data-stream[Data stream APIs].
+--
+
 Deletes one or more <<data-streams,data streams>> and their backing
 indices. See <<delete-data-stream>>.
 
@@ -59,6 +65,6 @@ Wildcard (`*`) expressions are supported.
 [[delete-data-stream-api-query-parms]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
 +
 Defaults to `open`.

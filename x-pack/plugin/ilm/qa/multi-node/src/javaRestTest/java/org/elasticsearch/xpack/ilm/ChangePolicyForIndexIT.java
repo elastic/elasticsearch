@@ -32,7 +32,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
@@ -67,7 +66,7 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
             new Phase(
                 "hot",
                 TimeValue.ZERO,
-                singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1L, null, null, null, null, null, null))
+                Map.of(RolloverAction.NAME, new RolloverAction(null, null, null, 1L, null, null, null, null, null, null))
             )
         );
         phases1.put(
@@ -75,7 +74,7 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
             new Phase(
                 "warm",
                 TimeValue.ZERO,
-                singletonMap(AllocateAction.NAME, new AllocateAction(1, null, singletonMap("_name", "foobarbaz"), null, null))
+                Map.of(AllocateAction.NAME, new AllocateAction(1, null, Map.of("_name", "foobarbaz"), null, null))
             )
         );
         LifecyclePolicy lifecyclePolicy1 = new LifecyclePolicy("policy_1", phases1);
@@ -85,7 +84,7 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
             new Phase(
                 "hot",
                 TimeValue.ZERO,
-                singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1000L, null, null, null, null, null, null))
+                Map.of(RolloverAction.NAME, new RolloverAction(null, null, null, 1000L, null, null, null, null, null, null))
             )
         );
         phases2.put(
@@ -93,15 +92,9 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
             new Phase(
                 "warm",
                 TimeValue.ZERO,
-                singletonMap(
+                Map.of(
                     AllocateAction.NAME,
-                    new AllocateAction(
-                        1,
-                        null,
-                        singletonMap("_name", "javaRestTest-0,javaRestTest-1,javaRestTest-2,javaRestTest-3"),
-                        null,
-                        null
-                    )
+                    new AllocateAction(1, null, Map.of("_name", "javaRestTest-0,javaRestTest-1,javaRestTest-2,javaRestTest-3"), null, null)
                 )
             )
         );
@@ -129,7 +122,7 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
             .put(LifecycleSettings.LIFECYCLE_NAME, "policy_1")
             .build();
         Request createIndexRequest = new Request("PUT", "/" + indexName);
-        createIndexRequest.setJsonEntity("""
+        createIndexRequest.setJsonEntity(Strings.format("""
             {
               "settings": %s,
               "aliases": {
@@ -137,7 +130,7 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
                   "is_write_index": true
                 }
               }
-            }""".formatted(Strings.toString(settings)));
+            }""", Strings.toString(settings)));
         client().performRequest(createIndexRequest);
         // wait for the shards to initialize
         ensureGreen(indexName);
@@ -224,8 +217,8 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
         Map<String, Object> indexExplainResponse = (Map<String, Object>) ((Map<String, Object>) explainResponseMap.get("indices")).get(
             indexName
         );
-        assertEquals(expectedStep.getPhase(), indexExplainResponse.get("phase"));
-        assertEquals(expectedStep.getAction(), indexExplainResponse.get("action"));
-        assertEquals(expectedStep.getName(), indexExplainResponse.get("step"));
+        assertEquals(expectedStep.phase(), indexExplainResponse.get("phase"));
+        assertEquals(expectedStep.action(), indexExplainResponse.get("action"));
+        assertEquals(expectedStep.name(), indexExplainResponse.get("step"));
     }
 }

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -55,7 +56,7 @@ public class RawInferenceResults implements InferenceResults {
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(value), featureImportance);
+        return Objects.hash(Arrays.hashCode(value), Arrays.deepHashCode(featureImportance));
     }
 
     @Override
@@ -65,6 +66,11 @@ public class RawInferenceResults implements InferenceResults {
 
     @Override
     public Map<String, Object> asMap() {
+        throw new UnsupportedOperationException("[raw] does not support map conversion");
+    }
+
+    @Override
+    public Map<String, Object> asMap(String outputField) {
         throw new UnsupportedOperationException("[raw] does not support map conversion");
     }
 

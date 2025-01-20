@@ -41,6 +41,10 @@ import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.enrich.AbstractEnrichTestCase.createSourceIndices;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
 
@@ -106,8 +110,37 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
         assertEnrichIndicesExist(expectedIndices);
     }
 
+    public void testOnlyOneLifecycleListenerAdded() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        // Extend the maintenance service to do no work on the schedule call.
+        EnrichPolicyMaintenanceService service = new EnrichPolicyMaintenanceService(
+            Settings.EMPTY,
+            client(),
+            clusterService,
+            threadPool,
+            new EnrichPolicyLocks()
+        ) {
+            @Override
+            protected void scheduleNext() {
+                // Do nothing
+            }
+        };
+
+        // Execute the onMaster operation which should "schedule" the runnable and set the lifecycle listener.
+        service.onMaster();
+        // Since it doesn't actually schedule the runnable, we can just run it again to check if it sets the listener twice.
+        service.onMaster();
+
+        // Only set the listener once, despite multiple master swaps.
+        verify(clusterService, times(1)).addLifecycleListener(any());
+    }
+
     private void assertEnrichIndicesExist(Set<String> activeIndices) {
-        GetIndexResponse indices = client().admin().indices().getIndex(new GetIndexRequest().indices(".enrich-*")).actionGet();
+        GetIndexResponse indices = client().admin()
+            .indices()
+            .getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(".enrich-*"))
+            .actionGet();
         assertThat(indices.indices().length, is(equalTo(activeIndices.size())));
         for (String index : indices.indices()) {
             assertThat(activeIndices.contains(index), is(true));
@@ -173,7 +206,10 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
 
     private void promoteFakePolicyIndex(String indexName, String forPolicy) {
         String enrichIndexBase = EnrichPolicy.getBaseName(forPolicy);
-        GetAliasesResponse getAliasesResponse = client().admin().indices().getAliases(new GetAliasesRequest(enrichIndexBase)).actionGet();
+        GetAliasesResponse getAliasesResponse = client().admin()
+            .indices()
+            .getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT, enrichIndexBase))
+            .actionGet();
         IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest();
         String[] indices = getAliasesResponse.getAliases().keySet().toArray(new String[0]);
         if (indices.length > 0) {

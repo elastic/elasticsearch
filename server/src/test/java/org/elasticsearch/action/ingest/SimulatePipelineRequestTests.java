@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.ingest;
@@ -15,14 +16,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonSimulatePipelineRequest;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class SimulatePipelineRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        SimulatePipelineRequest request = new SimulatePipelineRequest(new BytesArray(""), XContentType.JSON);
+        SimulatePipelineRequest request = jsonSimulatePipelineRequest(new BytesArray(""));
         // Sometimes we set an id
         if (randomBoolean()) {
             request.setId(randomAlphaOfLengthBetween(1, 10));
@@ -43,10 +44,7 @@ public class SimulatePipelineRequestTests extends ESTestCase {
     }
 
     public void testSerializationWithXContent() throws IOException {
-        SimulatePipelineRequest request = new SimulatePipelineRequest(
-            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
-            XContentType.JSON
-        );
+        SimulatePipelineRequest request = jsonSimulatePipelineRequest("{}");
         assertEquals(XContentType.JSON, request.getXContentType());
 
         BytesStreamOutput output = new BytesStreamOutput();

@@ -20,16 +20,16 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
 
 /**
- * After we performed the index rollover we wait for the the configured number of shards for the rolled over index (ie. newly created
+ * After we performed the index rollover we wait for the configured number of shards for the rolled over index (ie. newly created
  * index) to become available.
  */
 public class WaitForActiveShardsStep extends ClusterStateWaitStep {
@@ -53,40 +53,45 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         IndexMetadata originalIndexMeta = metadata.index(index);
 
         if (originalIndexMeta == null) {
-            String errorMessage = String.format(
-                Locale.ROOT,
+            String errorMessage = Strings.format(
                 "[%s] lifecycle action for index [%s] executed but index no longer exists",
-                getKey().getAction(),
+                getKey().action(),
                 index.getName()
             );
             // Index must have been since deleted
             logger.debug(errorMessage);
-            return new Result(false, new Info(errorMessage));
+            return new Result(false, new SingleMessageFieldInfo(errorMessage));
         }
 
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(originalIndexMeta.getSettings());
         if (indexingComplete) {
-            String message = String.format(
-                Locale.ROOT,
+            String message = Strings.format(
                 "index [%s] has lifecycle complete set, skipping [%s]",
                 originalIndexMeta.getIndex().getName(),
                 WaitForActiveShardsStep.NAME
             );
             logger.trace(message);
-            return new Result(true, new Info(message));
+            return new Result(true, new SingleMessageFieldInfo(message));
         }
 
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index.getName());
         final String rolledIndexName;
         final String waitForActiveShardsSettingValue;
-        if (indexAbstraction.getParentDataStream() != null) {
-            DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
+        DataStream dataStream = indexAbstraction.getParentDataStream();
+        if (dataStream != null) {
             IndexAbstraction dataStreamAbstraction = metadata.getIndicesLookup().get(dataStream.getName());
             assert dataStreamAbstraction != null : dataStream.getName() + " datastream is not present in the metadata indices lookup";
-            if (dataStreamAbstraction.getWriteIndex() == null) {
+            // Determine which write index we care about right now:
+            final Index rolledIndex;
+            if (dataStream.isFailureStoreIndex(index.getName())) {
+                rolledIndex = dataStream.getWriteFailureIndex();
+            } else {
+                rolledIndex = dataStream.getWriteIndex();
+            }
+            if (rolledIndex == null) {
                 return getErrorResultOnNullMetadata(getKey(), index);
             }
-            IndexMetadata rolledIndexMeta = metadata.index(dataStreamAbstraction.getWriteIndex());
+            IndexMetadata rolledIndexMeta = metadata.index(rolledIndex);
             rolledIndexName = rolledIndexMeta.getIndex().getName();
             waitForActiveShardsSettingValue = rolledIndexMeta.getSettings().get(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey());
         } else {
@@ -140,16 +145,15 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
     }
 
     private static Result getErrorResultOnNullMetadata(StepKey key, Index originalIndex) {
-        String errorMessage = String.format(
-            Locale.ROOT,
+        String errorMessage = Strings.format(
             "unable to find the index that was rolled over from [%s] as part of lifecycle action [%s]",
             originalIndex.getName(),
-            key.getAction()
+            key.action()
         );
 
         // Index must have been since deleted
         logger.debug(errorMessage);
-        return new Result(false, new Info(errorMessage));
+        return new Result(false, new SingleMessageFieldInfo(errorMessage));
     }
 
     static final class ActiveShardsInfo implements ToXContentObject {
@@ -209,42 +213,6 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         @Override
         public int hashCode() {
             return Objects.hash(currentActiveShardsCount, targetActiveShardsCount, enoughShardsActive, message);
-        }
-    }
-
-    static final class Info implements ToXContentObject {
-
-        private final String message;
-
-        static final ParseField MESSAGE = new ParseField("message");
-
-        Info(String message) {
-            this.message = message;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(MESSAGE.getPreferredName(), message);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Info info = (Info) o;
-            return Objects.equals(message, info.message);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(message);
         }
     }
 }

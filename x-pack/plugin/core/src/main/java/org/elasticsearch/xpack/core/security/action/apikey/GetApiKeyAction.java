@@ -18,6 +18,6 @@ public final class GetApiKeyAction extends ActionType<GetApiKeyResponse> {
     public static final GetApiKeyAction INSTANCE = new GetApiKeyAction();
 
     private GetApiKeyAction() {
-        super(NAME, GetApiKeyResponse::new);
+        super(NAME);
     }
 }

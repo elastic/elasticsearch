@@ -25,10 +25,12 @@ public class ProblemTrackerTests extends ESTestCase {
 
     private ProblemTracker problemTracker;
 
+    private static final long NUM_SEARCHES_IN_DAY = 24L;
+
     @Before
     public void setUpTests() {
         auditor = mock(AnomalyDetectionAuditor.class);
-        problemTracker = new ProblemTracker(auditor, "foo");
+        problemTracker = new ProblemTracker(auditor, "foo", NUM_SEARCHES_IN_DAY);
     }
 
     public void testReportExtractionProblem() {
@@ -116,6 +118,26 @@ public class ProblemTrackerTests extends ESTestCase {
 
         verify(auditor).warning("foo", "Datafeed has been retrieving no data for a while");
         verify(auditor).info("foo", "Datafeed has started retrieving data again");
+    }
+
+    public void testUpdateEmptyDataCount_DailyTrigger() {
+        for (int i = 0; i < NUM_SEARCHES_IN_DAY; i++) {
+            problemTracker.reportEmptyDataCount();
+        }
+        verify(auditor, times(2)).warning("foo", "Datafeed has been retrieving no data for a while");
+
+        for (int i = 0; i < NUM_SEARCHES_IN_DAY; i++) {
+            problemTracker.reportEmptyDataCount();
+        }
+        verify(auditor, times(3)).warning("foo", "Datafeed has been retrieving no data for a while");
+    }
+
+    public void testUpdateEmptyDataCount_NumSearchesInDayIsZero() {
+        auditor = mock(AnomalyDetectionAuditor.class);
+        problemTracker = new ProblemTracker(auditor, "foo", 0);
+
+        problemTracker.reportEmptyDataCount();
+        verify(auditor, times(1)).warning("foo", "Datafeed has been retrieving no data for a while");
     }
 
     public void testFinishReport_GivenNoProblems() {

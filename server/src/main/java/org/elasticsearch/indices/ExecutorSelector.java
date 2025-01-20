@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -12,6 +13,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
+import java.util.concurrent.Executor;
+import java.util.function.BiFunction;
 
 /**
  * Some operations need to use different executors for different index patterns.
@@ -93,12 +96,11 @@ public class ExecutorSelector {
 
     /**
      * This is a convenience method for the case when we need to find an executor for a shard.
-     * Note that it can be passed to methods as a {@link java.util.function.BiFunction}.
-     * @param executorSelector An executor selector service.
-     * @param shard A shard for which we need to find an executor.
-     * @return Name of the executor that should be used for write operations on this shard.
+     * @return a {@link java.util.function.BiFunction} which returns the executor that should be used for write operations on this shard.
      */
-    public static String getWriteExecutorForShard(ExecutorSelector executorSelector, IndexShard shard) {
-        return executorSelector.executorForWrite(shard.shardId().getIndexName());
+    public static BiFunction<ExecutorSelector, IndexShard, Executor> getWriteExecutorForShard(ThreadPool threadPool) {
+        return (executorSelector, indexShard) -> threadPool.executor(
+            executorSelector.executorForWrite(indexShard.shardId().getIndexName())
+        );
     }
 }

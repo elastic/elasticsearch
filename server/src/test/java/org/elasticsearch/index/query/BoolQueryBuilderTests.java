@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -19,7 +20,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -29,13 +29,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilder> {
     @Override
@@ -64,6 +64,33 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             query.filter(RandomQueryBuilder.createQuery(random()));
         }
         return query;
+    }
+
+    @Override
+    protected BoolQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder().must(queryBuilder);
+        if (randomBoolean()) {
+            addRandomClause(boolQueryBuilder, queryBuilder);
+        }
+        return boolQueryBuilder;
+    }
+
+    private static void addRandomClause(BoolQueryBuilder boolQueryBuilder, QueryBuilder innerQueryBuilder) {
+        int iters = randomIntBetween(1, 3);
+        for (int i = 0; i < iters; i++) {
+            if (randomBoolean()) {
+                boolQueryBuilder.filter(randomBoolean() ? innerQueryBuilder : new MatchAllQueryBuilder());
+            }
+            if (randomBoolean()) {
+                boolQueryBuilder.should(randomBoolean() ? innerQueryBuilder : new MatchAllQueryBuilder());
+            }
+            if (randomBoolean()) {
+                boolQueryBuilder.mustNot(randomBoolean() ? innerQueryBuilder : new MatchAllQueryBuilder());
+            }
+            if (randomBoolean()) {
+                boolQueryBuilder.filter(randomBoolean() ? innerQueryBuilder : new MatchAllQueryBuilder());
+            }
+        }
     }
 
     @Override
@@ -148,7 +175,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             expectedQuery.filter(filter);
         }
         contentString = contentString.substring(0, contentString.length() - 1);
-        contentString += "    }    \n" + "}";
+        contentString += "    }    \n}";
         alternateVersions.put(contentString, expectedQuery);
         return alternateVersions;
     }
@@ -180,15 +207,15 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(0));
         assertThat(booleanQuery.clauses().size(), equalTo(1));
         BooleanClause booleanClause = booleanQuery.clauses().get(0);
-        assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.FILTER));
-        assertThat(booleanClause.getQuery(), instanceOf(BooleanQuery.class));
-        BooleanQuery innerBooleanQuery = (BooleanQuery) booleanClause.getQuery();
+        assertThat(booleanClause.occur(), equalTo(BooleanClause.Occur.FILTER));
+        assertThat(booleanClause.query(), instanceOf(BooleanQuery.class));
+        BooleanQuery innerBooleanQuery = (BooleanQuery) booleanClause.query();
         // we didn't set minimum should match initially, there are no should clauses so it should be 0
         assertThat(innerBooleanQuery.getMinimumNumberShouldMatch(), equalTo(0));
         assertThat(innerBooleanQuery.clauses().size(), equalTo(1));
         BooleanClause innerBooleanClause = innerBooleanQuery.clauses().get(0);
-        assertThat(innerBooleanClause.getOccur(), equalTo(BooleanClause.Occur.MUST));
-        assertThat(innerBooleanClause.getQuery(), instanceOf(MatchAllDocsQuery.class));
+        assertThat(innerBooleanClause.occur(), equalTo(BooleanClause.Occur.MUST));
+        assertThat(innerBooleanClause.query(), instanceOf(MatchAllDocsQuery.class));
     }
 
     public void testMinShouldMatchBiggerThanNumberOfShouldClauses() throws Exception {
@@ -423,6 +450,12 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertNotEquals(new MatchNoneQueryBuilder(), rewritten);
 
         boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.should(new WrapperQueryBuilder(new MatchNoneQueryBuilder().toString()));
+        boolQueryBuilder.mustNot(new TermQueryBuilder(TEXT_FIELD_NAME, "bar"));
+        rewritten = Rewriteable.rewrite(boolQueryBuilder, createSearchExecutionContext());
+        assertNotEquals(new MatchNoneQueryBuilder(), rewritten);
+
+        boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.filter(new TermQueryBuilder(TEXT_FIELD_NAME, "bar"));
         boolQueryBuilder.mustNot(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()).toString()));
         rewritten = boolQueryBuilder.rewrite(createSearchExecutionContext());
@@ -440,19 +473,38 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertEquals("Rewrite first", e.getMessage());
     }
 
-    public void testExceedMaxNestedDepth() throws IOException {
-        BoolQueryBuilder query = new BoolQueryBuilder();
-        query.should(new BoolQueryBuilder().should(new BoolQueryBuilder().should(RandomQueryBuilder.createQuery(random()))));
-        BoolQueryBuilder.setMaxNestedDepth(2);
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, query.toString())) {
-            XContentParseException e = expectThrows(XContentParseException.class, () -> parseInnerQueryBuilder(parser));
-            assertThat(e.getCause().getCause(), Matchers.instanceOf(IllegalArgumentException.class));
-            assertEquals(
-                "The nested depth of the query exceeds the maximum nested depth for bool queries set in ["
-                    + INDICES_MAX_NESTED_DEPTH_SETTING.getKey()
-                    + "]",
-                e.getCause().getCause().getMessage()
-            );
+    public void testShallowCopy() {
+        BoolQueryBuilder orig = createTestQueryBuilder();
+        BoolQueryBuilder shallowCopy = orig.shallowCopy();
+        assertThat(shallowCopy.adjustPureNegative(), equalTo(orig.adjustPureNegative()));
+        assertThat(shallowCopy.minimumShouldMatch(), equalTo(orig.minimumShouldMatch()));
+        assertThat(shallowCopy.must(), equalTo(orig.must()));
+        assertThat(shallowCopy.mustNot(), equalTo(orig.mustNot()));
+        assertThat(shallowCopy.should(), equalTo(orig.should()));
+        assertThat(shallowCopy.filter(), equalTo(orig.filter()));
+
+        QueryBuilder b = new MatchQueryBuilder("foo", "bar");
+        switch (between(0, 3)) {
+            case 0 -> {
+                shallowCopy.must(b);
+                assertThat(shallowCopy.must(), hasItem(b));
+                assertThat(orig.must(), not(hasItem(b)));
+            }
+            case 1 -> {
+                shallowCopy.mustNot(b);
+                assertThat(shallowCopy.mustNot(), hasItem(b));
+                assertThat(orig.mustNot(), not(hasItem(b)));
+            }
+            case 2 -> {
+                shallowCopy.should(b);
+                assertThat(shallowCopy.should(), hasItem(b));
+                assertThat(orig.should(), not(hasItem(b)));
+            }
+            case 3 -> {
+                shallowCopy.filter(b);
+                assertThat(shallowCopy.filter(), hasItem(b));
+                assertThat(orig.filter(), not(hasItem(b)));
+            }
         }
     }
 }

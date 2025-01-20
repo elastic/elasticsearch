@@ -1,18 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.UpdateForV10;
 
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Set;
 
@@ -24,6 +27,7 @@ import java.util.Set;
 public abstract class SecureSetting<T> extends Setting<T> {
 
     /** Determines whether legacy settings with sensitive values should be allowed. */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // this should no longer be in use, even in v9, so can go away in v10
     private static final boolean ALLOW_INSECURE_SETTINGS = Booleans.parseBoolean(System.getProperty("es.allow_insecure_settings", "false"));
 
     private static final Set<Property> ALLOWED_PROPERTIES = EnumSet.of(
@@ -35,7 +39,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
     private static final Property[] FIXED_PROPERTIES = { Property.NodeScope };
 
     private SecureSetting(String key, Property... properties) {
-        super(key, (String) null, null, ArrayUtils.concat(properties, FIXED_PROPERTIES, Property.class));
+        super(key, (String) null, null, ArrayUtils.concat(properties, FIXED_PROPERTIES));
         assert assertAllowedProperties(properties);
         KeyStoreWrapper.validateSettingName(key);
     }
@@ -67,28 +71,27 @@ public abstract class SecureSetting<T> extends Setting<T> {
     @Override
     public boolean exists(Settings settings) {
         final SecureSettings secureSettings = settings.getSecureSettings();
-        return secureSettings != null && secureSettings.getSettingNames().contains(getKey());
+        return secureSettings != null && getRawKey().exists(secureSettings.getSettingNames(), Collections.emptySet());
+    }
+
+    @Override
+    public boolean exists(Settings.Builder builder) {
+        final SecureSettings secureSettings = builder.getSecureSettings();
+        return secureSettings != null && getRawKey().exists(secureSettings.getSettingNames(), Collections.emptySet());
     }
 
     @Override
     public T get(Settings settings) {
         checkDeprecation(settings);
         final SecureSettings secureSettings = settings.getSecureSettings();
-        if (secureSettings == null || secureSettings.getSettingNames().contains(getKey()) == false) {
-            if (super.exists(settings)) {
-                throw new IllegalArgumentException(
-                    "Setting ["
-                        + getKey()
-                        + "] is a secure setting"
-                        + " and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml"
-                );
-            }
+        String key = getKey();
+        if (secureSettings == null || secureSettings.getSettingNames().contains(key) == false) {
             return getFallback(settings);
         }
         try {
             return getSecret(secureSettings);
         } catch (GeneralSecurityException e) {
-            throw new RuntimeException("failed to read secure setting " + getKey(), e);
+            throw new RuntimeException("failed to read secure setting " + key, e);
         }
     }
 
@@ -184,9 +187,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
         @Override
         public SecureString get(Settings settings) {
             if (ALLOW_INSECURE_SETTINGS == false && exists(settings)) {
-                throw new IllegalArgumentException(
-                    "Setting [" + name + "] is insecure, " + "but property [allow_insecure_settings] is not set"
-                );
+                throw new IllegalArgumentException("Setting [" + name + "] is insecure, use the elasticsearch keystore instead");
             }
             return super.get(settings);
         }

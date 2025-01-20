@@ -16,8 +16,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
-import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -25,6 +23,9 @@ import java.util.ArrayList;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.builder;
+import static org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings.TYPE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -48,11 +49,8 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTest
     protected DelegatePkiAuthenticationResponse createTestInstance() {
         return new DelegatePkiAuthenticationResponse(
             randomAlphaOfLengthBetween(0, 10),
-            TimeValue.parseTimeValue(randomTimeValue(), getClass().getSimpleName() + ".expiresIn"),
-            AuthenticationTestHelper.builder()
-                .realm()
-                .realmRef(new Authentication.RealmRef(randomAlphaOfLengthBetween(3, 8), PkiRealmSettings.TYPE, "node_name"))
-                .build(false)
+            randomTimeValue(),
+            builder().realm().realmRef(new RealmRef(randomAlphaOfLengthBetween(3, 8), TYPE, "node_name")).build(false)
         );
     }
 

@@ -13,7 +13,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
@@ -100,7 +100,7 @@ public class RSquared implements EvaluationMetric {
     }
 
     @Override
-    public void process(Aggregations aggs) {
+    public void process(InternalAggregations aggs) {
         NumericMetricsAggregation.SingleValue residualSumOfSquares = aggs.get(SS_RES);
         ExtendedStats extendedStats = aggs.get(ExtendedStatsAggregationBuilder.NAME + "_actual");
         // extendedStats.getVariance() is the statistical sumOfSquares divided by count

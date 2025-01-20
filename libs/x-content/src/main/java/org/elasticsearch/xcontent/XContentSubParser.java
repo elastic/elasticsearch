@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent;
@@ -24,7 +25,8 @@ public class XContentSubParser extends FilterXContentParserWrapper {
 
     public XContentSubParser(XContentParser parser) {
         super(parser);
-        if (parser.currentToken() != Token.START_OBJECT && parser.currentToken() != Token.START_ARRAY) {
+        final Token token = parser.currentToken();
+        if (token != Token.START_OBJECT && token != Token.START_ARRAY) {
             throw new IllegalStateException("The sub parser has to be created on the start of an object or array");
         }
         level = 1;
@@ -75,5 +77,9 @@ public class XContentSubParser extends FilterXContentParserWrapper {
                 }
             }
         }
+    }
+
+    int level() {
+        return level;
     }
 }

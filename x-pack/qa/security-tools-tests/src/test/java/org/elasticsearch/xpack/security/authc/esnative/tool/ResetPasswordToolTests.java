@@ -304,10 +304,10 @@ public class ResetPasswordToolTests extends CommandTestCase {
     }
 
     private URL changePasswordUrl(URL url, String user) throws MalformedURLException, URISyntaxException {
-        return new URL(url, (url.toURI().getPath() + "/_security/user/" + user + "/_password").replaceAll("/+", "/") + "?pretty");
+        return new URL(url, (url.toURI().getPath() + "/_security/user/" + user + "/_password").replaceAll("//+", "/") + "?pretty");
     }
 
     private URL clusterHealthUrl(URL url) throws MalformedURLException, URISyntaxException {
-        return new URL(url, (url.toURI().getPath() + "/_cluster/health").replaceAll("/+", "/") + "?pretty");
+        return new URL(url, (url.toURI().getPath() + "/_cluster/health").replaceAll("//+", "/") + "?pretty");
     }
 }

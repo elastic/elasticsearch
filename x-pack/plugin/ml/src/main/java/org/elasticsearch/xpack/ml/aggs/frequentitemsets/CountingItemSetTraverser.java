@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.TransactionStore.TopItemIds;
@@ -31,7 +29,6 @@ import java.util.BitSet;
  *          if [a, b] is not in T, [a, b, c] can not be in T either
  */
 final class CountingItemSetTraverser implements Releasable {
-    private static final Logger logger = LogManager.getLogger(CountingItemSetTraverser.class);
 
     // start size and size increment for the occurences stack
     private static final int OCCURENCES_SIZE_INCREMENT = 10;
@@ -259,6 +256,14 @@ final class CountingItemSetTraverser implements Releasable {
      */
     public void prune() {
         topItemSetTraverser.prune();
+    }
+
+    public void pruneToNextMainBranch() {
+        long thisCount = getCount();
+
+        while (getNumberOfItems() > 1 && getCount() == thisCount) {
+            topItemSetTraverser.prune();
+        }
     }
 
     /**

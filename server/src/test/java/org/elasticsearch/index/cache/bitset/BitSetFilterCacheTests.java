@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.cache.bitset;
@@ -11,6 +12,7 @@ package org.elasticsearch.index.cache.bitset;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -20,25 +22,38 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.lucene.util.MatchAllBitSet;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.cluster.node.DiscoveryNode.STATELESS_ENABLED_SETTING_NAME;
+import static org.elasticsearch.index.cache.bitset.BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 public class BitSetFilterCacheTests extends ESTestCase {
 
@@ -78,17 +93,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
         DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId("test", "_na_", 0));
 
-        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-
-            }
-
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
-
-            }
-        });
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, BitsetFilterCache.Listener.NOOP);
         BitSetProducer filter = cache.getBitSetProducer(new TermQuery(new Term("field", "value")));
         assertThat(matchCount(filter, reader), equalTo(3));
 
@@ -168,6 +173,48 @@ public class BitSetFilterCacheTests extends ESTestCase {
         assertEquals(0, stats.get());
     }
 
+    public void testStats() throws IOException {
+        Directory directory = newDirectory();
+        IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig());
+        int numDocs = randomIntBetween(2000, 5000);
+        for (int i = 0; i < numDocs; i++) {
+            Document d = new Document();
+            d.add(new LongPoint("f", i));
+            writer.addDocument(d);
+        }
+        writer.commit();
+        writer.forceMerge(1);
+        IndexReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("test", "_na_", 0));
+        assertThat(reader.leaves(), hasSize(1));
+        assertThat(reader.numDocs(), equalTo(numDocs));
+
+        final AtomicLong stats = new AtomicLong();
+        final BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
+                stats.addAndGet(accountable.ramBytesUsed());
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+                stats.addAndGet(-accountable.ramBytesUsed());
+            }
+        });
+        // match all
+        Query matchAll = randomBoolean() ? LongPoint.newRangeQuery("f", 0, numDocs + between(0, 1000)) : new MatchAllDocsQuery();
+        BitSetProducer bitSetProducer = cache.getBitSetProducer(matchAll);
+        BitSet bitset = bitSetProducer.getBitSet(reader.leaves().get(0));
+        assertThat(bitset, instanceOf(MatchAllBitSet.class));
+        long usedBytes = stats.get();
+        assertThat(usedBytes, lessThan(32L));
+        // range
+        bitSetProducer = cache.getBitSetProducer(LongPoint.newRangeQuery("f", 0, between(1000, 2000)));
+        bitSetProducer.getBitSet(reader.leaves().get(0));
+        usedBytes = stats.get() - usedBytes;
+        assertThat(usedBytes, greaterThan(256L));
+        IOUtils.close(cache, reader, writer, directory);
+    }
+
     public void testSetNullListener() {
         try {
             new BitsetFilterCache(INDEX_SETTINGS, null);
@@ -179,17 +226,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
     }
 
     public void testRejectOtherIndex() throws IOException {
-        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-
-            }
-
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
-
-            }
-        });
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, BitsetFilterCache.Listener.NOOP);
 
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
@@ -210,4 +247,38 @@ public class BitSetFilterCacheTests extends ESTestCase {
         }
     }
 
+    public void testShouldLoadRandomAccessFiltersEagerly() {
+        var values = List.of(true, false);
+        for (var hasIndexRole : values) {
+            for (var loadFiltersEagerly : values) {
+                for (var isStateless : values) {
+                    boolean result = BitsetFilterCache.shouldLoadRandomAccessFiltersEagerly(
+                        bitsetFilterCacheSettings(isStateless, hasIndexRole, loadFiltersEagerly)
+                    );
+                    if (isStateless) {
+                        assertEquals(loadFiltersEagerly && hasIndexRole == false, result);
+                    } else {
+                        assertEquals(loadFiltersEagerly, result);
+                    }
+                }
+            }
+        }
+    }
+
+    private IndexSettings bitsetFilterCacheSettings(boolean isStateless, boolean hasIndexRole, boolean loadFiltersEagerly) {
+        var indexSettingsBuilder = Settings.builder().put(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), loadFiltersEagerly);
+
+        var nodeSettingsBuilder = Settings.builder()
+            .putList(
+                NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+                hasIndexRole ? DiscoveryNodeRole.INDEX_ROLE.roleName() : DiscoveryNodeRole.SEARCH_ROLE.roleName()
+            )
+            .put(STATELESS_ENABLED_SETTING_NAME, isStateless);
+
+        return IndexSettingsModule.newIndexSettings(
+            new Index("index", IndexMetadata.INDEX_UUID_NA_VALUE),
+            indexSettingsBuilder.build(),
+            nodeSettingsBuilder.build()
+        );
+    }
 }

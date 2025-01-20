@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -27,6 +28,14 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
     protected SpanFirstQueryBuilder doCreateTestQueryBuilder() {
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(1);
         return new SpanFirstQueryBuilder(spanTermQueries[0], randomIntBetween(0, 1000));
+    }
+
+    @Override
+    protected SpanFirstQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        if (queryBuilder instanceof SpanFirstQueryBuilder) {
+            return new SpanFirstQueryBuilder((SpanFirstQueryBuilder) queryBuilder, 1);
+        }
+        return new SpanFirstQueryBuilder(new SpanTermQueryBuilder("field", "value"), 1);
     }
 
     @Override

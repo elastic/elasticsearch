@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.windows.service;
@@ -18,11 +19,11 @@ class WindowsServiceRemoveCommand extends ProcrunCommand {
 
     @Override
     protected String getSuccessMessage(String serviceId) {
-        return "The service '%s' has been removed".formatted(serviceId);
+        return String.format(java.util.Locale.ROOT, "The service '%s' has been removed", serviceId);
     }
 
     @Override
     protected String getFailureMessage(String serviceId) {
-        return "Failed removing '%s' service".formatted(serviceId);
+        return String.format(java.util.Locale.ROOT, "Failed removing '%s' service", serviceId);
     }
 }

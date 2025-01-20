@@ -34,6 +34,7 @@ import static org.elasticsearch.action.support.TransportActions.isShardNotAvaila
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 
 /**
  * Responsible for cleaning the invalidated and expired tokens from the security indices (`main` and `tokens`).
@@ -68,10 +69,10 @@ final class ExpiredTokenRemover extends AbstractRunnable {
     @Override
     public void doRun() {
         final List<String> indicesWithTokens = new ArrayList<>();
-        if (securityTokensIndex.isAvailable()) {
+        if (securityTokensIndex.isAvailable(PRIMARY_SHARDS)) {
             indicesWithTokens.add(securityTokensIndex.aliasName());
         }
-        if (securityMainIndex.isAvailable() && checkMainIndexForExpiredTokens) {
+        if (securityMainIndex.isAvailable(PRIMARY_SHARDS) && checkMainIndexForExpiredTokens) {
             indicesWithTokens.add(securityMainIndex.aliasName());
         }
         if (indicesWithTokens.isEmpty()) {

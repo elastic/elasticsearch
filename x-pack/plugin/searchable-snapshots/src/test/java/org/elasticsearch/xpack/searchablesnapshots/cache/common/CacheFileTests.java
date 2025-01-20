@@ -4,22 +4,24 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+
 package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.blobcache.BlobCacheTestUtils;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile.EvictionListener;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.FSyncTrackingFileSystemProvider;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -241,7 +243,7 @@ public class CacheFileTests extends ESTestCase {
     }
 
     public void testFSync() throws Exception {
-        final FSyncTrackingFileSystemProvider fileSystem = setupFSyncCountingFileSystem();
+        final BlobCacheTestUtils.FSyncTrackingFileSystemProvider fileSystem = setupFSyncCountingFileSystem();
         try {
             final TestCacheFileModificationListener updatesListener = new TestCacheFileModificationListener();
             final CacheFile cacheFile = new CacheFile(CACHE_KEY, randomLongBetween(0L, 1000L), fileSystem.resolve("test"), updatesListener);
@@ -284,7 +286,7 @@ public class CacheFileTests extends ESTestCase {
     }
 
     public void testFSyncOnEvictedFile() throws Exception {
-        final FSyncTrackingFileSystemProvider fileSystem = setupFSyncCountingFileSystem();
+        final BlobCacheTestUtils.FSyncTrackingFileSystemProvider fileSystem = setupFSyncCountingFileSystem();
         try {
             final TestCacheFileModificationListener updatesListener = new TestCacheFileModificationListener();
             final CacheFile cacheFile = new CacheFile(CACHE_KEY, randomLongBetween(0L, 1000L), fileSystem.resolve("test"), updatesListener);
@@ -342,7 +344,7 @@ public class CacheFileTests extends ESTestCase {
     }
 
     public void testFSyncFailure() throws Exception {
-        final FSyncTrackingFileSystemProvider fileSystem = setupFSyncCountingFileSystem();
+        final BlobCacheTestUtils.FSyncTrackingFileSystemProvider fileSystem = setupFSyncCountingFileSystem();
         try {
             fileSystem.failFSyncs(true);
 
@@ -391,15 +393,7 @@ public class CacheFileTests extends ESTestCase {
         }
     }
 
-    private static void assumeLinux64bitsOrWindows() {
-        assumeTrue(
-            "This test uses native methods implemented only for Windows & Linux 64bits",
-            Constants.WINDOWS || Constants.LINUX && Constants.JRE_IS_64BIT
-        );
-    }
-
     public void testCacheFileCreatedAsSparseFile() throws Exception {
-        assumeLinux64bitsOrWindows();
         final long fourKb = 4096L;
         final long oneMb = 1 << 20;
 
@@ -418,7 +412,7 @@ public class CacheFileTests extends ESTestCase {
             final FileChannel fileChannel = cacheFile.getChannel();
             assertTrue(Files.exists(file));
 
-            OptionalLong sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
+            OptionalLong sizeOnDisk = NativeAccess.instance().allocatedSizeInBytes(file);
             assertTrue(sizeOnDisk.isPresent());
             assertThat(sizeOnDisk.getAsLong(), equalTo(0L));
 
@@ -428,7 +422,7 @@ public class CacheFileTests extends ESTestCase {
             fill(fileChannel, Math.toIntExact(cacheFile.getLength() - 1L), Math.toIntExact(cacheFile.getLength()));
             fileChannel.force(false);
 
-            sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
+            sizeOnDisk = NativeAccess.instance().allocatedSizeInBytes(file);
             assertTrue(sizeOnDisk.isPresent());
             assertThat(
                 "Cache file should be sparse and not fully allocated on disk",
@@ -443,7 +437,7 @@ public class CacheFileTests extends ESTestCase {
             fill(fileChannel, 0, Math.toIntExact(cacheFile.getLength()));
             fileChannel.force(false);
 
-            sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
+            sizeOnDisk = NativeAccess.instance().allocatedSizeInBytes(file);
             assertTrue(sizeOnDisk.isPresent());
             assertThat(
                 "Cache file should be fully allocated on disk (maybe more given cluster/block size)",
@@ -526,15 +520,20 @@ public class CacheFileTests extends ESTestCase {
     }
 
     public static void assertNumberOfFSyncs(final Path path, final Matcher<Integer> matcher) {
-        final FSyncTrackingFileSystemProvider provider = (FSyncTrackingFileSystemProvider) path.getFileSystem().provider();
+        final BlobCacheTestUtils.FSyncTrackingFileSystemProvider provider = (BlobCacheTestUtils.FSyncTrackingFileSystemProvider) path
+            .getFileSystem()
+            .provider();
         final Integer fsyncCount = provider.getNumberOfFSyncs(path);
         assertThat("File [" + path + "] was never fsynced", fsyncCount, notNullValue());
         assertThat("Mismatching number of fsync for [" + path + "]", fsyncCount, matcher);
     }
 
-    private static FSyncTrackingFileSystemProvider setupFSyncCountingFileSystem() {
+    private static BlobCacheTestUtils.FSyncTrackingFileSystemProvider setupFSyncCountingFileSystem() {
         final FileSystem defaultFileSystem = PathUtils.getDefaultFileSystem();
-        final FSyncTrackingFileSystemProvider provider = new FSyncTrackingFileSystemProvider(defaultFileSystem, createTempDir());
+        final BlobCacheTestUtils.FSyncTrackingFileSystemProvider provider = new BlobCacheTestUtils.FSyncTrackingFileSystemProvider(
+            defaultFileSystem,
+            createTempDir()
+        );
         PathUtilsForTesting.installMock(provider.getFileSystem(null));
         return provider;
     }

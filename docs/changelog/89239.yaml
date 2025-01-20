@@ -1,5 +1,0 @@
-pr: 89239
-summary: Improve rejection of ambiguous voting config name
-area: Cluster Coordination
-type: bug
-issues: []

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -88,16 +87,8 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
 
     public SingleGroupSource(StreamInput in) throws IOException {
         field = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            scriptConfig = in.readOptionalWriteable(ScriptConfig::new);
-        } else {
-            scriptConfig = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-            missingBucket = in.readBoolean();
-        } else {
-            missingBucket = false;
-        }
+        scriptConfig = in.readOptionalWriteable(ScriptConfig::new);
+        missingBucket = in.readBoolean();
     }
 
     ActionRequestValidationException validate(ActionRequestValidationException validationException) {
@@ -134,12 +125,8 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(field);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeOptionalWriteable(scriptConfig);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-            out.writeBoolean(missingBucket);
-        }
+        out.writeOptionalWriteable(scriptConfig);
+        out.writeBoolean(missingBucket);
     }
 
     public abstract Type getType();

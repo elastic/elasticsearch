@@ -2,6 +2,12 @@
 [[info-api]]
 == Info API
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-info[Info APIs].
+--
+
 Provides general information about the installed {xpack} features.
 
 [discrete]
@@ -109,6 +115,10 @@ Example response:
          "available" : true,
          "enabled" : true
       },
+      "esql" : {
+         "available" : true,
+         "enabled" : true
+      },
       "monitoring" : {
          "available" : true,
          "enabled" : true
@@ -123,7 +133,7 @@ Example response:
       },
       "security" : {
          "available" : true,
-         "enabled" : false
+         "enabled" : true
       },
       "slm" : {
          "available" : true,
@@ -160,6 +170,18 @@ Example response:
       "data_tiers" : {
          "available" : true,
          "enabled" : true
+      },
+      "enterprise_search": {
+         "available": true,
+         "enabled": true
+      },
+      "universal_profiling": {
+         "available": true,
+         "enabled": true
+      },
+      "logsdb": {
+        "available": true,
+        "enabled": false
       }
    },
    "tagline" : "You know, for X"

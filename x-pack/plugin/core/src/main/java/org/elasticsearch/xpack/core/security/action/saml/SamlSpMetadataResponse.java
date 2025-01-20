@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.action.saml;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -21,12 +20,7 @@ public class SamlSpMetadataResponse extends ActionResponse {
         return XMLString;
     }
 
-    private String XMLString;
-
-    public SamlSpMetadataResponse(StreamInput in) throws IOException {
-        super(in);
-        XMLString = in.readString();
-    }
+    private final String XMLString;
 
     public SamlSpMetadataResponse(String XMLString) {
         this.XMLString = XMLString;

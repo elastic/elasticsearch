@@ -7,14 +7,14 @@
 package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class RollupJobStatusTests extends AbstractSerializingTestCase<RollupJobStatus> {
+public class RollupJobStatusTests extends AbstractXContentSerializingTestCase<RollupJobStatus> {
     private Map<String, Object> randomPosition() {
         if (randomBoolean()) {
             return null;
@@ -36,6 +36,11 @@ public class RollupJobStatusTests extends AbstractSerializingTestCase<RollupJobS
     @Override
     protected RollupJobStatus createTestInstance() {
         return new RollupJobStatus(randomFrom(IndexerState.values()), randomPosition());
+    }
+
+    @Override
+    protected RollupJobStatus mutateInstance(RollupJobStatus instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

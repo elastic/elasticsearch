@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
@@ -24,7 +25,11 @@ public class ShardRoutingHelper {
     }
 
     public static ShardRouting moveToStarted(ShardRouting routing) {
-        return routing.moveToStarted();
+        return routing.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+    }
+
+    public static ShardRouting moveToStarted(ShardRouting routing, long expectedShardSize) {
+        return routing.moveToStarted(expectedShardSize);
     }
 
     public static ShardRouting initialize(ShardRouting routing, String nodeId) {
@@ -44,8 +49,10 @@ public class ShardRoutingHelper {
             ShardRoutingState.INITIALIZING,
             recoverySource,
             new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
+            RelocationFailureInfo.NO_FAILURES,
             copy.allocationId(),
-            copy.getExpectedShardSize()
+            copy.getExpectedShardSize(),
+            copy.role()
         );
     }
 
@@ -62,8 +69,10 @@ public class ShardRoutingHelper {
             routing.state(),
             recoverySource,
             routing.unassignedInfo(),
+            routing.relocationFailureInfo(),
             routing.allocationId(),
-            routing.getExpectedShardSize()
+            routing.getExpectedShardSize(),
+            routing.role()
         );
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -31,11 +32,11 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
     private <T> V<T> wrap(final V<T> v) {
         return new V<T>() {
 
-            private final LeakTracker.Leak<V<T>> leak = LeakTracker.INSTANCE.track(v);
+            private final LeakTracker.Leak leak = LeakTracker.INSTANCE.track(v);
 
             @Override
             public void close() {
-                boolean leakReleased = leak.close(v);
+                boolean leakReleased = leak.close();
                 assert leakReleased : "leak should not have been released already";
                 final T ref = v();
                 if (ref instanceof Object[]) {

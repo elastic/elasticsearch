@@ -5,7 +5,13 @@
 <titleabbrev>Create auto-follow pattern</titleabbrev>
 ++++
 
-Creates an auto-follow pattern.
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ccr[Cross-cluster replication APIs].
+--
+
+Creates a {ccr} <<ccr-auto-follow,auto-follow pattern>>.
 
 [[ccr-put-auto-follow-pattern-request]]
 ==== {api-request-title}
@@ -58,7 +64,10 @@ This API creates a new named collection of
 <<ccr-auto-follow,auto-follow patterns>> against the remote cluster
 specified in the request body. Newly created indices on the remote cluster
 matching any of the specified patterns will be automatically configured as follower
-indices. Additionally, this API can be used to update existing
+indices. Indices on the remote cluster that were created before the auto-follow
+pattern is created won't be auto-followed even if they match the pattern.
+
+This API can also be used to update existing
 <<ccr-auto-follow,auto-follow patterns>>. Note that follower indices that were configured automatically
 before updating an auto-follow pattern will remain unchanged even if they don't match against
 the new patterns.
@@ -67,6 +76,11 @@ the new patterns.
 ==== {api-path-parms-title}
 `<auto_follow_pattern_name>`::
   (Required, string) The name of the collection of auto-follow patterns.
+
+[[ccr-put-auto-follow-pattern-query-params]]
+==== {api-query-parms-title}
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[ccr-put-auto-follow-pattern-request-body]]
 ==== {api-request-body-title}

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -14,6 +15,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
@@ -33,9 +35,10 @@ public class ParsedDocument {
 
     private final List<LuceneDocument> documents;
 
+    private final long normalizedSize;
+
     private BytesReference source;
     private XContentType xContentType;
-
     private Mapping dynamicMappingsUpdate;
 
     /**
@@ -59,7 +62,8 @@ public class ParsedDocument {
             Collections.singletonList(document),
             new BytesArray("{}"),
             XContentType.JSON,
-            null
+            null,
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
     }
 
@@ -83,7 +87,8 @@ public class ParsedDocument {
             Collections.singletonList(document),
             new BytesArray("{}"),
             XContentType.JSON,
-            null
+            null,
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
     }
 
@@ -95,7 +100,8 @@ public class ParsedDocument {
         List<LuceneDocument> documents,
         BytesReference source,
         XContentType xContentType,
-        Mapping dynamicMappingsUpdate
+        Mapping dynamicMappingsUpdate,
+        long normalizedSize
     ) {
         this.version = version;
         this.seqID = seqID;
@@ -105,6 +111,7 @@ public class ParsedDocument {
         this.source = source;
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
         this.xContentType = xContentType;
+        this.normalizedSize = normalizedSize;
     }
 
     public String id() {
@@ -160,7 +167,7 @@ public class ParsedDocument {
         if (dynamicMappingsUpdate == null) {
             dynamicMappingsUpdate = update;
         } else {
-            dynamicMappingsUpdate = dynamicMappingsUpdate.merge(update, MergeReason.MAPPING_UPDATE);
+            dynamicMappingsUpdate = dynamicMappingsUpdate.merge(update, MergeReason.MAPPING_AUTO_UPDATE, Long.MAX_VALUE);
         }
     }
 
@@ -171,5 +178,9 @@ public class ParsedDocument {
 
     public String documentDescription() {
         return "id";
+    }
+
+    public long getNormalizedSize() {
+        return normalizedSize;
     }
 }

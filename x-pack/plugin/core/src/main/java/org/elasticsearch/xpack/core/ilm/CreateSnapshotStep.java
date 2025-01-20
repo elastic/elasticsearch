@@ -20,7 +20,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException;
 
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -101,14 +100,14 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             );
             return;
         }
-        CreateSnapshotRequest request = new CreateSnapshotRequest(snapshotRepository, snapshotName);
+        CreateSnapshotRequest request = new CreateSnapshotRequest(TimeValue.MAX_VALUE, snapshotRepository, snapshotName);
         request.indices(indexName);
         // this is safe as the snapshot creation will still be async, it's just that the listener will be notified when the snapshot is
         // complete
         request.waitForCompletion(true);
         request.includeGlobalState(false);
-        request.masterNodeTimeout(TimeValue.MAX_VALUE);
-        getClient().admin().cluster().createSnapshot(request, ActionListener.wrap(response -> {
+
+        getClient().admin().cluster().createSnapshot(request, listener.map(response -> {
             logger.debug(
                 "create snapshot response for policy [{}] and index [{}] is: {}",
                 policyName,
@@ -120,20 +119,22 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             // Check that there are no failed shards, since the request may not entirely
             // fail, but may still have failures (such as in the case of an aborted snapshot)
             if (snapInfo.failedShards() == 0) {
-                listener.onResponse(true);
+                return true;
             } else {
-                int failures = snapInfo.failedShards();
-                int total = snapInfo.totalShards();
-                String message = String.format(
-                    Locale.ROOT,
-                    "failed to create snapshot successfully, %s failures out of %s total shards failed",
-                    failures,
-                    total
+                logger.warn(
+                    Strings.format(
+                        "failed to create snapshot [%s:%s] for policy [%s] and index [%s]: %s of %s shards failed",
+                        snapshotRepository,
+                        snapshotName,
+                        policyName,
+                        indexName,
+                        snapInfo.failedShards(),
+                        snapInfo.totalShards()
+                    )
                 );
-                logger.warn(message);
-                listener.onResponse(false);
+                return false;
             }
-        }, listener::onFailure));
+        }));
     }
 
     @Override

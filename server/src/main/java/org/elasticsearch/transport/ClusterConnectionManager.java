@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -12,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -75,7 +77,7 @@ public class ClusterConnectionManager implements ConnectionManager {
     @Override
     public void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Transport.Connection> listener) {
         ConnectionProfile resolvedProfile = ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile);
-        if (connectingRefCounter.tryIncRef()) {
+        if (acquireConnectingRef()) {
             var success = false;
             final var release = new RunOnce(connectingRefCounter::decRef);
             try {
@@ -136,7 +138,7 @@ public class ClusterConnectionManager implements ConnectionManager {
             return;
         }
 
-        if (connectingRefCounter.tryIncRef() == false) {
+        if (acquireConnectingRef() == false) {
             listener.onFailure(new ConnectTransportException(node, "connection manager is closed"));
             return;
         }
@@ -215,6 +217,7 @@ public class ClusterConnectionManager implements ConnectionManager {
             ActionListener.wrap(
                 conn -> connectionValidator.validate(conn, resolvedProfile, ActionListener.runAfter(ActionListener.wrap(ignored -> {
                     assert Transports.assertNotTransportThread("connection validator success");
+                    final var managerRefs = AbstractRefCounted.of(conn::onRemoved);
                     try {
                         if (connectedNodes.putIfAbsent(node, conn) != null) {
                             assert false : "redundant connection to " + node;
@@ -222,20 +225,27 @@ public class ClusterConnectionManager implements ConnectionManager {
                             IOUtils.closeWhileHandlingException(conn);
                         } else {
                             logger.debug("connected to node [{}]", node);
+                            managerRefs.mustIncRef();
                             try {
                                 connectionListener.onNodeConnected(node, conn);
                             } finally {
-                                conn.addCloseListener(ActionListener.wrap(() -> {
+                                conn.addCloseListener(ActionListener.running(() -> {
                                     connectedNodes.remove(node, conn);
                                     connectionListener.onNodeDisconnected(node, conn);
-                                    conn.onRemoved();
+                                    managerRefs.decRef();
                                 }));
 
-                                conn.addCloseListener(ActionListener.wrap(() -> {
+                                conn.addCloseListener(ActionListener.running(() -> {
                                     if (connectingRefCounter.hasReferences() == false) {
                                         logger.trace("connection manager shut down, closing transport connection to [{}]", node);
                                     } else if (conn.hasReferences()) {
-                                        logger.info("transport connection to [{}] closed by remote", node.descriptionWithoutAttributes());
+                                        logger.info(
+                                            """
+                                                transport connection to [{}] closed by remote; \
+                                                if unexpected, see [{}] for troubleshooting guidance""",
+                                            node.descriptionWithoutAttributes(),
+                                            ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
+                                        );
                                         // In production code we only close connections via ref-counting, so this message confirms that a
                                         // 'node-left ... reason: disconnected' event was caused by external factors. Put differently, if a
                                         // node leaves the cluster with "reason: disconnected" but without this message being logged then
@@ -249,6 +259,7 @@ public class ClusterConnectionManager implements ConnectionManager {
                     } finally {
                         ListenableFuture<Transport.Connection> future = pendingConnections.remove(node);
                         assert future == currentListener : "Listener in pending map is different than the expected listener";
+                        managerRefs.decRef();
                         releaseOnce.run();
                         future.onResponse(conn);
                     }
@@ -363,7 +374,7 @@ public class ClusterConnectionManager implements ConnectionManager {
             try {
                 connectionListener.onConnectionOpened(connection);
             } finally {
-                connection.addCloseListener(ActionListener.wrap(() -> connectionListener.onConnectionClosed(connection)));
+                connection.addCloseListener(ActionListener.running(() -> connectionListener.onConnectionClosed(connection)));
             }
             if (connection.isClosed()) {
                 throw new ConnectTransportException(node, "a channel closed while connecting");
@@ -389,6 +400,10 @@ public class ClusterConnectionManager implements ConnectionManager {
     @Override
     public ConnectionProfile getConnectionProfile() {
         return defaultProfile;
+    }
+
+    private boolean acquireConnectingRef() {
+        return closing.get() == false && connectingRefCounter.tryIncRef();
     }
 
 }

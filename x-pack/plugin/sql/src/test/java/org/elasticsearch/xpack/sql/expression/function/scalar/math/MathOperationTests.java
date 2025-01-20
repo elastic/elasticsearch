@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 
 import java.util.Arrays;
@@ -17,17 +17,17 @@ import java.util.List;
 public class MathOperationTests extends ESTestCase {
 
     public void testAbsLongMax() {
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> MathOperation.ABS.apply(Long.MIN_VALUE));
+        InvalidArgumentException ex = expectThrows(InvalidArgumentException.class, () -> MathOperation.ABS.apply(Long.MIN_VALUE));
         assertTrue(ex.getMessage().contains("cannot be negated"));
     }
 
     public void testAbsIntegerMax() {
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> MathOperation.ABS.apply(Integer.MIN_VALUE));
+        InvalidArgumentException ex = expectThrows(InvalidArgumentException.class, () -> MathOperation.ABS.apply(Integer.MIN_VALUE));
         assertTrue(ex.getMessage().contains("cannot be negated"));
     }
 
     public void testAbsShortMax() {
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> MathOperation.ABS.apply(Short.MIN_VALUE));
+        Exception ex = expectThrows(InvalidArgumentException.class, () -> MathOperation.ABS.apply(Short.MIN_VALUE));
         assertTrue(ex.getMessage().contains("out of"));
     }
 

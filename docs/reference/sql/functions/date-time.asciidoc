@@ -10,7 +10,7 @@
 A common requirement when dealing with date/time in general revolves around
 the notion of `interval`, a topic that is worth exploring in the context of {es} and {es-sql}.
 
-{es} has comprehensive support for <<date-math, date math>> both inside <<date-math-index-names, index names>> and <<mapping-date-format, queries>>.
+{es} has comprehensive support for <<date-math, date math>> both inside <<api-date-math-index-names, index names>> and <<mapping-date-format, queries>>.
 Inside {es-sql} the former is supported as is by passing the expression in the table name, while the latter is supported through the standard SQL `INTERVAL`.
 
 The table below shows the mapping between {es} and {es-sql}:
@@ -418,6 +418,49 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateTimeMinutes]
 [source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateMinutes]
+--------------------------------------------------
+
+[[sql-functions-datetime-dateformat]]
+==== `DATE_FORMAT`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DATE_FORMAT(
+    date_exp/datetime_exp/time_exp, <1>
+    string_exp) <2>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime/time expression. If `null`, the function returns `null`.
+<2> format pattern. If `null` or an empty string, the function returns `null`.
+
+*Output*: string
+
+*Description*: Returns the date/datetime/time as a string using the format specified in the 2nd argument. The formatting
+pattern is one of the specifiers used in the
+https://dev.mysql.com/doc/refman/8.0/en/date-and-time-functions.html#function_date-format[MySQL DATE_FORMAT() function].
+
+[NOTE]
+If the 1st argument is of type `time`, then pattern specified by the 2nd argument cannot contain date related units
+(e.g. 'dd', 'MM', 'yyyy', etc.). If it contains such units an error is returned.
+Ranges for month and day specifiers (%c, %D, %d, %e, %m) start at one, unlike MySQL, where they start at zero, due to
+the fact that MySQL permits the storing of incomplete dates such as '2014-00-00'.
+Elasticsearch in this case returns an error.
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateFormatDate]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateFormatDateTime]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateFormatTime]
 --------------------------------------------------
 
 [[sql-functions-datetime-dateparse]]

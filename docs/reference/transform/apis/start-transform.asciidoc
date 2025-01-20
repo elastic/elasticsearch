@@ -7,6 +7,12 @@
 <titleabbrev>Start {transform}</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-transform[{transform-cap} APIs].
+--
+
 Starts a {transform}.
 
 [[start-transform-request]]
@@ -60,6 +66,11 @@ Identifier for the {transform}.
 
 [[start-transform-query-parms]]
 == {api-query-parms-title}
+
+`from`::
+(Optional, string) Restricts the set of transformed entities to those changed
+ after this time. Relative times like now-30d are supported.
+Only applicable for continuous transforms.
 
 `timeout`::
 (Optional, time)

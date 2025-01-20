@@ -10,11 +10,16 @@
 // tag::ml-settings-description-tag[]
 You do not need to configure any settings to use {ml}. It is enabled by default.
 
-IMPORTANT: {ml-cap} uses SSE4.2 instructions, so it works only on machines whose
-CPUs {wikipedia}/SSE4#Supporting_CPUs[support] SSE4.2. If you run {es} on older
-hardware, you must disable {ml} (by setting `xpack.ml.enabled` to `false`).
+IMPORTANT: {ml-cap} uses SSE4.2 instructions on x86_64 machines, so it works only
+on x86_64 machines whose CPUs {wikipedia}/SSE4#Supporting_CPUs[support] SSE4.2.
+(This limitation does not apply to aarch64 machines.) If you run {es} on older
+x86_64 hardware, you must disable {ml} (by setting `xpack.ml.enabled` to `false`).
+In this situation you should not attempt to use {ml} functionality in your cluster
+at all.
 
 // end::ml-settings-description-tag[]
+
+TIP: To control memory usage used by {ml} jobs, you can use the <<circuit-breakers-page-model-inference, machine learning circuit breaker settings>>.
 
 [discrete]
 [[general-ml-settings]]
@@ -46,14 +51,25 @@ that you use the default value for this setting on all nodes.
 +
 If set to `false`, the {ml} APIs are disabled on the node. For example, the node
 cannot open jobs, start {dfeeds}, receive transport (internal) communication
-requests, or requests from clients (including {kib}) related to {ml} APIs.
+requests, or requests from clients (including {kib}) related to {ml} APIs. If
+`xpack.ml.enabled` is not set uniformly across all nodes in your cluster then you
+are likely to experience problems with {ml} functionality not fully working.
++
+You must not use any {ml} functionality from ingest pipelines if `xpack.ml.enabled`
+is `false` on any node. Before setting `xpack.ml.enabled` to `false` on a node,
+consider whether you really meant to just exclude `ml` from the `node.roles`.
+Excluding `ml` from the <<node-roles,`node.roles`>> will stop the node from
+running {ml} jobs and NLP models, but it will still be aware that {ml} functionality
+exists. Setting `xpack.ml.enabled` to `false` should be reserved for situations
+where you cannot use {ml} functionality at all in your cluster due to hardware
+limitations as described <<ml-settings-description,above>>.
 
 `xpack.ml.inference_model.cache_size`::
 (<<static-cluster-setting,Static>>) The maximum inference cache size allowed.
 The inference cache exists in the JVM heap on each ingest node. The cache
 affords faster processing times for the `inference` processor. The value can be
 a static byte sized value (such as `2gb`) or a percentage of total allocated
-heap. Defaults to `40%`. See also <<model-inference-circuit-breaker>>.
+heap. Defaults to `40%`. See also <<circuit-breakers-page-model-inference>>.
 
 [[xpack-interference-model-ttl]]
 // tag::interference-model-ttl-tag[]
@@ -175,7 +191,28 @@ cluster scaling. If you set it to the maximum possible size of future {ml} nodes
 when a {ml} job is assigned to a lazy node it can check (and fail quickly) when
 scaling cannot support the size of the job. When the {operator-feature} is
 enabled, this setting can be updated only by operator users. Defaults to `0b`,
-which means it will be assumed that automatic cluster scaling can add arbitrarily large nodes to the cluster. 
+which means it will be assumed that automatic cluster scaling can add 
+arbitrarily large nodes to the cluster. 
+
+[[xpack.ml.model_repository]]
+`xpack.ml.model_repository`::
+(<<cluster-update-settings,Dynamic>>)
+The location of the {ml} model repository where the model artifact files are 
+available in case of a model installation in a restricted or closed network. 
+`xpack.ml.model_repository` can be a string of a file location or an HTTP/HTTPS 
+server. Example values are:
++
+--
+```
+xpack.ml.model_repository: file://${path.home}/config/models/
+```
+or
+```
+xpack.ml.model_repository: https://my-custom-backend
+```
+If `xpack.ml.model_repository` is a file location, it must point to a 
+subdirectory of the `config` directory of {es}.
+--
 
 `xpack.ml.persist_results_max_retries`::
 (<<cluster-update-settings,Dynamic>>) The maximum number of times to retry bulk
@@ -215,25 +252,3 @@ nodes in your cluster, you shouldn't use this setting.
 If this setting is `true` it also affects the default value for
 `xpack.ml.max_model_memory_limit`. In this case `xpack.ml.max_model_memory_limit`
 defaults to the largest size that could be assigned in the current cluster.
-
-[discrete]
-[[model-inference-circuit-breaker]]
-==== {ml-cap} circuit breaker settings
-
-`breaker.model_inference.limit`::
-(<<cluster-update-settings,Dynamic>>) The limit for the trained model circuit
-breaker. This value is defined as a percentage of the JVM heap. Defaults to
-`50%`. If the <<parent-circuit-breaker,parent circuit breaker>> is set to a
-value less than `50%`, this setting uses that value as its default instead.
-
-`breaker.model_inference.overhead`::
-(<<cluster-update-settings,Dynamic>>) A constant that all trained model
-estimations are multiplied by to determine a final estimation. See
-<<circuit-breaker>>. Defaults to `1`.
-
-`breaker.model_inference.type`::
-(<<static-cluster-setting,Static>>) The underlying type of the circuit breaker.
-There are two valid options: `noop` and `memory`. `noop` means the circuit
-breaker does nothing to prevent too much memory usage. `memory` means the
-circuit breaker tracks the memory used by trained models and can potentially
-break and prevent `OutOfMemory` errors. The default value is `memory`.

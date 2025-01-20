@@ -30,6 +30,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -62,6 +64,8 @@ public final class MlIndexAndAlias {
      * whether mappings are up-to-date.
      */
     public static final String BWC_MAPPINGS_VERSION = "8.11.0";
+
+    public static final String FIRST_INDEX_SIX_DIGIT_SUFFIX = "-000001";
 
     private static final Logger logger = LogManager.getLogger(MlIndexAndAlias.class);
 
@@ -124,7 +128,7 @@ public final class MlIndexAndAlias {
         String legacyIndexWithoutSuffix = indexPatternPrefix;
         String indexPattern = indexPatternPrefix + "*";
         // The initial index name must be suitable for rollover functionality.
-        String firstConcreteIndex = indexPatternPrefix + "-000001";
+        String firstConcreteIndex = indexPatternPrefix + FIRST_INDEX_SIX_DIGIT_SUFFIX;
         String[] concreteIndexNames = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandHidden(), indexPattern);
         Optional<String> indexPointedByCurrentWriteAlias = clusterState.getMetadata().hasAlias(alias)
             ? clusterState.getMetadata().getIndicesLookup().get(alias).getIndices().stream().map(Index::getName).findFirst()
@@ -389,5 +393,12 @@ public final class MlIndexAndAlias {
         return concreteIndices.length == 1
             ? concreteIndices[0]
             : Arrays.stream(concreteIndices).max(MlIndexAndAlias.INDEX_NAME_COMPARATOR).get();
+    }
+
+    /**
+     * True if the version is read *and* write compatible not just read only compatible
+     */
+    public static boolean indexIsReadWriteCompatibleInV9(IndexVersion version) {
+        return version.onOrAfter(IndexVersions.V_8_0_0);
     }
 }

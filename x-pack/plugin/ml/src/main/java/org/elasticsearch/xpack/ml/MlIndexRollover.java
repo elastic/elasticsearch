@@ -21,7 +21,6 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
@@ -116,7 +115,7 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
         }
 
         if (failures.isEmpty()) {
-            logger.info("ML legacy indies rolled over");
+            logger.info("ML legacy indices rolled over");
             return;
         }
 
@@ -136,7 +135,9 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
 
         String latestIndex = MlIndexAndAlias.latestIndex(concreteIndices);
         // Indices created before 8.0 are read only in 9
-        boolean isCompatibleIndexVersion = clusterState.metadata().index(latestIndex).getCreationVersion().onOrAfter(IndexVersions.V_8_0_0);
+        boolean isCompatibleIndexVersion = MlIndexAndAlias.indexIsReadWriteCompatibleInV9(
+            clusterState.metadata().index(latestIndex).getCreationVersion()
+        );
         boolean hasAlias = clusterState.getMetadata().hasAlias(alias);
 
         if (isCompatibleIndexVersion && hasAlias) {

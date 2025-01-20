@@ -37,6 +37,10 @@ public final class AnomalyDetectorsIndex {
         return AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX;
     }
 
+    public static String jobResultsIndexPattern() {
+        return AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "*";
+    }
+
     /**
      * The name of the alias pointing to the indices where the job's results are stored
      * @param jobId Job Id
@@ -52,9 +56,7 @@ public final class AnomalyDetectorsIndex {
      * @return The write alias
      */
     public static String resultsWriteAlias(String jobId) {
-        // ".write" rather than simply "write" to avoid the danger of clashing
-        // with the read alias of a job whose name begins with "write-"
-        return AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + ".write-" + jobId;
+        return AnomalyDetectorsIndexFields.RESULTS_INDEX_WRITE_PREFIX + jobId;
     }
 
     /**

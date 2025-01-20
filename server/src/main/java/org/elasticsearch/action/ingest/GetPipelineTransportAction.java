@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -59,6 +60,7 @@ public class GetPipelineTransportAction extends TransportLocalClusterStateAction
         ClusterState state,
         ActionListener<GetPipelineResponse> listener
     ) throws Exception {
+        ((CancellableTask) task).ensureNotCancelled();
         listener.onResponse(new GetPipelineResponse(IngestService.getPipelines(state, request.getIds()), request.isSummary()));
     }
 

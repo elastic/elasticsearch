@@ -247,6 +247,8 @@ tests:
 - class: org.elasticsearch.http.netty4.Netty4IncrementalRequestHandlingIT
   method: testOversizedChunkedEncoding
   issue: https://github.com/elastic/elasticsearch/issues/120444
+- class: org.elasticsearch.xpack.logsdb.seqno.RetentionLeaseRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/120434
 
 # Examples:
 #

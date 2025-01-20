@@ -208,7 +208,8 @@ public class PolicyManager {
             return;
         }
 
-        if (getEntitlements(requestingClass, InboundNetworkEntitlement.class).hasEntitlement(InboundNetworkEntitlement.class) == false) {
+        var classEntitlements = getEntitlements(requestingClass);
+        if (classEntitlements.hasEntitlement(InboundNetworkEntitlement.class) == false) {
             throw new NotEntitledException(
                 Strings.format(
                     "Missing entitlement: class [%s], module [%s], entitlement [inbound_network]",
@@ -218,7 +219,7 @@ public class PolicyManager {
             );
         }
 
-        if (getEntitlements(requestingClass, OutboundNetworkEntitlement.class).hasEntitlement(OutboundNetworkEntitlement.class) == false) {
+        if (classEntitlements.hasEntitlement(OutboundNetworkEntitlement.class) == false) {
             throw new NotEntitledException(
                 Strings.format(
                     "Missing entitlement: class [%s], module [%s], entitlement [outbound_network]",
@@ -242,7 +243,7 @@ public class PolicyManager {
             return;
         }
 
-        ModuleEntitlements entitlements = getEntitlements(requestingClass, entitlementClass);
+        ModuleEntitlements entitlements = getEntitlements(requestingClass);
         if (entitlements.hasEntitlement(entitlementClass)) {
             logger.debug(
                 () -> Strings.format(
@@ -264,17 +265,14 @@ public class PolicyManager {
         );
     }
 
-    ModuleEntitlements getEntitlements(Class<?> requestingClass, Class<? extends Entitlement> entitlementClass) {
-        return moduleEntitlementsMap.computeIfAbsent(
-            requestingClass.getModule(),
-            m -> computeEntitlements(requestingClass, entitlementClass)
-        );
+    ModuleEntitlements getEntitlements(Class<?> requestingClass) {
+        return moduleEntitlementsMap.computeIfAbsent(requestingClass.getModule(), m -> computeEntitlements(requestingClass));
     }
 
-    private ModuleEntitlements computeEntitlements(Class<?> requestingClass, Class<? extends Entitlement> entitlementClass) {
+    private ModuleEntitlements computeEntitlements(Class<?> requestingClass) {
         Module requestingModule = requestingClass.getModule();
         if (isServerModule(requestingModule)) {
-            return getModuleScopeEntitlements(requestingClass, serverEntitlements, requestingModule.getName(), "server", entitlementClass);
+            return getModuleScopeEntitlements(requestingClass, serverEntitlements, requestingModule.getName(), "server");
         }
 
         // plugins
@@ -288,7 +286,7 @@ public class PolicyManager {
                 } else {
                     scopeName = requestingModule.getName();
                 }
-                return getModuleScopeEntitlements(requestingClass, pluginEntitlements, scopeName, pluginName, entitlementClass);
+                return getModuleScopeEntitlements(requestingClass, pluginEntitlements, scopeName, pluginName);
             }
         }
 
@@ -305,18 +303,11 @@ public class PolicyManager {
         Class<?> callerClass,
         Map<String, List<Entitlement>> scopeEntitlements,
         String moduleName,
-        String component,
-        Class<? extends Entitlement> entitlementClass
+        String component
     ) {
         var entitlements = scopeEntitlements.get(moduleName);
         if (entitlements == null) {
-            logger.warn(
-                "No applicable entitlement policy for entitlement [{}] in [{}], module [{}], class [{}]",
-                PolicyParser.getEntitlementTypeName(entitlementClass),
-                component,
-                moduleName,
-                callerClass
-            );
+            logger.warn("No applicable entitlement policy for [{}], module [{}], class [{}]", component, moduleName, callerClass);
             return ModuleEntitlements.NONE;
         }
         return ModuleEntitlements.from(entitlements);

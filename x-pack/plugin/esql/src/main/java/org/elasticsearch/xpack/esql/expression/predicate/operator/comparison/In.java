@@ -16,10 +16,15 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Comparisons;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -30,15 +35,22 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -101,7 +113,7 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.ordinal;
  *     String Template generators that we use for things like {@link Block} and {@link Vector}.
  * </p>
  */
-public class In extends EsqlScalarFunction {
+public class In extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "In", In::new);
 
     private final Expression value;
@@ -443,5 +455,61 @@ public class In extends EsqlScalarFunction {
             }
         }
         return false;
+    }
+
+    @Override
+    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+        return pushdownPredicates.isPushableAttribute(value) && Expressions.foldable(list());
+    }
+
+    @Override
+    public Query asQuery(TranslatorHandler handler) {
+        return translate(handler);
+    }
+
+    private Query translate(TranslatorHandler handler) {
+        TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(value());
+
+        Set<Object> terms = new LinkedHashSet<>();
+        List<Query> queries = new ArrayList<>();
+
+        for (Expression rhs : list()) {
+            if (DataType.isNull(rhs.dataType()) == false) {
+                if (needsTypeSpecificValueHandling(attribute.dataType())) {
+                    // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
+                    // TODO:
+                    // Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs), handler);
+                    Query query = handler.asQuery(new Equals(source(), value(), rhs));
+
+                    if (query instanceof TermQuery) {
+                        terms.add(((TermQuery) query).value());
+                    } else {
+                        queries.add(query);
+                    }
+                } else {
+                    terms.add(valueOf(FoldContext.small() /* TODO remove me */, rhs));
+                }
+            }
+        }
+
+        if (terms.isEmpty() == false) {
+            String fieldName = LucenePushdownPredicates.pushableAttributeName(attribute);
+            queries.add(new TermsQuery(source(), fieldName, terms));
+        }
+
+        return queries.stream().reduce((q1, q2) -> or(source(), q1, q2)).get();
+    }
+
+    private static boolean needsTypeSpecificValueHandling(DataType fieldType) {
+        return DataType.isDateTime(fieldType) || fieldType == IP || fieldType == VERSION || fieldType == UNSIGNED_LONG;
+    }
+
+    private static Query or(Source source, Query left, Query right) {
+        return BinaryLogic.boolQuery(source, left, right, false);
+    }
+
+    @Override
+    public Expression singleValueField() {
+        return value;
     }
 }

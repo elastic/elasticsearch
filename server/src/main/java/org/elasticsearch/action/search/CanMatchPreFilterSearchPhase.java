@@ -352,13 +352,16 @@ final class CanMatchPreFilterSearchPhase {
     private static final float DEFAULT_INDEX_BOOST = 1.0f;
 
     public CanMatchNodeRequest.Shard buildShardLevelRequest(SearchShardIterator shardIt) {
+        AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
+        assert filter != null;
+        float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
         int shardRequestIndex = shardItIndexMap.get(shardIt);
         return new CanMatchNodeRequest.Shard(
             shardIt.getOriginalIndices().indices(),
             shardIt.shardId(),
             shardRequestIndex,
-            aliasFilter.getOrDefault(shardIt.shardId().getIndex().getUUID(), AliasFilter.EMPTY),
-            concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST),
+            filter,
+            indexBoost,
             shardIt.getSearchContextId(),
             shardIt.getSearchContextKeepAlive(),
             ShardSearchRequest.computeWaitForCheckpoint(request.getWaitForCheckpoints(), shardIt.shardId(), shardRequestIndex)

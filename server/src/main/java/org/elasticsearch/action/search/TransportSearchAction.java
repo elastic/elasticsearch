@@ -267,9 +267,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
             AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, index.getName(), indicesAndAliases);
             assert aliasFilter != null;
-            if (aliasFilter != AliasFilter.EMPTY) {
-                aliasFilterMap.put(index.getUUID(), aliasFilter);
-            }
+            aliasFilterMap.put(index.getUUID(), aliasFilter);
         }
         return aliasFilterMap;
     }
@@ -1090,7 +1088,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 // add the cluster name to the remote index names for indices disambiguation
                 // this ends up in the hits returned with the search response
                 ShardId shardId = searchShardsGroup.shardId();
-                AliasFilter aliasFilter = aliasFilterMap.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY);
+                AliasFilter aliasFilter = aliasFilterMap.get(shardId.getIndex().getUUID());
                 String[] aliases = aliasFilter.getAliases();
                 String clusterAlias = entry.getKey();
                 String[] finalIndices = aliases.length == 0 ? new String[] { shardId.getIndexName() } : aliases;

@@ -23,7 +23,6 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -622,7 +621,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
      * Returns {@code null} if no filtering is required.</p>
      */
     public static QueryBuilder parseAliasFilter(
-        CheckedFunction<CompressedXContent, QueryBuilder, IOException> filterParser,
+        CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser,
         IndexMetadata metadata,
         String... aliasNames
     ) {
@@ -636,7 +635,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                 return null;
             }
             try {
-                return filterParser.apply(alias.filter());
+                return filterParser.apply(alias.filter().uncompressed());
             } catch (IOException ex) {
                 throw new AliasFilterParsingException(index, alias.getAlias(), "Invalid alias filter", ex);
             }

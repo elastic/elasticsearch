@@ -211,8 +211,8 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
             Map<Index, IndexProperties> backingIndicesSettingsValues = new HashMap<>();
             ProjectMetadata metadata = state.metadata();
             collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getIndices());
-            if (DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.getFailureIndices().getIndices().isEmpty() == false) {
-                collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getFailureIndices().getIndices());
+            if (DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.getFailureIndices().isEmpty() == false) {
+                collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getFailureIndices());
             }
 
             GetDataStreamAction.Response.TimeSeries timeSeries = null;

@@ -255,7 +255,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         }
 
         // When we're initializing a failure store, we skip the stats request because there is no source index to retrieve stats for.
-        if (targetFailureStore && ((DataStream) rolloverTargetAbstraction).getFailureIndices().getIndices().isEmpty()) {
+        if (targetFailureStore && ((DataStream) rolloverTargetAbstraction).getFailureIndices().isEmpty()) {
             initializeFailureStore(projectState.projectId(), rolloverRequest, listener, trialSourceIndexName, trialRolloverIndexName);
             return;
         }

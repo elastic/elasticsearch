@@ -168,7 +168,7 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
             DataStream dataStream = project.dataStreams().get(dataStreamName);
             assert dataStream != null;
             backingIndicesToRemove.addAll(dataStream.getIndices());
-            backingIndicesToRemove.addAll(dataStream.getFailureIndices().getIndices());
+            backingIndicesToRemove.addAll(dataStream.getFailureIndices());
         }
 
         // first delete the data streams and then the indices:

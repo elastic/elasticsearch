@@ -370,7 +370,7 @@ public class MetadataDataStreamsService {
     ) {
         boolean indexNotRemoved = true;
         DataStream dataStream = validateDataStream(metadata.getProject(), dataStreamName);
-        List<Index> targetIndices = failureStore ? dataStream.getFailureIndices().getIndices() : dataStream.getIndices();
+        List<Index> targetIndices = failureStore ? dataStream.getFailureIndices() : dataStream.getIndices();
         for (Index backingIndex : targetIndices) {
             if (backingIndex.getName().equals(indexName)) {
                 if (failureStore) {

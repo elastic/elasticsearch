@@ -144,7 +144,7 @@ public class IndexVersions {
     public static final IndexVersion LOGSB_OPTIONAL_SORTING_ON_HOST_NAME = def(9_006_00_0, Version.LUCENE_10_0_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_1_0 = def(9_007_00_0, Version.LUCENE_10_1_0);
 
-  /*
+    /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
      *       / ___|_   _/ _ \|  _ \| |      |  _ \| ____|  / \  |  _ \  |_   _| | | |_ _/ ___|  |  ___|_ _|  _ \/ ___|_   _| |

@@ -238,7 +238,6 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99929")
     public void testCancelFailedSearchWhenPartialResultDisallowed() throws Exception {
         // Have at least two nodes so that we have parallel execution of two request guaranteed even if max concurrent requests per node
         // are limited to 1

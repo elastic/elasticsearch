@@ -23,6 +23,8 @@ Find a list of all supported service types in the <<es-connectors,connectors doc
 This API provides an alternative to relying solely on {kib} UI for connector and sync job management. The API comes with a set of
 validations and assertions to ensure that the state representation in the internal index remains valid.
 
+Managing connectors requires the `manage_connector` cluster privilege.
+
 [TIP]
 ====
 We also have a command-line interface for Elastic connectors. Learn more in the https://github.com/elastic/connectors/blob/main/docs/CLI.md[elastic/connectors] repository.

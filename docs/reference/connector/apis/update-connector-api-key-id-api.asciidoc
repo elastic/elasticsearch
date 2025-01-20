@@ -32,6 +32,7 @@ To get started with Connector APIs, check out <<es-connectors-tutorial-api, our 
 [[update-connector-api-key-id-api-prereq]]
 ==== {api-prereq-title}
 
+* Requires the `manage_connector` privilege.
 * To sync data using self-managed connectors, you need to deploy the <<es-connectors-deploy-connector-service,Elastic connector service>>. on your own infrastructure. This service runs automatically on Elastic Cloud for Elastic managed connectors.
 * The `connector_id` parameter should reference an existing connector.
 * The `api_key_id` parameter should reference an existing API key.

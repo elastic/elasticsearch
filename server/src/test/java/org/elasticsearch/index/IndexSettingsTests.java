@@ -10,6 +10,7 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -17,7 +18,10 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.hamcrest.Matchers;
@@ -845,15 +849,27 @@ public class IndexSettingsTests extends ESTestCase {
                 .put(INDEX_MAPPER_DYNAMIC_SETTING.getKey(), randomBoolean())
                 .build();
 
-        Boolean b = INDEX_MAPPER_DYNAMIC_SETTING.get(settings);
+        INDEX_MAPPER_DYNAMIC_SETTING.get(settings);
         assertWarnings(
             "[index.mapper.dynamic] setting was deprecated in the previous Elasticsearch release and is removed in this release."
         );
-        newIndexMeta("test", settings);
-        settings = Settings.builder()
-                .put("unknown", randomBoolean())
-                .build();
-        newIndexMeta("test", settings);
+
+        IndexMetadata idxMetaData = newIndexMeta("test", settings);
+        IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
+                Settings.EMPTY,
+                null,
+                xContentRegistry(),
+                new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                null,
+                MapperMetrics.NOOP
+        );
+        IndexMetadata verifiedMetaData = indexMetadataVerifier.verifyIndexMetadata(idxMetaData, IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE);
+        assertEquals(idxMetaData, verifiedMetaData);
+        assertWarnings(
+                "[index.mapper.dynamic] setting was deprecated in the previous Elasticsearch release and is removed in this release."
+        );
     }
 
     public void testSame() {

@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 
@@ -216,7 +217,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware {
         for (int i = 0; i < config.leftFields().size(); i++) {
             Attribute leftField = config.leftFields().get(i);
             Attribute rightField = config.rightFields().get(i);
-            if (leftField.dataType() != rightField.dataType()) {
+            if (leftField.dataType().noText() != rightField.dataType().noText() || rightField.dataType().equals(TEXT)) {
                 failures.add(
                     fail(
                         leftField,

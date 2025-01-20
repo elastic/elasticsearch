@@ -23,12 +23,12 @@ import java.time.ZoneOffset;
 /**
  * Determines based on license and fallback setting whether synthetic source usages should fallback to stored source.
  */
-final class SyntheticSourceLicenseService {
+final class LogsdbLicenseService {
 
     static final String MAPPINGS_FEATURE_FAMILY = "mappings";
     // You can only override this property if you received explicit approval from Elastic.
     static final String CUTOFF_DATE_SYS_PROP_NAME = "es.mapping.synthetic_source_fallback_to_stored_source.cutoff_date_restricted_override";
-    private static final Logger LOGGER = LogManager.getLogger(SyntheticSourceLicenseService.class);
+    private static final Logger LOGGER = LogManager.getLogger(LogsdbLicenseService.class);
     static final long DEFAULT_CUTOFF_DATE = LocalDateTime.of(2025, 2, 4, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
 
     /**
@@ -53,16 +53,22 @@ final class SyntheticSourceLicenseService {
         License.OperationMode.GOLD
     );
 
+    static final LicensedFeature.Momentary LOGSDB_ROUTING_ON_SORT_FIELDS_FEATURE = LicensedFeature.momentary(
+        MAPPINGS_FEATURE_FAMILY,
+        "logsdb-routing-on-sort-fields",
+        License.OperationMode.ENTERPRISE
+    );
+
     private final long cutoffDate;
     private LicenseService licenseService;
     private XPackLicenseState licenseState;
     private volatile boolean syntheticSourceFallback;
 
-    SyntheticSourceLicenseService(Settings settings) {
+    LogsdbLicenseService(Settings settings) {
         this(settings, System.getProperty(CUTOFF_DATE_SYS_PROP_NAME));
     }
 
-    SyntheticSourceLicenseService(Settings settings, String cutoffDate) {
+    LogsdbLicenseService(Settings settings, String cutoffDate) {
         this.syntheticSourceFallback = FALLBACK_SETTING.get(settings);
         this.cutoffDate = getCutoffDate(cutoffDate);
     }
@@ -95,6 +101,13 @@ final class SyntheticSourceLicenseService {
         }
 
         return true;
+    }
+
+    /**
+     * @return whether indexes in logsdb mode can use routing on sort fields.
+     */
+    public boolean allowLogsdbRoutingOnSortField(boolean isTemplateValidation) {
+        return checkFeature(LOGSDB_ROUTING_ON_SORT_FIELDS_FEATURE, licenseState.copyCurrentLicenseState(), isTemplateValidation);
     }
 
     private static boolean checkFeature(

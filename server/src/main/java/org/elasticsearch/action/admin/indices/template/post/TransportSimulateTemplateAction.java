@@ -19,11 +19,13 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -111,7 +113,9 @@ public class TransportSimulateTemplateAction extends TransportLocalClusterStateA
     ) throws Exception {
         String uuid = UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
         final String temporaryIndexName = "simulate_template_index_" + uuid;
-        final ClusterState stateWithTemplate;
+        @FixForMultiProject // actually get the project
+        ProjectMetadata project = state.metadata().getProject();
+        final ProjectMetadata projectWithTemplate;
         final String simulateTemplateToAdd;
 
         // First, if a template body was requested, we need to "fake add" that template to the
@@ -123,19 +127,19 @@ public class TransportSimulateTemplateAction extends TransportLocalClusterStateA
             simulateTemplateToAdd = request.getTemplateName() == null ? "simulate_template_" + uuid : request.getTemplateName();
             // Perform validation for things like typos in component template names
             MetadataIndexTemplateService.validateV2TemplateRequest(
-                state.metadata().getProject(),
+                project,
                 simulateTemplateToAdd,
                 request.getIndexTemplateRequest().indexTemplate()
             );
-            stateWithTemplate = indexTemplateService.addIndexTemplateV2(
-                state.projectState(state.metadata().getProject().id()),
+            projectWithTemplate = indexTemplateService.addIndexTemplateV2(
+                project,
                 request.getIndexTemplateRequest().create(),
                 simulateTemplateToAdd,
                 request.getIndexTemplateRequest().indexTemplate()
             );
         } else {
             simulateTemplateToAdd = null;
-            stateWithTemplate = state;
+            projectWithTemplate = project;
         }
 
         // We also need the name of the template we're going to resolve, so if they specified a
@@ -153,32 +157,28 @@ public class TransportSimulateTemplateAction extends TransportLocalClusterStateA
             // They should have specified either a template name or the body of a template, but neither were specified
             listener.onFailure(new IllegalArgumentException("a template name to match or a new template body must be specified"));
             return;
-        } else if (stateWithTemplate.metadata().getProject().templatesV2().containsKey(matchingTemplate) == false) {
+        } else if (projectWithTemplate.templatesV2().containsKey(matchingTemplate) == false) {
             // They specified a template, but it didn't exist
             listener.onFailure(new IllegalArgumentException("unable to simulate template [" + matchingTemplate + "] that does not exist"));
             return;
         }
 
-        final ClusterState tempClusterState = TransportSimulateIndexTemplateAction.resolveTemporaryState(
+        final ProjectMetadata tempProjectMetadata = TransportSimulateIndexTemplateAction.resolveTemporaryState(
             matchingTemplate,
             temporaryIndexName,
-            stateWithTemplate
+            projectWithTemplate
         );
-        ComposableIndexTemplate templateV2 = tempClusterState.metadata().getProject().templatesV2().get(matchingTemplate);
+        ComposableIndexTemplate templateV2 = tempProjectMetadata.templatesV2().get(matchingTemplate);
         assert templateV2 != null : "the matched template must exist";
 
         Map<String, List<String>> overlapping = new HashMap<>();
-        overlapping.putAll(
-            findConflictingV1Templates(tempClusterState.metadata().getProject(), matchingTemplate, templateV2.indexPatterns())
-        );
-        overlapping.putAll(
-            findConflictingV2Templates(tempClusterState.metadata().getProject(), matchingTemplate, templateV2.indexPatterns())
-        );
+        overlapping.putAll(findConflictingV1Templates(tempProjectMetadata, matchingTemplate, templateV2.indexPatterns()));
+        overlapping.putAll(findConflictingV2Templates(tempProjectMetadata, matchingTemplate, templateV2.indexPatterns()));
 
         Template template = TransportSimulateIndexTemplateAction.resolveTemplate(
             matchingTemplate,
             temporaryIndexName,
-            stateWithTemplate,
+            projectWithTemplate,
             isDslOnlyMode,
             xContentRegistry,
             indicesService,

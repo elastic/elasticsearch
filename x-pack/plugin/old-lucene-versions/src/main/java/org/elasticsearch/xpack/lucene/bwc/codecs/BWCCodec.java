@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.lucene.bwc.codecs;
 
+import org.apache.lucene.backward_codecs.lucene80.Lucene80Codec;
+import org.apache.lucene.backward_codecs.lucene84.Lucene84Codec;
+import org.apache.lucene.backward_codecs.lucene86.Lucene86Codec;
+import org.apache.lucene.backward_codecs.lucene87.Lucene87Codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.FieldsConsumer;
@@ -17,6 +21,7 @@ import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.TermVectorsFormat;
+import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
@@ -26,6 +31,11 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.Version;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene80.BWCLucene80Codec;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene84.BWCLucene84Codec;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene86.BWCLucene86Codec;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene87.BWCLucene87Codec;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,18 +51,25 @@ public abstract class BWCCodec extends Codec {
         super(name);
     }
 
+    protected final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
+        @Override
+        public PostingsFormat getPostingsFormatForField(String field) {
+            throw new UnsupportedOperationException("Old codecs can't be used for writing");
+        }
+    };
+
     @Override
-    public NormsFormat normsFormat() {
+    public final NormsFormat normsFormat() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public TermVectorsFormat termVectorsFormat() {
+    public final TermVectorsFormat termVectorsFormat() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public KnnVectorsFormat knnVectorsFormat() {
+    public final KnnVectorsFormat knnVectorsFormat() {
         throw new UnsupportedOperationException();
     }
 
@@ -118,13 +135,14 @@ public abstract class BWCCodec extends Codec {
     }
 
     public static SegmentInfo wrap(SegmentInfo segmentInfo) {
-        final Codec codec = segmentInfo.getCodec();
+        Codec codec = getBackwardCompatibleCodec(segmentInfo.getCodec());
+
         final SegmentInfo segmentInfo1 = new SegmentInfo(
             segmentInfo.dir,
             // Use Version.LATEST instead of original version, otherwise SegmentCommitInfo will bark when processing (N-1 limitation)
             // TODO: perhaps store the original version information in attributes so that we can retrieve it later when needed?
-            org.apache.lucene.util.Version.LATEST,
-            org.apache.lucene.util.Version.LATEST,
+            Version.LATEST,
+            Version.LATEST,
             segmentInfo.name,
             segmentInfo.maxDoc(),
             segmentInfo.getUseCompoundFile(),
@@ -137,6 +155,21 @@ public abstract class BWCCodec extends Codec {
         );
         segmentInfo1.setFiles(segmentInfo.files());
         return segmentInfo1;
+    }
+
+    // Special handling for Lucene8xCodecs (which are currently bundled with Lucene)
+    // Use BWCLucene8xCodec instead as that one extends BWCCodec (similar to all other older codecs)
+    private static Codec getBackwardCompatibleCodec(Codec codec) {
+        if (codec instanceof Lucene80Codec) {
+            codec = new BWCLucene80Codec();
+        } else if (codec instanceof Lucene84Codec) {
+            codec = new BWCLucene84Codec();
+        } else if (codec instanceof Lucene86Codec) {
+            codec = new BWCLucene86Codec();
+        } else if (codec instanceof Lucene87Codec) {
+            codec = new BWCLucene87Codec();
+        }
+        return codec;
     }
 
     /**

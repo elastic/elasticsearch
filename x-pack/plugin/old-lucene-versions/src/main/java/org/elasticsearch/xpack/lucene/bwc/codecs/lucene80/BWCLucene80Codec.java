@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.lucene.bwc.codecs.lucene70;
+package org.elasticsearch.xpack.lucene.bwc.codecs.lucene80;
 
 import org.apache.lucene.backward_codecs.lucene50.Lucene50CompoundFormat;
 import org.apache.lucene.backward_codecs.lucene50.Lucene50LiveDocsFormat;
@@ -26,12 +26,10 @@ import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.Lucene60MetadataOnlyPointsFormat;
 
 /**
- * Implements the Lucene 7.0 index format. Loaded via SPI for indices created/written with Lucene 7.x (Elasticsearch 6.x) mounted
- * as archive indices first in Elasticsearch 8.x. Lucene 9.12 retained Lucene70Codec in its classpath which required overriding the
- * codec name and version in the segment infos. This codec is still needed after upgrading to Elasticsearch 9.x because its codec
- * name has been written to disk.
+ * Implements the Lucene 8.0 index format. Loaded via SPI for indices created/written with Lucene 8.0.0-8.3.0
+ * (Elasticsearch [7.0.0-7.5.2]), mounted as archive indices in Elasticsearch 8.x / 9.x.
  */
-public class BWCLucene70Codec extends BWCCodec {
+public class BWCLucene80Codec extends BWCCodec {
 
     private final FieldInfosFormat fieldInfosFormat;
     private final SegmentInfoFormat segmentInfosFormat;
@@ -43,11 +41,11 @@ public class BWCLucene70Codec extends BWCCodec {
 
     // Needed for SPI loading
     @SuppressWarnings("unused")
-    public BWCLucene70Codec() {
-        this("BWCLucene70Codec");
+    public BWCLucene80Codec() {
+        this("BWCLucene80Codec");
     }
 
-    protected BWCLucene70Codec(String name) {
+    public BWCLucene80Codec(String name) {
         super(name);
         this.fieldInfosFormat = wrap(new Lucene60FieldInfosFormat());
         this.segmentInfosFormat = wrap(new Lucene70SegmentInfoFormat());
@@ -64,27 +62,27 @@ public class BWCLucene70Codec extends BWCCodec {
     }
 
     @Override
-    public FieldInfosFormat fieldInfosFormat() {
+    public final FieldInfosFormat fieldInfosFormat() {
         return fieldInfosFormat;
     }
 
     @Override
-    public SegmentInfoFormat segmentInfoFormat() {
+    public final SegmentInfoFormat segmentInfoFormat() {
         return segmentInfosFormat;
     }
 
     @Override
-    public StoredFieldsFormat storedFieldsFormat() {
+    public final StoredFieldsFormat storedFieldsFormat() {
         return storedFieldsFormat;
     }
 
     @Override
-    public LiveDocsFormat liveDocsFormat() {
+    public final LiveDocsFormat liveDocsFormat() {
         return liveDocsFormat;
     }
 
     @Override
-    public CompoundFormat compoundFormat() {
+    public final CompoundFormat compoundFormat() {
         return compoundFormat;
     }
 
@@ -94,12 +92,12 @@ public class BWCLucene70Codec extends BWCCodec {
     }
 
     @Override
-    public PostingsFormat postingsFormat() {
+    public final PostingsFormat postingsFormat() {
         return postingsFormat;
     }
 
     @Override
-    public PointsFormat pointsFormat() {
+    public final PointsFormat pointsFormat() {
         return pointsFormat;
     }
 }

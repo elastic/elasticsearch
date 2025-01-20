@@ -7,15 +7,38 @@
 
 package org.elasticsearch.oldrepos.archiveindex;
 
+import org.elasticsearch.oldrepos.TestSnapshotCases;
 import org.elasticsearch.test.cluster.util.Version;
 
+/**
+ * Test case restoring snapshot created in ES_v6 - Basic mapping
+ *
+ * PUT /index
+ * {
+ *   "settings": {
+ *     "number_of_shards": 1,
+ *     "number_of_replicas": 1
+ *   },
+ *   "mappings": {
+ *     "_doc": {
+ *       "properties": {
+ *         "title": {
+ *           "type": "text"
+ *         },
+ *         "content": {
+ *           "type": "text"
+ *         },
+ *         "created_at": {
+ *           "type": "date"
+ *         }
+ *       }
+ *     }
+ *   }
+ * }
+ */
 public class RestoreFromVersion6IT extends ArchiveIndexTestCase {
 
     public RestoreFromVersion6IT(Version version) {
-        super(version);
-    }
-
-    public void testArchiveIndex() throws Exception {
-        verifyCompatibility("6");
+        super(version, TestSnapshotCases.ES_VERSION_6);
     }
 }

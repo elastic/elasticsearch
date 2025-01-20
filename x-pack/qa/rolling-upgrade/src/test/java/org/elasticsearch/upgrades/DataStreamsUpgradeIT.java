@@ -26,7 +26,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.upgrades.IndexingIT.assertCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -255,7 +257,12 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         }
     }
 
-    private void upgradeDataStream(String dataStreamName, int numRollovers) throws Exception {
+    private void upgradeDataStream(String dataStreamName, int numRolloversOnOldCluster) throws Exception {
+        Set<String> indicesNeedingUpgrade = getDataStreamIndices(dataStreamName);
+        final int explicitRolloverOnNewClusterCount = randomIntBetween(0, 2);
+        for (int i = 0; i < explicitRolloverOnNewClusterCount; i++) {
+            rollover(dataStreamName);
+        }
         Request reindexRequest = new Request("POST", "/_migration/reindex");
         reindexRequest.setJsonEntity(Strings.format("""
             {
@@ -276,23 +283,50 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             );
             assertOK(statusResponse);
             assertThat(statusResponseMap.get("complete"), equalTo(true));
-            /*
-             * total_indices_in_data_stream is determined at the beginning of the reindex, and does not take into account the write
-             * index being rolled over
-             */
-            assertThat(statusResponseMap.get("total_indices_in_data_stream"), equalTo(numRollovers + 1));
+            final int originalWriteIndex = 1;
             if (isOriginalClusterSameMajorVersionAsCurrent()) {
+                assertThat(
+                    statusResponseMap.get("total_indices_in_data_stream"),
+                    equalTo(originalWriteIndex + numRolloversOnOldCluster + explicitRolloverOnNewClusterCount)
+                );
                 // If the original cluster was the same as this one, we don't want any indices reindexed:
                 assertThat(statusResponseMap.get("total_indices_requiring_upgrade"), equalTo(0));
                 assertThat(statusResponseMap.get("successes"), equalTo(0));
             } else {
-                assertThat(statusResponseMap.get("total_indices_requiring_upgrade"), equalTo(numRollovers + 1));
-                assertThat(statusResponseMap.get("successes"), equalTo(numRollovers + 1));
+                // The number of rollovers that will have happened when we call reindex:
+                final int rolloversPerformedByReindex = explicitRolloverOnNewClusterCount == 0 ? 1 : 0;
+                final int expectedTotalIndicesInDataStream = originalWriteIndex + numRolloversOnOldCluster
+                    + explicitRolloverOnNewClusterCount + rolloversPerformedByReindex;
+                assertThat(statusResponseMap.get("total_indices_in_data_stream"), equalTo(expectedTotalIndicesInDataStream));
+                /*
+                 * total_indices_requiring_upgrade is made up of: (the original write index) + numRolloversOnOldCluster. The number of
+                 * rollovers on the upgraded cluster is irrelevant since those will not be reindexed.
+                 */
+                assertThat(
+                    statusResponseMap.get("total_indices_requiring_upgrade"),
+                    equalTo(originalWriteIndex + numRolloversOnOldCluster)
+                );
+                assertThat(statusResponseMap.get("successes"), equalTo(numRolloversOnOldCluster + 1));
+                // We expect all the original indices to have been deleted
+                for (String oldIndex : indicesNeedingUpgrade) {
+                    assertThat(indexExists(oldIndex), equalTo(false));
+                }
+                assertThat(getDataStreamIndices(dataStreamName).size(), equalTo(expectedTotalIndicesInDataStream));
             }
         }, 60, TimeUnit.SECONDS);
         Request cancelRequest = new Request("POST", "_migration/reindex/" + dataStreamName + "/_cancel");
         Response cancelResponse = client().performRequest(cancelRequest);
         assertOK(cancelResponse);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Set<String> getDataStreamIndices(String dataStreamName) throws IOException {
+        Response response = client().performRequest(new Request("GET", "_data_stream/" + dataStreamName));
+        Map<String, Object> responseMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(), false);
+        List<Map<String, Object>> dataStreams = (List<Map<String, Object>>) responseMap.get("data_streams");
+        Map<String, Object> dataStream = dataStreams.get(0);
+        List<Map<String, Object>> indices = (List<Map<String, Object>>) dataStream.get("indices");
+        return indices.stream().map(index -> index.get("index_name").toString()).collect(Collectors.toSet());
     }
 
     /*

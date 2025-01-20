@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -672,7 +673,7 @@ public class BlockFactoryTests extends ESTestCase {
     }
 
     private Block randomBlock(BlockFactory blockFactory, int positionCount) {
-        return BasicBlockTests.randomBlock(
+        return RandomBlock.randomBlock(
             blockFactory,
             randomFrom(ElementType.BYTES_REF, ElementType.LONG, ElementType.BOOLEAN),
             positionCount,

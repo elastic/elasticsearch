@@ -50,14 +50,20 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
     private static final String READ_SECURITY_USER_AUTH_HEADER = "Basic cmVhZF9zZWN1cml0eV91c2VyOnJlYWQtc2VjdXJpdHktcGFzc3dvcmQ=";
 
     public void testSimpleQueryAllRoles() throws IOException {
-        assertQuery("", 0, roles -> assertThat(roles, emptyIterable()));
+        assertQuery("""
+            {"query": { "bool": { "must_not": { "term": { "metadata._reserved": true}}}}}""", 0, roles -> assertThat(roles, emptyIterable()));
         RoleDescriptor createdRole = createRandomRole();
-        assertQuery("", 1, roles -> {
+        assertQuery("""
+            {"query": { "bool": { "must_not": { "term": { "metadata._reserved": true}}}}}""", 1, roles -> {
             assertThat(roles, iterableWithSize(1));
             assertRoleMap(roles.get(0), createdRole);
         });
-        assertQuery("""
-            {"query":{"match_all":{}},"from":1}""", 1, roles -> assertThat(roles, emptyIterable()));
+        assertQuery(
+            """
+                {"query": { "bool": { "must_not": { "term": { "metadata._reserved": true}}}},"from":1}""",
+            1,
+            roles -> assertThat(roles, emptyIterable())
+        );
     }
 
     public void testDisallowedFields() throws Exception {

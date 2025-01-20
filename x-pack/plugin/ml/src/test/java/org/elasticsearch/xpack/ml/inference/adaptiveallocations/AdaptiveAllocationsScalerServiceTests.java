@@ -12,7 +12,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -89,10 +88,8 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
     private ClusterState getClusterState(int numAllocations) {
         ClusterState clusterState = mock(ClusterState.class);
         Metadata metadata = mock(Metadata.class);
-        when(clusterState.getMetadata()).thenReturn(metadata);
-        ProjectMetadata project = mock(ProjectMetadata.class);
-        when(metadata.getProject()).thenReturn(project);
-        when(project.custom("trained_model_assignment")).thenReturn(
+        when(clusterState.metadata()).thenReturn(metadata);
+        when(metadata.getSingleProjectCustom("trained_model_assignment")).thenReturn(
             new TrainedModelAssignmentMetadata(
                 Map.of(
                     "test-deployment",

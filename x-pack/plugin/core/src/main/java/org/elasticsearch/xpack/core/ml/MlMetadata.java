@@ -244,8 +244,9 @@ public class MlMetadata implements Metadata.ProjectCustom {
         }
     }
 
+    @Deprecated(forRemoval = true)
     public static MlMetadata getMlMetadata(ClusterState state) {
-        MlMetadata mlMetadata = (state == null) ? null : state.getMetadata().getProject().custom(TYPE);
+        MlMetadata mlMetadata = (state == null) ? null : state.metadata().getSingleProjectCustom(TYPE);
         if (mlMetadata == null) {
             return EMPTY_METADATA;
         }

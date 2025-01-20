@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
@@ -460,6 +461,12 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         return getSingleProject();
     }
 
+    @FixForMultiProject(description = "temporarily allow non-multi-project aware code to work with just the default project")
+    @Deprecated(forRemoval = true)
+    public ProjectMetadata getDefaultProject() {
+        return getProject(DEFAULT_PROJECT_ID);
+    }
+
     public boolean hasProject(ProjectId projectId) {
         return projectMetadata.containsKey(projectId);
     }
@@ -482,6 +489,41 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             shards += project.getTotalOpenIndexShards();
         }
         return shards;
+    }
+
+    /**
+     * Utility method that allows retrieving a {@link ProjectCustom} from a project.
+     * Throws an exception when multiple projects have that {@link ProjectCustom}.
+     * @return the {@link ProjectCustom} if and only if it's present in a single project. If it's not present in any project, returns null
+     */
+    @FixForMultiProject
+    @Nullable
+    public <T extends ProjectCustom> T getSingleProjectCustom(String type) {
+        var project = getSingleProjectWithCustom(type);
+        return project == null ? null : project.custom(type);
+    }
+
+    /**
+     * Utility method that allows retrieving a project that has a certain {@link ProjectCustom}.
+     * Throws an exception when multiple projects have that {@link ProjectCustom}.
+     * @return the project that has the {@link ProjectCustom} if and only if it's present in a single project.
+     *         If it's not present in any project, returns null
+     */
+    @FixForMultiProject
+    @Nullable
+    public ProjectMetadata getSingleProjectWithCustom(String type) {
+        ProjectMetadata resultingProject = null;
+        for (ProjectMetadata project : projects().values()) {
+            ProjectCustom projectCustom = project.custom(type);
+            if (projectCustom == null) {
+                continue;
+            }
+            if (resultingProject != null) {
+                throw new UnsupportedOperationException("Multiple custom projects found for type [" + type + "]");
+            }
+            resultingProject = project;
+        }
+        return resultingProject;
     }
 
     /**

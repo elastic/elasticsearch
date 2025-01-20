@@ -159,9 +159,21 @@ public class Group {
                 return IndicesPermission.AuthorizedComponents.NONE;
             } else {
                 if (resource == null) {
-                    return group.indexNameMatcher.test(name)
-                        ? IndicesPermission.AuthorizedComponents.DATA
-                        : IndicesPermission.AuthorizedComponents.NONE;
+                    if (group.indexNameMatcher.test(name)) {
+                        if (isReadAction) {
+                            if (actionMatches && group.hasReadFailuresPrivilege) {
+                                return IndicesPermission.AuthorizedComponents.ALL;
+                            } else if (actionMatches) {
+                                return IndicesPermission.AuthorizedComponents.DATA;
+                            } else if (group.hasReadFailuresPrivilege) {
+                                return IndicesPermission.AuthorizedComponents.FAILURES;
+                            }
+                        } else { // not a read action
+                            return IndicesPermission.AuthorizedComponents.ALL;
+                        }
+                    } else {
+                        return IndicesPermission.AuthorizedComponents.NONE;
+                    }
                 }
                 assert name.equals(resource.getName());
                 return switch (resource.getType()) {
@@ -180,7 +192,7 @@ public class Group {
                                         // And authorize it as a failure store index (i.e. no DLS/FLS)
                                         yield IndicesPermission.AuthorizedComponents.FAILURES;
                                     }
-                                } else { // not a failure store index
+                                } else if (actionMatches) { // not a failure store index
                                     if ((authByDataStream && group.indexNameMatcher.test(ds.getName()))
                                         || group.indexNameMatcher.test(resource.getName())) {
                                         yield IndicesPermission.AuthorizedComponents.DATA;

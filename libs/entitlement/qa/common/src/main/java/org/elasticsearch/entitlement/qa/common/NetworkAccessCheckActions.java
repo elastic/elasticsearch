@@ -121,13 +121,16 @@ class NetworkAccessCheckActions {
         }
     }
 
-    static void createLDAPCertStore() throws NoSuchAlgorithmException {
+    static void createLDAPCertStore() {
         try {
             // We pass down null params to provoke a InvalidAlgorithmParameterException
             CertStore.getInstance("LDAP", null);
         } catch (InvalidAlgorithmParameterException ex) {
             // Assert we actually hit the class we care about, LDAPCertStore (or its impl)
             assert Arrays.stream(ex.getStackTrace()).anyMatch(e -> e.getClassName().endsWith("LDAPCertStore"));
+        } catch (NoSuchAlgorithmException e) {
+            // In some environments (e.g. openjdk17 with FIPS enabled) the LDAPCertStore is not present, so this will fail.
+            // This is OK, as this means the class we care about (LDAPCertStore) is not even present
         }
     }
 

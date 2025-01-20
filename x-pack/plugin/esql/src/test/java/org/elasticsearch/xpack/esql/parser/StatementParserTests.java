@@ -300,18 +300,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testStatsWithoutAggs() throws Exception {
+    public void testStatsWithoutAggs() {
         assertEquals(
             new Aggregate(EMPTY, PROCESSING_CMD_INPUT, Aggregate.AggregateType.STANDARD, List.of(attribute("a")), List.of(attribute("a"))),
             processingCommand("stats by a")
         );
     }
 
-    public void testStatsWithoutAggsOrGroup() throws Exception {
+    public void testStatsWithoutAggsOrGroup() {
         expectError("from text | stats", "At least one aggregation or grouping expression required in [stats]");
     }
 
-    public void testAggsWithGroupKeyAsAgg() throws Exception {
+    public void testAggsWithGroupKeyAsAgg() {
         var queries = new String[] { """
             row a = 1, b = 2
             | stats a by a
@@ -332,7 +332,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testStatsWithGroupKeyAndAggFilter() throws Exception {
+    public void testStatsWithGroupKeyAndAggFilter() {
         var a = attribute("a");
         var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
         var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
@@ -342,7 +342,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testStatsWithGroupKeyAndMixedAggAndFilter() throws Exception {
+    public void testStatsWithGroupKeyAndMixedAggAndFilter() {
         var a = attribute("a");
         var min = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
         var max = new UnresolvedFunction(EMPTY, "max", DEFAULT, List.of(a));
@@ -377,7 +377,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testStatsWithoutGroupKeyMixedAggAndFilter() throws Exception {
+    public void testStatsWithoutGroupKeyMixedAggAndFilter() {
         var a = attribute("a");
         var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
         var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
@@ -2109,41 +2109,41 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(tableName.fold(FoldContext.small()), equalTo(string));
     }
 
-    public void testIdPatternUnquoted() throws Exception {
+    public void testIdPatternUnquoted() {
         var string = "regularString";
         assertThat(breakIntoFragments(string), contains(string));
     }
 
-    public void testIdPatternQuoted() throws Exception {
+    public void testIdPatternQuoted() {
         var string = "`escaped string`";
         assertThat(breakIntoFragments(string), contains(string));
     }
 
-    public void testIdPatternQuotedWithDoubleBackticks() throws Exception {
+    public void testIdPatternQuotedWithDoubleBackticks() {
         var string = "`escaped``string`";
         assertThat(breakIntoFragments(string), contains(string));
     }
 
-    public void testIdPatternUnquotedAndQuoted() throws Exception {
+    public void testIdPatternUnquotedAndQuoted() {
         var string = "this`is`a`mix`of`ids`";
         assertThat(breakIntoFragments(string), contains("this", "`is`", "a", "`mix`", "of", "`ids`"));
     }
 
-    public void testIdPatternQuotedTraling() throws Exception {
+    public void testIdPatternQuotedTrailing() {
         var string = "`foo`*";
         assertThat(breakIntoFragments(string), contains("`foo`", "*"));
     }
 
-    public void testIdPatternWithDoubleQuotedStrings() throws Exception {
+    public void testIdPatternWithDoubleQuotedStrings() {
         var string = "`this``is`a`quoted `` string``with`backticks";
         assertThat(breakIntoFragments(string), contains("`this``is`", "a", "`quoted `` string``with`", "backticks"));
     }
 
-    public void testSpaceNotAllowedInIdPattern() throws Exception {
+    public void testSpaceNotAllowedInIdPattern() {
         expectError("ROW a = 1| RENAME a AS this is `not okay`", "mismatched input 'is' expecting {<EOF>, '|', ',', '.'}");
     }
 
-    public void testSpaceNotAllowedInIdPatternKeep() throws Exception {
+    public void testSpaceNotAllowedInIdPatternKeep() {
         expectError("ROW a = 1, b = 1| KEEP a b", "extraneous input 'b'");
     }
 

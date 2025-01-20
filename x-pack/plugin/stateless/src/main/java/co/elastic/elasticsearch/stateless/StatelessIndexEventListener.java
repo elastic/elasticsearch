@@ -21,6 +21,7 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
+import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
@@ -43,7 +44,6 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
@@ -61,6 +61,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
@@ -77,6 +78,7 @@ class StatelessIndexEventListener implements IndexEventListener {
     private final TranslogReplicator translogReplicator;
     private final RecoveryCommitRegistrationHandler recoveryCommitRegistrationHandler;
     private final SharedBlobCacheWarmingService warmingService;
+    private final HollowShardsService hollowShardsService;
 
     StatelessIndexEventListener(
         ThreadPool threadPool,
@@ -84,7 +86,8 @@ class StatelessIndexEventListener implements IndexEventListener {
         ObjectStoreService objectStoreService,
         TranslogReplicator translogReplicator,
         RecoveryCommitRegistrationHandler recoveryCommitRegistrationHandler,
-        SharedBlobCacheWarmingService warmingService
+        SharedBlobCacheWarmingService warmingService,
+        HollowShardsService hollowShardsService
     ) {
         this.threadPool = threadPool;
         this.statelessCommitService = statelessCommitService;
@@ -92,6 +95,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         this.translogReplicator = translogReplicator;
         this.recoveryCommitRegistrationHandler = recoveryCommitRegistrationHandler;
         this.warmingService = warmingService;
+        this.hollowShardsService = hollowShardsService;
     }
 
     @Override
@@ -338,12 +342,9 @@ class StatelessIndexEventListener implements IndexEventListener {
                         engine.flush(true, true, l.map(f -> null));
                     }
                 } else if (engineOrNull instanceof HollowIndexEngine hollowIndexEngine) {
-                    indexShard.acquireAllPrimaryOperationsPermits(listener.map(r -> {
-                        logger.debug("Acquired primary permits for hollow engine for {}", indexShard.shardId());
-                        hollowIndexEngine.setPrimaryPermits(r);
-                        hollowIndexEngine.callRefreshListeners();
-                        return null;
-                    }), TimeValue.timeValueMinutes(1), IndexShard.PrimaryPermitCheck.NONE);
+                    hollowShardsService.installIngestionBlocker(indexShard);
+                    hollowIndexEngine.callRefreshListeners();
+                    l.onResponse(null);
                 } else if (engineOrNull == null) {
                     throw new AlreadyClosedException("engine is closed");
                 } else {
@@ -368,5 +369,10 @@ class StatelessIndexEventListener implements IndexEventListener {
                 }
             }
         });
+    }
+
+    @Override
+    public void onAcquirePrimaryOperationPermit(IndexShard indexShard, Supplier<ActionListener<Void>> onPermitAcquiredListenerSupplier) {
+        hollowShardsService.onIngestion(indexShard.shardId(), onPermitAcquiredListenerSupplier);
     }
 }

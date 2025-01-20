@@ -218,6 +218,20 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             return readPortsFile(portsFile).get(0);
         }
 
+        /**
+         * @return the available transport endpoints of this node; if the node has no available transport endpoints yet then returns an
+         * empty list.
+         */
+        public List<String> getAvailableTransportEndpoints() {
+            Path portsFile = workingDir.resolve("logs").resolve("transport.ports");
+            if (Files.notExists(portsFile)) {
+                // Ok if missing, we're only returning the _available_ transport endpoints and the node might not yet be started up.
+                // If we're using this for discovery then we'll retry until we see enough running nodes to form the cluster.
+                return List.of();
+            }
+            return readPortsFile(portsFile);
+        }
+
         public String getRemoteClusterServerEndpoint() {
             if (spec.isRemoteClusterServerEnabled()) {
                 Path portsFile = workingDir.resolve("logs").resolve("remote_cluster.ports");

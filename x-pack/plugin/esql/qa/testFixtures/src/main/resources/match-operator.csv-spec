@@ -686,7 +686,7 @@ host:keyword | semantic_text_field:text
 
 testMatchWithNonPushableDisjunctions
 required_capability: match_operator_colon
-required_capability: full_text_functions_disjunctions
+required_capability: full_text_functions_disjunctions_compute_engine
 
 from books 
 | where title:"lord" or length(title) > 130 
@@ -704,7 +704,7 @@ book_no:keyword
 
 testMatchWithNonPushableDisjunctionsOnComplexExpressions
 required_capability: match_operator_colon
-required_capability: full_text_functions_disjunctions
+required_capability: full_text_functions_disjunctions_compute_engine
 
 from books 
 | where (title:"lord" and ratings > 4.5) or (author:"dostoevsky" and length(title) > 50)

@@ -2093,35 +2093,33 @@ public class MachineLearning extends Plugin
 
         final Map<String, Boolean> results = new ConcurrentHashMap<>();
 
-        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(
-            success -> client.execute(
-                SetResetModeAction.INSTANCE,
-                SetResetModeActionRequest.disabled(true),
-                ActionListener.wrap(resetSuccess -> {
-                    finalListener.onResponse(success);
-                    logger.info("Finished machine learning feature reset");
-                }, resetFailure -> {
-                    logger.error("failed to disable reset mode after state otherwise successful machine learning reset", resetFailure);
-                    finalListener.onFailure(
-                        ExceptionsHelper.serverError(
-                            "failed to disable reset mode after state otherwise successful machine learning reset",
-                            resetFailure
-                        )
-                    );
-                })
-            ),
-            failure -> {
-                logger.error("failed to reset machine learning", failure);
-                client.execute(
-                    SetResetModeAction.INSTANCE,
-                    SetResetModeActionRequest.disabled(false),
-                    ActionListener.wrap(resetSuccess -> finalListener.onFailure(failure), resetFailure -> {
-                        logger.error("failed to disable reset mode after state clean up failure", resetFailure);
-                        finalListener.onFailure(failure);
-                    })
+        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(success -> {
+            // reset the auditors as aliases used may be removed
+            resetAuditors();
+
+            client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(true), ActionListener.wrap(resetSuccess -> {
+                finalListener.onResponse(success);
+                logger.info("Finished machine learning feature reset");
+            }, resetFailure -> {
+                logger.error("failed to disable reset mode after state otherwise successful machine learning reset", resetFailure);
+                finalListener.onFailure(
+                    ExceptionsHelper.serverError(
+                        "failed to disable reset mode after state otherwise successful machine learning reset",
+                        resetFailure
+                    )
                 );
-            }
-        );
+            }));
+        }, failure -> {
+            logger.error("failed to reset machine learning", failure);
+            client.execute(
+                SetResetModeAction.INSTANCE,
+                SetResetModeActionRequest.disabled(false),
+                ActionListener.wrap(resetSuccess -> finalListener.onFailure(failure), resetFailure -> {
+                    logger.error("failed to disable reset mode after state clean up failure", resetFailure);
+                    finalListener.onFailure(failure);
+                })
+            );
+        });
 
         // Stop all model deployments
         ActionListener<AcknowledgedResponse> pipelineValidation = unsetResetModeListener.<ListTasksResponse>delegateFailureAndWrap(
@@ -2272,6 +2270,18 @@ public class MachineLearning extends Plugin
 
         // Indicate that a reset is now in progress
         client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.enabled(), afterResetModeSet);
+    }
+
+    private void resetAuditors() {
+        if (anomalyDetectionAuditor.get() != null) {
+            anomalyDetectionAuditor.get().reset();
+        }
+        if (dataFrameAnalyticsAuditor.get() != null) {
+            dataFrameAnalyticsAuditor.get().reset();
+        }
+        if (inferenceAuditor.get() != null) {
+            inferenceAuditor.get().reset();
+        }
     }
 
     @Override

@@ -140,6 +140,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     private final Settings settings;
     private final SetOnce<TransformServices> transformServices = new SetOnce<>();
     private final SetOnce<TransformConfigAutoMigration> transformConfigAutoMigration = new SetOnce<>();
+    private final SetOnce<TransformAuditor> transformAuditor = new SetOnce<>();
     private final TransformExtension transformExtension = new DefaultTransformExtension();
 
     public static final Integer DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE = Integer.valueOf(500);
@@ -302,6 +303,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             services.indexNameExpressionResolver(),
             getTransformExtension().includeNodeInfo()
         );
+        this.transformAuditor.set(auditor);
         Clock clock = Clock.systemUTC();
         TransformCheckpointService checkpointService = new TransformCheckpointService(
             clock,
@@ -442,8 +444,12 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
     ) {
         OriginSettingClient client = new OriginSettingClient(unwrappedClient, TRANSFORM_ORIGIN);
-        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(
-            success -> client.execute(
+        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(success -> {
+            //
+            if (transformAuditor.get() != null) {
+                transformAuditor.get().reset();
+            }
+            client.execute(
                 SetResetModeAction.INSTANCE,
                 SetResetModeActionRequest.disabled(true),
                 ActionListener.wrap(resetSuccess -> finalListener.onResponse(success), resetFailure -> {
@@ -456,7 +462,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                         )
                     );
                 })
-            ),
+            );
+        },
             failure -> client.execute(
                 SetResetModeAction.INSTANCE,
                 SetResetModeActionRequest.disabled(false),

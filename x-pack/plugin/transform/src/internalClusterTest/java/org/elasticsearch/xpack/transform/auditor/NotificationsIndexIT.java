@@ -37,7 +37,7 @@ public class NotificationsIndexIT extends TransformSingleNodeTestCase {
     }
 
     private void assertNotificationsIndexExists() {
-        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex()
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
             .setIndices(TransformInternalIndexConstants.AUDIT_INDEX)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .get();

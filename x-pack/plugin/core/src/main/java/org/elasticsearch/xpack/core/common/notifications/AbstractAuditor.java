@@ -87,6 +87,19 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         audit(Level.ERROR, resourceId, message);
     }
 
+    /**
+     * Calling reset will cause the auditor to check the required
+     * index and alias exist and recreate if necessary
+     */
+    public void reset() {
+        indexAndAliasCreated.set(false);
+        if (backlog == null) {
+            // create a new backlog in case documents need
+            // to be temporarily store when the new index/alias is created
+            backlog = new ConcurrentLinkedQueue<>();
+        }
+    }
+
     private static void onIndexResponse(DocWriteResponse response) {
         logger.trace("Successfully wrote audit message");
     }
@@ -105,7 +118,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         var createListener = ActionListener.<Boolean>wrap(success -> {
             indexAndAliasCreationInProgress.set(false);
             synchronized (this) {
-                // synchronized so nothing can be added to backlog while this value changes
+                // synchronized so nothing can be added to backlog while writing it
                 indexAndAliasCreated.set(true);
                 writeBacklog();
             }
@@ -159,9 +172,10 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     }
 
     protected void writeBacklog() {
+        logger.info("Writing backlog");
         assert backlog != null;
         if (backlog == null) {
-            logger.error("Message back log has already been written");
+            logger.debug("Message back log has already been written");
             return;
         }
 
@@ -176,7 +190,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
             if (bulkItemResponses.hasFailures()) {
                 logger.warn("Failures bulk indexing the message back log: {}", bulkItemResponses.buildFailureMessage());
             } else {
-                logger.trace("Successfully wrote audit message backlog after upgrading template");
+                logger.trace("Successfully wrote audit message backlog");
             }
             backlog = null;
         }, AbstractAuditor::onIndexFailure));

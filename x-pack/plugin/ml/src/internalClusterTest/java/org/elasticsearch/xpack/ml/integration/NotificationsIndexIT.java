@@ -49,7 +49,7 @@ public class NotificationsIndexIT extends MlSingleNodeTestCase {
     }
 
     private void assertNotificationsIndexExists() {
-        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex()
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
             .setIndices(NotificationsIndex.NOTIFICATIONS_INDEX)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .get();

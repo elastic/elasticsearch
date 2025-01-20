@@ -248,29 +248,37 @@ public abstract class FullTextFunction extends Function implements TranslationAw
      * @param condition        condition to check for disjunctions of full text searches
      * @param failures         failures collection to add to
      */
-    public static void checkFullTextSearchDisjunctions(Expression condition, Failures failures) {
+    private static void checkFullTextSearchDisjunctions(Expression condition, Failures failures) {
         Holder<Boolean> isInvalid = new Holder<>(false);
         condition.forEachDown(Or.class, or -> {
             if (isInvalid.get()) {
                 // Exit early if we already have a failures
                 return;
             }
-            boolean hasFullText = or.anyMatch(FullTextFunction.class::isInstance);
-            if (hasFullText) {
-                boolean hasOnlyFullText = onlyFullTextFunctionsInExpression(or);
-                if (hasOnlyFullText == false) {
-                    isInvalid.set(true);
-                    failures.add(
-                        fail(
-                            or,
-                            "Invalid condition when using METADATA _score [{}]. Full text functions can be used in an OR condition, "
-                                + "but only if just full text functions are used in the OR condition",
-                            or.sourceText()
-                        )
-                    );
-                }
+            if (checkDisjunctionPushable(or) == false) {
+                isInvalid.set(true);
+                failures.add(
+                    fail(
+                        or,
+                        "Invalid condition when using METADATA _score [{}]. Full text functions can be used in an OR condition, "
+                            + "but only if just full text functions are used in the OR condition",
+                        or.sourceText()
+                    )
+                );
             }
         });
+    }
+
+    /**
+     * Checks if a disjunction is pushable from the point of view of FullTextFunctions. Either it has no FullTextFunctions or
+     * all it contains are FullTextFunctions.
+     *
+     * @param or disjunction to check
+     * @return true if the disjunction is pushable, false otherwise
+     */
+    public static boolean checkDisjunctionPushable(Or or) {
+        boolean hasFullText = or.anyMatch(FullTextFunction.class::isInstance);
+        return hasFullText == false || onlyFullTextFunctionsInExpression(or);
     }
 
     /**
@@ -279,7 +287,7 @@ public abstract class FullTextFunction extends Function implements TranslationAw
      * @param expression expression to check
      * @return true if all children are full text functions or negations of full text functions, false otherwise
      */
-    private static boolean onlyFullTextFunctionsInExpression(Expression expression) {
+    public static boolean onlyFullTextFunctionsInExpression(Expression expression) {
         if (expression instanceof FullTextFunction) {
             return true;
         } else if (expression instanceof Not) {

@@ -12,23 +12,30 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.MapParam;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -37,13 +44,29 @@ import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Map.entry;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
+import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
+import static org.elasticsearch.index.query.MatchQueryBuilder.FUZZY_REWRITE_FIELD;
+import static org.elasticsearch.index.query.MatchQueryBuilder.FUZZY_TRANSPOSITIONS_FIELD;
+import static org.elasticsearch.index.query.MatchQueryBuilder.GENERATE_SYNONYMS_PHRASE_QUERY;
+import static org.elasticsearch.index.query.MatchQueryBuilder.LENIENT_FIELD;
+import static org.elasticsearch.index.query.MatchQueryBuilder.MAX_EXPANSIONS_FIELD;
+import static org.elasticsearch.index.query.MatchQueryBuilder.MINIMUM_SHOULD_MATCH_FIELD;
+import static org.elasticsearch.index.query.MatchQueryBuilder.OPERATOR_FIELD;
+import static org.elasticsearch.index.query.MatchQueryBuilder.PREFIX_LENGTH_FIELD;
+import static org.elasticsearch.index.query.MatchQueryBuilder.ZERO_TERMS_QUERY_FIELD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -51,6 +74,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -64,11 +88,13 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
 /**
  * Full text function that performs a {@link QueryStringQuery} .
  */
-public class Match extends FullTextFunction implements PostOptimizationVerificationAware {
+public class Match extends FullTextFunction implements PostOptimizationVerificationAware, OptionalArgument {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
 
     private final Expression field;
+
+    private final Expression options;
 
     private transient Boolean isOperator;
 
@@ -99,6 +125,21 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
         VERSION
     );
 
+    public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
+        entry(ANALYZER_FIELD.getPreferredName(), KEYWORD),
+        entry(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), BOOLEAN),
+        entry(Fuzziness.FIELD.getPreferredName(), KEYWORD),
+        entry(BOOST_FIELD.getPreferredName(), FLOAT),
+        entry(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), BOOLEAN),
+        entry(FUZZY_REWRITE_FIELD.getPreferredName(), KEYWORD),
+        entry(LENIENT_FIELD.getPreferredName(), BOOLEAN),
+        entry(MAX_EXPANSIONS_FIELD.getPreferredName(), INTEGER),
+        entry(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), KEYWORD),
+        entry(OPERATOR_FIELD.getPreferredName(), KEYWORD),
+        entry(PREFIX_LENGTH_FIELD.getPreferredName(), INTEGER),
+        entry(ZERO_TERMS_QUERY_FIELD.getPreferredName(), KEYWORD)
+    );
+
     @FunctionInfo(
         returnType = "boolean",
         operator = ":",
@@ -126,13 +167,19 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
             name = "query",
             type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
             description = "Value to find in the provided field."
-        ) Expression matchQuery
+        ) Expression matchQuery,
+        @MapParam(
+            params = { @MapParam.MapParamEntry(name = "options", valueHint = { "2", "2.0" }) },
+            description = "Match additional options. See <<query-dsl-match-query,match query>> for more information.",
+            optional = true
+        ) Expression options
     ) {
-        this(source, field, matchQuery, null);
+        this(source, field, matchQuery, options, null);
     }
 
-    public Match(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder) {
-        super(source, matchQuery, List.of(field, matchQuery), queryBuilder);
+    public Match(Source source, Expression field, Expression matchQuery, Expression options, QueryBuilder queryBuilder) {
+        super(source, matchQuery, options == null ? List.of(field, matchQuery) : List.of(field, matchQuery, options), queryBuilder);
+        this.options = options;
         this.field = field;
     }
 
@@ -144,7 +191,11 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
             queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         }
-        return new Match(source, field, query, queryBuilder);
+        Expression options = null;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_MATCH_OPTIONS)) {
+            options = in.readOptionalNamedWriteable(Expression.class);
+        }
+        return new Match(source, field, query, options, queryBuilder);
     }
 
     @Override
@@ -155,6 +206,9 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
             out.writeOptionalNamedWriteable(queryBuilder());
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_MATCH_OPTIONS)) {
+            out.writeOptionalNamedWriteable(options());
+        }
     }
 
     @Override
@@ -164,7 +218,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
 
     @Override
     protected TypeResolution resolveNonQueryParamTypes() {
-        return isNotNull(field, sourceText(), FIRST).and(
+        TypeResolution resolution = isNotNull(field, sourceText(), FIRST).and(
             isType(
                 field,
                 FIELD_DATA_TYPES::contains,
@@ -173,6 +227,64 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
                 "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
             )
         );
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        // TODO Extract common logic for validating options
+        if (options() != null) {
+            // MapExpression does not have a DataType associated with it
+            resolution = isMapExpression(options(), sourceText(), SECOND);
+            if (resolution.unresolved()) {
+                return resolution;
+            }
+
+            try {
+                parseOptions();
+            } catch (InvalidArgumentException e) {
+                return new TypeResolution(e.getMessage());
+            }
+        }
+        return TypeResolution.TYPE_RESOLVED;
+    }
+
+    private Map<String, Object> parseOptions() throws InvalidArgumentException {
+        Map<String, Object> matchOptions = new HashMap<>();
+        // Match is lenient by default to avoid failing on incompatible types
+        matchOptions.put(LENIENT_FIELD.getPreferredName(), true);
+
+        if (options() == null) {
+            return matchOptions;
+        }
+
+        for (EntryExpression entry : ((MapExpression) options()).entryExpressions()) {
+            Expression optionExpr = entry.key();
+            Expression valueExpr = entry.value();
+            TypeResolution resolution = isFoldable(optionExpr, sourceText(), SECOND).and(isFoldable(valueExpr, sourceText(), SECOND));
+            if (resolution.unresolved()) {
+                throw new InvalidArgumentException(resolution.message());
+            }
+            Object optionExprFold = optionExpr.fold(FoldContext.small());
+            Object valueExprFold = valueExpr.fold(FoldContext.small());
+            String optionName = optionExprFold instanceof BytesRef br ? br.utf8ToString() : optionExprFold.toString();
+            String optionValue = valueExprFold instanceof BytesRef br ? br.utf8ToString() : valueExprFold.toString();
+            // validate the optionExpr is supported
+            DataType dataType = ALLOWED_OPTIONS.get(optionName);
+            if (dataType == null) {
+                throw new InvalidArgumentException(
+                    format(null, "Invalid option [{}] in [{}], expected one of {}", optionName, sourceText(), ALLOWED_OPTIONS.keySet())
+                );
+            }
+            try {
+                matchOptions.put(optionName, DataTypeConverter.convert(optionValue, dataType));
+            } catch (InvalidArgumentException e) {
+                throw new InvalidArgumentException(
+                    format(null, "Invalid option [{}] in [{}], {}", optionName, sourceText(), e.getMessage())
+                );
+            }
+        }
+
+        return matchOptions;
     }
 
     @Override
@@ -254,12 +366,12 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Match(source(), newChildren.get(0), newChildren.get(1), queryBuilder());
+        return new Match(source(), newChildren.get(0), newChildren.get(1), options == null ? null : newChildren.get(2), queryBuilder());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Match::new, field, query(), queryBuilder());
+        return NodeInfo.create(this, Match::new, field, query(), options(), queryBuilder());
     }
 
     protected TypeResolutions.ParamOrdinal queryParamOrdinal() {
@@ -270,6 +382,10 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
         return field;
     }
 
+    private Expression options() {
+        return options;
+    }
+
     @Override
     public String functionType() {
         return isOperator() ? "operator" : super.functionType();
@@ -277,7 +393,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
 
     @Override
     protected Query translate(TranslatorHandler handler) {
-        Expression fieldExpression = field;
+        Expression fieldExpression = field();
         // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
         if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
             fieldExpression = convertFunction.field();
@@ -289,7 +405,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
                 fieldName = multiTypeEsField.getName();
             }
             // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
-            return new MatchQuery(source(), fieldName, queryAsObject(), Map.of("lenient", "true"));
+            return new MatchQuery(source(), fieldName, queryAsObject(), optionsMap());
         }
 
         throw new IllegalArgumentException("Match must have a field attribute as the first argument");
@@ -297,7 +413,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new Match(source(), field, query(), queryBuilder);
+        return new Match(source(), field, query(), options(), queryBuilder);
     }
 
     @Override
@@ -310,5 +426,9 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
             isOperator = source().text().toUpperCase(Locale.ROOT).matches("^" + super.functionName() + "\\s*\\(.*\\)") == false;
         }
         return isOperator;
+    }
+
+    public Map<String, Object> optionsMap() {
+        return parseOptions();
     }
 }

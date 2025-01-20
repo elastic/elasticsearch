@@ -532,9 +532,11 @@ public class Stateless extends Plugin
         var refreshThrottlingService = setAndGet(this.refreshThrottlingService, new RefreshThrottlingService(settings, clusterService));
         components.add(refreshThrottlingService);
 
+        // We need to inject HollowShardsService into TransportStatelessPrimaryRelocationAction via DI, so it has to be
+        // available on all nodes despite being useful only on indexing nodes
+        var hollowShardsService = setAndGet(this.hollowShardsService, new HollowShardsService(settings, clusterService));
+        components.add(hollowShardsService);
         if (hasIndexRole) {
-            var hollowShardsService = setAndGet(this.hollowShardsService, new HollowShardsService(settings, clusterService));
-            components.add(hollowShardsService);
             Elasticsearch900Lucene100CompletionPostingsFormat.configureFSTOnHeap(false);
         } else if (hasSearchRole) {
             Elasticsearch900Lucene100CompletionPostingsFormat.configureFSTOnHeap(

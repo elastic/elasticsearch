@@ -52,11 +52,11 @@ public class StatelessPrefetchIT extends AbstractStatelessIntegTestCase {
             Settings.builder()
                 .put(
                     SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
-                    new ByteSizeValue(randomIntBetween(10, 100), ByteSizeUnit.MB).getStringRep()
+                    ByteSizeValue.of(randomIntBetween(10, 100), ByteSizeUnit.MB).getStringRep()
                 )
                 .put(
                     SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
-                    new ByteSizeValue(256, ByteSizeUnit.KB).getStringRep()
+                    ByteSizeValue.of(256, ByteSizeUnit.KB).getStringRep()
                 )
                 .build()
         );

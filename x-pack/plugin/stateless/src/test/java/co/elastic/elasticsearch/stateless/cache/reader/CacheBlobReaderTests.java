@@ -229,9 +229,9 @@ public class CacheBlobReaderTests extends ESTestCase {
                     SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
                     rarely()
                         ? randomBoolean()
-                            ? new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.KB).getStringRep()
-                            : new ByteSizeValue(randomIntBetween(1, 1000), ByteSizeUnit.BYTES).getStringRep()
-                        : randomBoolean() ? new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB).getStringRep()
+                            ? ByteSizeValue.of(randomIntBetween(1, 10), ByteSizeUnit.KB).getStringRep()
+                            : ByteSizeValue.of(randomIntBetween(1, 1000), ByteSizeUnit.BYTES).getStringRep()
+                        : randomBoolean() ? ByteSizeValue.of(randomIntBetween(1, 10), ByteSizeUnit.MB).getStringRep()
                         // only use up to 0.1% disk to be friendly.
                         : new RatioValue(randomDoubleBetween(0.0d, 0.1d, false)).toString()
                 )
@@ -464,7 +464,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             protected Settings nodeSettings() {
                 return Settings.builder()
                     .put(super.nodeSettings())
-                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(40, ByteSizeUnit.MB).getStringRep())
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.of(40, ByteSizeUnit.MB).getStringRep())
                     .build();
             }
         }) {
@@ -513,7 +513,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             protected Settings nodeSettings() {
                 return Settings.builder()
                     .put(super.nodeSettings())
-                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(40, ByteSizeUnit.MB).getStringRep())
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.of(40, ByteSizeUnit.MB).getStringRep())
                     .build();
             }
         }) {
@@ -538,7 +538,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                         .put(super.nodeSettings())
                         .put(
                             SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
-                            new ByteSizeValue(40, ByteSizeUnit.MB).getStringRep()
+                            ByteSizeValue.of(40, ByteSizeUnit.MB).getStringRep()
                         )
                         .put(
                             CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.getKey(),
@@ -580,7 +580,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                         .put(super.nodeSettings())
                         .put(
                             SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
-                            new ByteSizeValue(40, ByteSizeUnit.MB).getStringRep()
+                            ByteSizeValue.of(40, ByteSizeUnit.MB).getStringRep()
                         )
                         .put(
                             CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.getKey(),
@@ -728,7 +728,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             protected Settings nodeSettings() {
                 return Settings.builder()
                     .put(super.nodeSettings())
-                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(40, ByteSizeUnit.MB).getStringRep())
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.of(40, ByteSizeUnit.MB).getStringRep())
                     .put(
                         CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.getKey(),
                         ByteSizeValue.ofBytes(chunkSize).getStringRep()
@@ -787,14 +787,14 @@ public class CacheBlobReaderTests extends ESTestCase {
 
     public void testCacheBlobReaderSwitchesFromIndexingToBlobStoreOnIntermediateUpload() throws Exception {
         final var primaryTerm = randomLongBetween(1L, 10L);
-        final var rangeSize = new ByteSizeValue(4, ByteSizeUnit.MB);
+        final var rangeSize = ByteSizeValue.of(4, ByteSizeUnit.MB);
         try (
             var node = new FakeVBCCStatelessNode(
                 this::newEnvironment,
                 this::newNodeEnvironment,
                 xContentRegistry(),
                 primaryTerm,
-                new ByteSizeValue(2, ByteSizeUnit.MB).getBytes()
+                ByteSizeValue.of(2, ByteSizeUnit.MB).getBytes()
             ) {
                 @Override
                 protected Settings nodeSettings() {
@@ -802,7 +802,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                         .put(super.nodeSettings())
                         .put(
                             SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
-                            new ByteSizeValue(12, ByteSizeUnit.MB).getStringRep()
+                            ByteSizeValue.of(12, ByteSizeUnit.MB).getStringRep()
                         )
                         .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize.getStringRep())
                         .build();

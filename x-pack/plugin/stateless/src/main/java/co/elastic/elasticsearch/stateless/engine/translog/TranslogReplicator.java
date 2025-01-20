@@ -611,6 +611,9 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         private final Map<ShardId, TranslogMetadata> checkpoints;
         private final Set<ShardId> includedShards;
 
+        private volatile boolean safeForDelete = true;
+        private ArrayList<ShardId> unsafeForDeleteShards = null;
+
         BlobTranslogFile(long generation, String blobName, Map<ShardId, TranslogMetadata> checkpoints, Set<ShardId> includedShards) {
             this.generation = generation;
             this.blobName = blobName;
@@ -637,6 +640,31 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         @Override
         public int compareTo(BlobTranslogFile o) {
             return Long.compare(generation(), o.generation());
+        }
+
+        /**
+         * Occasionally a shard will be closed with all of the translog files having been safely released. When this occurs, we must leave
+         * the translog file on the object store in case it is required for a recovery. The method marks that the file cannot be deleted.
+         * Dangling translog files will hang around on the object store until they are GC-ed after an indexing node is removed.
+         */
+        public void markUnsafeForDelete(ShardId shardId) {
+            assert hasReferences();
+            safeForDelete = false;
+            synchronized (this) {
+                if (unsafeForDeleteShards == null) {
+                    unsafeForDeleteShards = new ArrayList<>();
+                }
+                unsafeForDeleteShards.add(shardId);
+            }
+        }
+
+        private synchronized ArrayList<ShardId> unsafeForDeleteShards() {
+            assert unsafeForDeleteShards != null;
+            return unsafeForDeleteShards;
+        }
+
+        public boolean isSafeForDelete() {
+            return safeForDelete;
         }
 
         @Override
@@ -814,8 +842,18 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         private void clusterStateValidateForFileDelete(BlobTranslogFile fileToDelete) {
             translogFilesToDelete.add(fileToDelete);
             boolean removed = activeTranslogFiles.remove(fileToDelete);
-            final ValidateClusterStateForDeleteTask validateClusterStateTask = new ValidateClusterStateForDeleteTask(fileToDelete);
-            validateClusterStateTask.run();
+            // If the file is not safe for delete just ignore. We clean it up in memory by removing it from activeTranslogFiles, but it is
+            // left on the object store for potential recovery usage.
+            if (fileToDelete.isSafeForDelete()) {
+                final ValidateClusterStateForDeleteTask validateClusterStateTask = new ValidateClusterStateForDeleteTask(fileToDelete);
+                validateClusterStateTask.run();
+            } else {
+                logger.warn(
+                    "translog file {} left dangling on object store because shards {} marked it unsafe for deletion",
+                    fileToDelete.blobName(),
+                    fileToDelete.unsafeForDeleteShards()
+                );
+            }
             assert removed;
         }
 

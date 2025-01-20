@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -643,7 +644,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         );
                     }
                     case ALIAS -> {
-                        String[] indexNames = getAliasIndexStream(resolvedExpression, ia, clusterState.metadata()).map(Index::getName)
+                        String[] indexNames = getAliasIndexStream(resolvedExpression, ia, projectState.metadata()).map(Index::getName)
                             .toArray(String[]::new);
                         Arrays.sort(indexNames);
                         aliases.add(new ResolvedAlias(ia.getName(), indexNames));
@@ -668,7 +669,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
         }
 
-        private static Stream<Index> getAliasIndexStream(ResolvedExpression resolvedExpression, IndexAbstraction ia, Metadata metadata) {
+        private static Stream<Index> getAliasIndexStream(
+            ResolvedExpression resolvedExpression,
+            IndexAbstraction ia,
+            ProjectMetadata metadata
+        ) {
             Stream<Index> aliasIndices;
             if (resolvedExpression.selector() == null) {
                 aliasIndices = ia.getIndices().stream();

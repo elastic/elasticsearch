@@ -137,7 +137,7 @@ public class IndicesPermissionTests extends ESTestCase {
         role = Role.builder(RESTRICTED_INDICES, "_role")
             .add(new FieldPermissions(fieldPermissionDef(allFields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_alias")
             .build();
-        permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_alias"), md, fieldPermissionsCache);
+        permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_alias"), pmd, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().hasDocumentLevelPermissions(), is(true));

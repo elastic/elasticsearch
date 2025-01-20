@@ -450,8 +450,27 @@ tests:
 - class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
   method: testTsdbStartEndSet
   issue: https://github.com/elastic/elasticsearch/issues/120314
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/119806
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_bbq_hnsw/Vector rescoring has same scoring as exact search for kNN section}
   issue: https://github.com/elastic/elasticsearch/issues/120441
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/160_knn_query_missing_params/kNN query in a bool clause - missing num_candidates}
+  issue: https://github.com/elastic/elasticsearch/issues/120425
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/160_knn_query_missing_params/kNN query with missing num_candidates param - size provided}
+  issue: https://github.com/elastic/elasticsearch/issues/120424
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/160_knn_query_missing_params/kNN search used in nested field - missing num_candidates}
+  issue: https://github.com/elastic/elasticsearch/issues/120425
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/160_knn_query_missing_params/kNN query with num_candidates less than size}
+  issue: https://github.com/elastic/elasticsearch/issues/120425
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/160_knn_query_missing_params/kNN search in a dis_max query - missing num_candidates}
+  issue: https://github.com/elastic/elasticsearch/issues/120425
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/130_knn_query_nested_search/nested kNN search inner_hits size > 1}
+  issue: https://github.com/elastic/elasticsearch/issues/120425
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/140_knn_query_with_other_queries/Function score query with knn query}
+  issue: https://github.com/elastic/elasticsearch/issues/120425

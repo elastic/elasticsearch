@@ -76,6 +76,17 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        beforeDispatchingRequestToUnpromotableShards(
+            request,
+            listener.delegateFailure((l, unused) -> dispatchRequestToUnpromotableShards(task, request, l))
+        );
+    }
+
+    protected void beforeDispatchingRequestToUnpromotableShards(Request request, ActionListener<Void> listener) {
+        ActionListener.completeWith(listener, () -> null);
+    }
+
+    private void dispatchRequestToUnpromotableShards(Task task, Request request, ActionListener<Response> listener) {
         final var unpromotableShards = request.indexShardRoutingTable.unpromotableShards();
         final var responses = new ArrayList<Response>(unpromotableShards.size());
 

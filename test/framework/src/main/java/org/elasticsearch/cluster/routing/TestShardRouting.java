@@ -128,6 +128,16 @@ public class TestShardRouting {
     }
 
     public static ShardRouting newShardRouting(ShardId shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
+        return newShardRouting(shardId, currentNodeId, primary, state, ShardRouting.Role.DEFAULT);
+    }
+
+    public static ShardRouting newShardRouting(
+        ShardId shardId,
+        String currentNodeId,
+        boolean primary,
+        ShardRoutingState state,
+        ShardRouting.Role role
+    ) {
         assertNotEquals(ShardRoutingState.RELOCATING, state);
         return new ShardRouting(
             shardId,
@@ -140,7 +150,7 @@ public class TestShardRouting {
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-            ShardRouting.Role.DEFAULT
+            role
         );
     }
 

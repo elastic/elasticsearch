@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.common;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
@@ -249,6 +249,6 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InferencePlugin.class);
+        return Arrays.asList(LocalStateInferencePlugin.class);
     }
 }

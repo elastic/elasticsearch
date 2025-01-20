@@ -259,14 +259,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     Map<String, AliasFilter> buildIndexAliasFilters(
         ClusterState clusterState,
         Set<ResolvedExpression> indicesAndAliases,
-        Index[] concreteIndices
+        Index[] concreteIndices,
+        boolean filterEmpty
     ) {
         final Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
         for (Index index : concreteIndices) {
             clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
             AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, index.getName(), indicesAndAliases);
             assert aliasFilter != null;
-            if (aliasFilter != AliasFilter.EMPTY) {
+            if (filterEmpty == false || aliasFilter != AliasFilter.EMPTY) {
                 aliasFilterMap.put(index.getUUID(), aliasFilter);
             }
         }
@@ -1249,7 +1250,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 clusterState,
                 searchRequest.indices()
             );
-            aliasFilter = buildIndexAliasFilters(clusterState, indicesAndAliases, indices);
+            aliasFilter = buildIndexAliasFilters(clusterState, indicesAndAliases, indices, true);
             aliasFilter.putAll(remoteAliasMap);
             localShardIterators = getLocalShardsIterator(
                 clusterState,

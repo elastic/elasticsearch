@@ -1686,7 +1686,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             0
         );
 
-        ByteSizeValue partSize = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
+        ByteSizeValue partSize = ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES);
 
         List<StoreFileMetadata> filesToRecoverFromSource = sourceFiles.subList(0, sourceFileCount);
         List<StoreFileMetadata> filesToRecoverFromSnapshot = sourceFiles.subList(sourceFileCount, sourceFiles.size());

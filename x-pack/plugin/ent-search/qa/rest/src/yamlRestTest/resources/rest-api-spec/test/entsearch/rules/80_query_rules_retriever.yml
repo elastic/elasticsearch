@@ -288,10 +288,9 @@ setup:
               rank_window_size: 1
 
   - match: { hits.total.value: 3 }
+  - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: foo }
   - match: { hits.hits.0._score: 1.7014124E38 }
-  - match: { hits.hits.1._score: 0 }
-  - match: { hits.hits.2._score: 0 }
 
   - do:
       headers:
@@ -315,12 +314,10 @@ setup:
               rank_window_size: 2
 
   - match: { hits.total.value: 3 }
+  - length: { hits.hits: 2 }
   - match: { hits.hits.0._id: foo }
   - match: { hits.hits.0._score: 1.7014124E38 }
   - match: { hits.hits.1._id: foo2 }
-  - match: { hits.hits.1._score: 1.7014122E38 }
-  - match: { hits.hits.2._id: bar_no_rule }
-  - match: { hits.hits.2._score: 0 }
 
   - do:
       headers:
@@ -344,6 +341,7 @@ setup:
               rank_window_size: 10
 
   - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
   - match: { hits.hits.0._id: foo }
   - match: { hits.hits.0._score: 1.7014124E38 }
   - match: { hits.hits.1._id: foo2 }

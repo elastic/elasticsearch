@@ -45,7 +45,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-retrievers]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-constant]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-window-size]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=compound-retriever-rank-window-size]
 
 An example request using RRF:
 
@@ -791,11 +791,11 @@ A more specific example of highlighting in RRF can also be found in the <<retrie
 
 ==== Inner hits in RRF
 
-The `rrf` retriever supports <<inner-hits,inner hits>> functionality, allowing you to retrieve 
-related nested or parent/child documents alongside your main search results. Inner hits can be 
-specified as part of any nested sub-retriever and will be propagated to the top-level parent 
-retriever. Note that the inner hit computation will take place only at end of `rrf` retriever's 
-evaluation on the top matching documents, and not as part of the query execution of the nested 
+The `rrf` retriever supports <<inner-hits,inner hits>> functionality, allowing you to retrieve
+related nested or parent/child documents alongside your main search results. Inner hits can be
+specified as part of any nested sub-retriever and will be propagated to the top-level parent
+retriever. Note that the inner hit computation will take place only at end of `rrf` retriever's
+evaluation on the top matching documents, and not as part of the query execution of the nested
 sub-retrievers.
 
 [IMPORTANT]

@@ -28,6 +28,9 @@ A <<standard-retriever, retriever>> that replaces the functionality of a traditi
 `knn`::
 A <<knn-retriever, retriever>> that replaces the functionality of a <<search-api-knn, knn search>>.
 
+`linear`::
+A <<linear-retriever, retriever>> that linearly combines the scores of other retrievers for the top documents.
+
 `rescorer`::
 A <<rescorer-retriever, retriever>> that replaces the functionality of the <<rescore, query rescorer>>.
 
@@ -265,6 +268,20 @@ GET /restaurants/_search
 This value must be fewer than or equal to `num_candidates`.
 <5> The size of the initial candidate set from which the final `k` nearest neighbors are selected.
 
+[[linear-retriever]]
+==== Linear Retriever
+A retriever that normalizes and linearly combines the scores of other retrievers. If the final scores produced after the
+weighted combination of all sub-retrievers are negative, a corrective factor is applied equal to the minimum score,
+so all scores are positive.
+
+===== Parameters
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=linear-retriever-components]
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=compound-retriever-rank-window-size]
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=compound-retriever-filter]
+
 [[rrf-retriever]]
 ==== RRF Retriever
 
@@ -277,9 +294,9 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-retrievers]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-constant]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-window-size]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=compound-retriever-rank-window-size]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-filter]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=compound-retriever-filter]
 
 [discrete]
 [[rrf-retriever-example-hybrid]]

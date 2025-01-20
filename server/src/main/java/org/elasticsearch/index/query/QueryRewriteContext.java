@@ -72,6 +72,7 @@ public class QueryRewriteContext {
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
     private QueryRewriteInterceptor queryRewriteInterceptor;
+    protected boolean isExplain;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -260,6 +261,14 @@ public class QueryRewriteContext {
 
     public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
+    }
+
+    public boolean isExplain() {
+        return this.isExplain;
+    }
+
+    public void isExplain(boolean explain) {
+        this.isExplain = explain;
     }
 
     public NamedWriteableRegistry getWriteableRegistry() {

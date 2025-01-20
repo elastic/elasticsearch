@@ -1,0 +1,135 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.search.rank;
+
+import org.apache.lucene.search.Explanation;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
+
+public class LinearRankDoc extends RankDoc {
+
+    public static final String NAME = "linear_rank_doc";
+
+    final float[] weights;
+    final String[] normalizers;
+    public float[] normalizedScores;
+
+    public LinearRankDoc(int doc, float score, int shardIndex, float[] weights, String[] normalizers) {
+        super(doc, score, shardIndex);
+        this.weights = weights;
+        this.normalizers = normalizers;
+        if (normalizers == null) {
+            this.normalizedScores = null;
+        } else {
+            this.normalizedScores = new float[normalizers.length];
+            Arrays.fill(normalizedScores, 0f);
+        }
+    }
+
+    public LinearRankDoc(StreamInput in) throws IOException {
+        super(in);
+        weights = in.readOptionalFloatArray();
+        normalizedScores = in.readOptionalFloatArray();
+        normalizers = in.readOptionalStringArray();
+    }
+
+    @Override
+    public Explanation explain(Explanation[] sources, String[] queryNames) {
+        Explanation[] details = new Explanation[sources.length];
+        for (int i = 0; i < sources.length; i++) {
+            final String queryAlias = queryNames[i] == null ? "" : " [" + queryNames[i] + "]";
+            final String queryIdentifier = "at index [" + i + "]" + queryAlias;
+            if (normalizedScores[i] > 0) {
+                details[i] = Explanation.match(
+                    weights[i] * normalizedScores[i],
+                    "weighted score: ["
+                        + weights[i] * normalizedScores[i]
+                        + "] in query "
+                        + queryIdentifier
+                        + " computed as ["
+                        + weights[i]
+                        + " * "
+                        + normalizedScores[i]
+                        + "]"
+                        + " using score normalizer ["
+                        + normalizers[i]
+                        + "]"
+                        + " for original matching query with score:",
+                    sources[i]
+                );
+            } else {
+                final String description = "weighted score: [0], result not found in query " + queryIdentifier;
+                details[i] = Explanation.noMatch(description);
+            }
+        }
+        return Explanation.match(
+            score,
+            "weighted linear combination score: ["
+                + score
+                + "] computed for normalized scores "
+                + Arrays.toString(normalizedScores)
+                + " and weights "
+                + Arrays.toString(weights)
+                + " as sum of (weight[i] * score[i]) for each query.",
+            details
+        );
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeOptionalFloatArray(weights);
+        out.writeOptionalFloatArray(normalizedScores);
+        out.writeOptionalStringArray(normalizers);
+    }
+
+    @Override
+    protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
+        if (weights != null) {
+            builder.field("weights", weights);
+        }
+        if (normalizedScores != null) {
+            builder.field("normalizedScores", normalizedScores);
+        }
+        if (normalizers != null) {
+            builder.field("normalizers", normalizers);
+        }
+    }
+
+    @Override
+    public boolean doEquals(RankDoc rd) {
+        LinearRankDoc lrd = (LinearRankDoc) rd;
+        return Arrays.equals(weights, lrd.weights)
+            && Arrays.equals(normalizedScores, lrd.normalizedScores)
+            && Arrays.equals(normalizers, lrd.normalizers);
+    }
+
+    @Override
+    public int doHashCode() {
+        int result = Objects.hash(Arrays.hashCode(weights), Arrays.hashCode(normalizedScores), Arrays.hashCode(normalizers));
+        return 31 * result;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.LINEAR_RETRIEVER_SUPPORT;
+    }
+}

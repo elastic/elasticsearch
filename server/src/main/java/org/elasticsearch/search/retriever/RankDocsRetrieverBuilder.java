@@ -125,6 +125,9 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         }
         // ignore prefilters of this level, they were already propagated to children
         searchSourceBuilder.query(rankQuery);
+        if (searchSourceBuilder.size() < 0) {
+            searchSourceBuilder.size(rankWindowSize);
+        }
         if (sourceHasMinScore()) {
             searchSourceBuilder.minScore(this.minScore() == null ? Float.MIN_VALUE : this.minScore());
         }

@@ -23,6 +23,9 @@ This ensures backward compatibility as existing `_search` requests remain suppor
 That way you can transition to the new abstraction at your own pace without mixing syntaxes.
 * <<knn-retriever,*kNN Retriever*>>.
 Returns top documents from a <<search-api-knn,knn search>>, in the context of a retriever framework.
+* <<linear-retriever,*Linear Retriever*>>.
+Combines the top results from multiple sub-retrievers using a weighted sum of their scores. Allows to specify different
+weights for each retriever, as well as independently normalize the scores from each result set.
 * <<rrf-retriever,*RRF Retriever*>>.
 Combines and ranks multiple first-stage retrievers using the reciprocal rank fusion (RRF) algorithm.
 Allows you to combine multiple result sets with different relevance indicators into a single result set.

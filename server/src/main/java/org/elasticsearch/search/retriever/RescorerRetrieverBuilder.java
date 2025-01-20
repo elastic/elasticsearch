@@ -148,7 +148,7 @@ public final class RescorerRetrieverBuilder extends CompoundRetrieverBuilder<Res
     }
 
     @Override
-    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
+    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean isExplain) {
         assert rankResults.size() == 1;
         ScoreDoc[] scoreDocs = rankResults.getFirst();
         RankDoc[] rankDocs = new RankDoc[scoreDocs.length];

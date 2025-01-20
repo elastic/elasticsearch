@@ -78,12 +78,12 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
         assert handler != null : "handler must be set before requesting next chunk";
         requestContext = threadContext.newStoredContext();
         channel.eventLoop().submit(() -> {
-            if (closing) {
-                return;
-            }
             activityTracker.startActivity();
             requested = true;
             try {
+                if (closing) {
+                    return;
+                }
                 if (buf == null) {
                     channel.read();
                 } else {

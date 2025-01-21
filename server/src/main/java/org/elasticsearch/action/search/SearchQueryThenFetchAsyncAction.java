@@ -40,7 +40,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.RefCounted;
@@ -73,6 +72,8 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -129,7 +130,18 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
     private final SearchShardIterator[] shardIterators;
     private final AtomicBoolean requestCancelled = new AtomicBoolean();
 
-    private final Set<Integer> outstandingShards = ConcurrentCollections.newConcurrentSet();
+    private static final VarHandle OUTSTANDING_SHARDS;
+
+    static {
+        try {
+            OUTSTANDING_SHARDS = MethodHandles.lookup()
+                .findVarHandle(SearchQueryThenFetchAsyncAction.class, "outstandingShards", int.class);
+        } catch (Exception e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    private int outstandingShards = 0;
 
     // protected for tests
     protected final List<Releasable> releasables = new ArrayList<>();
@@ -581,11 +593,13 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
     private void run() {
         // TODO: stupid but we kinda need to fill all of these in with the current logic, do something nicer before merging
         final Map<SearchShardIterator, Integer> shardIndexMap = Maps.newHashMapWithExpectedSize(shardIterators.length);
+        int outstandingShards = 0;
         for (int i = 0; i < shardIterators.length; i++) {
             var iterator = shardIterators[i];
             shardIndexMap.put(iterator, i);
-            outstandingShards.add(i);
+            outstandingShards++;
         }
+        OUTSTANDING_SHARDS.setRelease(this, outstandingShards);
         for (final SearchShardIterator iterator : toSkipShardsIts) {
             assert iterator.skip();
             skipShard(iterator);
@@ -800,32 +814,25 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
                 }
             }
             onShardGroupFailure(shardIndex, shard, e);
-            finishShardAndMaybePhase(shardIndex);
+            finishShardAndMaybePhase();
         } else {
             performPhaseOnShard(shardIndex, shardIt, nextShard);
         }
     }
 
-    private void finishShardAndMaybePhase(int shardIndex) {
-        boolean removed = outstandingShards.remove(shardIndex);
-        var shardId = shardIterators[shardIndex].shardId();
-        assert removed
-            : "unknown shardId "
-                + "["
-                + shardId
-                + "] ["
-                + shardId.getIndex().getUUID()
-                + "]["
-                + System.identityHashCode(SearchQueryThenFetchAsyncAction.this)
-                + "]";
-        finishIfAllDone();
+    private void finishShardAndMaybePhase() {
+        if ((int) OUTSTANDING_SHARDS.getAndAdd(this, -1) == 1) {
+            finishIfAllDone();
+        }
     }
 
     private final AtomicBoolean done = new AtomicBoolean(false);
 
     private void finishIfAllDone() {
-        if (outstandingShards.isEmpty() && done.compareAndSet(false, true)) {
+        if (done.compareAndSet(false, true)) {
             executeNextPhase(NAME, this::getNextPhase);
+        } else {
+            assert false;
         }
     }
 
@@ -1018,12 +1025,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
         if (shardFailures != null) {
             shardFailures.set(result.getShardIndex(), null);
         }
-        // we need to increment successful ops first before we compare the exit condition otherwise if we
-        // are fast we could concurrently update totalOps but then preempt one of the threads which can
-        // cause the successor to read a wrong value from successfulOps if second phase is very fast ie. count etc.
-        // increment all the "future" shards to update the total ops since we some may work and some may not...
-        // and when that happens, we break on total ops, so we must maintain them
-        finishShardAndMaybePhase(result.getShardIndex());
+        finishShardAndMaybePhase();
     }
 
     public static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";

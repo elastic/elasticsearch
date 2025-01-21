@@ -116,7 +116,6 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
                     equalTo(expected)
                 )
             ),
-            /*
             new TestCaseSupplier(
                 "DateDiff(" + unit + "<KEYWORD>, " + startTimestamp + "<NANOS>, " + endTimestamp + "<NANOS>) == " + expected,
                 List.of(DataType.KEYWORD, DataType.DATE_NANOS, DataType.DATE_NANOS),
@@ -149,7 +148,7 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
             ),
             new TestCaseSupplier(
                 "DateDiff(" + unit + "<KEYWORD>, " + startTimestamp + "<MILLIS>, " + endTimestamp + "<NANOS>) == " + expected,
-                List.of(DataType.KEYWORD, DataType.DATETIME, DataType.DATETIME),
+                List.of(DataType.KEYWORD, DataType.DATETIME, DataType.DATE_NANOS),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(new BytesRef(unit), DataType.KEYWORD, "unit"),
@@ -162,7 +161,6 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
                     equalTo(expected)
                 )
             ),
-            */
             // Units as text case
             new TestCaseSupplier(
                 "DateDiff(" + unit + "<TEXT>, " + startTimestamp + ", " + endTimestamp + ") == " + expected,

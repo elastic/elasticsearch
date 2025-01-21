@@ -45,6 +45,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt;
 
 /**
@@ -170,10 +171,10 @@ public class DateDiff extends EsqlScalarFunction {
         @Param(name = "unit", type = { "keyword", "text" }, description = "Time difference unit") Expression unit,
         @Param(
             name = "startTimestamp",
-            type = { "date" },
+            type = { "date", "date_nanos" },
             description = "A string representing a start timestamp"
         ) Expression startTimestamp,
-        @Param(name = "endTimestamp", type = { "date" }, description = "A string representing an end timestamp") Expression endTimestamp
+        @Param(name = "endTimestamp", type = { "date", "date_nanos" }, description = "A string representing an end timestamp") Expression endTimestamp
     ) {
         super(source, List.of(unit, startTimestamp, endTimestamp));
         this.unit = unit;
@@ -239,6 +240,30 @@ public class DateDiff extends EsqlScalarFunction {
         return processNanos(Part.resolve(unit.utf8ToString()), startTimestamp, endTimestamp);
     }
 
+    @Evaluator(extraName = "ConstantNanosMillis", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
+    static int processNanosMillis(@Fixed Part datePartFieldUnit, long startTimestamp, long endTimestamp) throws IllegalArgumentException {
+        ZonedDateTime zdtStart = ZonedDateTime.ofInstant(DateUtils.toInstant(startTimestamp), UTC);
+        ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(Instant.ofEpochMilli(endTimestamp), UTC);
+        return datePartFieldUnit.diff(zdtStart, zdtEnd);
+    }
+
+    @Evaluator(extraName = "NanosMillis", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
+    static int processNanosMillis(BytesRef unit, long startTimestamp, long endTimestamp) throws IllegalArgumentException {
+        return processNanosMillis(Part.resolve(unit.utf8ToString()), startTimestamp, endTimestamp);
+    }
+
+    @Evaluator(extraName = "ConstantMillisNanos", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
+    static int processMillisNanos(@Fixed Part datePartFieldUnit, long startTimestamp, long endTimestamp) throws IllegalArgumentException {
+        ZonedDateTime zdtStart = ZonedDateTime.ofInstant(Instant.ofEpochMilli(startTimestamp), UTC);
+        ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(DateUtils.toInstant(endTimestamp), UTC);
+        return datePartFieldUnit.diff(zdtStart, zdtEnd);
+    }
+
+    @Evaluator(extraName = "MillisNanos", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
+    static int processMillisNanos(BytesRef unit, long startTimestamp, long endTimestamp) throws IllegalArgumentException {
+        return processMillisNanos(Part.resolve(unit.utf8ToString()), startTimestamp, endTimestamp);
+    }
+
     @FunctionalInterface
     public interface DateDiffFactory {
         ExpressionEvaluator.Factory build(
@@ -261,7 +286,16 @@ public class DateDiff extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return toEvaluator(toEvaluator, DateDiffConstantMillisEvaluator.Factory::new, DateDiffMillisEvaluator.Factory::new);
+        if (startTimestamp.dataType() == DATETIME && endTimestamp.dataType() == DATETIME) {
+            return toEvaluator(toEvaluator, DateDiffConstantMillisEvaluator.Factory::new, DateDiffMillisEvaluator.Factory::new);
+        } else if (startTimestamp.dataType() == DATE_NANOS && endTimestamp.dataType() == DATE_NANOS) {
+            return toEvaluator(toEvaluator, DateDiffConstantNanosEvaluator.Factory::new, DateDiffNanosEvaluator.Factory::new);
+        } else if (startTimestamp.dataType() == DATE_NANOS && endTimestamp.dataType() == DATETIME) {
+            return toEvaluator(toEvaluator, DateDiffConstantNanosMillisEvaluator.Factory::new, DateDiffNanosMillisEvaluator.Factory::new);
+        } else if (startTimestamp.dataType() == DATETIME && endTimestamp.dataType() == DATE_NANOS) {
+            return toEvaluator(toEvaluator, DateDiffConstantMillisNanosEvaluator.Factory::new, DateDiffMillisNanosEvaluator.Factory::new);
+        }
+        throw new UnsupportedOperationException("How'd we get here?");
     }
 
     private ExpressionEvaluator.Factory toEvaluator(

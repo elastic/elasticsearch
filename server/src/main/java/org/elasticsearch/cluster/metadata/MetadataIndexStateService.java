@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -121,8 +120,7 @@ public class MetadataIndexStateService {
         false,
         Setting.Property.IndexScope,
         Setting.Property.NotCopyableOnResize,
-        // Allow the setting to be updated in snapshot builds
-        Build.current().isSnapshot() ? Setting.Property.OperatorDynamic : Setting.Property.PrivateIndex
+        Setting.Property.PrivateIndex
     );
 
     private final ClusterService clusterService;

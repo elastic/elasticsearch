@@ -121,8 +121,8 @@ public class RRFQueryPhaseRankCoordinatorContext extends QueryPhaseRankCoordinat
                     value.score += 1.0f / (rankConstant + frank);
                     assert value.positions != null && value.scores != null;
                     value.positions[fqi] = frank - 1;
+                    assert rrfRankDoc.scores != null;
                     value.scores[fqi] = rrfRankDoc.scores[fqi];
-
                     return value;
                 });
             }

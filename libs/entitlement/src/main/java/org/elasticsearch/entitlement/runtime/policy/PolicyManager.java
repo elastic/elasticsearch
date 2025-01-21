@@ -244,6 +244,34 @@ public class PolicyManager {
         );
     }
 
+    public void checkWriteProperty(Class<?> callerClass, String property) {
+        var requestingClass = requestingClass(callerClass);
+        if (isTriviallyAllowed(requestingClass)) {
+            return;
+        }
+
+        ModuleEntitlements entitlements = getEntitlements(requestingClass);
+        if (entitlements.getEntitlements(WriteSystemPropertiesEntitlement.class).anyMatch(e -> e.properties().contains(property))) {
+            logger.debug(
+                () -> Strings.format(
+                    "Entitled: class [%s], module [%s], entitlement [write_system_properties], property [%s]",
+                    requestingClass,
+                    requestingClass.getModule().getName(),
+                    property
+                )
+            );
+            return;
+        }
+        throw new NotEntitledException(
+            Strings.format(
+                "Missing entitlement: class [%s], module [%s], entitlement [write_system_properties], property [%s]",
+                requestingClass,
+                requestingClass.getModule().getName(),
+                property
+            )
+        );
+    }
+
     private void checkEntitlementPresent(Class<?> callerClass, Class<? extends Entitlement> entitlementClass) {
         var requestingClass = requestingClass(callerClass);
         if (isTriviallyAllowed(requestingClass)) {

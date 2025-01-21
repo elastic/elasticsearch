@@ -14,12 +14,12 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongVectorBlock;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -30,19 +30,17 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -67,6 +65,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.map.LogWithBaseInMap;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
@@ -77,6 +76,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
@@ -6220,6 +6223,83 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var rightRel = as(join.right(), EsRelation.class);
     }
 
+    /**
+     * When dropping lookup fields, the lookup relation shouldn't include them.
+     * At least until we can implement InsertFieldExtract there.
+     * Expects
+     * EsqlProject[[languages{f}#10]]
+     * \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
+     *   |_Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
+     * uages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12, languages{f}#10 AS language_code]]
+     *   | \_Limit[1000[INTEGER]]
+     *   |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18]
+     */
+    public void testLookupJoinKeepNoLookupFields() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+
+        String commandDiscardingFields = randomBoolean() ? "| KEEP languages" : """
+            | DROP _meta_field, emp_no, first_name, gender, language_code,
+                   language_name, last_name, salary, hire_date, job, job.raw, long_noidx
+            """;
+
+        String query = """
+            FROM test
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            """ + commandDiscardingFields;
+
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        assertThat(project.projections().size(), equalTo(1));
+        assertThat(project.projections().get(0).name(), equalTo("languages"));
+
+        var join = as(project.child(), Join.class);
+        var joinRightRelation = as(join.right(), EsRelation.class);
+
+        assertThat(joinRightRelation.output().size(), equalTo(1));
+        assertThat(joinRightRelation.output().get(0).name(), equalTo("language_code"));
+    }
+
+    /**
+     * Ensure a JOIN shadowed by another JOIN doesn't request the shadowed fields.
+     *
+     * Expected
+     * Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#20]]
+     * |_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
+     * | |_Eval[[languages{f}#10 AS language_code]]
+     * | | \_Limit[1000[INTEGER]]
+     * | |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     * | \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18]
+     * \_EsRelation[languages_lookup][LOOKUP][language_code{f}#20, language_name{f}#21]
+     */
+    public void testMultipleLookupShadowing() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+
+        String query = """
+            FROM test
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var finalJoin = as(plan, Join.class);
+        var finalJoinRightRelation = as(finalJoin.right(), EsRelation.class);
+
+        assertThat(finalJoinRightRelation.output().size(), equalTo(2));
+        assertThat(finalJoinRightRelation.output().get(0).name(), equalTo("language_code"));
+        assertThat(finalJoinRightRelation.output().get(1).name(), equalTo("language_name"));
+
+        var initialJoin = as(finalJoin.left(), Join.class);
+        var initialJoinRightRelation = as(initialJoin.right(), EsRelation.class);
+
+        assertThat(initialJoinRightRelation.output().size(), equalTo(1));
+        assertThat(initialJoinRightRelation.output().get(0).name(), equalTo("language_code"));
+    }
+
     //
     //
     //
@@ -6820,5 +6900,35 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             """);
         var local = as(plan, LocalRelation.class);
         assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
+    }
+
+    public void testMapExpressionAsFunctionArgument() {
+        assumeTrue("MapExpression require snapshot build", EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled());
+        var query = """
+            from test
+            | EVAL l = log_with_base_in_map(languages, {"base":2.0})
+            | KEEP l
+            """;
+        var plan = optimizedPlan(query);
+        Project proj = as(plan, EsqlProject.class);
+        List<?> fields = proj.projections();
+        assertEquals(1, fields.size());
+        ReferenceAttribute ra = as(fields.get(0), ReferenceAttribute.class);
+        assertEquals("l", ra.name());
+        assertEquals(DataType.DOUBLE, ra.dataType());
+        Eval eval = as(proj.child(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        Alias a = as(eval.fields().get(0), Alias.class);
+        LogWithBaseInMap l = as(a.child(), LogWithBaseInMap.class);
+        MapExpression me = as(l.base(), MapExpression.class);
+        assertEquals(1, me.entryExpressions().size());
+        EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
+        BytesRef key = as(ee.key().fold(FoldContext.small()), BytesRef.class);
+        assertEquals("base", key.utf8ToString());
+        assertEquals(new Literal(EMPTY, 2.0, DataType.DOUBLE), ee.value());
+        assertEquals(DataType.DOUBLE, ee.dataType());
+        Limit limit = as(eval.child(), Limit.class);
+        EsRelation esRelation = as(limit.child(), EsRelation.class);
+        assertEquals(esRelation.indexPattern(), "test");
     }
 }

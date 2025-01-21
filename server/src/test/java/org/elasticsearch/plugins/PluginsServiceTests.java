@@ -64,11 +64,16 @@ import static org.hamcrest.Matchers.sameInstance;
 public class PluginsServiceTests extends ESTestCase {
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
-    static PluginsService newPluginsService(Settings settings) {
+    static PluginsService newPluginsService(Settings settings) throws IOException {
         return new PluginsService(
             settings,
             null,
-            PluginsLoader.createPluginsLoader(null, TestEnvironment.newEnvironment(settings).pluginsFile(), false)
+            PluginsLoader.createPluginsLoader(
+                Set.of(),
+                PluginsLoader.loadPluginBundles(TestEnvironment.newEnvironment(settings).pluginsFile()),
+                false,
+                Map.of()
+            )
         );
     }
 

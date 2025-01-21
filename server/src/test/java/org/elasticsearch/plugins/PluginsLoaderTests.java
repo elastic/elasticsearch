@@ -28,6 +28,7 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
@@ -44,8 +45,13 @@ public class PluginsLoaderTests extends ESTestCase {
 
     private static final Logger logger = LogManager.getLogger(PluginsLoaderTests.class);
 
-    static PluginsLoader newPluginsLoader(Settings settings) {
-        return PluginsLoader.createPluginsLoader(null, TestEnvironment.newEnvironment(settings).pluginsFile(), false);
+    static PluginsLoader newPluginsLoader(Settings settings) throws IOException {
+        return PluginsLoader.createPluginsLoader(
+            Set.of(),
+            PluginsLoader.loadPluginBundles(TestEnvironment.newEnvironment(settings).pluginsFile()),
+            false,
+            Map.of()
+        );
     }
 
     public void testToModuleName() {
@@ -113,10 +119,6 @@ public class PluginsLoaderTests extends ESTestCase {
             assertThat(loadedLayers, hasSize(1));
             assertThat(loadedLayers.get(0).pluginBundle().pluginDescriptor().getName(), equalTo("stable-plugin"));
             assertThat(loadedLayers.get(0).pluginBundle().pluginDescriptor().isStable(), is(true));
-
-            assertThat(pluginsLoader.pluginDescriptors(), hasSize(1));
-            assertThat(pluginsLoader.pluginDescriptors().get(0).getName(), equalTo("stable-plugin"));
-            assertThat(pluginsLoader.pluginDescriptors().get(0).isStable(), is(true));
 
             var pluginClassLoader = loadedLayers.get(0).pluginClassLoader();
             var pluginModuleLayer = loadedLayers.get(0).pluginModuleLayer();
@@ -189,10 +191,6 @@ public class PluginsLoaderTests extends ESTestCase {
             assertThat(loadedLayers.get(0).pluginBundle().pluginDescriptor().isStable(), is(false));
             assertThat(loadedLayers.get(0).pluginBundle().pluginDescriptor().isModular(), is(true));
 
-            assertThat(pluginsLoader.pluginDescriptors(), hasSize(1));
-            assertThat(pluginsLoader.pluginDescriptors().get(0).getName(), equalTo("modular-plugin"));
-            assertThat(pluginsLoader.pluginDescriptors().get(0).isModular(), is(true));
-
             var pluginModuleLayer = loadedLayers.get(0).pluginModuleLayer();
             assertThat(pluginModuleLayer, is(not(ModuleLayer.boot())));
             assertThat(pluginModuleLayer.modules(), contains(transformedMatch(Module::getName, equalTo("modular.plugin"))));
@@ -244,10 +242,6 @@ public class PluginsLoaderTests extends ESTestCase {
             assertThat(loadedLayers.get(0).pluginBundle().pluginDescriptor().getName(), equalTo("non-modular-plugin"));
             assertThat(loadedLayers.get(0).pluginBundle().pluginDescriptor().isStable(), is(false));
             assertThat(loadedLayers.get(0).pluginBundle().pluginDescriptor().isModular(), is(false));
-
-            assertThat(pluginsLoader.pluginDescriptors(), hasSize(1));
-            assertThat(pluginsLoader.pluginDescriptors().get(0).getName(), equalTo("non-modular-plugin"));
-            assertThat(pluginsLoader.pluginDescriptors().get(0).isModular(), is(false));
 
             var pluginModuleLayer = loadedLayers.get(0).pluginModuleLayer();
             assertThat(pluginModuleLayer, is(ModuleLayer.boot()));

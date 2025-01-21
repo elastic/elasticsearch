@@ -32,6 +32,8 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
+import org.elasticsearch.entitlement.runtime.policy.LoadNativeLibrariesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.PolicyParserUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.jdk.JarHell;
@@ -56,8 +58,12 @@ import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -215,26 +221,39 @@ class Elasticsearch {
             MethodHandlers.class
         );
 
-        // load the plugin Java modules and layers now for use in entitlements
-        var pluginsLoader = PluginsLoader.createPluginsLoader(nodeEnv.modulesFile(), nodeEnv.pluginsFile());
-        bootstrap.setPluginsLoader(pluginsLoader);
+        var modulesBundles = PluginsLoader.loadModuleBundles(nodeEnv.modulesFile());
+        var pluginsBundles = PluginsLoader.loadPluginBundles(nodeEnv.pluginsFile());
 
         if (bootstrap.useEntitlements()) {
             LogManager.getLogger(Elasticsearch.class).info("Bootstrapping Entitlements");
 
             List<EntitlementBootstrap.PluginData> pluginData = Stream.concat(
-                pluginsLoader.moduleBundles()
-                    .stream()
+                modulesBundles.stream()
                     .map(bundle -> new EntitlementBootstrap.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
-                pluginsLoader.pluginBundles()
-                    .stream()
+                pluginsBundles.stream()
                     .map(bundle -> new EntitlementBootstrap.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
             ).toList();
 
+            var policies = PolicyParserUtils.createPluginPolicies(pluginData);
+            var pluginsWithNativeAccess = new HashMap<String, Set<String>>();
+            for (var kv : policies.entrySet()) {
+                for (var scope : kv.getValue().scopes()) {
+                    if (scope.entitlements().stream().anyMatch(entitlement -> entitlement instanceof LoadNativeLibrariesEntitlement)) {
+                        var modulesToEnable = pluginsWithNativeAccess.computeIfAbsent(kv.getKey(), k -> new HashSet<>());
+                        modulesToEnable.add(scope.moduleName());
+                    }
+                }
+            }
+            var pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, pluginsWithNativeAccess);
+            bootstrap.setPluginsLoader(pluginsLoader);
+
             var pluginsResolver = PluginsResolver.create(pluginsLoader);
 
-            EntitlementBootstrap.bootstrap(pluginData, pluginsResolver::resolveClassToPluginName);
+            EntitlementBootstrap.bootstrap(policies, pluginsResolver::resolveClassToPluginName);
         } else if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
+            var pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, Map.of());
+            bootstrap.setPluginsLoader(pluginsLoader);
+
             // install SM after natives, shutdown hooks, etc.
             LogManager.getLogger(Elasticsearch.class).info("Bootstrapping java SecurityManager");
             org.elasticsearch.bootstrap.Security.configure(
@@ -243,6 +262,9 @@ class Elasticsearch {
                 args.pidFile()
             );
         } else {
+            var pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, Map.of());
+            bootstrap.setPluginsLoader(pluginsLoader);
+
             LogManager.getLogger(Elasticsearch.class).warn("Bootstrapping without any protection");
         }
     }

@@ -121,7 +121,6 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
     private final Object shardFailuresMutex = new Object();
     private final AtomicBoolean hasShardResponse = new AtomicBoolean(false);
     private final AtomicInteger successfulOps = new AtomicInteger();
-    private final AtomicInteger skippedOps = new AtomicInteger();
     private final TransportSearchAction.SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
 
@@ -299,7 +298,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
             scrollId,
             results.getNumShards(),
             numSuccess,
-            skippedOps.get(),
+            toSkipShardsIts.size(),
             timeProvider.buildTookInMillis(),
             failures,
             clusters,
@@ -885,7 +884,6 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
 
     void skipShard(SearchShardIterator iterator) {
         successfulOps.incrementAndGet();
-        skippedOps.incrementAndGet();
         assert iterator.skip();
     }
 
@@ -926,7 +924,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
                             "Partial shards failure (unavailable: {}, successful: {}, skipped: {}, num-shards: {}, phase: {})",
                             discrepancy,
                             successfulOps.get(),
-                            skippedOps.get(),
+                            toSkipShardsIts.size(),
                             numShards,
                             currentPhase
                         );

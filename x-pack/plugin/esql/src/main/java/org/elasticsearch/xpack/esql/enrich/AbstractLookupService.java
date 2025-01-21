@@ -674,6 +674,9 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         }
     }
 
+    /**
+     * Create a {@link LookupShardContext} for a locally allocated {@link ShardId}.
+     */
     public interface CreateShardContext {
         LookupShardContext create(ShardId shardId) throws IOException;
 
@@ -687,6 +690,10 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         }
     }
 
+    /**
+     * {@link AbstractLookupService} uses this to power the queries and field loading that
+     * it needs to perform to actually do the lookup.
+     */
     public record LookupShardContext(
         EsPhysicalOperationProviders.ShardContext context,
         SearchExecutionContext executionContext,

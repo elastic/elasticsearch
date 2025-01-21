@@ -382,7 +382,13 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Match(source(), newChildren.get(0), newChildren.get(1), options == null ? null : newChildren.get(2), queryBuilder());
+        return new Match(
+            source(),
+            newChildren.get(0),
+            newChildren.get(1),
+            newChildren.size() > 2 ? newChildren.get(2) : null,
+            queryBuilder()
+        );
     }
 
     @Override

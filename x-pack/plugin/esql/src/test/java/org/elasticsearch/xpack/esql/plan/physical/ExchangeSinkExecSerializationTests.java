@@ -77,8 +77,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  1.4mb - string serialization #112929
          *  1424046b - remove node-level plan #117422
          *  1040607b - remove EsIndex mapping serialization #119580
+         *  1040608b - additional boolean in Limit #120411
          */
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1040607));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1040608));
     }
 
     /**
@@ -96,8 +97,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  2774192b - remove field attribute #112881
          *  2774190b - remove node-level plan #117422
          *  2007288b - remove EsIndex mapping serialization #119580
+         *  2007289b - additional boolean in Limit #120411
          */
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2007288));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2007289));
     }
 
     private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {
@@ -117,13 +119,14 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  47252411b - remove field attribute #112881
          *  47252409b - remove node-level plan #117422
          *  43927169b - remove EsIndex mapping serialization #119580
+         *  43927170b - additional boolean in Limit #120411
          */
 
         int depth = 6;
         int childrenPerLevel = 8;
 
         EsIndex index = EsIndexSerializationTests.deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(43927169));
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(43927170));
     }
 
     /**
@@ -138,13 +141,14 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  9425806b - remove field attribute #112881
          *  9425804b - remove node-level plan #117422
          *  352b - remove EsIndex mapping serialization #119580
+         *  353b - additional boolean in Limit #120411
          */
 
         int depth = 6;
         int childrenPerLevel = 9;
 
         EsIndex index = EsIndexSerializationTests.deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(352), false);
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(353), false);
     }
 
     /**
@@ -155,6 +159,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
     public void testIndexPatternTargetingMultipleIndices() throws IOException {
         /*
          * History: 4996b - initial
+         * 4997b - additional boolean in Limit #120411
          */
 
         var index = new EsIndex(
@@ -164,7 +169,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
                 .mapToObj(i -> "partial-.ds-index-service-logs-2025.01.01-000" + i)
                 .collect(toMap(Function.identity(), i -> IndexMode.STANDARD))
         );
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(4996));
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(4997));
     }
 
     /**

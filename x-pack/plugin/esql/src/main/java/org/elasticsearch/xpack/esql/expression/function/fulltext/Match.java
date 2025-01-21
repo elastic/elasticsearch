@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -226,7 +227,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
         }
 
         // TODO Extract common logic for validating options
-        if (options() != null) {
+        if (options() != null && EsqlCapabilities.Cap.MATCH_FUNCTION_OPTIONS.isEnabled()) {
             // MapExpression does not have a DataType associated with it
             resolution = isMapExpression(options(), sourceText(), SECOND);
             if (resolution.unresolved()) {
@@ -247,7 +248,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
         // Match is lenient by default to avoid failing on incompatible types
         matchOptions.put(LENIENT_FIELD.getPreferredName(), true);
 
-        if (options() == null) {
+        if (options() == null || EsqlCapabilities.Cap.MATCH_FUNCTION_OPTIONS.isEnabled() == false) {
             return matchOptions;
         }
 

@@ -3,7 +3,7 @@
 
 Proper shard sizing is crucial for maintaining the performance and stability of an {es} cluster. _Oversharding_ occurs when data is distributed across an excessive number of shards, which can degrade search performance and make the cluster unstable. Conversely, very large shards may slow down search operations and prolong recovery times after failures. To strike the right balance, the <<shard-size-recommendation,general guidelines>> are to aim for shard sizes between 10GB and 50GB, keeping the per-shard document count below 200 million. To ensure that each node is working optimally, it's important to distribute shards evenly across nodes. Having uneven shard distribution will make some nodes work harder than others leading to performance degradation and potential instability. 
 
-Despite these general guidelines, developing a tailored <<create-a-sharding-strategy, sharding strategy>> that considers your specific infrastructure, use case, and performance expectations is essential. Regular monitoring and adjustments based on real-world performance will help ensure optimal cluster health.
+Despite these general guidelines, it is good to develop a tailored <<create-a-sharding-strategy, sharding strategy>> that considers your specific infrastructure, use case, and performance expectations.
 
 [discrete]
 [[what-is-a-shard]]

@@ -192,12 +192,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
     ) {
         logger.debug("Creating destination index [{}] for source index [{}]", destIndexName, sourceIndex.getIndex().getName());
 
-        var removeReadOnlyOverride = Settings.builder()
-            // remove read-only settings if they exist
-            .putNull(IndexMetadata.SETTING_READ_ONLY)
-            .putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
-            .putNull(IndexMetadata.SETTING_BLOCKS_WRITE)
-            // settings to optimize reindex
+        var settingsOverride = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
             .build();
@@ -205,8 +200,9 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         var request = new CreateIndexFromSourceAction.Request(
             sourceIndex.getIndex().getName(),
             destIndexName,
-            removeReadOnlyOverride,
-            Map.of()
+            settingsOverride,
+            Map.of(),
+            true
         );
         request.setParentTask(parentTaskId);
         var errorMessage = String.format(Locale.ROOT, "Could not create index [%s]", request.destIndex());

@@ -33,14 +33,14 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xpack.migrate.action.CancelReindexDataStreamAction;
+import org.elasticsearch.xpack.core.migrate.action.CancelReindexDataStreamAction;
+import org.elasticsearch.xpack.core.migrate.action.CreateIndexFromSourceAction;
+import org.elasticsearch.xpack.core.migrate.action.GetMigrationReindexStatusAction;
+import org.elasticsearch.xpack.core.migrate.action.ReindexDataStreamAction;
+import org.elasticsearch.xpack.core.migrate.action.ReindexDataStreamIndexAction;
 import org.elasticsearch.xpack.migrate.action.CancelReindexDataStreamTransportAction;
-import org.elasticsearch.xpack.migrate.action.CreateIndexFromSourceAction;
 import org.elasticsearch.xpack.migrate.action.CreateIndexFromSourceTransportAction;
-import org.elasticsearch.xpack.migrate.action.GetMigrationReindexStatusAction;
 import org.elasticsearch.xpack.migrate.action.GetMigrationReindexStatusTransportAction;
-import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction;
-import org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexAction;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexTransportAction;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamTransportAction;
 import org.elasticsearch.xpack.migrate.rest.RestCancelReindexDataStreamAction;
@@ -58,7 +58,7 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
+import static org.elasticsearch.xpack.core.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
 import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexTransportAction.REINDEX_MAX_REQUESTS_PER_SECOND_SETTING;
 import static org.elasticsearch.xpack.migrate.task.ReindexDataStreamPersistentTaskExecutor.MAX_CONCURRENT_INDICES_REINDEXED_PER_DATA_STREAM_SETTING;
 

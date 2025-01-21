@@ -17,7 +17,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction;
+import org.elasticsearch.xpack.core.migrate.action.ReindexDataStreamAction;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
+import static org.elasticsearch.xpack.core.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
 
 public class RestMigrationReindexAction extends BaseRestHandler {
     public static final String MIGRATION_REINDEX_CAPABILITY = "migration_reindex";

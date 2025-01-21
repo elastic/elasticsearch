@@ -34,7 +34,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexAction;
+import org.elasticsearch.xpack.core.migrate.action.ReindexDataStreamIndexAction;
 
 import java.util.ArrayList;
 import java.util.Collections;

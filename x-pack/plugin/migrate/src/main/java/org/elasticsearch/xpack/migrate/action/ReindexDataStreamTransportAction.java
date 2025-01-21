@@ -22,12 +22,13 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamRequest;
+import org.elasticsearch.xpack.core.migrate.action.ReindexDataStreamAction;
+import org.elasticsearch.xpack.core.migrate.action.ReindexDataStreamAction.ReindexDataStreamRequest;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTask;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTaskParams;
 
 import static org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate.getReindexRequiredPredicate;
-import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.TASK_ID_PREFIX;
+import static org.elasticsearch.xpack.core.migrate.action.ReindexDataStreamAction.TASK_ID_PREFIX;
 
 /*
  * This transport action creates a new persistent task for reindexing the source data stream given in the request. On successful creation

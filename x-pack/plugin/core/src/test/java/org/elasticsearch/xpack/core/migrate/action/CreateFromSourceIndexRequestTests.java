@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.migrate.action;
+package org.elasticsearch.xpack.core.migrate.action;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -14,7 +14,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.migrate.action.CreateIndexFromSourceAction.Request;
+import org.elasticsearch.xpack.core.migrate.action.CreateIndexFromSourceAction.Request;
 
 import java.io.IOException;
 import java.util.Map;

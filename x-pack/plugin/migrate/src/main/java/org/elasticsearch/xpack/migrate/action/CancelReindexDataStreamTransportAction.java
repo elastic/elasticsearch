@@ -18,7 +18,9 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.migrate.action.CancelReindexDataStreamAction.Request;
+import org.elasticsearch.xpack.core.migrate.action.CancelReindexDataStreamAction;
+import org.elasticsearch.xpack.core.migrate.action.CancelReindexDataStreamAction.Request;
+import org.elasticsearch.xpack.core.migrate.action.ReindexDataStreamAction;
 
 public class CancelReindexDataStreamTransportAction extends HandledTransportAction<Request, AcknowledgedResponse> {
     private final PersistentTasksService persistentTasksService;

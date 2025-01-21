@@ -31,6 +31,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.migrate.action.CreateIndexFromSourceAction;
 
 import java.io.IOException;
 import java.util.HashMap;

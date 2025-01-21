@@ -5,16 +5,15 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.migrate.action;
+package org.elasticsearch.xpack.core.migrate.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.migrate.action.CancelReindexDataStreamAction.Request;
+import org.elasticsearch.xpack.core.migrate.action.GetMigrationReindexStatusAction.Request;
 
 import java.io.IOException;
 
-public class CancelReindexDataStreamRequestTests extends AbstractWireSerializingTestCase<Request> {
-
+public class GetMigrationReindexStatusActionRequestTests extends AbstractWireSerializingTestCase<Request> {
     @Override
     protected Writeable.Reader<Request> instanceReader() {
         return Request::new;
@@ -22,11 +21,11 @@ public class CancelReindexDataStreamRequestTests extends AbstractWireSerializing
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAlphaOfLength(30));
+        return new Request(randomAlphaOfLength(100));
     }
 
     @Override
     protected Request mutateInstance(Request instance) throws IOException {
-        return new Request(instance.getIndex() + randomAlphaOfLength(5));
+        return createTestInstance(); // There's only one field
     }
 }

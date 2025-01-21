@@ -33,9 +33,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.migrate.action.GetMigrationReindexStatusAction.Request;
-import org.elasticsearch.xpack.migrate.action.GetMigrationReindexStatusAction.Response;
-import org.elasticsearch.xpack.migrate.task.ReindexDataStreamEnrichedStatus;
+import org.elasticsearch.xpack.core.migrate.action.GetMigrationReindexStatusAction;
+import org.elasticsearch.xpack.core.migrate.action.GetMigrationReindexStatusAction.Request;
+import org.elasticsearch.xpack.core.migrate.action.GetMigrationReindexStatusAction.Response;
+import org.elasticsearch.xpack.core.migrate.action.ReindexDataStreamAction;
+import org.elasticsearch.xpack.core.migrate.task.ReindexDataStreamEnrichedStatus;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamStatus;
 
 import java.util.HashMap;

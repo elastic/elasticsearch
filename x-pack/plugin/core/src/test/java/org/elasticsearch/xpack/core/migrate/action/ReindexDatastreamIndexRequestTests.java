@@ -5,11 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.migrate.action;
+package org.elasticsearch.xpack.core.migrate.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexAction.Request;
+import org.elasticsearch.xpack.core.migrate.action.ReindexDataStreamIndexAction.Request;
 
 public class ReindexDatastreamIndexRequestTests extends AbstractWireSerializingTestCase<Request> {
     @Override

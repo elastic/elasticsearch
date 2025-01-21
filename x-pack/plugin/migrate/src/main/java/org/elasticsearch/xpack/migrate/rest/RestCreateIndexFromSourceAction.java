@@ -11,7 +11,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.migrate.action.CreateIndexFromSourceAction;
+import org.elasticsearch.xpack.core.migrate.action.CreateIndexFromSourceAction;
 
 import java.io.IOException;
 import java.util.List;

@@ -43,6 +43,8 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
+import org.elasticsearch.xpack.core.migrate.action.CreateIndexFromSourceAction;
+import org.elasticsearch.xpack.core.migrate.action.ReindexDataStreamIndexAction;
 
 import java.util.Locale;
 import java.util.Map;

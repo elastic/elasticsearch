@@ -26,9 +26,12 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.migrate.action.CancelReindexDataStreamAction;
+import org.elasticsearch.xpack.core.migrate.action.GetMigrationReindexStatusAction;
+import org.elasticsearch.xpack.core.migrate.action.ReindexDataStreamAction;
+import org.elasticsearch.xpack.core.migrate.action.ReindexDataStreamAction.ReindexDataStreamRequest;
+import org.elasticsearch.xpack.core.migrate.task.ReindexDataStreamEnrichedStatus;
 import org.elasticsearch.xpack.migrate.MigratePlugin;
-import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamRequest;
-import org.elasticsearch.xpack.migrate.task.ReindexDataStreamEnrichedStatus;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTask;
 
 import java.util.Collection;
@@ -40,7 +43,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
+import static org.elasticsearch.xpack.core.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 

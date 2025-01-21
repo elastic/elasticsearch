@@ -5,15 +5,15 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.migrate.action;
+package org.elasticsearch.xpack.core.migrate.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.migrate.action.GetMigrationReindexStatusAction.Response;
-import org.elasticsearch.xpack.migrate.task.ReindexDataStreamEnrichedStatus;
+import org.elasticsearch.xpack.core.migrate.action.GetMigrationReindexStatusAction.Response;
+import org.elasticsearch.xpack.core.migrate.task.ReindexDataStreamEnrichedStatus;
 
 import java.io.IOException;
 import java.util.List;

@@ -61,14 +61,13 @@ public class ComponentTemplateDeprecationChecksTests extends ESTestCase {
         assertThat(issuesByComponentTemplate.containsKey("my-template-3"), is(false));
     }
 
-    public void testCheckLegacyTiersInComponentTemplates() throws IOException {
-        Template template = Template.builder()
-            .settings(Settings.builder().put("index.routing.allocation.require.data", "hot").build())
-            .build();
+    public void testCheckLegacyTiersInComponentTemplates() {
+        String setting = "index.routing.allocation." + randomFrom("include", "require", "exclude") + ".data";
+        Template template = Template.builder().settings(Settings.builder().put(setting, "hot").build()).build();
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
 
         Template template2 = Template.builder()
-            .settings(Settings.builder().put("index.routing.allocation.require." + randomAlphaOfLength(10), "hot").build())
+            .settings(Settings.builder().put("index.routing.allocation.require.data", randomAlphaOfLength(10)).build())
             .build();
         ComponentTemplate componentTemplate2 = new ComponentTemplate(template2, 1L, new HashMap<>());
 
@@ -84,13 +83,13 @@ public class ComponentTemplateDeprecationChecksTests extends ESTestCase {
         Map<String, List<DeprecationIssue>> issuesByComponentTemplate = componentTemplateDeprecationChecks.check(clusterState, null);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
-            "Setting 'index.routing.allocation.require.data' is not recommended",
+            "Configuring tiers via filtered allocation is not recommended.",
             "https://ela.st/migrate-to-tiers",
-            "One or more of your component templates is configured with 'index.routing.allocation.require.data' settings."
+            "One or more of your component templates is configured with 'index.routing.allocation.*.data' settings."
                 + " This is typically used to create a hot/warm or tiered architecture, based on legacy guidelines."
                 + " Data tiers are a recommended replacement for tiered architecture clusters.",
             false,
-            null
+            DeprecationIssue.createMetaMapForRemovableSettings(List.of(setting))
         );
         assertThat(issuesByComponentTemplate.get("my-template-1"), hasItem(expected));
         assertThat(issuesByComponentTemplate.get("my-template-2"), hasItem(expected));

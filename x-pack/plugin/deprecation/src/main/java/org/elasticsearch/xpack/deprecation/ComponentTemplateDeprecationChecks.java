@@ -19,8 +19,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX;
 import static org.elasticsearch.xpack.deprecation.DeprecationInfoAction.filterChecks;
+import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_COMMON_DETAIL;
+import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_HELP_URL;
+import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_MESSAGE;
 
 /**
  * Checks the component templates for deprecation warnings.
@@ -79,20 +81,20 @@ public class ComponentTemplateDeprecationChecks implements ResourceDeprecationCh
     }
 
     static DeprecationIssue checkComponentTemplates(ComponentTemplate componentTemplate) {
-
         Template template = componentTemplate.template();
-        if (template != null
-            && template.settings() != null
-            && template.settings().get(INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".data") != null) {
+        if (template != null) {
+            List<String> deprecatedSettings = LegacyTiersDetection.getDeprecatedFilteredAllocationSettings(template.settings());
+            if (deprecatedSettings.isEmpty()) {
+                return null;
+            }
             return new DeprecationIssue(
                 DeprecationIssue.Level.WARNING,
-                "Setting 'index.routing.allocation.require.data' is not recommended",
-                "https://ela.st/migrate-to-tiers",
-                "One or more of your component templates is configured with 'index.routing.allocation.require.data' settings."
-                    + " This is typically used to create a hot/warm or tiered architecture, based on legacy guidelines."
-                    + " Data tiers are a recommended replacement for tiered architecture clusters.",
+                DEPRECATION_MESSAGE,
+                DEPRECATION_HELP_URL,
+                "One or more of your component templates is configured with 'index.routing.allocation.*.data' settings. "
+                    + DEPRECATION_COMMON_DETAIL,
                 false,
-                null
+                DeprecationIssue.createMetaMapForRemovableSettings(deprecatedSettings)
             );
         }
         return null;

@@ -58,11 +58,23 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         this.runnableWrapper = runnableWrapper;
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getEwmaAlpha(), 0);
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
+        final var threadPoolName = stripNodeName(name);
         this.queueWaitTimes = meterRegistry.registerDoubleHistogram(
-            ThreadPool.THREAD_POOL_METRIC_PREFIX + name + THREAD_POOL_METRIC_NAME_QUEUE_TIME,
-            "Distribution of time spent in " + name + " thread pool queue",
+            ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_QUEUE_TIME,
+            "Distribution of time spent in " + threadPoolName + " thread pool queue",
             "seconds"
         );
+    }
+
+    /**
+     * TODO: Find a way to avoid the need for this
+     */
+    private String stripNodeName(String name) {
+        int indexOfSlash = name.indexOf('/');
+        if (indexOfSlash != -1) {
+            return name.substring(indexOfSlash + 1);
+        }
+        return name;
     }
 
     @Override

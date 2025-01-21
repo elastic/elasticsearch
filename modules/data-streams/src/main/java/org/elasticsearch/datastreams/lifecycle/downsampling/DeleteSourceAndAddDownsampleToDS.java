@@ -92,7 +92,7 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
                     dataStreamName
                 );
                 Metadata.Builder newMetaData = Metadata.builder(state.metadata())
-                    .put(dataStream.addBackingIndex(state.metadata(), downsampleIndexMeta.getIndex()));
+                    .put(dataStream.addBackingIndex(state.metadata().getProject(), downsampleIndexMeta.getIndex()));
                 return ClusterState.builder(state).metadata(newMetaData).build();
             }
         } else {
@@ -161,7 +161,7 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
 
         newMetaData.put(updatedDownsampleMetadata, true);
         // we deleted the source already so let's add the downsample index to the data stream
-        newMetaData.put(dataStream.addBackingIndex(state.metadata(), downsampleIndexMeta.getIndex()));
+        newMetaData.put(dataStream.addBackingIndex(state.metadata().getProject(), downsampleIndexMeta.getIndex()));
         return ClusterState.builder(state).metadata(newMetaData).build();
     }
 

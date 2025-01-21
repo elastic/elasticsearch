@@ -445,7 +445,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
              * Here the input indexMetadata will have the index.hidden setting set to true. So we expect no change to the settings, and
              * for the settings version to remain the same
              */
-            Metadata.Builder metadataBuilder = Metadata.builder();
+            ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
             Settings indexMetadataSettings = Settings.builder()
                 .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
                 .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -465,16 +465,16 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                 failureStore,
                 nodeSettings
             );
-            Metadata metadata = metadataBuilder.build();
-            assertThat(indexMetadata.getSettings(), equalTo(metadata.getProject().index(indexName).getSettings()));
-            assertThat(metadata.getProject().index(indexName).getSettingsVersion(), equalTo(indexMetadata.getSettingsVersion()));
+            ProjectMetadata metadata = metadataBuilder.build();
+            assertThat(indexMetadata.getSettings(), equalTo(metadata.index(indexName).getSettings()));
+            assertThat(metadata.index(indexName).getSettingsVersion(), equalTo(indexMetadata.getSettingsVersion()));
         }
         {
             /*
              * Here the input indexMetadata will not have the index.hidden setting set to true. So prepareBackingIndex will add that,
              * meaning that the settings and settings version will change.
              */
-            Metadata.Builder metadataBuilder = Metadata.builder();
+            ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
             Settings indexMetadataSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
             IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
                 .settings(indexMetadataSettings)
@@ -491,9 +491,9 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                 failureStore,
                 nodeSettings
             );
-            Metadata metadata = metadataBuilder.build();
-            assertThat(indexMetadata.getSettings(), not(equalTo(metadata.getProject().index(indexName).getSettings())));
-            assertThat(metadata.getProject().index(indexName).getSettingsVersion(), equalTo(indexMetadata.getSettingsVersion() + 1));
+            ProjectMetadata metadata = metadataBuilder.build();
+            assertThat(indexMetadata.getSettings(), not(equalTo(metadata.index(indexName).getSettings())));
+            assertThat(metadata.index(indexName).getSettingsVersion(), equalTo(indexMetadata.getSettingsVersion() + 1));
         }
     }
 

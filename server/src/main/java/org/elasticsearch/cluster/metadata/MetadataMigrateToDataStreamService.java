@@ -147,18 +147,16 @@ public class MetadataMigrateToDataStreamService {
         ActionListener<Void> listener
     ) throws Exception {
         validateRequest(currentState, request);
-        IndexAbstraction.Alias alias = (IndexAbstraction.Alias) currentState.metadata()
-            .getProject()
-            .getIndicesLookup()
-            .get(request.aliasName);
+        final var project = currentState.metadata().getProject();
+        IndexAbstraction.Alias alias = (IndexAbstraction.Alias) project.getIndicesLookup().get(request.aliasName);
 
         validateBackingIndices(currentState, request.aliasName);
-        Metadata.Builder mb = Metadata.builder(currentState.metadata());
+        ProjectMetadata.Builder mb = ProjectMetadata.builder(project);
         for (Index index : alias.getIndices()) {
-            IndexMetadata im = currentState.metadata().getProject().index(index);
-            prepareBackingIndex(mb, im, request.aliasName, mapperSupplier, true);
+            IndexMetadata im = project.index(index);
+            prepareBackingIndex(mb, im, request.aliasName, mapperSupplier, true, false, Settings.EMPTY);
         }
-        currentState = ClusterState.builder(currentState).metadata(mb).build();
+        currentState = ClusterState.builder(currentState).putProjectMetadata(mb).build();
 
         Index writeIndex = alias.getWriteIndex();
 
@@ -182,7 +180,7 @@ public class MetadataMigrateToDataStreamService {
             isDslOnlyMode,
             req,
             backingIndices,
-            currentState.metadata().getProject().index(writeIndex),
+            currentState.metadata().getProject(project.id()).index(writeIndex),
             listener,
             // No need to initialize the failure store when migrating to a data stream.
             false
@@ -207,17 +205,6 @@ public class MetadataMigrateToDataStreamService {
         }
     }
 
-    // hides the index, optionally removes the alias, and adds data stream timestamp field mapper
-    static void prepareBackingIndex(
-        Metadata.Builder b,
-        IndexMetadata im,
-        String dataStreamName,
-        Function<IndexMetadata, MapperService> mapperSupplier,
-        boolean removeAlias
-    ) throws IOException {
-        prepareBackingIndex(b, im, dataStreamName, mapperSupplier, removeAlias, false, Settings.EMPTY);
-    }
-
     /**
      * Hides the index, optionally removes the alias, adds data stream timestamp field mapper, and configures any additional settings
      * needed for the index to be included within a data stream.
@@ -232,7 +219,7 @@ public class MetadataMigrateToDataStreamService {
      * @param nodeSettings The settings for the current node
      */
     static void prepareBackingIndex(
-        Metadata.Builder b,
+        ProjectMetadata.Builder b,
         IndexMetadata im,
         String dataStreamName,
         Function<IndexMetadata, MapperService> mapperSupplier,

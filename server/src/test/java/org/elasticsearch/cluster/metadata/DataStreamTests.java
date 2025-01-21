@@ -423,7 +423,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             false
         );
 
-        DataStream updated = original.addBackingIndex(builder.build(), indexToAdd);
+        DataStream updated = original.addBackingIndex(builder.build().getProject(), indexToAdd);
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
         assertThat(updated.getIndices().size(), equalTo(original.getIndices().size() + 1));
@@ -449,7 +449,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         Index indexToAdd = randomFrom(ds2.getIndices().toArray(Index.EMPTY_ARRAY));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ds1.addBackingIndex(builder.build(), indexToAdd));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ds1.addBackingIndex(builder.build().getProject(), indexToAdd)
+        );
         assertThat(
             e.getMessage(),
             equalTo(
@@ -479,7 +482,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         Index indexToAdd = randomFrom(ds2.getFailureIndices().toArray(Index.EMPTY_ARRAY));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ds1.addBackingIndex(builder.build(), indexToAdd));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ds1.addBackingIndex(builder.build().getProject(), indexToAdd)
+        );
         assertThat(
             e.getMessage(),
             equalTo(
@@ -504,7 +510,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         Index indexToAdd = randomFrom(original.getIndices().toArray(Index.EMPTY_ARRAY));
 
-        DataStream updated = original.addBackingIndex(builder.build(), indexToAdd);
+        DataStream updated = original.addBackingIndex(builder.build().getProject(), indexToAdd);
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration()));
         assertThat(updated.getIndices().size(), equalTo(original.getIndices().size()));
@@ -537,7 +543,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> original.addBackingIndex(builder.build(), indexToAdd)
+            () -> original.addBackingIndex(builder.build().getProject(), indexToAdd)
         );
         assertThat(
             e.getMessage(),
@@ -574,7 +580,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             false
         );
 
-        DataStream updated = original.addFailureStoreIndex(builder.build(), indexToAdd);
+        DataStream updated = original.addFailureStoreIndex(builder.build().getProject(), indexToAdd);
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
         assertThat(updated.getIndices().size(), equalTo(original.getIndices().size()));
@@ -602,7 +608,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ds1.addFailureStoreIndex(builder.build(), indexToAdd)
+            () -> ds1.addFailureStoreIndex(builder.build().getProject(), indexToAdd)
         );
         assertThat(
             e.getMessage(),
@@ -635,7 +641,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ds1.addFailureStoreIndex(builder.build(), indexToAdd)
+            () -> ds1.addFailureStoreIndex(builder.build().getProject(), indexToAdd)
         );
         assertThat(
             e.getMessage(),
@@ -662,7 +668,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         Index indexToAdd = randomFrom(original.getFailureIndices().toArray(Index.EMPTY_ARRAY));
 
-        DataStream updated = original.addFailureStoreIndex(builder.build(), indexToAdd);
+        DataStream updated = original.addFailureStoreIndex(builder.build().getProject(), indexToAdd);
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration()));
         assertThat(updated.getIndices().size(), equalTo(original.getIndices().size()));
@@ -695,7 +701,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> original.addFailureStoreIndex(builder.build(), indexToAdd)
+            () -> original.addFailureStoreIndex(builder.build().getProject(), indexToAdd)
         );
         assertThat(
             e.getMessage(),

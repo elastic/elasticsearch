@@ -111,20 +111,30 @@ public class MetadataDataStreamsService {
         this.updateOptionsTaskQueue = clusterService.createTaskQueue("modify-data-stream-options", Priority.NORMAL, updateOptionsExecutor);
     }
 
-    public void modifyDataStream(final ModifyDataStreamsAction.Request request, final ActionListener<AcknowledgedResponse> listener) {
+    public void modifyDataStream(
+        final ProjectId projectId,
+        final ModifyDataStreamsAction.Request request,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
         if (request.getActions().size() == 0) {
             listener.onResponse(AcknowledgedResponse.TRUE);
         } else {
             submitUnbatchedTask("update-backing-indices", new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return modifyDataStream(currentState, request.getActions(), indexMetadata -> {
-                        try {
-                            return indicesService.createIndexMapperServiceForValidation(indexMetadata);
-                        } catch (IOException e) {
-                            throw new IllegalStateException(e);
-                        }
-                    }, clusterService.getSettings());
+                    final var project = modifyDataStream(
+                        currentState.metadata().getProject(projectId),
+                        request.getActions(),
+                        indexMetadata -> {
+                            try {
+                                return indicesService.createIndexMapperServiceForValidation(indexMetadata);
+                            } catch (IOException e) {
+                                throw new IllegalStateException(e);
+                            }
+                        },
+                        clusterService.getSettings()
+                    );
+                    return ClusterState.builder(currentState).putProjectMetadata(project).build();
                 }
             });
         }
@@ -223,23 +233,22 @@ public class MetadataDataStreamsService {
     /**
      * Computes the resulting cluster state after applying all requested data stream modifications in order.
      *
-     * @param currentState current cluster state
-     * @param actions      ordered list of modifications to perform
+     * @param currentProject current project metadata
+     * @param actions ordered list of modifications to perform
      * @return resulting cluster state after all modifications have been performed
      */
-    static ClusterState modifyDataStream(
-        ClusterState currentState,
+    static ProjectMetadata modifyDataStream(
+        ProjectMetadata currentProject,
         Iterable<DataStreamAction> actions,
         Function<IndexMetadata, MapperService> mapperSupplier,
         Settings nodeSettings
     ) {
-        Metadata updatedMetadata = currentState.metadata();
-
+        var updatedProject = currentProject;
         for (var action : actions) {
-            Metadata.Builder builder = Metadata.builder(updatedMetadata);
+            ProjectMetadata.Builder builder = ProjectMetadata.builder(updatedProject);
             if (action.getType() == DataStreamAction.Type.ADD_BACKING_INDEX) {
                 addBackingIndex(
-                    updatedMetadata,
+                    updatedProject,
                     builder,
                     mapperSupplier,
                     action.getDataStream(),
@@ -248,14 +257,14 @@ public class MetadataDataStreamsService {
                     nodeSettings
                 );
             } else if (action.getType() == DataStreamAction.Type.REMOVE_BACKING_INDEX) {
-                removeBackingIndex(updatedMetadata, builder, action.getDataStream(), action.getIndex(), action.isFailureStore());
+                removeBackingIndex(updatedProject, builder, action.getDataStream(), action.getIndex(), action.isFailureStore());
             } else {
                 throw new IllegalStateException("unsupported data stream action type [" + action.getClass().getName() + "]");
             }
-            updatedMetadata = builder.build();
+            updatedProject = builder.build();
         }
 
-        return ClusterState.builder(currentState).metadata(updatedMetadata).build();
+        return updatedProject;
     }
 
     /**
@@ -328,21 +337,21 @@ public class MetadataDataStreamsService {
     }
 
     private static void addBackingIndex(
-        Metadata metadata,
-        Metadata.Builder builder,
+        ProjectMetadata project,
+        ProjectMetadata.Builder builder,
         Function<IndexMetadata, MapperService> mapperSupplier,
         String dataStreamName,
         String indexName,
         boolean failureStore,
         Settings nodeSettings
     ) {
-        var dataStream = validateDataStream(metadata.getProject(), dataStreamName);
-        var index = validateIndex(metadata, indexName);
+        var dataStream = validateDataStream(project, dataStreamName);
+        var index = validateIndex(project, indexName);
 
         try {
             MetadataMigrateToDataStreamService.prepareBackingIndex(
                 builder,
-                metadata.getProject().index(index.getWriteIndex()),
+                project.index(index.getWriteIndex()),
                 dataStreamName,
                 mapperSupplier,
                 false,
@@ -355,21 +364,21 @@ public class MetadataDataStreamsService {
 
         // add index to data stream
         if (failureStore) {
-            builder.put(dataStream.addFailureStoreIndex(metadata, index.getWriteIndex()));
+            builder.put(dataStream.addFailureStoreIndex(project, index.getWriteIndex()));
         } else {
-            builder.put(dataStream.addBackingIndex(metadata, index.getWriteIndex()));
+            builder.put(dataStream.addBackingIndex(project, index.getWriteIndex()));
         }
     }
 
     private static void removeBackingIndex(
-        Metadata metadata,
-        Metadata.Builder builder,
+        ProjectMetadata project,
+        ProjectMetadata.Builder builder,
         String dataStreamName,
         String indexName,
         boolean failureStore
     ) {
         boolean indexNotRemoved = true;
-        DataStream dataStream = validateDataStream(metadata.getProject(), dataStreamName);
+        DataStream dataStream = validateDataStream(project, dataStreamName);
         List<Index> targetIndices = failureStore ? dataStream.getFailureIndices() : dataStream.getIndices();
         for (Index backingIndex : targetIndices) {
             if (backingIndex.getName().equals(indexName)) {
@@ -406,8 +415,8 @@ public class MetadataDataStreamsService {
         return (DataStream) dataStream;
     }
 
-    private static IndexAbstraction validateIndex(Metadata metadata, String indexName) {
-        IndexAbstraction index = metadata.getProject().getIndicesLookup().get(indexName);
+    private static IndexAbstraction validateIndex(ProjectMetadata project, String indexName) {
+        IndexAbstraction index = project.getIndicesLookup().get(indexName);
         if (index == null || index.getType() != IndexAbstraction.Type.CONCRETE_INDEX) {
             throw new IllegalArgumentException("index [" + indexName + "] not found");
         }

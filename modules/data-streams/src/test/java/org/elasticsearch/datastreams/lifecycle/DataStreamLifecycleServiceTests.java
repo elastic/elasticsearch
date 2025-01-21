@@ -726,7 +726,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         builder = Metadata.builder(clusterService.state().metadata()).put(newIndexMetadata, true);
         state = ClusterState.builder(clusterService.state()).metadata(builder).build();
         setState(clusterService, state);
-        DataStream dataStream2 = dataStream.addBackingIndex(clusterService.state().metadata(), newIndexMetadata.getIndex());
+        DataStream dataStream2 = dataStream.addBackingIndex(clusterService.state().metadata().getProject(), newIndexMetadata.getIndex());
         builder = Metadata.builder(clusterService.state().metadata());
         builder.put(dataStream2);
         state = ClusterState.builder(clusterService.state()).metadata(builder).build();
@@ -970,7 +970,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         builder = Metadata.builder(clusterService.state().metadata()).put(newIndexMetadata, true);
         ClusterState state = ClusterState.builder(clusterService.state()).metadata(builder).build();
         setState(clusterService, state);
-        DataStream dataStream2 = dataStream.addBackingIndex(clusterService.state().metadata(), newIndexMetadata.getIndex());
+        DataStream dataStream2 = dataStream.addBackingIndex(clusterService.state().metadata().getProject(), newIndexMetadata.getIndex());
         builder = Metadata.builder(clusterService.state().metadata());
         builder.put(dataStream2);
         state = ClusterState.builder(clusterService.state()).metadata(builder).build();
@@ -1199,7 +1199,10 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         builder = Metadata.builder(clusterService.state().metadata()).put(newIndexMetadata, true);
         state = ClusterState.builder(clusterService.state()).metadata(builder).build();
         setState(clusterService, state);
-        DataStream modifiedDataStream = dataStream.addBackingIndex(clusterService.state().metadata(), newIndexMetadata.getIndex());
+        DataStream modifiedDataStream = dataStream.addBackingIndex(
+            clusterService.state().metadata().getProject(),
+            newIndexMetadata.getIndex()
+        );
         builder = Metadata.builder(clusterService.state().metadata());
         builder.put(modifiedDataStream);
         state = ClusterState.builder(clusterService.state()).metadata(builder).build();

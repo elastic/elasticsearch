@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -175,7 +174,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                             );
                         }
                         for (String dataStreamName : concreteDataStreams) {
-                            for (String alias : concreteDataStreamAliases(action, state.metadata(), dataStreamName)) {
+                            for (String alias : concreteDataStreamAliases(action, projectMetadata, dataStreamName)) {
                                 finalActions.add(new AddDataStreamAlias(alias, dataStreamName, action.writeIndex(), action.filter()));
                             }
                         }
@@ -185,7 +184,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                     }
                     case REMOVE -> {
                         for (String dataStreamName : concreteDataStreams) {
-                            for (String alias : concreteDataStreamAliases(action, state.metadata(), dataStreamName)) {
+                            for (String alias : concreteDataStreamAliases(action, projectMetadata, dataStreamName)) {
                                 finalActions.add(new AliasAction.RemoveDataStreamAlias(alias, dataStreamName, action.mustExist()));
                                 numAliasesRemoved++;
                             }
@@ -301,11 +300,10 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         }
     }
 
-    private static String[] concreteDataStreamAliases(AliasActions action, Metadata metadata, String concreteDataStreamName) {
+    private static String[] concreteDataStreamAliases(AliasActions action, ProjectMetadata project, String concreteDataStreamName) {
         if (action.expandAliasesWildcards()) {
             // for DELETE we expand the aliases
-            Stream<String> stream = metadata.getProject()
-                .dataStreamAliases()
+            Stream<String> stream = project.dataStreamAliases()
                 .values()
                 .stream()
                 .filter(alias -> alias.getDataStreams().contains(concreteDataStreamName))

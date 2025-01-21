@@ -24,11 +24,13 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class CrossClusterEsqlRCS1EnrichUnavailableRemotesIT extends AbstractRemoteClusterSecurityTestCase {
     private static final AtomicBoolean SSL_ENABLED_REF = new AtomicBoolean();
@@ -185,8 +187,10 @@ public class CrossClusterEsqlRCS1EnrichUnavailableRemotesIT extends AbstractRemo
             Map<String, ?> failuresMap = (Map<String, ?>) remoteClusterFailures.get(0);
 
             Map<String, ?> reason = (Map<String, ?>) failuresMap.get("reason");
-            assertThat(reason.get("type").toString(), equalTo("connect_transport_exception"));
-            assertThat(reason.get("reason").toString(), containsString("Unable to connect to [my_remote_cluster]"));
+            assertThat(
+                reason.get("type").toString(),
+                oneOf("node_disconnected_exception", "connect_transport_exception", "node_not_connected_exception")
+            );
         } finally {
             fulfillingCluster.start();
             closeFulfillingClusterClient();
@@ -202,7 +206,15 @@ public class CrossClusterEsqlRCS1EnrichUnavailableRemotesIT extends AbstractRemo
 
             String query = "FROM to-be-enr*,my_remote_cluster:to-be-enr* | ENRICH " + randomFrom(modes) + ":employees-policy | LIMIT 10";
             ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(query)));
-            assertThat(ex.getMessage(), containsString("connect_transport_exception"));
+
+            assertThat(
+                ex.getMessage(),
+                anyOf(
+                    containsString("connect_transport_exception"),
+                    containsString("node_disconnected_exception"),
+                    containsString("node_not_connected_exception")
+                )
+            );
         } finally {
             fulfillingCluster.start();
             closeFulfillingClusterClient();

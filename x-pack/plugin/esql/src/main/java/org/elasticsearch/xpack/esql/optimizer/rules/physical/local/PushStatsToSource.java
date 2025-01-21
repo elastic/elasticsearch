@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +35,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushToSource;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType.COUNT;
+import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
 /**
  * Looks for the case where certain stats exist right before the query and thus can be pushed down.
@@ -59,7 +59,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
             if (tuple.v2().size() == aggregateExec.aggregates().size()) {
                 plan = new EsStatsQueryExec(
                     aggregateExec.source(),
-                    queryExec.index(),
+                    queryExec.indexPattern(),
                     queryExec.query(),
                     queryExec.limit(),
                     tuple.v1(),
@@ -106,7 +106,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                                     if (canPushToSource(count.filter()) == false) {
                                         return null; // can't push down
                                     }
-                                    var countFilter = PlannerUtils.TRANSLATOR_HANDLER.asQuery(count.filter());
+                                    var countFilter = TRANSLATOR_HANDLER.asQuery(count.filter());
                                     query = Queries.combine(Queries.Clause.MUST, asList(countFilter.asBuilder(), query));
                                 }
                                 return new EsStatsQueryExec.Stat(fieldName, COUNT, query);

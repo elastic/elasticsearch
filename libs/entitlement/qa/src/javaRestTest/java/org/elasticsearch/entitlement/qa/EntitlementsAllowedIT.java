@@ -28,9 +28,7 @@ public class EntitlementsAllowedIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("test-plugin", spec ->
-            EntitlementsUtil.setupEntitlements(spec, true, ALLOWED_ENTITLEMENTS)
-        )
+        .module("test-plugin", spec -> EntitlementsUtil.setupEntitlements(spec, true, ALLOWED_ENTITLEMENTS))
         .systemProperty("es.entitlements.enabled", "true")
         .setting("xpack.security.enabled", "false")
         .build();
@@ -43,8 +41,7 @@ public class EntitlementsAllowedIT extends ESRestTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> data() {
-        return RestEntitlementsCheckAction.getCheckActionsAllowedInPlugins().stream().map(action -> new Object[] { action })
-            .toList();
+        return RestEntitlementsCheckAction.getCheckActionsAllowedInPlugins().stream().map(action -> new Object[] { action }).toList();
     }
 
     @Override

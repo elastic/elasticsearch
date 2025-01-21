@@ -28,8 +28,12 @@ class EntitlementsUtil {
         builder.value("set_https_connection_properties");
         builder.value("inbound_network");
         builder.value("outbound_network");
-        builder.value(Map.of("write_system_properties",
-            Map.of("properties", List.of("es.entitlements.checkSetSystemProperty", "es.entitlements.checkClearSystemProperty"))));
+        builder.value(
+            Map.of(
+                "write_system_properties",
+                Map.of("properties", List.of("es.entitlements.checkSetSystemProperty", "es.entitlements.checkClearSystemProperty"))
+            )
+        );
     };
 
     static void setupEntitlements(PluginInstallSpec spec, boolean modular, CheckedConsumer<XContentBuilder, IOException> policyBuilder) {
@@ -56,10 +60,10 @@ class EntitlementsUtil {
 
         if (modular == false) {
             spec.withPropertiesOverride(old -> {
-                    String props = old.replace("modulename=org.elasticsearch.entitlement.qa.test", "");
-                    System.out.println("Using plugin properties:\n" + props);
-                    return Resource.fromString(props);
-                });
+                String props = old.replace("modulename=org.elasticsearch.entitlement.qa.test", "");
+                System.out.println("Using plugin properties:\n" + props);
+                return Resource.fromString(props);
+            });
         }
     }
 

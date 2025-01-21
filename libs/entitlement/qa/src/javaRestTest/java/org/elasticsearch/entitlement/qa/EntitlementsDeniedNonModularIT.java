@@ -26,9 +26,7 @@ public class EntitlementsDeniedNonModularIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("test-plugin", spec ->
-            EntitlementsUtil.setupEntitlements(spec, false, null)
-        )
+        .module("test-plugin", spec -> EntitlementsUtil.setupEntitlements(spec, false, null))
         .systemProperty("es.entitlements.enabled", "true")
         .setting("xpack.security.enabled", "false")
         // Logs in libs/entitlement/qa/build/test-results/javaRestTest/TEST-org.elasticsearch.entitlement.qa.EntitlementsDeniedIT.xml
@@ -48,8 +46,7 @@ public class EntitlementsDeniedNonModularIT extends ESRestTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> data() {
-        return RestEntitlementsCheckAction.getAllCheckActions().stream().map(action -> new Object[] { action })
-            .toList();
+        return RestEntitlementsCheckAction.getAllCheckActions().stream().map(action -> new Object[] { action }).toList();
     }
 
     public void testCheckThrows() {

@@ -175,6 +175,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                     }
                 } else {
                     // Routing on sort fields is not allowed, reset the corresponding index setting.
+                    LOGGER.debug("creation of index [{}] with logsdb mode and routing on sort fields without it being allowed", indexName);
                     settingsBuilder = getBuilder(settingsBuilder).put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false);
                 }
             }

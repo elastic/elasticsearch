@@ -110,7 +110,7 @@ public class PlannerUtils {
             return Set.of();
         }
         var indices = new LinkedHashSet<String>();
-        forEachFromRelation(plan, relation -> indices.addAll(relation.index().concreteIndices()));
+        forEachFromRelation(plan, relation -> indices.addAll(relation.concreteIndices()));
         return indices;
     }
 
@@ -122,7 +122,7 @@ public class PlannerUtils {
             return Strings.EMPTY_ARRAY;
         }
         var indices = new LinkedHashSet<String>();
-        forEachFromRelation(plan, relation -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(relation.index().name()))));
+        forEachFromRelation(plan, relation -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(relation.indexPattern()))));
         return indices.toArray(String[]::new);
     }
 
@@ -192,7 +192,14 @@ public class PlannerUtils {
             if (filter != null) {
                 physicalFragment = physicalFragment.transformUp(
                     EsSourceExec.class,
-                    query -> new EsSourceExec(Source.EMPTY, query.index(), query.output(), filter, query.indexMode())
+                    query -> new EsSourceExec(
+                        Source.EMPTY,
+                        query.indexPattern(),
+                        query.indexMode(),
+                        query.indexNameWithModes(),
+                        query.output(),
+                        filter
+                    )
                 );
             }
             var localOptimized = physicalOptimizer.localOptimize(physicalFragment);

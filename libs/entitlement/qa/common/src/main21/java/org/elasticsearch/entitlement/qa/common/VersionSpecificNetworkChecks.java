@@ -32,12 +32,6 @@ class VersionSpecificNetworkChecks {
         };
     }
 
-    static void httpClientBuilderBuild() {
-        try (HttpClient httpClient = HttpClient.newBuilder().build()) {
-            assert httpClient != null;
-        }
-    }
-
     static void httpClientSend() throws InterruptedException {
         try (HttpClient httpClient = HttpClient.newBuilder().build()) {
             // Shutdown the client, so the send action will shortcut before actually executing any network operation

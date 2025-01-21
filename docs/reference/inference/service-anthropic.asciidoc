@@ -1,5 +1,5 @@
 [[infer-service-anthropic]]
-=== Anthropic {infer} service
+=== Anthropic {infer} integration
 
 .New API reference
 [sidebar]

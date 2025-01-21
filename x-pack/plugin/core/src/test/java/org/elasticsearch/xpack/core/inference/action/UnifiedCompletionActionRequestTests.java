@@ -52,7 +52,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             TimeValue.timeValueSeconds(10)
         );
         var exception = request.validate();
-        assertThat(exception.getMessage(), is("Validation Failed: 1: Field [taskType] must be [completion];"));
+        assertThat(exception.getMessage(), is("Validation Failed: 1: Field [taskType] must be [chat_completion];"));
     }
 
     public void testValidation_ReturnsNull_When_TaskType_IsAny() {

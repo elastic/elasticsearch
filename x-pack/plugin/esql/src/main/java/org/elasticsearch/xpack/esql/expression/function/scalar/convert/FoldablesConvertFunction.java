@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -65,12 +66,12 @@ public abstract class FoldablesConvertFunction extends AbstractConvertFunction i
     }
 
     @Override
-    public final Object fold() {
-        return foldToTemporalAmount(field(), sourceText(), dataType());
+    public final Object fold(FoldContext ctx) {
+        return foldToTemporalAmount(ctx, field(), sourceText(), dataType());
     }
 
     @Override
-    public final void postLogicalOptimizationVerification(Failures failures) {
+    public final void postOptimizationVerification(Failures failures) {
         failures.add(isFoldable(field(), sourceText(), null));
     }
 }

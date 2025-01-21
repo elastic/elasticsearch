@@ -11,7 +11,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 
 /**
  * Elastic Inference Service (EIS) feature flag. When the feature is complete, this flag will be removed.
- * Enable feature via JVM option: `-Des.eis_feature_flag_enabled=true`.
+ * Enable feature via JVM option: `-Des.elastic_inference_service_feature_flag_enabled=true`.
  */
 public class ElasticInferenceServiceFeature {
 

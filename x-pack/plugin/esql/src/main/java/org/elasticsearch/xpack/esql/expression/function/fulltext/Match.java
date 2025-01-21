@@ -171,7 +171,28 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
             description = "Value to find in the provided field."
         ) Expression matchQuery,
         @MapParam(
-            params = { @MapParam.MapParamEntry(name = "options", valueHint = { "2", "2.0" }) },
+            params = {
+                @MapParam.MapParamEntry(name = "analyzer", valueHint = { "standard" }),
+                @MapParam.MapParamEntry(name = "auto_generate_synonyms_phrase_query", valueHint = { "true", "false" }),
+                @MapParam.MapParamEntry(name = "fuzziness", valueHint = { "AUTO", "1", "2" }),
+                @MapParam.MapParamEntry(name = "boost", valueHint = { "2.5" }),
+                @MapParam.MapParamEntry(name = "fuzzy_transpositions", valueHint = { "true", "false" }),
+                @MapParam.MapParamEntry(
+                    name = "fuzzy_rewrite",
+                    valueHint = {
+                        "constant_score_blended",
+                        "constant_score",
+                        "constant_score_boolean",
+                        "top_terms_blended_freqs_N",
+                        "top_terms_boost_N",
+                        "top_terms_N" }
+                ),
+                @MapParam.MapParamEntry(name = "lenient", valueHint = { "true", "false" }),
+                @MapParam.MapParamEntry(name = "max_expansions", valueHint = { "50" }),
+                @MapParam.MapParamEntry(name = "minimum_should_match", valueHint = { "2" }),
+                @MapParam.MapParamEntry(name = "operator", valueHint = { "AND", "OR" }),
+                @MapParam.MapParamEntry(name = "prefix_length", valueHint = { "1" }),
+                @MapParam.MapParamEntry(name = "zero_terms_query", valueHint = { "none", "all" }), },
             description = "Match additional options. See <<query-dsl-match-query,match query>> for more information.",
             optional = true
         ) Expression options

@@ -7,6 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+
 apply plugin: 'elasticsearch.base-internal-es-plugin'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.mrjar'
@@ -24,5 +26,9 @@ dependencies {
 
 tasks.named("javadoc").configure {
   enabled = false
+}
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  replaceSignatureFiles 'jdk-signatures'
 }
 

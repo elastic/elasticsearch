@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -1083,8 +1082,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private void dumpHotThreadsOnce(AtomicBoolean hasDumpedHotThreads, ShardId shardId) {
         final Level level = Level.WARN;
-        if (hasDumpedHotThreads.compareAndSet(false, true) && logger.isEnabled(level)) {
-            HotThreads.logLocalHotThreads(logger, level, shardId + ": acquire shard lock for create", ReferenceDocs.LOGGING);
+        if (hasDumpedHotThreads.compareAndSet(false, true)) {
+            HotThreads.logLocalCurrentThreads(logger, level, shardId + ": acquire shard lock for create");
         }
     }
 

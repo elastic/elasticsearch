@@ -53,12 +53,12 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
      * - Which task types support request re-routing and "node-local" rate limit calculation
      * - How many nodes should handle requests for each task type, based on cluster size (this can either be dynamically calculated or statically provided)
      **/
-    protected static final Map<String, Collection<NodeLocalRateLimitConfig>> SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS = Map.of(
+    static final Map<String, Collection<NodeLocalRateLimitConfig>> SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS = Map.of(
         ElasticInferenceService.NAME,
         List.of(new NodeLocalRateLimitConfig(TaskType.SPARSE_EMBEDDING, (numNodesInCluster) -> DEFAULT_MAX_NODES_PER_GROUPING))
     );
 
-    protected record NodeLocalRateLimitConfig(TaskType taskType, MaxNodesPerGroupingStrategy maxNodesPerGroupingStrategy) {}
+    record NodeLocalRateLimitConfig(TaskType taskType, MaxNodesPerGroupingStrategy maxNodesPerGroupingStrategy) {}
 
     @FunctionalInterface
     private interface MaxNodesPerGroupingStrategy {
@@ -75,6 +75,12 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
         new HashMap<>()
     );
 
+    /**
+     * Record for storing rate limit assignment information.
+     *
+     * @param responsibleNodes - nodes responsible for a certain service and task type
+     * @param endpointRateLimits - current rate limits for a certain inference endpoint
+     */
     public record RateLimitAssignment(List<DiscoveryNode> responsibleNodes, Map<String, Long> endpointRateLimits) {}
 
     public InferenceServiceNodeLocalRateLimitCalculator(ClusterService clusterService, InferenceServiceRegistry serviceRegistry) {
@@ -93,10 +99,26 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
         }
     }
 
+    public boolean isTaskTypeReroutingSupported(String serviceName, TaskType taskType) {
+        var rateLimitConfigs = SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.get(serviceName);
+
+        for (var rateLimitConfig : rateLimitConfigs) {
+            if (taskType.equals(rateLimitConfig.taskType())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public RateLimitAssignment getRateLimitAssignment(String service, TaskType taskType) {
+        return serviceAssignments.get().get(service).get(taskType);
+    }
+
     /**
-     * Updates service assignments when cluster topology changes.
+     * Updates instances of {@link RateLimitAssignment} for each service and task type when the cluster topology changes.
      * For each service and supported task type, calculates which nodes should handle requests
-     * and what their local rate limits should be.
+     * and what their local rate limits should be per inference endpoint.
      */
     private void updateAssignments(ClusterChangedEvent event) {
         var newClusterState = event.state();
@@ -189,25 +211,7 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
         return endpointRateLimits;
     }
 
-    public boolean isTaskTypeReroutingSupported(String serviceName, TaskType taskType) {
-        var rateLimitConfigs = SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.get(serviceName);
-
-        for (var rateLimitConfig : rateLimitConfigs) {
-            if (taskType.equals(rateLimitConfig.taskType())) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    // Used for testing
-    public RateLimitAssignment getRateLimitAssignment(String service, TaskType taskType) {
-        return serviceAssignments.get().get(service).get(taskType);
-    }
-
-    // Used for testing
-    public InferenceServiceRegistry serviceRegistry() {
+    InferenceServiceRegistry serviceRegistry() {
         return serviceRegistry;
     }
 }

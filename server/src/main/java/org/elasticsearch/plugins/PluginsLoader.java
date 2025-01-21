@@ -205,11 +205,12 @@ public class PluginsLoader {
             Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
             for (PluginBundle bundle : sortedBundles) {
                 PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
+                var modulesWithNativeAccess = pluginsWithNativeAccess.get(bundle.pluginDescriptor().getName());
                 loadPluginLayer(
                     bundle,
                     loadedPluginLayers,
                     qualifiedExports,
-                    pluginsWithNativeAccess.get(bundle.pluginDescriptor().getName())
+                    modulesWithNativeAccess != null ? modulesWithNativeAccess : Set.of()
                 );
             }
         }

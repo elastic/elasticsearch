@@ -62,6 +62,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -2938,5 +2940,56 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 )
             );
         }
+    }
+
+    public void testValidJoinPattern() {
+        var basePattern = randomIndexPattern();
+        var joinPattern = randomIndexPattern();
+        var onField = randomIdentifier();
+
+        var plan = statement("FROM " + basePattern + " | JOIN " + joinPattern + " ON " + onField);
+
+        var join = as(plan, LookupJoin.class);
+        assertThat(as(join.left(), UnresolvedRelation.class).table().index(), equalTo(removeQuotes(basePattern)));
+        assertThat(as(join.right(), UnresolvedRelation.class).table().index(), equalTo(removeQuotes(joinPattern)));
+
+        var joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
+        assertThat(joinType.columns(), hasSize(1));
+        assertThat(as(joinType.columns().getFirst(), UnresolvedAttribute.class).name(), equalTo(onField));
+    }
+
+    private static String randomIndexPattern() {
+        String pattern = randomIndexIdentifier();// index or alias
+        if (randomBoolean()) {// pattern
+            pattern += "*";
+        }
+        if (randomBoolean()) {// quoted
+            pattern = "\"" + pattern + "\"";
+        }
+        return pattern;
+    }
+
+    private static String randomIndexIdentifier() {
+        // https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params
+        var validFirstCharacters = "abcdefghijklmnopqrstuvwxyz0123456789!'$^&";
+        var validCharacters = validFirstCharacters + "+-_.";
+
+        var index = new StringBuilder();
+        if (randomInt(9) == 0) {// hidden index
+            index.append('.');
+        }
+        index.append(randomCharacterFrom(validFirstCharacters));
+        for (int i = 0; i < randomIntBetween(1, 100); i++) {
+            index.append(randomCharacterFrom(validCharacters));
+        }
+        return index.toString();
+    }
+
+    private static char randomCharacterFrom(String str) {
+        return str.charAt(randomInt(str.length() - 1));
+    }
+
+    private static String removeQuotes(String term) {
+        return term.replace("\"", "");
     }
 }

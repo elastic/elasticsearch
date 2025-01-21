@@ -21,6 +21,8 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 
+import java.util.Objects;
+
 import static org.elasticsearch.test.cluster.FeatureFlag.FAILURE_STORE_ENABLED;
 
 public class DotPrefixClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
@@ -55,6 +57,10 @@ public class DotPrefixClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         if (setNodes) {
             clusterBuilder.nodes(2);
         }
+        clusterBuilder.systemProperty("es.queryable_built_in_roles_enabled", () -> {
+            final String enabled = System.getProperty("es.queryable_built_in_roles_enabled");
+            return Objects.requireNonNullElse(enabled, "");
+        });
         return clusterBuilder.build();
     }
 

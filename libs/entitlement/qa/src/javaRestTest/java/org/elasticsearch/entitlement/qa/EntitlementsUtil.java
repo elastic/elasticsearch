@@ -19,7 +19,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 class EntitlementsUtil {
 
@@ -31,7 +30,10 @@ class EntitlementsUtil {
     static final IOConsumer<XContentBuilder> ALLOWED_ENTITLEMENTS = builder -> {
         builder.value("create_class_loader");
         builder.value("set_https_connection_properties");
-        builder.value(Map.of("network", Map.of("actions", List.of("listen", "accept", "connect"))));
+        builder.value("inbound_network");
+        builder.value("outbound_network");
+        builder.value(Map.of("write_system_properties",
+            Map.of("properties", List.of("es.entitlements.checkSetSystemProperty", "es.entitlements.checkClearSystemProperty"))));
     };
 
     static void setupEntitlements(PluginInstallSpec spec, boolean modular, IOConsumer<XContentBuilder> policyBuilder) {

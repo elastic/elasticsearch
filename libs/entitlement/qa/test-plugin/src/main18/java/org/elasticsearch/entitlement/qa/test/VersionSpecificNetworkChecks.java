@@ -9,6 +9,11 @@
 
 package org.elasticsearch.entitlement.qa.common;
 
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.net.spi.InetAddressResolver;
 import java.net.spi.InetAddressResolverProvider;
 
@@ -25,5 +30,35 @@ class VersionSpecificNetworkChecks {
                 return "TEST";
             }
         };
+    }
+
+    static void httpClientSend() throws InterruptedException {
+        try (HttpClient httpClient = HttpClient.newBuilder().build()) {
+            // Shutdown the client, so the send action will shortcut before actually executing any network operation
+            // (but after it run our check in the prologue)
+            httpClient.shutdown();
+            try {
+                httpClient.send(HttpRequest.newBuilder(URI.create("http://localhost")).build(), HttpResponse.BodyHandlers.discarding());
+            } catch (IOException e) {
+                // Expected, since we shut down the client
+            }
+        }
+    }
+
+    static void httpClientSendAsync() {
+        try (HttpClient httpClient = HttpClient.newBuilder().build()) {
+            // Shutdown the client, so the send action will return before actually executing any network operation
+            // (but after it run our check in the prologue)
+            httpClient.shutdown();
+            var future = httpClient.sendAsync(
+                HttpRequest.newBuilder(URI.create("http://localhost")).build(),
+                HttpResponse.BodyHandlers.discarding()
+            );
+            assert future.isCompletedExceptionally();
+            future.exceptionally(ex -> {
+                assert ex instanceof IOException;
+                return null;
+            });
+        }
     }
 }

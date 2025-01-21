@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -35,7 +34,9 @@ import static java.util.Map.ofEntries;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataStreamDeprecationChecksTests extends ESTestCase {
+public class DataStreamDeprecationCheckerTests extends ESTestCase {
+
+    private final DataStreamDeprecationChecker checker = new DataStreamDeprecationChecker(TestIndexNameExpressionResolver.newInstance());
 
     public void testOldIndicesCheck() {
         int oldIndexCount = randomIntBetween(1, 100);
@@ -113,10 +114,8 @@ public class DataStreamDeprecationChecksTests extends ESTestCase {
             )
         );
 
-        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
-        DataStreamDeprecationChecks dataStreamDeprecationChecks = new DataStreamDeprecationChecks(resolver);
         // We know that the data stream checks ignore the request.
-        Map<String, List<DeprecationIssue>> issuesByDataStream = dataStreamDeprecationChecks.check(clusterState, null);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState, null);
         assertThat(issuesByDataStream.size(), equalTo(1));
         assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));

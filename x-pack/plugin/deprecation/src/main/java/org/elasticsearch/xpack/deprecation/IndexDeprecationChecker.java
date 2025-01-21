@@ -34,21 +34,21 @@ import static org.elasticsearch.xpack.deprecation.DeprecationInfoAction.filterCh
 /**
  * Index-specific deprecation checks
  */
-public class IndexDeprecationChecks implements ResourceDeprecationChecker {
+public class IndexDeprecationChecker implements ResourceDeprecationChecker {
 
     public static final String NAME = "index_settings";
     private static List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(
-        IndexDeprecationChecks::oldIndicesCheck,
-        IndexDeprecationChecks::translogRetentionSettingCheck,
-        IndexDeprecationChecks::checkIndexDataPath,
-        IndexDeprecationChecks::storeTypeSettingCheck,
-        IndexDeprecationChecks::frozenIndexSettingCheck,
-        IndexDeprecationChecks::deprecatedCamelCasePattern
+        IndexDeprecationChecker::oldIndicesCheck,
+        IndexDeprecationChecker::translogRetentionSettingCheck,
+        IndexDeprecationChecker::checkIndexDataPath,
+        IndexDeprecationChecker::storeTypeSettingCheck,
+        IndexDeprecationChecker::frozenIndexSettingCheck,
+        IndexDeprecationChecker::deprecatedCamelCasePattern
     );
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    public IndexDeprecationChecks(IndexNameExpressionResolver indexNameExpressionResolver) {
+    public IndexDeprecationChecker(IndexNameExpressionResolver indexNameExpressionResolver) {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
@@ -252,8 +252,8 @@ public class IndexDeprecationChecks implements ResourceDeprecationChecker {
                 findInPropertiesRecursively(
                     mappingMetadata.type(),
                     sourceAsMap,
-                    IndexDeprecationChecks::isDateFieldWithCamelCasePattern,
-                    IndexDeprecationChecks::changeFormatToSnakeCase,
+                    IndexDeprecationChecker::isDateFieldWithCamelCasePattern,
+                    IndexDeprecationChecker::changeFormatToSnakeCase,
                     "",
                     ""
                 )

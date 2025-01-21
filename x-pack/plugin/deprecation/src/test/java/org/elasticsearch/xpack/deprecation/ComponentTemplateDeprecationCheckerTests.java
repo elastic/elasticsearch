@@ -25,9 +25,9 @@ import java.util.Map;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
-public class ComponentTemplateDeprecationChecksTests extends ESTestCase {
+public class ComponentTemplateDeprecationCheckerTests extends ESTestCase {
 
-    private final ComponentTemplateDeprecationChecks componentTemplateDeprecationChecks = new ComponentTemplateDeprecationChecks();
+    private final ComponentTemplateDeprecationChecker checker = new ComponentTemplateDeprecationChecker();
 
     public void testCheckSourceModeInComponentTemplates() throws IOException {
         Template template = Template.builder().mappings(CompressedXContent.fromJSON("""
@@ -47,7 +47,7 @@ public class ComponentTemplateDeprecationChecksTests extends ESTestCase {
             )
             .build();
 
-        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = componentTemplateDeprecationChecks.check(clusterState, null);
+        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(clusterState, null);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             SourceFieldMapper.DEPRECATION_WARNING,
@@ -80,7 +80,7 @@ public class ComponentTemplateDeprecationChecksTests extends ESTestCase {
             )
             .build();
 
-        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = componentTemplateDeprecationChecks.check(clusterState, null);
+        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(clusterState, null);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "Configuring tiers via filtered allocation is not recommended.",

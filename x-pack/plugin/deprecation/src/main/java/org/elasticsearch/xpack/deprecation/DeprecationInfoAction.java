@@ -157,13 +157,13 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             Map<String, Map<String, List<DeprecationIssue>>> mutableResourceDeprecations = in.getTransportVersion()
                 .before(TransportVersions.RESOURCE_DEPRECATION_CHECKS) ? new HashMap<>() : Map.of();
             if (in.getTransportVersion().before(TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
-                mutableResourceDeprecations.put(IndexDeprecationChecks.NAME, in.readMapOfLists(DeprecationIssue::new));
+                mutableResourceDeprecations.put(IndexDeprecationChecker.NAME, in.readMapOfLists(DeprecationIssue::new));
             }
             if (in.getTransportVersion().before(TransportVersions.DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK)) {
-                mutableResourceDeprecations.put(DataStreamDeprecationChecks.NAME, Map.of());
+                mutableResourceDeprecations.put(DataStreamDeprecationChecker.NAME, Map.of());
             } else if (in.getTransportVersion()
                 .between(TransportVersions.DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK, TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
-                    mutableResourceDeprecations.put(DataStreamDeprecationChecks.NAME, in.readMapOfLists(DeprecationIssue::new));
+                    mutableResourceDeprecations.put(DataStreamDeprecationChecker.NAME, in.readMapOfLists(DeprecationIssue::new));
                 }
             if (in.getTransportVersion().before(TransportVersions.V_7_11_0)) {
                 List<DeprecationIssue> mlIssues = in.readCollectionAsList(DeprecationIssue::new);
@@ -211,7 +211,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         }
 
         public Map<String, List<DeprecationIssue>> getIndexSettingsIssues() {
-            return resourceDeprecationIssues.get(IndexDeprecationChecks.NAME);
+            return resourceDeprecationIssues.get(IndexDeprecationChecker.NAME);
         }
 
         public Map<String, List<DeprecationIssue>> getPluginSettingsIssues() {
@@ -231,7 +231,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             }
             if (out.getTransportVersion()
                 .between(TransportVersions.DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK, TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
-                Map<String, List<DeprecationIssue>> dataStreamIssues = resourceDeprecationIssues.get(DataStreamDeprecationChecks.NAME);
+                Map<String, List<DeprecationIssue>> dataStreamIssues = resourceDeprecationIssues.get(DataStreamDeprecationChecker.NAME);
                 out.writeMap(dataStreamIssues, StreamOutput::writeCollection);
             }
             if (out.getTransportVersion().before(TransportVersions.V_7_11_0)) {

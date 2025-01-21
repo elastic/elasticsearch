@@ -27,12 +27,12 @@ import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATI
 /**
  * Checks the component templates for deprecation warnings.
  */
-public class ComponentTemplateDeprecationChecks implements ResourceDeprecationChecker {
+public class ComponentTemplateDeprecationChecker implements ResourceDeprecationChecker {
 
     public static final String NAME = "component_templates";
     private static final List<Function<ComponentTemplate, DeprecationIssue>> CHECKS = List.of(
-        ComponentTemplateDeprecationChecks::checkSourceModeInComponentTemplates,
-        ComponentTemplateDeprecationChecks::checkComponentTemplates
+        ComponentTemplateDeprecationChecker::checkSourceModeInComponentTemplates,
+        ComponentTemplateDeprecationChecker::checkComponentTemplates
     );
 
     /**

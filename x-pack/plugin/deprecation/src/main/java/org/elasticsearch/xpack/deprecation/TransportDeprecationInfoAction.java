@@ -79,9 +79,9 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         // The names of the implementation of the ResourceDeprecationChecker are part of the API. They need to be converted to a noop
         // if they have no active checks.
         this.resourceDeprecationCheckers = List.of(
-            new IndexDeprecationChecks(indexNameExpressionResolver),
-            new DataStreamDeprecationChecks(indexNameExpressionResolver),
-            new ComponentTemplateDeprecationChecks()
+            new IndexDeprecationChecker(indexNameExpressionResolver),
+            new DataStreamDeprecationChecker(indexNameExpressionResolver),
+            new ComponentTemplateDeprecationChecker()
         );
         skipTheseDeprecations = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
         // Safe to register this here because it happens synchronously before the cluster service is started:

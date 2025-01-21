@@ -29,15 +29,15 @@ import static org.elasticsearch.xpack.deprecation.DeprecationInfoAction.filterCh
 /**
  * Checks the data streams for deprecation warnings.
  */
-public class DataStreamDeprecationChecks implements ResourceDeprecationChecker {
+public class DataStreamDeprecationChecker implements ResourceDeprecationChecker {
 
     public static final String NAME = "data_streams";
     private static final List<BiFunction<DataStream, ClusterState, DeprecationIssue>> DATA_STREAM_CHECKS = List.of(
-        DataStreamDeprecationChecks::oldIndicesCheck
+        DataStreamDeprecationChecker::oldIndicesCheck
     );
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    public DataStreamDeprecationChecks(IndexNameExpressionResolver indexNameExpressionResolver) {
+    public DataStreamDeprecationChecker(IndexNameExpressionResolver indexNameExpressionResolver) {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 

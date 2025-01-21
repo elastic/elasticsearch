@@ -1356,3 +1356,27 @@ tag::rrf-filter[]
 Applies the specified <<query-dsl-bool-query, boolean query filter>> to all of the specified sub-retrievers,
 according to each retriever's specifications.
 end::rrf-filter[]
+
+tag::knn-rescore-vector[]
+
+`rescore_vector`::
++
+--
+(Optional, object) Functionality in preview:[]. Apply oversampling and rescoring to quantized vectors.
+
+NOTE: Rescoring only makes sense for quantized vectors; when <<dense-vector-quantization,quantization>> is not used, the original vectors are used for scoring.
+Rescore option will be ignored for non-quantized `dense_vector` fields.
+
+`oversample`::
+(Required, float)
++
+Applies the specified oversample factor to `k` on the approximate kNN search.
+The approximate kNN search will:
+
+* Retrieve `num_candidates` candidates per shard.
+* From these candidates, the top `k * oversample` candidates per shard will be rescored using the original vectors.
+* The top `k` rescored candidates will be returned.
+
+See <<dense-vector-knn-search-rescoring,oversampling and rescoring quantized vectors>> for details.
+--
+end::knn-rescore-vector[]

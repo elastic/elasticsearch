@@ -7,20 +7,65 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 import static java.util.Map.ofEntries;
+import static org.elasticsearch.xpack.deprecation.DeprecationInfoAction.filterChecks;
 
-public class DataStreamDeprecationChecks {
+/**
+ * Checks the data streams for deprecation warnings.
+ */
+public class DataStreamDeprecationChecks implements ResourceDeprecationChecker {
+
+    public static final String DATA_STREAMS_CHECKER_NAME = "data_streams";
+    private static final List<BiFunction<DataStream, ClusterState, DeprecationIssue>> DATA_STREAM_CHECKS = List.of(
+        DataStreamDeprecationChecks::oldIndicesCheck
+    );
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+
+    public DataStreamDeprecationChecks(IndexNameExpressionResolver indexNameExpressionResolver) {
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+    }
+
+    /**
+     * @param clusterState The cluster state provided for the checker
+     * @return the name of the data streams that have violated the checks with their respective warnings.
+     */
+    @Override
+    public Map<String, List<DeprecationIssue>> check(ClusterState clusterState) {
+        List<String> dataStreamNames = indexNameExpressionResolver.dataStreamNames(
+            clusterState,
+            IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
+        );
+        if (dataStreamNames.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<DeprecationIssue>> dataStreamIssues = new HashMap<>();
+        for (String dataStreamName : dataStreamNames) {
+            DataStream dataStream = clusterState.metadata().dataStreams().get(dataStreamName);
+            List<DeprecationIssue> issuesForSingleDataStream = filterChecks(DATA_STREAM_CHECKS, c -> c.apply(dataStream, clusterState));
+            if (issuesForSingleDataStream.isEmpty() == false) {
+                dataStreamIssues.put(dataStreamName, issuesForSingleDataStream);
+            }
+        }
+        return dataStreamIssues.isEmpty() ? Map.of() : dataStreamIssues;
+    }
+
     static DeprecationIssue oldIndicesCheck(DataStream dataStream, ClusterState clusterState) {
         List<Index> backingIndices = dataStream.getIndices();
 
@@ -46,5 +91,15 @@ public class DataStreamDeprecationChecks {
         }
 
         return null;
+    }
+
+    @Override
+    public boolean enabled(Settings settings) {
+        return true;
+    }
+
+    @Override
+    public String getName() {
+        return DATA_STREAMS_CHECKER_NAME;
     }
 }

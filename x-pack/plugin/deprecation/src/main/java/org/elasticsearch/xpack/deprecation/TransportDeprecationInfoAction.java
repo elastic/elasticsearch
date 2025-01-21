@@ -36,7 +36,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.DATA_STREAM_CHECKS;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 
 public class TransportDeprecationInfoAction extends TransportMasterNodeReadAction<
@@ -50,6 +49,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     private final Settings settings;
     private final NamedXContentRegistry xContentRegistry;
     private volatile List<String> skipTheseDeprecations;
+    private final List<ResourceDeprecationChecker> resourceDeprecationCheckers;
 
     @Inject
     public TransportDeprecationInfoAction(
@@ -77,6 +77,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
+        this.resourceDeprecationCheckers = List.of(new DataStreamDeprecationChecks(indexNameExpressionResolver));
         skipTheseDeprecations = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
         // Safe to register this here because it happens synchronously before the cluster service is started:
         clusterService.getClusterSettings()
@@ -135,10 +136,10 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                                 request,
                                 response,
                                 INDEX_SETTINGS_CHECKS,
-                                DATA_STREAM_CHECKS,
                                 CLUSTER_SETTINGS_CHECKS,
                                 deprecationIssues,
-                                skipTheseDeprecations
+                                skipTheseDeprecations,
+                                resourceDeprecationCheckers
                             )
                         )
                     )

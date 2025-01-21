@@ -80,7 +80,13 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
                 .collect(Collectors.toList());
             pluginIssues.put(randomAlphaOfLength(10), perPluginIssues);
         }
-        return new DeprecationInfoAction.Response(clusterIssues, nodeIssues, indexIssues, dataStreamIssues, pluginIssues);
+        return new DeprecationInfoAction.Response(
+            clusterIssues,
+            nodeIssues,
+            indexIssues,
+            Map.of("data_streams", dataStreamIssues),
+            pluginIssues
+        );
     }
 
     @Override
@@ -123,6 +129,26 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         List<BiFunction<DataStream, ClusterState, DeprecationIssue>> dataStreamChecks = List.of(
             (ds, cs) -> dataStreamIssueFound ? foundIssue : null
         );
+        List<ResourceDeprecationChecker> resourceCheckers = List.of(new ResourceDeprecationChecker() {
+
+            @Override
+            public boolean enabled(Settings settings) {
+                return true;
+            }
+
+            @Override
+            public Map<String, List<DeprecationIssue>> check(ClusterState clusterState) {
+                if (dataStreamIssueFound) {
+                    return Map.of("my-ds", List.of(foundIssue));
+                }
+                return Map.of();
+            }
+
+            @Override
+            public String getName() {
+                return "data_streams";
+            }
+        });
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
             new ClusterName(randomAlphaOfLength(5)),
@@ -141,10 +167,10 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             request,
             nodeDeprecationIssues,
             indexSettingsChecks,
-            dataStreamChecks,
             clusterSettingsChecks,
             Collections.emptyMap(),
-            Collections.emptyList()
+            Collections.emptyList(),
+            resourceCheckers
         );
 
         if (clusterIssueFound) {
@@ -215,6 +241,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks = Collections.emptyList();
         List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> indexSettingsChecks = List.of((idx, cs) -> null);
         List<BiFunction<DataStream, ClusterState, DeprecationIssue>> dataStreamChecks = List.of((ds, cs) -> null);
+        List<ResourceDeprecationChecker> resourceCheckers = List.of();
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
             new ClusterName(randomAlphaOfLength(5)),
@@ -232,10 +259,10 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             request,
             nodeDeprecationIssues,
             indexSettingsChecks,
-            dataStreamChecks,
             clusterSettingsChecks,
             Collections.emptyMap(),
-            Collections.emptyList()
+            Collections.emptyList(),
+            resourceCheckers
         );
 
         String details = foundIssue1.getDetails() != null ? foundIssue1.getDetails() + " " : "";
@@ -285,12 +312,23 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             })
         );
         AtomicInteger backingIndicesCount = new AtomicInteger(0);
-        List<BiFunction<DataStream, ClusterState, DeprecationIssue>> dataStreamChecks = Collections.unmodifiableList(
-            Arrays.asList((ds, cs) -> {
-                backingIndicesCount.set(ds.getIndices().size());
-                return null;
-            })
-        );
+        List<ResourceDeprecationChecker> resourceCheckers = List.of(new ResourceDeprecationChecker() {
+            @Override
+            public boolean enabled(Settings settings) {
+                return true;
+            }
+
+            @Override
+            public Map<String, List<DeprecationIssue>> check(ClusterState clusterState) {
+                clusterState.metadata().dataStreams().values().forEach(ds -> backingIndicesCount.set(ds.getIndices().size()));
+                return Map.of();
+            }
+
+            @Override
+            public String getName() {
+                return "data_streams";
+            }
+        });
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
             new ClusterName(randomAlphaOfLength(5)),
@@ -305,10 +343,10 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             request,
             nodeDeprecationIssues,
             indexSettingsChecks,
-            dataStreamChecks,
             clusterSettingsChecks,
             Collections.emptyMap(),
-            List.of("some.deprecated.property", "some.other.*.deprecated.property")
+            List.of("some.deprecated.property", "some.other.*.deprecated.property"),
+            resourceCheckers
         );
 
         settingsBuilder = settings(IndexVersion.current());
@@ -345,7 +383,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
                     Collections.emptyList(),
                     Collections.emptyList(),
                     indexNames,
-                    dataStreamNames,
+                    Map.of("data_streams", dataStreamNames),
                     pluginSettingsIssues
                 )
             );

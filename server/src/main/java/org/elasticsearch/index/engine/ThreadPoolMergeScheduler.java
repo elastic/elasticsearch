@@ -41,6 +41,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ThreadPoolMergeScheduler extends MergeScheduler implements ElasticsearchMergeScheduler {
     /**
@@ -67,13 +68,20 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     private final MergeSchedulerConfig config;
     private final Logger logger;
+    // per-scheduler merge stats
     private final MergeTracking mergeTracking;
+    // this
     private final ExecutorService executorService;
+    // the size of the per-node
     private final int maxThreadPoolSize;
+    // used to communicate the IO rate limit to the {@IndexOutput} that's actually writing the merge
     private final ThreadLocal<MergeRateLimiter> onGoingMergeRateLimiter = new ThreadLocal<>();
     private final PriorityQueue<MergeTask> activeMergeTasksLocalSchedulerQueue = new PriorityQueue<>();
     private final List<MergeTask> activeMergeTasksExecutingOnLocalSchedulerList = new ArrayList<>();
+    // set when incoming merges should be throttled
     private final AtomicBoolean isThrottling = new AtomicBoolean();
+    // how many {@link MergeTask}s have kicked off (this is used to name them).
+    private final AtomicLong mergeTaskCount = new AtomicLong();
 
     public ThreadPoolMergeScheduler(ShardId shardId, IndexSettings indexSettings, ThreadPool threadPool) {
         this.config = indexSettings.getMergeSchedulerConfig();
@@ -101,7 +109,13 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     @Override
     public void refreshConfig() {
-        // No-op
+        // in case max merge count changed
+        maybeActivateThrottling();
+        maybeDeactivateThrottling();
+        // in case max thread count changed (and more merges can be running simultaneously)
+        while (maybeExecuteNextMerge()) {}
+        // the IO auto-throttled setting change is only honoured for new merges
+        // (existing ones continue with the value of the setting when the merge created (queued))
     }
 
     @Override
@@ -157,20 +171,22 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         maybeDeactivateThrottling();
     }
 
-    private void maybeExecuteNextMerge() {
+    private boolean maybeExecuteNextMerge() {
         MergeTask mergeTask;
         synchronized (this) {
             if (activeMergeTasksExecutingOnLocalSchedulerList.size() >= config.getMaxThreadCount()) {
-                return;
+                // enough concurrent merges per scheduler (per shard) are already running
+                return false;
             }
             mergeTask = activeMergeTasksLocalSchedulerQueue.poll();
             if (mergeTask == null) {
                 // no more merges to execute
-                return;
+                return false;
             }
             activeMergeTasksExecutingOnLocalSchedulerList.add(mergeTask);
         }
         executorService.execute(mergeTask);
+        return true;
     }
 
     private void maybeActivateThrottling() {
@@ -227,7 +243,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         boolean isAutoThrottle = config.isAutoThrottle()
             && mergeTrigger != MergeTrigger.CLOSING
             && merge.getStoreMergeInfo().mergeMaxNumSegments() == -1; // i.e. is NOT a force merge
-        return new MergeTask(mergeSource, merge, isAutoThrottle, "TODO");
+        return new MergeTask(mergeSource, merge, isAutoThrottle, "Lucene Merge #" + mergeTaskCount.incrementAndGet());
     }
 
     /**

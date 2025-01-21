@@ -114,7 +114,8 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                     true
                 ) },
             new Object[] {
-                new Test( // Using the `::` cast operator and a function alias
+                new Test(
+                    // Using the `::` cast operator and a function alias
                     """
                         FROM idx
                         | EVAL ip = host::ip::string, y = to_str(host)
@@ -133,9 +134,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
             new Object[] {
                 new Test(
                     "METRICS idx max(id) BY host | LIMIT 10",
-                    Build.current().isSnapshot()
-                        ? Map.ofEntries(Map.entry("METRICS", 1), Map.entry("LIMIT", 1))
-                        : Collections.emptyMap(),
+                    Build.current().isSnapshot() ? Map.ofEntries(Map.entry("METRICS", 1), Map.entry("LIMIT", 1)) : Collections.emptyMap(),
                     Build.current().isSnapshot() ? Map.ofEntries(Map.entry("MAX", 1)) : Collections.emptyMap(),
                     Build.current().isSnapshot()
                 ) }

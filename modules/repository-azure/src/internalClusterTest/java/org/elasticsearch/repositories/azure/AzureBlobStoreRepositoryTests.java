@@ -90,7 +90,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     protected Settings repositorySettings(String repoName) {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(super.repositorySettings(repoName))
-            .put(AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.MB))
+            .put(AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
             .put(AzureRepository.Repository.CONTAINER_SETTING.getKey(), "container")
             .put(AzureStorageSettings.ACCOUNT_SETTING.getKey(), "test")
             .put(AzureRepository.Repository.DELETION_BATCH_SIZE_SETTING.getKey(), randomIntBetween(5, 256))

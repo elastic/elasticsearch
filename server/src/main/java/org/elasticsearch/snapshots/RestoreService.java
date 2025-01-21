@@ -426,7 +426,7 @@ public final class RestoreService implements ClusterStateApplier {
             if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                 failureIndices = dataStreamsToRestore.values()
                     .stream()
-                    .flatMap(ds -> ds.getFailureIndices().getIndices().stream().map(idx -> new Tuple<>(ds.isSystem(), idx.getName())))
+                    .flatMap(ds -> ds.getFailureIndices().stream().map(idx -> new Tuple<>(ds.isSystem(), idx.getName())))
                     .collect(Collectors.partitioningBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toSet())));
             }
             systemDataStreamIndices = Sets.union(backingIndices.getOrDefault(true, Set.of()), failureIndices.getOrDefault(true, Set.of()));
@@ -773,7 +773,7 @@ public final class RestoreService implements ClusterStateApplier {
             .map(i -> metadata.get(renameIndex(i.getName(), request, true, false)).getIndex())
             .toList();
         List<Index> updatedFailureIndices = DataStream.isFailureStoreFeatureFlagEnabled()
-            ? dataStream.getFailureIndices()
+            ? dataStream.getFailureComponent()
                 .getIndices()
                 .stream()
                 .map(i -> metadata.get(renameIndex(i.getName(), request, false, true)).getIndex())
@@ -781,8 +781,8 @@ public final class RestoreService implements ClusterStateApplier {
             : List.of();
         return dataStream.copy()
             .setName(dataStreamName)
-            .setBackingIndices(dataStream.getBackingIndices().copy().setIndices(updatedIndices).build())
-            .setFailureIndices(dataStream.getFailureIndices().copy().setIndices(updatedFailureIndices).build())
+            .setBackingIndices(dataStream.getDataComponent().copy().setIndices(updatedIndices).build())
+            .setFailureIndices(dataStream.getFailureComponent().copy().setIndices(updatedFailureIndices).build())
             .build();
     }
 

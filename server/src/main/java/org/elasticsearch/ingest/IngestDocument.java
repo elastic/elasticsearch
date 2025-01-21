@@ -993,6 +993,9 @@ public final class IngestDocument {
     private static final class FieldPath {
 
         static FieldPath of(String path) {
+            if (Strings.isEmpty(path)) {
+                throw new IllegalArgumentException("path cannot be null nor empty");
+            }
             return new FieldPath(path);
         }
 
@@ -1000,9 +1003,6 @@ public final class IngestDocument {
         private final boolean useIngestContext;
 
         private FieldPath(String path) {
-            if (Strings.isEmpty(path)) {
-                throw new IllegalArgumentException("path cannot be null nor empty");
-            }
             String newPath;
             if (path.startsWith(INGEST_KEY_PREFIX)) {
                 useIngestContext = true;

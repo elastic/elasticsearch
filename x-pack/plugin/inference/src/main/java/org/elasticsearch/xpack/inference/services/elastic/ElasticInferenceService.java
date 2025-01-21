@@ -44,8 +44,8 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.elastic.auth.ElasticInferenceServiceAuthorizationHandler;
 import org.elasticsearch.xpack.inference.services.elastic.auth.ElasticInferenceServiceAuthorization;
+import org.elasticsearch.xpack.inference.services.elastic.auth.ElasticInferenceServiceAuthorizationHandler;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -120,12 +120,9 @@ public class ElasticInferenceService extends SenderService {
 
     private void getAuth() {
         try {
-            ActionListener<ElasticInferenceServiceAuthorization> listener = ActionListener.wrap(
-                this::setEnabledTaskTypes,
-                e -> {
-                    // we don't need to do anything if there was a failure, everything is disabled by default
-                }
-            );
+            ActionListener<ElasticInferenceServiceAuthorization> listener = ActionListener.wrap(this::setEnabledTaskTypes, e -> {
+                // we don't need to do anything if there was a failure, everything is disabled by default
+            });
 
             var auth = new ElasticInferenceServiceAuthorizationHandler(
                 elasticInferenceServiceComponents.elasticInferenceServiceUrl(),

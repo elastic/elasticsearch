@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.stats;
 
 import org.elasticsearch.xpack.esql.capabilities.MetricsAware;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 
@@ -16,6 +17,8 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.common.Strings.format;
 
 /**
  * This class is responsible for collecting metrics related to ES|QL planning.
@@ -36,6 +39,9 @@ public class PlanningMetrics {
 
     public void command(MetricsAware command) {
         if (metricsAwares.add(command)) {
+            if (command.metricName() == null) {
+                throw new QlIllegalArgumentException(format("MetricsAware [{}] has no metric name", command));
+            }
             add(commands, command.metricName());
         }
     }

@@ -106,13 +106,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     protected LogicalPlan plan(ParseTree ctx) {
         LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
-        if (metrics != null && p instanceof MetricsAware ma) {
-            String metricName = ma.metricName();
-            if (metricName != null) {
-                metrics.command(ma);
-            } else {
-                assert false : "MetricsAware [" + p + "] of type [" + p.getClass() + "] should have a metric name";
-            }
+        if (p instanceof MetricsAware ma) {
+            metrics.command(ma);
         }
         var errors = this.params.parsingErrors();
         if (errors.hasNext() == false) {

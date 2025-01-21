@@ -18,6 +18,7 @@ import org.antlr.v4.runtime.atn.PredictionMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 
@@ -53,12 +54,14 @@ public class EsqlParser {
         this.config = config;
     }
 
+    // testing utility
     public LogicalPlan createStatement(String query) {
-        return createStatement(query, new QueryParams(), null);
+        return createStatement(query, new QueryParams());
     }
 
+    // testing utility
     public LogicalPlan createStatement(String query, QueryParams params) {
-        return createStatement(query, params, null);
+        return createStatement(query, params, new PlanningMetrics(new EsqlFunctionRegistry()));
     }
 
     public LogicalPlan createStatement(String query, QueryParams params, PlanningMetrics metrics) {

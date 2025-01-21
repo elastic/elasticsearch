@@ -188,7 +188,7 @@ public final class IngestDocument {
      */
     public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
         final FieldPath fieldPath = new FieldPath(path);
-        Object context = fieldPath.initialContext;
+        Object context = fieldPath.initialContext(this);
         for (String pathElement : fieldPath.pathElements) {
             ResolveResult result = resolve(pathElement, path, context);
             if (result.wasSuccessful) {
@@ -259,7 +259,7 @@ public final class IngestDocument {
      */
     public boolean hasField(String path, boolean failOutOfRange) {
         final FieldPath fieldPath = new FieldPath(path);
-        Object context = fieldPath.initialContext;
+        Object context = fieldPath.initialContext(this);
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
             String pathElement = fieldPath.pathElements[i];
             if (context == null) {
@@ -327,7 +327,7 @@ public final class IngestDocument {
      */
     public void removeField(String path) {
         final FieldPath fieldPath = new FieldPath(path);
-        Object context = fieldPath.initialContext;
+        Object context = fieldPath.initialContext(this);
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
             ResolveResult result = resolve(fieldPath.pathElements[i], path, context);
             if (result.wasSuccessful) {
@@ -538,7 +538,7 @@ public final class IngestDocument {
 
     private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates) {
         final FieldPath fieldPath = new FieldPath(path);
-        Object context = fieldPath.initialContext;
+        Object context = fieldPath.initialContext(this);
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
             String pathElement = fieldPath.pathElements[i];
             if (context == null) {
@@ -990,10 +990,10 @@ public final class IngestDocument {
         }
     }
 
-    private class FieldPath {
+    private static final class FieldPath {
 
         private final String[] pathElements;
-        private final Object initialContext;
+        private final boolean useIngestContext;
 
         private FieldPath(String path) {
             if (Strings.isEmpty(path)) {
@@ -1001,10 +1001,10 @@ public final class IngestDocument {
             }
             String newPath;
             if (path.startsWith(INGEST_KEY_PREFIX)) {
-                initialContext = ingestMetadata;
+                useIngestContext = true;
                 newPath = path.substring(INGEST_KEY_PREFIX.length());
             } else {
-                initialContext = ctxMap;
+                useIngestContext = false;
                 if (path.startsWith(SOURCE_PREFIX)) {
                     newPath = path.substring(SOURCE_PREFIX.length());
                 } else {
@@ -1017,6 +1017,9 @@ public final class IngestDocument {
             }
         }
 
+        public Object initialContext(IngestDocument document) {
+            return useIngestContext ? document.getIngestMetadata() : document.getCtxMap();
+        }
     }
 
     private static class ResolveResult {

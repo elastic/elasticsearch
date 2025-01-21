@@ -154,7 +154,7 @@ public record SemanticTextField(
                 case TEXT_EMBEDDING:
                     // We allow incomplete interstitial states without throwing, but need all data to eventually be populated to be
                     // considered valid
-                    return validateFieldPresent(dimensions) && validateFieldPresent(similarity) && validateFieldPresent(elementType);
+                    return isFieldPresent(dimensions) && isFieldPresent(similarity) && isFieldPresent(elementType);
                 case SPARSE_EMBEDDING:
                     validateFieldNotPresent(DIMENSIONS_FIELD, dimensions);
                     validateFieldNotPresent(SIMILARITY_FIELD, similarity);
@@ -174,7 +174,7 @@ public record SemanticTextField(
             }
         }
 
-        private boolean validateFieldPresent(Object fieldValue) {
+        private boolean isFieldPresent(Object fieldValue) {
             return fieldValue != null;
         }
 

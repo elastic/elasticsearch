@@ -20,7 +20,7 @@ public abstract class DenseVectorIndexOptions extends IndexOptions {
     abstract KnnVectorsFormat getVectorsFormat(DenseVectorFieldMapper.ElementType elementType);
 
     final void validateElementType(DenseVectorFieldMapper.ElementType elementType) {
-        if (((DenseVectorFieldMapper.VectorIndexType) type).supportsElementType(elementType) == false) {
+        if (getDenseVectorIndexType().supportsElementType(elementType) == false) {
             throw new IllegalArgumentException(
                 "[element_type] cannot be [" + elementType.toString() + "] when using index type [" + type + "]"
             );
@@ -32,11 +32,9 @@ public abstract class DenseVectorIndexOptions extends IndexOptions {
     }
 
     public void validateDimension(int dim) {
-        if (((DenseVectorFieldMapper.VectorIndexType) type).supportsDimension(dim)) {
+        if (getDenseVectorIndexType().supportsDimension(dim)) {
             return;
         }
-        throw new IllegalArgumentException(
-            ((DenseVectorFieldMapper.VectorIndexType) type).name + " only supports even dimensions; provided=" + dim
-        );
+        throw new IllegalArgumentException(getDenseVectorIndexType().getName() + " only supports even dimensions; provided=" + dim);
     }
 }

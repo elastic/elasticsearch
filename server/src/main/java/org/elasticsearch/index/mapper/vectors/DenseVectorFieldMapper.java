@@ -1383,7 +1383,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return Stream.of(VectorIndexType.values()).filter(vectorIndexType -> vectorIndexType.name.equals(type)).findFirst();
         }
 
-        final String name;
+        private final String name;
         private final boolean quantized;
 
         VectorIndexType(String name, boolean quantized) {
@@ -1399,6 +1399,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public boolean isQuantized() {
             return quantized;
+        }
+
+        public String getName() {
+            return name;
         }
 
         @Override

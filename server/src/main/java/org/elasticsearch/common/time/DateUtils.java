@@ -417,7 +417,7 @@ public class DateUtils {
 
     /**
      * Round down to the beginning of the nearest multiple of the specified week interval based on week year
-     * <p/>
+     * <p>
      * Consider Sun Dec 29 1969 00:00:00.000 as the start of the first week.
      * @param utcMillis the milliseconds since the epoch
      * @param weekInterval the interval in weeks to round down to

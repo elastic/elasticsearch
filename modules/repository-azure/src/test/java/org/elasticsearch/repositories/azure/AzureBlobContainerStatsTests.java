@@ -16,6 +16,7 @@ import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.http.ResponseInjectingHttpHandler;
 import org.elasticsearch.rest.RestStatus;
 import org.junit.Before;
 
@@ -34,14 +35,14 @@ import static org.elasticsearch.repositories.azure.AzureBlobStore.Operation.PUT_
 
 public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
 
-    private final Queue<ResponseInjectingAzureHttpHandler.RequestHandler> requestHandlers = new ConcurrentLinkedQueue<>();
+    private final Queue<ResponseInjectingHttpHandler.RequestHandler> requestHandlers = new ConcurrentLinkedQueue<>();
 
     @SuppressForbidden(reason = "use a http server")
     @Before
     public void configureAzureHandler() {
         httpServer.createContext(
             "/",
-            new ResponseInjectingAzureHttpHandler(
+            new ResponseInjectingHttpHandler(
                 requestHandlers,
                 new AzureHttpHandler(ACCOUNT, CONTAINER, null, MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE)
             )
@@ -61,7 +62,7 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
         for (int i = 0; i < randomIntBetween(10, 50); i++) {
             final boolean triggerRetry = randomBoolean();
             if (triggerRetry) {
-                requestHandlers.offer(new ResponseInjectingAzureHttpHandler.FixedRequestHandler(RestStatus.TOO_MANY_REQUESTS));
+                requestHandlers.offer(new ResponseInjectingHttpHandler.FixedRequestHandler(RestStatus.TOO_MANY_REQUESTS));
             }
             final AzureBlobStore.Operation operation = randomFrom(supportedOperations);
             switch (operation) {

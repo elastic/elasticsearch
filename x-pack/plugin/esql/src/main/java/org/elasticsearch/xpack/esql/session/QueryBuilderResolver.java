@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -28,6 +27,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+
+import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
 /**
  * Some {@link FullTextFunction} implementations such as {@link org.elasticsearch.xpack.esql.expression.function.fulltext.Match}
@@ -98,9 +99,7 @@ public class QueryBuilderResolver {
 
     public Set<String> indexNames(LogicalPlan plan) {
         Holder<Set<String>> indexNames = new Holder<>();
-
-        plan.forEachDown(EsRelation.class, esRelation -> { indexNames.set(esRelation.index().concreteIndices()); });
-
+        plan.forEachDown(EsRelation.class, esRelation -> indexNames.set(esRelation.concreteIndices()));
         return indexNames.get();
     }
 
@@ -141,7 +140,7 @@ public class QueryBuilderResolver {
             this.queryBuilderMap = new HashMap<>();
 
             for (FullTextFunction func : functions) {
-                queryBuilderMap.put(func, func.asQuery(PlannerUtils.TRANSLATOR_HANDLER).asBuilder());
+                queryBuilderMap.put(func, TRANSLATOR_HANDLER.asQuery(func).asBuilder());
             }
         }
 

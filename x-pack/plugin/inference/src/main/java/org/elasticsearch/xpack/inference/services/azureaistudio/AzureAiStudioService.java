@@ -406,7 +406,9 @@ public class AzureAiStudioService extends SenderService {
 
                 configurationMap.put(
                     TARGET_FIELD,
-                    new SettingsConfiguration.Builder().setDescription("The target URL of your Azure AI Studio model deployment.")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                        "The target URL of your Azure AI Studio model deployment."
+                    )
                         .setLabel("Target")
                         .setRequired(true)
                         .setSensitive(false)
@@ -417,7 +419,7 @@ public class AzureAiStudioService extends SenderService {
 
                 configurationMap.put(
                     ENDPOINT_TYPE_FIELD,
-                    new SettingsConfiguration.Builder().setDescription(
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
                         "Specifies the type of endpoint that is used in your model deployment."
                     )
                         .setLabel("Endpoint Type")
@@ -430,7 +432,7 @@ public class AzureAiStudioService extends SenderService {
 
                 configurationMap.put(
                     PROVIDER_FIELD,
-                    new SettingsConfiguration.Builder().setDescription("The model provider for your deployment.")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("The model provider for your deployment.")
                         .setLabel("Provider")
                         .setRequired(true)
                         .setSensitive(false)
@@ -439,8 +441,8 @@ public class AzureAiStudioService extends SenderService {
                         .build()
                 );
 
-                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration());
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration());
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)

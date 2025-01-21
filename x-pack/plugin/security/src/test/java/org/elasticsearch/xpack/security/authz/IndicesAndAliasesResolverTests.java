@@ -2387,7 +2387,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
                 assertThat(authorizedIndices.check(i.getName()), is(true));
             }
-            for (Index i : dataStream.getFailureIndices().getIndices()) {
+            for (Index i : dataStream.getFailureIndices()) {
                 assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
                 assertThat(authorizedIndices.check(i.getName()), is(true));
             }
@@ -2427,7 +2427,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
         }
-        for (Index i : dataStream.getFailureIndices().getIndices()) {
+        for (Index i : dataStream.getFailureIndices()) {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
         }
@@ -2444,7 +2444,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         for (Index i : dataStream.getIndices()) {
             assertThat(resolvedIndices.getLocal(), hasItem(i.getName()));
         }
-        for (Index i : dataStream.getFailureIndices().getIndices()) {
+        for (Index i : dataStream.getFailureIndices()) {
             assertThat(resolvedIndices.getLocal(), hasItem(i.getName()));
         }
     }
@@ -2470,7 +2470,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
         }
-        for (Index i : dataStream.getFailureIndices().getIndices()) {
+        for (Index i : dataStream.getFailureIndices()) {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
         }
@@ -2542,7 +2542,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
         }
-        for (Index i : dataStream.getFailureIndices().getIndices()) {
+        for (Index i : dataStream.getFailureIndices()) {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
         }

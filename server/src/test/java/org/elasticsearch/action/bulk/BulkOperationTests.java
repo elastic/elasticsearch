@@ -852,7 +852,10 @@ public class BulkOperationTests extends ESTestCase {
 
         DataStream rolledOverDataStream = dataStream3.copy()
             .setFailureIndices(
-                dataStream3.getFailureIndices().copy().setIndices(List.of(ds3FailureStore1.getIndex(), ds3FailureStore2.getIndex())).build()
+                dataStream3.getFailureComponent()
+                    .copy()
+                    .setIndices(List.of(ds3FailureStore1.getIndex(), ds3FailureStore2.getIndex()))
+                    .build()
             )
             .build();
         Metadata metadata = Metadata.builder(DEFAULT_STATE.metadata())
@@ -897,7 +900,10 @@ public class BulkOperationTests extends ESTestCase {
 
         DataStream rolledOverDataStream = dataStream3.copy()
             .setFailureIndices(
-                dataStream3.getFailureIndices().copy().setIndices(List.of(ds3FailureStore1.getIndex(), ds3FailureStore2.getIndex())).build()
+                dataStream3.getFailureComponent()
+                    .copy()
+                    .setIndices(List.of(ds3FailureStore1.getIndex(), ds3FailureStore2.getIndex()))
+                    .build()
             )
             .build();
         Metadata metadata = Metadata.builder(DEFAULT_STATE.metadata())

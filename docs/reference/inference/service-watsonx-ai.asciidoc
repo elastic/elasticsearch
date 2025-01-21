@@ -1,5 +1,5 @@
 [[infer-service-watsonx-ai]]
-=== Watsonx {infer} service
+=== Watsonx {infer} integration
 
 Creates an {infer} endpoint to perform an {infer} task with the `watsonxai` service.
 

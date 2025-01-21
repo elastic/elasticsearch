@@ -101,7 +101,7 @@ If not specified, the {infer} endpoint defined by `inference_id` will be used at
 For dense vector models, the configuration of `index_options` uses the defined <<dense-vector-index-options>> configuration and defaults for dense vectors.
 There are currently no supported index options for sparse models.
 
-WARNING: Specified `index_options` must be compatible with the model type associated with the inference ID attached to the semantic field.
+WARNING: Specified `index_options` must be compatible with the model type associated with the inference ID attached to the `semantic_text` field.
 
 [discrete]
 [[infer-endpoint-validation]]

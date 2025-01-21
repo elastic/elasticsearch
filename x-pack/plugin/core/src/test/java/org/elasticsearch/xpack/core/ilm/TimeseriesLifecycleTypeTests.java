@@ -852,9 +852,9 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             is(
-                "the value for replicate_for [10d] must be less than or equal to the difference in min_age for the current phase "
-                    + "and subsequent phases, but the [hot] phase has a min_age of [0s] and the [warm] phase has a min_age of [5d], "
-                    + "so the difference was only [5d]"
+                "The time a searchable snapshot is replicated in replicate_for [10d] may not exceed the time "
+                    + "until the next phase is configured to begin. Based on the min_age [5d] of the [warm] phase, "
+                    + "the maximum time the snapshot can be replicated is [5d]."
             )
         );
 
@@ -872,9 +872,9 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             is(
-                "the value for replicate_for [10d] must be less than or equal to the difference in min_age for the current phase "
-                    + "and subsequent phases, but the [cold] phase has a min_age of [5d] and the [delete] phase has a min_age of [12d], "
-                    + "so the difference was only [7d]"
+                "The time a searchable snapshot is replicated in replicate_for [10d] may not exceed the time "
+                    + "until the next phase is configured to begin. Based on the min_age [12d] of the [delete] phase, "
+                    + "the maximum time the snapshot can be replicated is [7d]."
             )
         );
     }

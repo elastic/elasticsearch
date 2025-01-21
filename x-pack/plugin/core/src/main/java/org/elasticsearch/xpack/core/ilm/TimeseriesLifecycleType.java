@@ -560,14 +560,12 @@ public class TimeseriesLifecycleType implements LifecycleType {
                     if (phaseMinAge != TimeValue.ZERO && minAgeDeltaMillis < firstReplicateFor.millis()) {
                         throw new IllegalArgumentException(
                             Strings.format(
-                                "the value for replicate_for [%s] must be less than or equal to the difference in min_age for "
-                                    + "the current phase and subsequent phases, but the [%s] phase has a min_age of [%s] "
-                                    + "and the [%s] phase has a min_age of [%s], so the difference was only [%s]",
+                                "The time a searchable snapshot is replicated in replicate_for [%s] may not exceed the time until the "
+                                    + "next phase is configured to begin. Based on the min_age [%s] of the [%s] phase, the maximum time "
+                                    + "the snapshot can be replicated is [%s].",
                                 firstReplicateFor,
-                                firstSearchableSnapshotPhase,
-                                impliedMinAge,
-                                phase.getName(),
                                 phaseMinAge,
+                                phase.getName(),
                                 TimeValue.timeValueMillis(minAgeDeltaMillis).toString()
                             )
                         );

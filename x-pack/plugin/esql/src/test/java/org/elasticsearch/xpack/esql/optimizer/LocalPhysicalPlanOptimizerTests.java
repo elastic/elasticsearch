@@ -1580,6 +1580,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testMatchOptionsPushDown() {
+        assumeTrue("Match options are not available", EsqlCapabilities.Cap.MATCH_FUNCTION_OPTIONS.isEnabled());
+
         String query = """
             from test
             | where match(first_name, "Anna", {"fuzziness": "AUTO", "prefix_length": 3, "max_expansions": 10,

@@ -16,10 +16,8 @@ models or if you want to use non-NLP models, use the
 For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[{infer-cap} APIs].
 --
 
-The {infer} APIs enable you to create {infer} endpoints and use {ml} models of
-different providers - such as Amazon Bedrock, Anthropic, Azure AI Studio,
-Cohere, Google AI, Mistral, OpenAI, or HuggingFace - as a service. Use
-the following APIs to manage {infer} models and perform {infer}:
+The {infer} APIs enable you to create {infer} endpoints and integrate with {ml} models of different services - such as Amazon Bedrock, Anthropic, Azure AI Studio, Cohere, Google AI, Mistral, OpenAI, or HuggingFace.
+Use the following APIs to manage {infer} models and perform {infer}:
 
 * <<delete-inference-api>>
 * <<get-inference-api>>
@@ -37,10 +35,8 @@ An {infer} endpoint enables you to use the corresponding {ml} model without
 manual deployment and apply it to your data at ingestion time through
 <<semantic-search-semantic-text, semantic text>>.
 
-Choose a model from your provider or use ELSER – a retrieval model trained by
-Elastic –, then create an {infer} endpoint by the <<put-inference-api>>.
-Now use <<semantic-search-semantic-text, semantic text>> to perform
-<<semantic-search, semantic search>> on your data.
+Choose a model from your service or use ELSER – a retrieval model trained by Elastic –, then create an {infer} endpoint by the <<put-inference-api>>.
+Now use <<semantic-search-semantic-text, semantic text>> to perform <<semantic-search, semantic search>> on your data.
 
 [discrete]
 [[adaptive-allocations]]

@@ -2618,7 +2618,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testVerifierOnMissingReferencesWithBinaryPlans() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
 
         // Do not assert serialization:
         // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
@@ -7301,7 +7301,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLookupJoinFieldLoading() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
 
         TestDataSource data = dataSetWithLookupIndices(Map.of("lookup_index", List.of("first_name", "foo", "bar", "baz")));
 
@@ -7378,7 +7378,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLookupJoinFieldLoadingTwoLookups() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
 
         TestDataSource data = dataSetWithLookupIndices(
             Map.of(
@@ -7432,7 +7432,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/119082")
     public void testLookupJoinFieldLoadingTwoLookupsProjectInBetween() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
 
         TestDataSource data = dataSetWithLookupIndices(
             Map.of(
@@ -7473,7 +7473,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/118778")
     public void testLookupJoinFieldLoadingDropAllFields() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
 
         TestDataSource data = dataSetWithLookupIndices(Map.of("lookup_index", List.of("first_name", "foo", "bar", "baz")));
 

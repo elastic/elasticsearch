@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -68,12 +69,12 @@ import static org.elasticsearch.xpack.ccr.Ccr.CCR_THREAD_POOL_NAME;
 
 public class TransportResumeFollowAction extends AcknowledgedTransportMasterNodeAction<ResumeFollowAction.Request> {
 
-    static final ByteSizeValue DEFAULT_MAX_READ_REQUEST_SIZE = new ByteSizeValue(32, ByteSizeUnit.MB);
+    static final ByteSizeValue DEFAULT_MAX_READ_REQUEST_SIZE = ByteSizeValue.of(32, ByteSizeUnit.MB);
     static final ByteSizeValue DEFAULT_MAX_WRITE_REQUEST_SIZE = ByteSizeValue.ofBytes(Long.MAX_VALUE);
     private static final TimeValue DEFAULT_MAX_RETRY_DELAY = new TimeValue(500);
     private static final int DEFAULT_MAX_OUTSTANDING_WRITE_REQUESTS = 9;
     private static final int DEFAULT_MAX_WRITE_BUFFER_COUNT = Integer.MAX_VALUE;
-    private static final ByteSizeValue DEFAULT_MAX_WRITE_BUFFER_SIZE = new ByteSizeValue(512, ByteSizeUnit.MB);
+    private static final ByteSizeValue DEFAULT_MAX_WRITE_BUFFER_SIZE = ByteSizeValue.of(512, ByteSizeUnit.MB);
     private static final int DEFAULT_MAX_READ_REQUEST_OPERATION_COUNT = 5120;
     private static final int DEFAULT_MAX_WRITE_REQUEST_OPERATION_COUNT = 5120;
     private static final int DEFAULT_MAX_OUTSTANDING_READ_REQUESTS = 12;
@@ -531,7 +532,8 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
         EngineConfig.INDEX_CODEC_SETTING,
         DataTier.TIER_PREFERENCE_SETTING,
-        IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING
+        IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING,
+        MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING
     );
 
     public static Settings filter(Settings originalSettings) {

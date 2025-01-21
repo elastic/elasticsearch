@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
@@ -39,5 +40,17 @@ public class LimitSerializationTests extends AbstractLogicalPlanSerializationTes
     @Override
     protected boolean alwaysEmptySource() {
         return true;
+    }
+
+    @Override
+    protected Limit copyInstance(Limit instance, TransportVersion version) throws IOException {
+        Limit deserializedCopy = super.copyInstance(instance, version);
+        // allowDuplicatePastExpandingNode does not get serialized - so we need to copy this manually.
+        return new Limit(
+            deserializedCopy.source(),
+            deserializedCopy.limit(),
+            deserializedCopy.child(),
+            instance.allowDuplicatePastExpandingNode()
+        );
     }
 }

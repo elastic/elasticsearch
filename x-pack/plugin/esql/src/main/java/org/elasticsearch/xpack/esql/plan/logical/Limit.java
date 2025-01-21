@@ -36,22 +36,22 @@ public class Limit extends UnaryPlan {
     }
 
     private Limit(StreamInput in) throws IOException {
-        // TODO: new transport version
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(LogicalPlan.class),
-            in.readBoolean()
+            true
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // TODO: new transport version
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(limit());
         out.writeNamedWriteable(child());
-        out.writeBoolean(allowDuplicatePastExpandingNode);
+        // For limits sent to data nodes, allowDuplicatePastExpandingNode should always be true.
+        // That's because if it's false, this means a copy of this limit was pushed down below an MvExpand or Join, and thus there's
+        // another pipeline breaker further upstream.
     }
 
     @Override

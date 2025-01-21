@@ -18,7 +18,10 @@ import static org.hamcrest.Matchers.containsString;
 public class DateDiffFunctionTests extends ESTestCase {
 
     public void testDateDiffFunctionErrorUnitNotValid() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DateDiff.process(new BytesRef("sseconds"), 0, 0));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DateDiff.processMillis(new BytesRef("sseconds"), 0, 0)
+        );
         assertThat(
             e.getMessage(),
             containsString(
@@ -27,7 +30,7 @@ public class DateDiffFunctionTests extends ESTestCase {
             )
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> DateDiff.process(new BytesRef("not-valid-unit"), 0, 0));
+        e = expectThrows(IllegalArgumentException.class, () -> DateDiff.processMillis(new BytesRef("not-valid-unit"), 0, 0));
         assertThat(
             e.getMessage(),
             containsString(

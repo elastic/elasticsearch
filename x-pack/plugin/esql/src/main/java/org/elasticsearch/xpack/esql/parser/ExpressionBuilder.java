@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigInteger;
@@ -116,9 +117,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public static final int MAX_EXPRESSION_DEPTH = 400;
 
     protected final QueryParams params;
+    private final PlanningMetrics metrics;
 
-    ExpressionBuilder(QueryParams params) {
+    ExpressionBuilder(QueryParams params, PlanningMetrics metrics) {
         this.params = params;
+        this.metrics = metrics;
     }
 
     protected Expression expression(ParseTree ctx) {
@@ -621,7 +624,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
-        return visitIdentifierOrParameter(ctx.identifierOrParameter());
+        var name = visitIdentifierOrParameter(ctx.identifierOrParameter());
+        metrics.function(name);
+        return name;
     }
 
     @Override
@@ -683,7 +688,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
         }
         Expression expr = expression(parseTree);
-        return converterToFactory.apply(source, expr);
+        var convertFunction = converterToFactory.apply(source, expr);
+        metrics.function(convertFunction.getClass());
+        return convertFunction;
     }
 
     @Override

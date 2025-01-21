@@ -78,8 +78,8 @@ public class PlanningMetricsManager {
      * Publishes the collected metrics to the meter registry
      */
     public void publish(PlanningMetrics metrics, boolean success) {
-        metrics.commands().entrySet().forEach(x -> incCommand(x.getKey(), x.getValue(), success));
-        metrics.functions().entrySet().forEach(x -> incFunction(x.getKey(), x.getValue(), success));
+        metrics.commands().forEach((key, value) -> incCommand(key, value, success));
+        metrics.functions().forEach((key, value) -> incFunction(key, value, success));
     }
 
     private void incCommand(String name, int count, boolean success) {

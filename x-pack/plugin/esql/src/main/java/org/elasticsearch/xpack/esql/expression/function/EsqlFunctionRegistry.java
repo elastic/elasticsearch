@@ -259,6 +259,15 @@ public class EsqlFunctionRegistry {
         return defs.containsKey(functionName);
     }
 
+    public String functionName(Class<? extends Function> clazz) {
+        for (FunctionDefinition def : defs.values()) {
+            if (def.clazz() == clazz) {
+                return def.name();
+            }
+        }
+        throw new QlIllegalArgumentException("Cannot find function by class {}", clazz);
+    }
+
     public Collection<FunctionDefinition> listFunctions() {
         // It is worth double checking if we need this copy. These are immutable anyway.
         return defs.values();

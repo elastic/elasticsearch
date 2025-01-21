@@ -114,6 +114,16 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                     true
                 ) },
             new Object[] {
+                new Test( // Using the `::` cast operator and a function alias
+                    """
+                        FROM idx
+                        | EVAL ip = host::ip::string, y = to_str(host)
+                        """,
+                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 1)),
+                    Map.ofEntries(Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2)),
+                    true
+                ) },
+            new Object[] {
                 new Test(
                     "METRICS idx | LIMIT 10",
                     Build.current().isSnapshot() ? Map.ofEntries(Map.entry("METRICS", 1), Map.entry("LIMIT", 1)) : Collections.emptyMap(),
@@ -124,7 +134,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                 new Test(
                     "METRICS idx max(id) BY host | LIMIT 10",
                     Build.current().isSnapshot()
-                        ? Map.ofEntries(Map.entry("METRICS", 1), Map.entry("LIMIT", 1), Map.entry("FROM TS", 1))
+                        ? Map.ofEntries(Map.entry("METRICS", 1), Map.entry("LIMIT", 1))
                         : Collections.emptyMap(),
                     Build.current().isSnapshot() ? Map.ofEntries(Map.entry("MAX", 1)) : Collections.emptyMap(),
                     Build.current().isSnapshot()
@@ -138,7 +148,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
             // | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host)
             // | INLINESTATS max(id)
             // """,
-            // Build.current().isSnapshot() ? Map.of("FROM", 1, "EVAL", 1, "INLINESTATS", 1, "STATS", 1) : Collections.emptyMap(),
+            // Build.current().isSnapshot() ? Map.of("FROM", 1, "EVAL", 1, "INLINESTATS", 1) : Collections.emptyMap(),
             // Build.current().isSnapshot()
             // ? Map.ofEntries(Map.entry("MAX", 1), Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2))
             // : Collections.emptyMap(),

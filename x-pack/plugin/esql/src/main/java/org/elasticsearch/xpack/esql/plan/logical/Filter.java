@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.MetricsAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -28,7 +29,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
  * {@code SELECT x FROM y WHERE z ..} the "WHERE" clause is a Filter. A
  * {@code Filter} has a "condition" Expression that does the filtering.
  */
-public class Filter extends UnaryPlan implements PostAnalysisVerificationAware {
+public class Filter extends UnaryPlan implements PostAnalysisVerificationAware, MetricsAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Filter", Filter::new);
 
     private final Expression condition;
@@ -69,7 +70,7 @@ public class Filter extends UnaryPlan implements PostAnalysisVerificationAware {
     }
 
     @Override
-    public String commandName() {
+    public String metricName() {
         return "WHERE";
     }
 

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.capabilities.MetricsAware;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -20,7 +21,7 @@ import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 
-public class UnresolvedRelation extends LeafPlan implements Unresolvable {
+public class UnresolvedRelation extends LeafPlan implements Unresolvable, MetricsAware {
 
     private final TableIdentifier table;
     private final boolean frozen;
@@ -95,7 +96,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
      * </ul>
      */
     @Override
-    public String commandName() {
+    public String metricName() {
         return commandName;
     }
 

@@ -280,7 +280,7 @@ public class EsqlSession {
     }
 
     private LogicalPlan parse(String query, QueryParams params) {
-        var parsed = new EsqlParser().createStatement(query, params);
+        var parsed = new EsqlParser().createStatement(query, params, planningMetrics);
         LOGGER.debug("Parsed logical plan:\n{}", parsed);
         return parsed;
     }
@@ -297,7 +297,6 @@ public class EsqlSession {
         }
 
         Function<PreAnalysisResult, LogicalPlan> analyzeAction = (l) -> {
-            planningMetrics.gatherPreAnalysisMetrics(parsed);
             Analyzer analyzer = new Analyzer(
                 new AnalyzerContext(configuration, functionRegistry, l.indices, l.lookupIndices, l.enrichResolution),
                 verifier

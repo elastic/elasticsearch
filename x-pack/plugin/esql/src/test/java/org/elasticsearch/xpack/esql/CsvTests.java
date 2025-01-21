@@ -514,7 +514,7 @@ public class CsvTests extends ESTestCase {
             new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx)),
             mapper,
             TEST_VERIFIER,
-            new PlanningMetrics(),
+            new PlanningMetrics(functionRegistry),
             null,
             EsqlTestUtils.MOCK_QUERY_BUILDER_RESOLVER
         );

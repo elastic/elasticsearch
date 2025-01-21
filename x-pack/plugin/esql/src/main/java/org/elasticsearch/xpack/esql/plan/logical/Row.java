@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.MetricsAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -23,7 +24,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
-public class Row extends LeafPlan implements PostAnalysisVerificationAware {
+public class Row extends LeafPlan implements PostAnalysisVerificationAware, MetricsAware {
 
     private final List<Alias> fields;
 
@@ -49,11 +50,6 @@ public class Row extends LeafPlan implements PostAnalysisVerificationAware {
     @Override
     public List<Attribute> output() {
         return Expressions.asAttributes(fields);
-    }
-
-    @Override
-    public String commandName() {
-        return "ROW";
     }
 
     @Override

@@ -19,6 +19,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 
 import java.util.BitSet;
 import java.util.function.BiFunction;
@@ -53,19 +54,24 @@ public class EsqlParser {
     }
 
     public LogicalPlan createStatement(String query) {
-        return createStatement(query, new QueryParams());
+        return createStatement(query, new QueryParams(), null);
     }
 
     public LogicalPlan createStatement(String query, QueryParams params) {
+        return createStatement(query, params, null);
+    }
+
+    public LogicalPlan createStatement(String query, QueryParams params, PlanningMetrics metrics) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, EsqlBaseParser::singleStatement, AstBuilder::plan);
+        return invokeParser(query, params, metrics, EsqlBaseParser::singleStatement, AstBuilder::plan);
     }
 
     private <T> T invokeParser(
         String query,
         QueryParams params,
+        PlanningMetrics metrics,
         Function<EsqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
@@ -99,7 +105,7 @@ public class EsqlParser {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
 
-            return result.apply(new AstBuilder(params), tree);
+            return result.apply(new AstBuilder(params, metrics), tree);
         } catch (StackOverflowError e) {
             throw new ParsingException("ESQL statement is too large, causing stack overflow when generating the parsing tree: [{}]", query);
         }

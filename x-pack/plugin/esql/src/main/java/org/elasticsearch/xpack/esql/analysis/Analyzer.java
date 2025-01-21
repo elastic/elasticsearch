@@ -218,7 +218,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         plan.metadataFields(),
                         plan.indexMode(),
                         indexResolutionMessage,
-                        plan.commandName()
+                        plan.metricName()
                     );
             }
             TableIdentifier table = plan.table();
@@ -231,7 +231,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     plan.metadataFields(),
                     plan.indexMode(),
                     "invalid [" + table + "] resolution to [" + indexResolution + "]",
-                    plan.commandName()
+                    plan.metricName()
                 );
             }
 
@@ -263,7 +263,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         plan.metadataFields(),
                         plan.indexMode(),
                         indexResolutionMessage,
-                        plan.commandName()
+                        plan.metricName()
                     );
                 }
             }

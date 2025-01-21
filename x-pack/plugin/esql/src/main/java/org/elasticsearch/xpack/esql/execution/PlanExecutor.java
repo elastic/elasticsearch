@@ -65,7 +65,7 @@ public class PlanExecutor {
         QueryBuilderResolver queryBuilderResolver,
         ActionListener<Result> listener
     ) {
-        final PlanningMetrics planningMetrics = new PlanningMetrics();
+        final PlanningMetrics planningMetrics = new PlanningMetrics(functionRegistry);
         final var session = new EsqlSession(
             sessionId,
             cfg,

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.MetricsAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -24,7 +25,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
-public class OrderBy extends UnaryPlan implements PostAnalysisVerificationAware {
+public class OrderBy extends UnaryPlan implements PostAnalysisVerificationAware, MetricsAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "OrderBy", OrderBy::new);
 
     private final List<Order> order;
@@ -69,7 +70,7 @@ public class OrderBy extends UnaryPlan implements PostAnalysisVerificationAware 
     }
 
     @Override
-    public String commandName() {
+    public String metricName() {
         return "SORT";
     }
 

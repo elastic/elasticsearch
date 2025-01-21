@@ -68,11 +68,6 @@ public class StubRelation extends LeafPlan {
     }
 
     @Override
-    public String commandName() {
-        return "<telemetry needs decoupling from the logical plan>";
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(StubRelation.class, output);
     }

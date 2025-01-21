@@ -40,7 +40,7 @@ public class WaitUntilReplicateForTimePassesStepTests extends AbstractStepTestCa
     protected WaitUntilReplicateForTimePassesStep mutateInstance(WaitUntilReplicateForTimePassesStep instance) {
         Step.StepKey key = instance.getKey();
         Step.StepKey nextKey = instance.getNextStepKey();
-        TimeValue replicateFor = randomTimeValue();
+        TimeValue replicateFor = instance.getReplicateFor();
 
         switch (between(0, 2)) {
             case 0 -> key = new Step.StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));

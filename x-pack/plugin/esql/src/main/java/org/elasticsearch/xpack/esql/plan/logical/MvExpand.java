@@ -105,7 +105,7 @@ public class MvExpand extends UnaryPlan {
     }
 
     @Override
-    public UnaryPlan replaceChild(LogicalPlan newChild) {
+    public MvExpand replaceChild(LogicalPlan newChild) {
         return new MvExpand(source(), newChild, target, expanded, limit);
     }
 

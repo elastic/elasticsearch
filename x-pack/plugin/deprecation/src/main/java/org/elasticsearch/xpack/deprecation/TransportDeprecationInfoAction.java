@@ -81,7 +81,10 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         this.resourceDeprecationCheckers = List.of(
             new IndexDeprecationChecker(indexNameExpressionResolver),
             new DataStreamDeprecationChecker(indexNameExpressionResolver),
-            new ComponentTemplateDeprecationChecker()
+            new ComponentTemplateDeprecationChecker(),
+            new ComposableIndexTemplateDeprecationChecker(),
+            new LegacyIndexTemplateDeprecationChecker(),
+            new IlmPolicyDeprecationChecker()
         );
         skipTheseDeprecations = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
         // Safe to register this here because it happens synchronously before the cluster service is started:

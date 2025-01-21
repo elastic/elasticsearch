@@ -178,9 +178,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/118374
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   issue: https://github.com/elastic/elasticsearch/issues/118238
-- class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
-  method: testInvalidJSON
-  issue: https://github.com/elastic/elasticsearch/issues/116521
 - class: org.elasticsearch.xpack.ccr.rest.ShardChangesRestIT
   method: testShardChangesNoOperation
   issue: https://github.com/elastic/elasticsearch/issues/118800
@@ -244,9 +241,19 @@ tests:
 - class: org.elasticsearch.search.ccs.CrossClusterIT
   method: testCancel
   issue: https://github.com/elastic/elasticsearch/issues/108061
-- class: org.elasticsearch.http.netty4.Netty4IncrementalRequestHandlingIT
-  method: testOversizedChunkedEncoding
-  issue: https://github.com/elastic/elasticsearch/issues/120444
+- class: org.elasticsearch.xpack.logsdb.seqno.RetentionLeaseRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/120434
+- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
+  method: testCheckActionWithPolicyPass {pathPrefix=allowed actionName=create_ldap_cert_store}
+  issue: https://github.com/elastic/elasticsearch/issues/120422
+- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
+  method: testCheckActionWithPolicyPass {pathPrefix=allowed_nonmodular actionName=create_ldap_cert_store}
+  issue: https://github.com/elastic/elasticsearch/issues/120423
+- class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
+  method: testInvalidJSON
+  issue: https://github.com/elastic/elasticsearch/issues/120482
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/120497
 
 # Examples:
 #

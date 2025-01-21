@@ -124,12 +124,11 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         assertThat(sourceMode, equalTo("stored"));
 
         request = new Request("GET", "/_migration/deprecations");
-        var nodeSettings = (Map<?, ?>) ((List<?>) entityAsMap(client.performRequest(request)).get("node_settings")).getFirst();
-        assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
-        assertThat(
-            (String) nodeSettings.get("details"),
-            containsString(SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [logs@custom]")
-        );
+        var componentTemplates = (Map<?, ?>) entityAsMap(client.performRequest(request)).get("component_templates");
+        assertThat(componentTemplates.containsKey("logs@custom"), equalTo(true));
+        var issue = ((List<Map<?, ?>>) componentTemplates.get("logs@custom")).getFirst();
+        assertThat(issue.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
+        assertThat((String) issue.get("details"), containsString(SourceFieldMapper.DEPRECATION_WARNING));
     }
 
     public void testConfigureDisabledSourceBeforeIndexCreation() {
@@ -206,12 +205,11 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         assertThat(sourceMode, equalTo("stored"));
 
         request = new Request("GET", "/_migration/deprecations");
-        var nodeSettings = (Map<?, ?>) ((List<?>) entityAsMap(client.performRequest(request)).get("node_settings")).getFirst();
-        assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
-        assertThat(
-            (String) nodeSettings.get("details"),
-            containsString(SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [logs@custom]")
-        );
+        var componentTemplates = (Map<?, ?>) entityAsMap(client.performRequest(request)).get("component_templates");
+        assertThat(componentTemplates.containsKey("logs@custom"), equalTo(true));
+        var issue = ((List<Map<?, ?>>) componentTemplates.get("logs@custom")).getFirst();
+        assertThat(issue.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
+        assertThat((String) issue.get("details"), containsString(SourceFieldMapper.DEPRECATION_WARNING));
     }
 
     public void testConfigureDisabledSourceWhenIndexIsCreated() throws IOException {

@@ -85,8 +85,7 @@ public class DeprecationChecks {
                 NodeDeprecationChecks::checkEqlEnabledSetting,
                 NodeDeprecationChecks::checkNodeAttrData,
                 NodeDeprecationChecks::checkWatcherBulkConcurrentRequestsSetting,
-                NodeDeprecationChecks::checkTracingApmSettings,
-                NodeDeprecationChecks::checkSourceModeInComponentTemplates
+                NodeDeprecationChecks::checkTracingApmSettings
             );
 
     /**

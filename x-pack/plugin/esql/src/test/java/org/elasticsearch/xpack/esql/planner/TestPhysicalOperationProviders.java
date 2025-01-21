@@ -30,6 +30,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -38,9 +39,9 @@ import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
@@ -71,13 +72,13 @@ import static org.apache.lucene.tests.util.LuceneTestCase.createTempDir;
 public class TestPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
     private final List<IndexPage> indexPages;
 
-    private TestPhysicalOperationProviders(List<IndexPage> indexPages, AnalysisRegistry analysisRegistry) {
-        super(analysisRegistry);
+    private TestPhysicalOperationProviders(FoldContext foldContext, List<IndexPage> indexPages, AnalysisRegistry analysisRegistry) {
+        super(foldContext, analysisRegistry);
         this.indexPages = indexPages;
     }
 
-    public static TestPhysicalOperationProviders create(List<IndexPage> indexPages) throws IOException {
-        return new TestPhysicalOperationProviders(indexPages, createAnalysisRegistry());
+    public static TestPhysicalOperationProviders create(FoldContext foldContext, List<IndexPage> indexPages) throws IOException {
+        return new TestPhysicalOperationProviders(foldContext, indexPages, createAnalysisRegistry());
     }
 
     public record IndexPage(String index, Page page, List<String> columnNames) {

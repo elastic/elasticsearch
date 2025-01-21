@@ -20,10 +20,21 @@ public class NamedWriteablesTests extends ESTestCase {
     public void testTopNStatus() throws Exception {
         try (EsqlPlugin plugin = new EsqlPlugin()) {
             NamedWriteableRegistry registry = new NamedWriteableRegistry(plugin.getNamedWriteables());
-            TopNOperatorStatus origin = new TopNOperatorStatus(randomNonNegativeInt(), randomNonNegativeLong());
+            TopNOperatorStatus origin = new TopNOperatorStatus(
+                randomNonNegativeInt(),
+                randomNonNegativeLong(),
+                randomNonNegativeInt(),
+                randomNonNegativeInt(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            );
             TopNOperatorStatus copy = (TopNOperatorStatus) copyNamedWriteable(origin, registry, Operator.Status.class);
             assertThat(copy.occupiedRows(), equalTo(origin.occupiedRows()));
             assertThat(copy.ramBytesUsed(), equalTo(origin.ramBytesUsed()));
+            assertThat(copy.pagesReceived(), equalTo(origin.pagesReceived()));
+            assertThat(copy.pagesEmitted(), equalTo(origin.pagesEmitted()));
+            assertThat(copy.rowsReceived(), equalTo(origin.rowsReceived()));
+            assertThat(copy.rowsEmitted(), equalTo(origin.rowsEmitted()));
         }
     }
 }

@@ -915,7 +915,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         mappingBuilder.endObject();
     }
 
-    private static void addSemanticTextInferenceResults(
+    public static void addSemanticTextInferenceResults(
         boolean useLegacyFormat,
         XContentBuilder sourceBuilder,
         List<SemanticTextField> semanticTextInferenceResults

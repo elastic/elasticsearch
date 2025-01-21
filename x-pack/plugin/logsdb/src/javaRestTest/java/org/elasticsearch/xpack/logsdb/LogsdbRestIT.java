@@ -281,4 +281,57 @@ public class LogsdbRestIT extends ESRestTestCase {
         assertEquals("true", settings.get(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey()));
         assertEquals(List.of("host.name", "message"), settings.get(IndexMetadata.INDEX_ROUTING_PATH.getKey()));
     }
+
+    public void testLogsdbDefaultWithRecoveryUseSyntheticSource() throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("{ \"transient\": { \"cluster.logsdb.enabled\": true } }");
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "/_index_template/1");
+        request.setJsonEntity("""
+            {
+                "index_patterns": ["my-log-*"],
+                "data_stream": {
+                },
+                "template": {
+                    "settings":{
+                        "index": {
+                            "mode": "logsdb",
+                            "recovery.use_synthetic_source" : "true"
+                        }
+                    },
+                    "mappings": {
+                        "properties": {
+                            "@timestamp" : {
+                                "type": "date"
+                            },
+                            "host.name": {
+                                "type": "keyword"
+                            },
+                            "message": {
+                                "type": "keyword"
+                            }
+                        }
+                    }
+                }
+            }
+            """);
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "/my-log-foo/_doc");
+        request.setJsonEntity("""
+            {
+                "@timestamp": "2020-01-01T00:00:00.000Z",
+                "host.name": "foo",
+                "message": "bar"
+            }
+            """);
+        assertOK(client().performRequest(request));
+
+        String index = DataStream.getDefaultBackingIndexName("my-log-foo", 1);
+        var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
+        assertEquals("logsdb", settings.get("index.mode"));
+        assertNull(settings.get("index.mapping.source.mode"));
+        assertEquals("true", settings.get(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey()));
+    }
 }

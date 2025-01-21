@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
@@ -38,7 +39,8 @@ public class PolicyParser {
         FileEntitlement.class,
         CreateClassLoaderEntitlement.class,
         SetHttpsConnectionPropertiesEntitlement.class,
-        NetworkEntitlement.class
+        OutboundNetworkEntitlement.class,
+        InboundNetworkEntitlement.class
     ).collect(Collectors.toUnmodifiableMap(PolicyParser::getEntitlementTypeName, Function.identity()));
 
     protected final XContentParser policyParser;
@@ -119,6 +121,7 @@ public class PolicyParser {
     }
 
     protected Entitlement parseEntitlement(String scopeName, String entitlementType) throws IOException {
+        XContentLocation startLocation = policyParser.getTokenLocation();
         Class<?> entitlementClass = EXTERNAL_ENTITLEMENTS.get(entitlementType);
 
         if (entitlementClass == null) {
@@ -170,7 +173,10 @@ public class PolicyParser {
         try {
             return (Entitlement) entitlementConstructor.newInstance(parameterValues);
         } catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
-            throw new IllegalStateException("internal error");
+            if (e.getCause() instanceof PolicyValidationException piae) {
+                throw newPolicyParserException(startLocation, scopeName, entitlementType, piae);
+            }
+            throw new IllegalStateException("internal error", e);
         }
     }
 
@@ -190,5 +196,14 @@ public class PolicyParser {
             entitlementType,
             message
         );
+    }
+
+    protected PolicyParserException newPolicyParserException(
+        XContentLocation location,
+        String scopeName,
+        String entitlementType,
+        PolicyValidationException cause
+    ) {
+        return PolicyParserException.newPolicyParserException(location, policyName, scopeName, entitlementType, cause);
     }
 }

@@ -678,7 +678,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                     XContentMeteringParserDecorator.NOOP
                 )
             );
-        assertThat(doc.rootDoc().getFields("foo"), hasSize(2));
+        assertThat(doc.rootDoc().getFields("foo"), hasSize(1));
         assertThat(doc.rootDoc().getFields("bar"), hasSize(1));
     }
 

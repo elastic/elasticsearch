@@ -1,4 +1,4 @@
 org.apache.httpcomponents.httpclient:
-  - network:
-      actions:
-        - connect # For SamlRealm
+  - outbound_network # For SamlRealm
+org.apache.httpcomponents.httpcore.nio:
+  - outbound_network

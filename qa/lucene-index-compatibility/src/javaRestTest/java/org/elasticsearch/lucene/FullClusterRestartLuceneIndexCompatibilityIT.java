@@ -57,8 +57,7 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), index, numDocs);
 
-            logger.debug("--> marking index [{}] as read-only", index);
-            markAsReadOnly(index);
+            addIndexBlock(index, IndexMetadata.APIBlock.WRITE);
             return;
         }
 
@@ -68,7 +67,7 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), index, numDocs);
 
-            assertMarkedAsReadOnly(index);
+            assertThatIndexBlock(index, IndexMetadata.APIBlock.WRITE);
 
             var numberOfReplicas = getNumberOfReplicas(index);
             if (0 < numberOfReplicas) {
@@ -99,6 +98,50 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
 
             logger.debug("--> deleting index [{}]", index);
             deleteIndex(index);
+        }
+    }
+
+    /**
+     * Similar to {@link #testIndexUpgrade()} but with a read_only block.
+     */
+    public void testIndexUpgradeReadOnlyBlock() throws Exception {
+        final String index = suffix("index");
+        final int numDocs = 2531;
+
+        if (isFullyUpgradedTo(VERSION_MINUS_2)) {
+            logger.debug("--> creating index [{}]", index);
+            createIndex(
+                client(),
+                index,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .build()
+            );
+
+            logger.debug("--> indexing [{}] docs in [{}]", numDocs, index);
+            indexDocs(index, numDocs);
+            return;
+        }
+
+        if (isFullyUpgradedTo(VERSION_MINUS_1)) {
+            ensureGreen(index);
+
+            assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
+            assertDocCount(client(), index, numDocs);
+
+            addIndexBlock(index, IndexMetadata.APIBlock.READ_ONLY);
+            return;
+        }
+
+        if (isFullyUpgradedTo(VERSION_CURRENT)) {
+            ensureGreen(index);
+
+            assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
+            assertDocCount(client(), index, numDocs);
+
+            assertThatIndexBlock(index, IndexMetadata.APIBlock.READ_ONLY);
         }
     }
 
@@ -137,8 +180,7 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), index, numDocs);
 
-            logger.debug("--> marking index [{}] as read-only", index);
-            markAsReadOnly(index);
+            addIndexBlock(index, IndexMetadata.APIBlock.WRITE);
 
             logger.debug("--> creating snapshot [{}]", snapshot);
             createSnapshot(client(), repository, snapshot, true);
@@ -154,7 +196,7 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             restoreIndex(repository, snapshot, index, restoredIndex);
             ensureGreen(restoredIndex);
 
-            assertMarkedAsReadOnly(restoredIndex);
+            assertThatIndexBlock(restoredIndex, IndexMetadata.APIBlock.WRITE);
             assertThat(indexVersion(restoredIndex), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), restoredIndex, numDocs);
 
@@ -219,8 +261,7 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), index, numDocs);
 
-            logger.debug("--> marking index [{}] as read-only", index);
-            markAsReadOnly(index);
+            addIndexBlock(index, IndexMetadata.APIBlock.WRITE);
 
             logger.debug("--> creating snapshot [{}]", snapshot);
             createSnapshot(client(), repository, snapshot, true);
@@ -236,7 +277,7 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
 
         if (isFullyUpgradedTo(VERSION_CURRENT)) {
             assertThat(isIndexClosed(index), equalTo(true));
-            assertMarkedAsReadOnly(index);
+            assertThatIndexBlock(index, IndexMetadata.APIBlock.WRITE);
 
             logger.debug("--> restoring index [{}] over existing closed index", index);
             restoreIndex(repository, snapshot, index, index);

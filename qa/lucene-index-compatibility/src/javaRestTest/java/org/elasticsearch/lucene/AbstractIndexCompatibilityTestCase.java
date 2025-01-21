@@ -15,7 +15,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.XContentTestUtils;
@@ -267,18 +266,15 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
         assertOK(client().performRequest(request));
     }
 
-    protected static void markAsReadOnly(String indexName) throws Exception {
-        var block = randomFrom(IndexMetadata.APIBlock.READ_ONLY, IndexMetadata.APIBlock.WRITE);
-        var request = new Request("PUT", Strings.format("/%s/_block/%s", indexName, block.name().toLowerCase(Locale.ROOT)));
+    protected void addIndexBlock(String indexName, IndexMetadata.APIBlock apiBlock) throws Exception {
+        logger.debug("--> adding index block [{}] to [{}]", apiBlock, indexName);
+        var request = new Request("PUT", Strings.format("/%s/_block/%s", indexName, apiBlock.name().toLowerCase(Locale.ROOT)));
         assertAcknowledged(client().performRequest(request));
     }
 
-    protected void assertMarkedAsReadOnly(String indexName) throws Exception {
+    protected void assertThatIndexBlock(String indexName, IndexMetadata.APIBlock apiBlock) throws Exception {
         var indexSettings = getIndexSettingsAsMap(indexName);
         assertThat(indexSettings.get(VERIFIED_READ_ONLY_SETTING.getKey()), equalTo(Boolean.TRUE.toString()));
-
-        boolean readOnly = Booleans.parseBoolean((String) indexSettings.get(IndexMetadata.APIBlock.READ_ONLY.settingName()), false);
-        boolean write = Booleans.parseBoolean((String) indexSettings.get(IndexMetadata.APIBlock.WRITE.settingName()), false);
-        assertThat("Expect either `read_only` [" + readOnly + "] or `write` [" + write + "] block", readOnly ^ write, is(true));
+        assertThat(indexSettings.get(apiBlock.settingName()), equalTo(Boolean.TRUE.toString()));
     }
 }

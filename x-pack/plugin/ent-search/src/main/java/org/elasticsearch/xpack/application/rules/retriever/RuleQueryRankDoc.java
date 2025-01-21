@@ -16,6 +16,7 @@ import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -27,6 +28,10 @@ public class RuleQueryRankDoc extends RankDoc {
     public final List<String> rulesetIds;
     public final Map<String, Object> matchCriteria;
 
+    public RuleQueryRankDoc(int doc, float score, int shardIndex) {
+        this(doc, score, shardIndex, null, null);
+    }
+
     public RuleQueryRankDoc(int doc, float score, int shardIndex, List<String> rulesetIds, Map<String, Object> matchCriteria) {
         super(doc, score, shardIndex);
         this.rulesetIds = rulesetIds;
@@ -35,8 +40,15 @@ public class RuleQueryRankDoc extends RankDoc {
 
     public RuleQueryRankDoc(StreamInput in) throws IOException {
         super(in);
-        rulesetIds = in.readStringCollectionAsImmutableList();
-        matchCriteria = in.readGenericMap();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN)) {
+            List<String> inRulesetIds = in.readOptionalStringCollectionAsList();
+            this.rulesetIds = inRulesetIds == null ? null : Collections.unmodifiableList(inRulesetIds);
+            boolean matchCriteriaExists = in.readBoolean();
+            this.matchCriteria = matchCriteriaExists ? in.readGenericMap() : null;
+        } else {
+            rulesetIds = in.readStringCollectionAsImmutableList();
+            matchCriteria = in.readGenericMap();
+        }
     }
 
     @Override
@@ -51,8 +63,16 @@ public class RuleQueryRankDoc extends RankDoc {
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeStringCollection(rulesetIds);
-        out.writeGenericMap(matchCriteria);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN)) {
+            out.writeOptionalStringCollection(rulesetIds);
+            out.writeBoolean(matchCriteria != null);
+            if (matchCriteria != null) {
+                out.writeGenericMap(matchCriteria);
+            }
+        } else {
+            out.writeStringCollection(rulesetIds);
+            out.writeGenericMap(matchCriteria);
+        }
     }
 
     @Override
@@ -89,10 +109,14 @@ public class RuleQueryRankDoc extends RankDoc {
 
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.array("rulesetIds", rulesetIds.toArray());
-        builder.startObject("matchCriteria");
-        builder.mapContents(matchCriteria);
-        builder.endObject();
+        if (rulesetIds != null) {
+            builder.array("rulesetIds", rulesetIds.toArray());
+        }
+        if (matchCriteria != null) {
+            builder.startObject("matchCriteria");
+            builder.mapContents(matchCriteria);
+            builder.endObject();
+        }
     }
 
     @Override

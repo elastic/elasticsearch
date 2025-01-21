@@ -2961,34 +2961,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private static String randomIndexPatterns() {
-        var patterns = String.join(",", randomList(1, 5, StatementParserTests::randomIndexPattern));
-        if (randomBoolean() && patterns.contains("\"") == false) {
-            patterns = quote(patterns);
-        }
-        return patterns;
+        return maybeQuote(String.join(",", randomList(1, 5, StatementParserTests::randomIndexPattern)));
     }
 
     private static String randomIndexPattern() {
-        String pattern = randomIndexIdentifier();// index or alias
-        if (randomBoolean()) {// pattern
-            pattern += "*";
-        }
-        if (randomBoolean()) {// quoted pattern
-            pattern = quote(pattern);
-        }
-        if (randomBoolean()) {// remote cluster
+        String pattern = maybeQuote(randomIndexIdentifier());
+        if (randomBoolean()) {
             var cluster = randomIdentifier();
-            if (randomBoolean() && false) {// quoted cluster, unsupported by grammar yet
-                cluster = quote(cluster);
-            }
-            pattern = cluster + ":" + pattern;
-            if (randomBoolean() && pattern.contains("\"") == false) {// quoted entire cluster:pattern
-                pattern = quote(pattern);
-            }
+            pattern = maybeQuote(cluster + ":" + pattern);
         }
         return pattern;
     }
 
+    /**
+     * This generates random valid index, alias or pattern
+     */
     private static String randomIndexIdentifier() {
         // https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params
         var validFirstCharacters = "abcdefghijklmnopqrstuvwxyz0123456789!'$^&";
@@ -3002,6 +2989,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         for (int i = 0; i < randomIntBetween(1, 100); i++) {
             index.append(randomCharacterFrom(validCharacters));
         }
+        if (randomBoolean()) {// pattern
+            index.append('*');
+        }
         return index.toString();
     }
 
@@ -3009,8 +2999,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         return str.charAt(randomInt(str.length() - 1));
     }
 
-    private static String quote(String term) {
-        return "\"" + term + "\"";
+    private static String maybeQuote(String term) {
+        return randomBoolean() && term.contains("\"") == false ? "\"" + term + "\"" : term;
     }
 
     private static String unquote(String term) {

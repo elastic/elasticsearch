@@ -29,11 +29,13 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -76,6 +78,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
 import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
+import org.elasticsearch.xpack.inference.ingest.ChunkingProcessor;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
@@ -134,7 +137,14 @@ import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenc
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG;
 
-public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin, MapperPlugin, SearchPlugin {
+public class InferencePlugin extends Plugin
+    implements
+        ActionPlugin,
+        ExtensiblePlugin,
+        SystemIndexPlugin,
+        MapperPlugin,
+        SearchPlugin,
+        IngestPlugin {
 
     /**
      * When this setting is true the verification check that
@@ -461,6 +471,13 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             new SemanticMatchQueryRewriteInterceptor(),
             new SemanticSparseVectorQueryRewriteInterceptor()
         );
+    }
+
+    @Override
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        ChunkingProcessor.Factory chunkingProcessorFactory = new ChunkingProcessor.Factory();
+
+        return Map.of(ChunkingProcessor.TYPE, chunkingProcessorFactory);
     }
 
     @Override

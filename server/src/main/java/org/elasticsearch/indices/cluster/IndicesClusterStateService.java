@@ -91,6 +91,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -683,7 +684,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final var primaryTerm = state.metadata().index(shardRouting.index()).primaryTerm(shardRouting.id());
 
             final var pendingShardCreation = createOrRefreshPendingShardCreation(shardId, state.stateUUID());
-            final var dumpHotThreadsOnce = dumpHotThreadsOnce(shardId + ": acquire shard lock for create");
             createShardWhenLockAvailable(
                 shardRouting,
                 state,
@@ -691,7 +691,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 primaryTerm,
                 0,
                 0L,
-                dumpHotThreadsOnce,
+                new AtomicBoolean(false),
                 ActionListener.runBefore(new ActionListener<>() {
                     @Override
                     public void onResponse(Boolean success) {
@@ -744,7 +744,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         long primaryTerm,
         int iteration,
         long delayMillis,
-        Runnable dumpHotThreadsOnce,
+        AtomicBoolean hasDumpedHotThreads,
         ActionListener<Boolean> listener
     ) {
         try {
@@ -783,7 +783,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 e.getMessage()
             );
             if (level == Level.WARN) {
-                dumpHotThreadsOnce.run();
+                dumpHotThreadsOnce(hasDumpedHotThreads, shardRouting.shardId());
             }
             // TODO could we instead subscribe to the shard lock and trigger the retry exactly when it is released rather than polling?
             threadPool.scheduleUnlessShuttingDown(
@@ -822,7 +822,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                 shardLockRetryTimeout.millis(),
                                 shardRouting
                             );
-                            dumpHotThreadsOnce.run();
+                            dumpHotThreadsOnce(hasDumpedHotThreads, shardRouting.shardId());
                             listener.onFailure(
                                 new ElasticsearchTimeoutException("timed out while waiting to acquire shard lock for " + shardRouting)
                             );
@@ -851,7 +851,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             primaryTerm,
                             iteration + 1,
                             newDelayMillis,
-                            dumpHotThreadsOnce,
+                            hasDumpedHotThreads,
                             listener
                         );
 
@@ -1081,16 +1081,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
-    private Runnable dumpHotThreadsOnce(String prefix) {
+    private void dumpHotThreadsOnce(AtomicBoolean hasDumpedHotThreads, ShardId shardId) {
         final Level level = Level.WARN;
-        if (logger.isEnabled(level)) {
-            final var threadDumpListener = new SubscribableListener<Void>();
-            threadDumpListener.addListener(
-                ActionListener.running(() -> HotThreads.logLocalHotThreads(logger, level, prefix, ReferenceDocs.LOGGING))
-            );
-            return () -> threadDumpListener.onResponse(null);
+        if (hasDumpedHotThreads.compareAndSet(false, true) && logger.isEnabled(level)) {
+            HotThreads.logLocalHotThreads(logger, level, shardId + ": acquire shard lock for create", ReferenceDocs.LOGGING);
         }
-        return () -> {};
     }
 
     private class FailedShardHandler implements Consumer<IndexShard.ShardFailure> {

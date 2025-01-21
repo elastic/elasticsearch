@@ -32,8 +32,8 @@ public abstract class BaseInferenceActionRequest extends ActionRequest {
         if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_ADDED)) {
             this.hasBeenRerouted = in.readBoolean();
         } else {
-            // For backwards compatibility, we treat all requests in old versions as already rerouted
-            // to maintain pre-adaptive-routing behavior.
+            // For backwards compatibility, we treat all inference requests coming from ES nodes having
+            // a version pre-node-local-rate-limiting as already rerouted to maintain pre-node-local-rate-limiting behavior.
             this.hasBeenRerouted = true;
         }
     }

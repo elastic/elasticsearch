@@ -2946,8 +2946,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var basePattern = randomIndexPattern();
         var joinPattern = randomIndexPattern();
         var onField = randomIdentifier();
+        var type = randomFrom("", "LOOKUP ");
 
-        var plan = statement("FROM " + basePattern + " | JOIN " + joinPattern + " ON " + onField);
+        var plan = statement("FROM " + basePattern + " | " + type + " JOIN " + joinPattern + " ON " + onField);
 
         var join = as(plan, LookupJoin.class);
         assertThat(as(join.left(), UnresolvedRelation.class).table().index(), equalTo(removeQuotes(basePattern)));
@@ -2956,6 +2957,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
         assertThat(joinType.columns(), hasSize(1));
         assertThat(as(joinType.columns().getFirst(), UnresolvedAttribute.class).name(), equalTo(onField));
+        assertThat(joinType.coreJoin().joinName(), equalTo("LEFT OUTER"));
     }
 
     private static String randomIndexPattern() {

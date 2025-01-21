@@ -301,7 +301,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var service = new ElasticInferenceService(
                 senderFactory,
                 createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(getUrl(webServer))
+                new ElasticInferenceServiceComponents(getUrl(webServer), null)
             )
         ) {
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer));
@@ -325,7 +325,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var service = new ElasticInferenceService(
                 factory,
                 createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(null)
+                new ElasticInferenceServiceComponents(null, null)
             )
         ) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -367,7 +367,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var service = new ElasticInferenceService(
                 factory,
                 createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(null)
+                new ElasticInferenceServiceComponents(null, null)
             )
         ) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -412,7 +412,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var service = new ElasticInferenceService(
                 factory,
                 createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(null)
+                new ElasticInferenceServiceComponents(null, null)
             )
         ) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -455,7 +455,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var service = new ElasticInferenceService(
                 senderFactory,
                 createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(eisGatewayUrl)
+                new ElasticInferenceServiceComponents(eisGatewayUrl, null)
             )
         ) {
             String responseJson = """
@@ -512,7 +512,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var service = new ElasticInferenceService(
                 senderFactory,
                 createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(eisGatewayUrl)
+                new ElasticInferenceServiceComponents(eisGatewayUrl, null)
             )
         ) {
             String responseJson = """
@@ -625,7 +625,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         return new ElasticInferenceService(
             mock(HttpRequestSender.Factory.class),
             createWithEmptySettings(threadPool),
-            new ElasticInferenceServiceComponents(null)
+            new ElasticInferenceServiceComponents(null, null)
         );
     }
 }

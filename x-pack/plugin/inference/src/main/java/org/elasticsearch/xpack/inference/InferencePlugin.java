@@ -282,7 +282,8 @@ public class InferencePlugin extends Plugin
 
             ElasticInferenceServiceSettings inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
             String elasticInferenceUrl = this.getElasticInferenceServiceUrl(inferenceServiceSettings);
-            elasticInferenceServiceComponents.set(new ElasticInferenceServiceComponents(elasticInferenceUrl));
+            Boolean isProjectInTrialMode = inferenceServiceSettings.isProjectInTrialMode();
+            elasticInferenceServiceComponents.set(new ElasticInferenceServiceComponents(elasticInferenceUrl, isProjectInTrialMode));
 
             inferenceServices.add(
                 () -> List.of(

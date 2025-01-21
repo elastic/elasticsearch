@@ -30,15 +30,23 @@ public class ElasticInferenceServiceSettings {
         Setting.Property.NodeScope
     );
 
+    static final Setting<Boolean> IS_PROJECT_IN_TRIAL_MODE = Setting.boolSetting(
+        "xpack.inference.is_project_in_trial_mode",
+        false,
+        Setting.Property.NodeScope
+    );
+
     // Adjust this variable to be volatile, if the setting can be updated at some point in time
     @Deprecated
     private final String eisGatewayUrl;
 
     private final String elasticInferenceServiceUrl;
+    private final Boolean isProjectInTrialMode;
 
     public ElasticInferenceServiceSettings(Settings settings) {
         eisGatewayUrl = EIS_GATEWAY_URL.get(settings);
         elasticInferenceServiceUrl = ELASTIC_INFERENCE_SERVICE_URL.get(settings);
+        isProjectInTrialMode = IS_PROJECT_IN_TRIAL_MODE.get(settings);
     }
 
     public static final SSLConfigurationSettings ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_SETTINGS = SSLConfigurationSettings.withPrefix(
@@ -57,6 +65,7 @@ public class ElasticInferenceServiceSettings {
         settings.add(EIS_GATEWAY_URL);
         settings.add(ELASTIC_INFERENCE_SERVICE_URL);
         settings.add(ELASTIC_INFERENCE_SERVICE_SSL_ENABLED);
+        settings.add(IS_PROJECT_IN_TRIAL_MODE);
         settings.addAll(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_SETTINGS.getEnabledSettings());
 
         return settings;
@@ -69,6 +78,10 @@ public class ElasticInferenceServiceSettings {
 
     public String getElasticInferenceServiceUrl() {
         return elasticInferenceServiceUrl;
+    }
+
+    public Boolean isProjectInTrialMode() {
+        return isProjectInTrialMode;
     }
 
 }

@@ -771,16 +771,16 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * @return new {@code DataStream} instance with the added backing index
      * @throws IllegalArgumentException if {@code index} is ineligible to be a backing index for the data stream
      */
-    public DataStream addBackingIndex(Metadata clusterMetadata, Index index) {
+    public DataStream addBackingIndex(ProjectMetadata project, Index index) {
         // validate that index is not part of another data stream
-        final var parentDataStream = clusterMetadata.getProject().getIndicesLookup().get(index.getName()).getParentDataStream();
+        final var parentDataStream = project.getIndicesLookup().get(index.getName()).getParentDataStream();
         if (parentDataStream != null) {
             validateDataStreamAlreadyContainsIndex(index, parentDataStream, false);
             return this;
         }
 
         // ensure that no aliases reference index
-        ensureNoAliasesOnIndex(clusterMetadata, index);
+        ensureNoAliasesOnIndex(project, index);
 
         List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices);
         backingIndices.add(0, index);
@@ -798,15 +798,15 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * @return new {@code DataStream} instance with the added failure store index
      * @throws IllegalArgumentException if {@code index} is ineligible to be a failure store index for the data stream
      */
-    public DataStream addFailureStoreIndex(Metadata clusterMetadata, Index index) {
+    public DataStream addFailureStoreIndex(ProjectMetadata project, Index index) {
         // validate that index is not part of another data stream
-        final var parentDataStream = clusterMetadata.getProject().getIndicesLookup().get(index.getName()).getParentDataStream();
+        final var parentDataStream = project.getIndicesLookup().get(index.getName()).getParentDataStream();
         if (parentDataStream != null) {
             validateDataStreamAlreadyContainsIndex(index, parentDataStream, true);
             return this;
         }
 
-        ensureNoAliasesOnIndex(clusterMetadata, index);
+        ensureNoAliasesOnIndex(project, index);
 
         List<Index> updatedFailureIndices = new ArrayList<>(failureIndices.indices);
         updatedFailureIndices.add(0, index);
@@ -840,9 +840,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
     }
 
-    private void ensureNoAliasesOnIndex(Metadata clusterMetadata, Index index) {
-        IndexMetadata im = clusterMetadata.getProject()
-            .index(clusterMetadata.getProject().getIndicesLookup().get(index.getName()).getWriteIndex());
+    private void ensureNoAliasesOnIndex(ProjectMetadata project, Index index) {
+        IndexMetadata im = project.index(project.getIndicesLookup().get(index.getName()).getWriteIndex());
         if (im.getAliases().size() > 0) {
             throw new IllegalArgumentException(
                 String.format(

@@ -1,7 +1,5 @@
 setup:
   - requires:
-      cluster_features: ["esql.metrics_counter_fields"]
-      reason: "require metrics counter fields"
       test_runner_features: allowed_warnings_regex
   - do:
       indices.create:

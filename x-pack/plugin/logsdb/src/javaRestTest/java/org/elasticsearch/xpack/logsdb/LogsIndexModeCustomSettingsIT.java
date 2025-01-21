@@ -119,6 +119,14 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         var indexName = getDataStreamBackingIndex(client, "logs-custom-dev", 0);
         var settings = (Map<?, ?>) ((Map<?, ?>) ((Map<?, ?>) getIndexSettings(indexName)).get(indexName)).get("settings");
         assertThat(settings, hasEntry("index.mapping.source.mode", "stored"));
+
+        request = new Request("GET", "/_migration/deprecations");
+        var nodeSettings = (Map<?, ?>) ((List<?>) entityAsMap(client.performRequest(request)).get("node_settings")).getFirst();
+        assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
+        assertThat(
+            (String) nodeSettings.get("details"),
+            containsString(SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [logs@custom]")
+        );
     }
 
     public void testConfigureDisabledSourceBeforeIndexCreation() {
@@ -194,6 +202,14 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         var indexName = getDataStreamBackingIndex(client, "logs-custom-dev", 0);
         var settings = (Map<?, ?>) ((Map<?, ?>) ((Map<?, ?>) getIndexSettings(indexName)).get(indexName)).get("settings");
         assertThat(settings, hasEntry("index.mapping.source.mode", "stored"));
+
+        request = new Request("GET", "/_migration/deprecations");
+        var nodeSettings = (Map<?, ?>) ((List<?>) entityAsMap(client.performRequest(request)).get("node_settings")).getFirst();
+        assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
+        assertThat(
+            (String) nodeSettings.get("details"),
+            containsString(SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [logs@custom]")
+        );
     }
 
     public void testConfigureDisabledSourceWhenIndexIsCreated() throws IOException {

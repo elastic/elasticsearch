@@ -189,9 +189,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/118914
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryRunAsIT
   issue: https://github.com/elastic/elasticsearch/issues/115727
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/search/search-your-data/retrievers-examples/line_98}
-  issue: https://github.com/elastic/elasticsearch/issues/119155
 - class: org.elasticsearch.xpack.esql.action.EsqlNodeFailureIT
   method: testFailureLoadingFields
   issue: https://github.com/elastic/elasticsearch/issues/118000
@@ -252,6 +249,8 @@ tests:
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
   method: testInvalidJSON
   issue: https://github.com/elastic/elasticsearch/issues/120482
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/120497
 
 # Examples:
 #

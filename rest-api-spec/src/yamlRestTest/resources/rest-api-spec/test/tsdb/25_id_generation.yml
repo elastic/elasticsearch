@@ -85,24 +85,24 @@ generates a consistent id:
           - '{"@timestamp": "2021-04-28T18:52:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
   - match: {items.0.index._id: cZZNs7B9sSWsyrL5UyzAETNYlPAAAAF5GdLt8w}
 
-#  - do:
-#      get:
-#        index: id_generation_test
-#        id: cn4excfoxSs_KdA5UyzAETNYlPAAAAF5GdEUBg
-#  - match: {_index: id_generation_test}
-#  - match: {_id: cn4excfoxSs_KdA5UyzAETNYlPAAAAF5GdEUBg}
-#  - match:
-#      _source:
-#        "@timestamp": "2021-04-28T18:50:03.142Z"
-#        metricset: pod
-#        k8s:
-#          pod:
-#            name: dog
-#            uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9
-#            ip: 10.10.55.3
-#            network:
-#              tx: 1434521831
-#              rx: 530575198
+  - do:
+      get:
+        index: id_generation_test
+        id: cn4excfoxSs_KdA5UyzAETNYlPAAAAF5GdEUBg
+  - match: {_index: id_generation_test}
+  - match: {_id: cn4excfoxSs_KdA5UyzAETNYlPAAAAF5GdEUBg}
+  - match:
+      _source:
+        "@timestamp": "2021-04-28T18:50:03.142Z"
+        metricset: pod
+        k8s:
+          pod:
+            name: dog
+            uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9
+            ip: 10.10.55.3
+            network:
+              tx: 1434521831
+              rx: 530575198
 
 
   - do:

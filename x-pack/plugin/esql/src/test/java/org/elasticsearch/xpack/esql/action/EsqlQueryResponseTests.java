@@ -527,7 +527,6 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             "skipped" : 0,
             "partial" : 0,
             "failed" : 0,
-            "is_partial": false,
             "details" : {
                 "(local)" : {
                     "status" : "successful",
@@ -554,7 +553,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             }
          }
          */
-        return numClusters * 4 + 7;
+        return numClusters * 4 + 6;
     }
 
     public void testChunkResponseSizeColumnar() {

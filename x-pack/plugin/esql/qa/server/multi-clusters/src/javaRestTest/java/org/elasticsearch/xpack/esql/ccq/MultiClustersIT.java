@@ -272,9 +272,9 @@ public class MultiClustersIT extends ESRestTestCase {
         assertThat(clusters.get("skipped"), equalTo(0));
         assertThat(clusters.get("partial"), equalTo(0));
         assertThat(clusters.get("failed"), equalTo(0));
-        if (clusters.containsKey("is_partial")) {
+        if (result.containsKey("is_partial")) {
             // for some BWC tests, the is_partial key may not be present
-            assertThat(clusters.get("is_partial"), equalTo(false));
+            assertThat(result.get("is_partial"), equalTo(false));
         }
 
         @SuppressWarnings("unchecked")

@@ -210,6 +210,7 @@ Which returns:
 {
   "is_running": false,
   "took": 42,  <1>
+  "is_partial": false, <7>
   "columns" : [
     {
       "name" : "COUNT(http.response.status_code)",
@@ -231,7 +232,6 @@ Which returns:
     "skipped": 0,
     "partial": 0,
     "failed": 0,
-    "is_partial": false, <7>
     "details": { <3>
       "(local)": { <4>
         "status": "successful",
@@ -318,6 +318,7 @@ Which returns:
 {
   "is_running": false,
   "took": 55,
+  "is_partial": false,
   "columns": [
      ... // not shown
   ],
@@ -331,7 +332,6 @@ Which returns:
     "skipped": 0,
     "partial": 0,
     "failed": 0,
-    "is_partial": false,
     "details": {
       "cluster_one": {
         "status": "successful",

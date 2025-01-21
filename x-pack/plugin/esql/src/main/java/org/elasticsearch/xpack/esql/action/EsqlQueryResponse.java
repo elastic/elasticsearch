@@ -208,6 +208,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         if (executionInfo != null && executionInfo.overallTook() != null) {
             tookTime = ChunkedToXContentHelper.chunk((builder, p) -> {
                 builder.field("took", executionInfo.overallTook().millis());
+                builder.field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), executionInfo.isPartial());
                 return builder;
             });
         } else {

@@ -10,7 +10,7 @@
 For the most up-to-date API details, refer to {api-es}/group/endpoint-esql[ES|QL APIs].
 --
 
-The <<esql,{esql}>> async query stop API is used to manually stop an async query. Once stop command is issued,
+The <<esql,{esql}>> async query stop API is used to manually stop an async query. Once the stop command is issued,
 the query stops processing new data and returns the results that have been already processed. Note that due to the pipelined
 nature of {esql} queries, the stop operation is not immediate and may take time to return results.
 
@@ -18,7 +18,7 @@ The results are returned in <<esql-query-api-response-body,the same format>> as 
 <<esql-async-query-get-api,{esql} async query get API>>.
 If the query has been finished by the time the stop command is issued, the results are returned immediately.
 
-If the query processing has not been finished by the time the stop command is issued, the result data will have
+If the query processing has not finished by the time the stop command is issued, the response will have
 `is_partial` field set to `true`.
 
 [source,console]

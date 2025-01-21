@@ -77,6 +77,7 @@ public class ComputeService {
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
     private final DataNodeComputeHandler dataNodeComputeHandler;
     private final ClusterComputeHandler clusterComputeHandler;
+    private final ExchangeService exchangeService;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -107,6 +108,7 @@ public class ComputeService {
             esqlExecutor,
             dataNodeComputeHandler
         );
+        this.exchangeService = exchangeService;
     }
 
     public void execute(

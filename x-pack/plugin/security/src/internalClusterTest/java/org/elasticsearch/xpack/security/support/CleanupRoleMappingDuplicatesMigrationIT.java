@@ -302,6 +302,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
     }
 
     public void testNewIndexSkipMigration() {
+        deleteSecurityIndex(); // hack to force a new security index to be created
         internalCluster().setBootstrapMasterNodeIndex(0);
         final String masterNode = internalCluster().getMasterName();
         ensureGreen();

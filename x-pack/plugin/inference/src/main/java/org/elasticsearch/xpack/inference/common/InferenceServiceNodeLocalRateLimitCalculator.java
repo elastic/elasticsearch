@@ -61,6 +61,7 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
      **/
     static final Map<String, Collection<NodeLocalRateLimitConfig>> SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS = Map.of(
         ElasticInferenceService.NAME,
+        // TODO: should probably be a map/set
         List.of(new NodeLocalRateLimitConfig(TaskType.SPARSE_EMBEDDING, (numNodesInCluster) -> DEFAULT_MAX_NODES_PER_GROUPING))
     );
 
@@ -99,6 +100,8 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
     public void clusterChanged(ClusterChangedEvent event) {
         boolean clusterTopologyChanged = event.nodesChanged();
 
+        // TODO: is it possible to disable a plugin on a per-node basis? rate-limit logic needs to exclude those nodes
+        // TODO: feature flag per node? We should not reroute to nodes not having eis and/or the inference plugin enabled
         // Every node should land on the same grouping by calculation, so no need to put anything into the cluster state
         if (clusterTopologyChanged) {
             updateAssignments(event);
@@ -107,6 +110,11 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
 
     public boolean isTaskTypeReroutingSupported(String serviceName, TaskType taskType) {
         var rateLimitConfigs = SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.get(serviceName);
+
+        // We need to check this to make sure the service actually has a rate limit configuration
+        if(rateLimitConfigs == null){
+            return false;
+        }
 
         for (var rateLimitConfig : rateLimitConfigs) {
             if (taskType.equals(rateLimitConfig.taskType())) {

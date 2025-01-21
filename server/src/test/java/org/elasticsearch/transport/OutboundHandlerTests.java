@@ -12,6 +12,7 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -34,6 +35,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -133,11 +135,14 @@ public class OutboundHandlerTests extends ESTestCase {
 
     public void testSendRequest() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
-        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
         String action = "handshake";
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
-        boolean compress = randomBoolean();
+        TransportVersion version = isHandshake
+            ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
+            : TransportVersionUtils.randomCompatibleVersion(random());
+        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // drop the version.onOrAfter() in v9
+        boolean compress = version.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE) && randomBoolean();
         String value = "message";
         threadContext.putHeader("header", "header_value");
         TestRequest request = new TestRequest(value);
@@ -204,11 +209,14 @@ public class OutboundHandlerTests extends ESTestCase {
 
     public void testSendResponse() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
-        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
         String action = "handshake";
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
-        boolean compress = randomBoolean();
+        TransportVersion version = isHandshake
+            ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
+            : TransportVersionUtils.randomCompatibleVersion(random());
+        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // drop the version.onOrAfter() in v9
+        boolean compress = version.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE) && randomBoolean();
 
         String value = "message";
         threadContext.putHeader("header", "header_value");
@@ -269,8 +277,8 @@ public class OutboundHandlerTests extends ESTestCase {
 
     public void testErrorResponse() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
-        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
-        String action = "handshake";
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        String action = "not-a-handshake";
         long requestId = randomLongBetween(0, 300);
         threadContext.putHeader("header", "header_value");
         ElasticsearchException error = new ElasticsearchException("boom");
@@ -322,7 +330,7 @@ public class OutboundHandlerTests extends ESTestCase {
     }
 
     public void testSendErrorAfterFailToSendResponse() throws Exception {
-        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         String action = randomAlphaOfLength(10);
         long requestId = randomLongBetween(0, 300);
         var response = new ReleasbleTestResponse(randomAlphaOfLength(10)) {

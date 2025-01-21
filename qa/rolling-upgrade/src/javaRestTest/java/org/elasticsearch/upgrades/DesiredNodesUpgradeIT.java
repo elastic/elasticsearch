@@ -11,7 +11,6 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.DesiredNode;
@@ -84,7 +83,7 @@ public class DesiredNodesUpgradeIT extends AbstractRollingUpgradeTestCase {
                         randomDoubleProcessorCount(),
                         ByteSizeValue.ofGb(randomIntBetween(10, 24)),
                         ByteSizeValue.ofGb(randomIntBetween(128, 256)),
-                        clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_DEPRECATED) ? null : Build.current().version()
+                        null
                     )
                 )
                 .toList();
@@ -96,7 +95,7 @@ public class DesiredNodesUpgradeIT extends AbstractRollingUpgradeTestCase {
                     new DesiredNode.ProcessorsRange(minProcessors, minProcessors + randomIntBetween(10, 20)),
                     ByteSizeValue.ofGb(randomIntBetween(10, 24)),
                     ByteSizeValue.ofGb(randomIntBetween(128, 256)),
-                    clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_DEPRECATED) ? null : Build.current().version()
+                    null
                 );
             }).toList();
         }

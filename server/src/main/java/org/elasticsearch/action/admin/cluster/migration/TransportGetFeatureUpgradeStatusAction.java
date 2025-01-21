@@ -53,7 +53,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     GetFeatureUpgradeStatusResponse> {
 
     /**
-     * Once all feature migrations for 8.x -> 9.x have been tested, we can bump this to Version.V_8_0_0
+     * Once all feature migrations for 9.x -> 10.x have been tested, we can bump this to Version.V_9_0_0
      */
     public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_8_0_0;
     public static final IndexVersion NO_UPGRADE_REQUIRED_INDEX_VERSION = IndexVersions.V_8_0_0;

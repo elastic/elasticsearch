@@ -21,7 +21,9 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -47,6 +49,14 @@ public class RestResolveClusterAction extends BaseRestHandler {
         } else {
             indexExpressions = new String[0];
             clusterInfoOnly = true;
+            Set<String> indexOptions = requestIndexOptionsParams(request);
+            if (indexOptions.isEmpty() == false) {
+                // this restriction avoids problems with having to send wildcarded index expressions to older clusters
+                // when no index expression is provided by the user
+                throw new IllegalArgumentException(
+                    "No index options are allowed on _resolve/cluster when no index expression is specified, but received: " + indexOptions
+                );
+            }
         }
         ResolveClusterActionRequest resolveRequest = new ResolveClusterActionRequest(
             indexExpressions,
@@ -57,5 +67,22 @@ public class RestResolveClusterAction extends BaseRestHandler {
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()
             .execute(TransportResolveClusterAction.TYPE, resolveRequest, new RestToXContentListener<>(channel));
+    }
+
+    private static Set<String> requestIndexOptionsParams(RestRequest request) {
+        Set<String> indexOptions = new HashSet<>();
+        if (request.hasParam("expand_wildcards")) {
+            indexOptions.add("expand_wildcards");
+        }
+        if (request.hasParam("ignore_unavailable")) {
+            indexOptions.add("ignore_unavailable");
+        }
+        if (request.hasParam("allow_no_indices")) {
+            indexOptions.add("allow_no_indices");
+        }
+        if (request.hasParam("ignore_throttled")) {
+            indexOptions.add("ignore_throttled");
+        }
+        return indexOptions;
     }
 }

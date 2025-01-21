@@ -110,7 +110,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                  *    just "*" since that could be an expensive operation on clusters with thousands of indices/aliases/datastreams
                  */
                 String[] dummyIndexExpr = new String[] { DUMMY_INDEX_FOR_OLDER_CLUSTERS };
-                remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(), dummyIndexExpr, false);
+                remoteClusterIndices = remoteClusterService.groupIndices(IndicesOptions.DEFAULT, dummyIndexExpr, false);
                 if (remoteClusterIndices.isEmpty()) {
                     // no remote clusters are configured on the primary "querying" cluster
                     listener.onResponse(new ResolveClusterActionResponse(Map.of()));

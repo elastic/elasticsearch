@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
@@ -356,9 +357,28 @@ public class RemoteClusterSecurityRCS2ResolveClusterIT extends AbstractRemoteClu
             assertNull(remoteClusterResponse.get("error"));
             assertNotNull(remoteClusterResponse.get("version"));
         }
+        {
+            // TEST CASE 12: Query resolve/cluster with no index expression, but include index options - should return error
+            Request getRequest = new Request("GET", "_resolve/cluster");
+            Tuple<String, String> indexOptionTuple = randomFrom(
+                new Tuple<>("ignore_throttled", "false"),
+                new Tuple<>("expand_wildcards", "none"),
+                new Tuple<>("allow_no_indices", "true"),
+                new Tuple<>("ignore_unavailable", "true")
+            );
+            getRequest.addParameter(indexOptionTuple.v1(), indexOptionTuple.v2());
+
+            ResponseException exc = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(getRequest));
+            assertThat(exc.getResponse().getStatusLine().getStatusCode(), is(400));
+            assertThat(
+                exc.getMessage(),
+                containsString("No index options are allowed on _resolve/cluster when no index expression is specified")
+            );
+            assertThat(exc.getMessage(), containsString(indexOptionTuple.v1()));
+        }
         // TODO: fix this in a follow-on PR
         // {
-        // // TEST CASE 12: Resolution against wildcarded remote cluster expression that matches no remotes
+        // // TEST CASE 13: Resolution against wildcarded remote cluster expression that matches no remotes
         // final Request remoteOnly1 = new Request("GET", "_resolve/cluster/no_such_remote*:*");
         // Response response = performRequestWithRemoteSearchUser(remoteOnly1);
         // assertOK(response);

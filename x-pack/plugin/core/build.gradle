@@ -184,3 +184,7 @@ tasks.named('test').configure {
 }
 
 tasks.named("check").configure { dependsOn "testAutomatonPatterns" }
+
+tasks.named('yamlRestCompatTest').configure {
+  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
+}

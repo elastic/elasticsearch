@@ -248,7 +248,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                 var releaserListener = ActionListener.releaseAfter(remoteListener, refs.acquire());
                 var timeoutListener = ListenerTimeouts.wrapWithTimeout(
                     threadPool,
-                    TimeValue.timeValueSeconds(2),
+                    request.getTimeout(),
                     searchCoordinationExecutor,
                     releaserListener,
                     ignored -> releaserListener.onFailure(new ConnectTransportException(null, "Could not connect to the remote node"))

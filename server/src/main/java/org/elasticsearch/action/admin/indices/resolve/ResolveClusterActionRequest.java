@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -52,6 +53,8 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
      */
     private boolean localIndicesRequested = false;
     private IndicesOptions indicesOptions;
+    private final TimeValue DEFAULT_HANDSHAKE_TIMEOUT = TimeValue.timeValueSeconds(9);
+    private TimeValue timeout = DEFAULT_HANDSHAKE_TIMEOUT;
 
     public ResolveClusterActionRequest(String[] names) {
         this(names, DEFAULT_INDICES_OPTIONS);
@@ -123,6 +126,10 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
         return names;
     }
 
+    public TimeValue getTimeout() {
+        return timeout;
+    }
+
     public boolean isLocalIndicesRequested() {
         return localIndicesRequested;
     }
@@ -172,5 +179,14 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
             }
         }
         return false;
+    }
+
+    public void setTimeout(String timeout) {
+        this.timeout = TimeValue.parseTimeValue(timeout, "timeout");
+        // The default handshake timeout.
+        // Cap the max value to 9s even if user specifies a value > 9s as distrib code defaults to 9s.
+        if (this.timeout.getSeconds() > 9) {
+            this.timeout = DEFAULT_HANDSHAKE_TIMEOUT;
+        }
     }
 }

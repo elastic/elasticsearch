@@ -44,6 +44,12 @@ public class RestResolveClusterAction extends BaseRestHandler {
             indexExpressions,
             IndicesOptions.fromRequest(request, ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS)
         );
+
+        String timeout = request.param("timeout");
+        if (timeout != null) {
+            resolveRequest.setTimeout(timeout);
+        }
+
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()
             .execute(TransportResolveClusterAction.TYPE, resolveRequest, new RestToXContentListener<>(channel));

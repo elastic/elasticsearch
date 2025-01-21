@@ -157,7 +157,6 @@ public class TransportVersions {
     public static final TransportVersion KQL_QUERY_TECH_PREVIEW = def(8_823_00_0);
     public static final TransportVersion ESQL_PROFILE_ROWS_PROCESSED = def(8_824_00_0);
     public static final TransportVersion BYTE_SIZE_VALUE_ALWAYS_USES_BYTES = def(8_825_00_0);
-    public static final TransportVersion ESQL_MATCH_OPTIONS = def(8_826_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

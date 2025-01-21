@@ -94,7 +94,8 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
 
     private final Expression field;
 
-    private final Expression options;
+    // Options for match function. They don't need to be serialized as the data nodes will retrieve them from the query builder
+    private final transient Expression options;
 
     private transient Boolean isOperator;
 
@@ -191,11 +192,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
             queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         }
-        Expression options = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_MATCH_OPTIONS)) {
-            options = in.readOptionalNamedWriteable(Expression.class);
-        }
-        return new Match(source, field, query, options, queryBuilder);
+        return new Match(source, field, query, null, queryBuilder);
     }
 
     @Override
@@ -205,9 +202,6 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
         out.writeNamedWriteable(query());
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
             out.writeOptionalNamedWriteable(queryBuilder());
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_MATCH_OPTIONS)) {
-            out.writeOptionalNamedWriteable(options());
         }
     }
 

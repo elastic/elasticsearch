@@ -30,7 +30,7 @@ import java.util.function.Function;
  */
 public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
-    public static final String THREAD_POOL_METRIC_NAME_QUEUE_TIME = ".threads.queue.latency";
+    public static final String THREAD_POOL_METRIC_NAME_QUEUE_TIME = ".threads.queue.latency.histogram";
 
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ExponentiallyWeightedMovingAverage executionEWMA;

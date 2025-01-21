@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.application.rules.retriever;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RankDocsQueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
@@ -45,7 +44,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<QueryRuleRetrieverBuilder> {
 
     public static final String NAME = "rule";
-    public static final NodeFeature QUERY_RULE_RETRIEVERS_SUPPORTED = new NodeFeature("query_rule_retriever_supported");
 
     public static final ParseField RULESET_IDS_FIELD = new ParseField("ruleset_ids");
     public static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");
@@ -76,9 +74,6 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
     }
 
     public static QueryRuleRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
-        if (context.clusterSupportsFeature(QUERY_RULE_RETRIEVERS_SUPPORTED) == false) {
-            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
-        }
         if (EnterpriseSearch.QUERY_RULES_RETRIEVER_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
             throw LicenseUtils.newComplianceException("Query Rules");
         }

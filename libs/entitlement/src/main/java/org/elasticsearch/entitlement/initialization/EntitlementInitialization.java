@@ -22,6 +22,8 @@ import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker
 import org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.ExitVMEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.InboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
@@ -97,7 +99,17 @@ public class EntitlementInitialization {
             List.of(
                 new Scope("org.elasticsearch.base", List.of(new CreateClassLoaderEntitlement())),
                 new Scope("org.elasticsearch.xcontent", List.of(new CreateClassLoaderEntitlement())),
-                new Scope("org.elasticsearch.server", List.of(new ExitVMEntitlement(), new CreateClassLoaderEntitlement()))
+                new Scope(
+                    "org.elasticsearch.server",
+                    List.of(
+                        new ExitVMEntitlement(),
+                        new CreateClassLoaderEntitlement(),
+                        new InboundNetworkEntitlement(),
+                        new OutboundNetworkEntitlement()
+                    )
+                ),
+                new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
+                new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement()))
             )
         );
         // agents run without a module, so this is a special hack for the apm agent

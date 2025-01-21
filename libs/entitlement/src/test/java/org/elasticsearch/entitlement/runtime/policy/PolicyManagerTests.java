@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class PolicyManagerTests extends ESTestCase {
     /**
      * A module you can use for test cases that don't actually care about the
-     * entitlements module.
+     * entitlement module.
      */
     private static Module NO_ENTITLEMENTS_MODULE;
 
@@ -145,7 +145,6 @@ public class PolicyManagerTests extends ESTestCase {
         // So we use a random module in the boot layer, and a random class from that module (not java.base -- it is
         // loaded too early) to mimic a class that would be in the server module.
         var mockServerClass = ModuleLayer.boot().findLoader("jdk.httpserver").loadClass("com.sun.net.httpserver.HttpServer");
-        var requestingModule = mockServerClass.getModule();
 
         var entitlements = policyManager.getEntitlements(mockServerClass);
         assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
@@ -167,7 +166,6 @@ public class PolicyManagerTests extends ESTestCase {
 
         var layer = createLayerForJar(jar, "org.example.plugin");
         var mockPluginClass = layer.findLoader("org.example.plugin").loadClass("q.B");
-        var requestingModule = mockPluginClass.getModule();
 
         var entitlements = policyManager.getEntitlements(mockPluginClass);
         assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
@@ -192,7 +190,7 @@ public class PolicyManagerTests extends ESTestCase {
         var entitlements = policyManager.getEntitlements(callerClass);
         assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
         assertThat(policyManager.moduleEntitlementsMap, aMapWithSize(1));
-        var cachedResult = policyManager.moduleEntitlementsMap.values().stream().findFirst().get();
+        var cachedResult = policyManager.moduleEntitlementsMap.values().stream().findFirst().orElseThrow();
         var entitlementsAgain = policyManager.getEntitlements(callerClass);
 
         // Nothing new in the map

@@ -1388,7 +1388,7 @@ multi value dimensions:
 ---
 documents with different metrics are not considered duplicates:
   - requires:
-      cluster_features: ["mapper.keyword_dimension_ignore_above"]
+      cluster_features: ["tsdb.ts_metric_names_hash"]
       reason: support for ignore_above on keyword dimensions
   - do:
       allowed_warnings:

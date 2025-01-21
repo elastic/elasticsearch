@@ -140,9 +140,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_reset/Test reset running transform}
   issue: https://github.com/elastic/elasticsearch/issues/117473
-- class: org.elasticsearch.search.ccs.CrossClusterIT
-  method: testCancel
-  issue: https://github.com/elastic/elasticsearch/issues/108061
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.highlight/50_synthetic_source/text multi unified from vectors}
   issue: https://github.com/elastic/elasticsearch/issues/117815
@@ -181,9 +178,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/118374
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   issue: https://github.com/elastic/elasticsearch/issues/118238
-- class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
-  method: testInvalidJSON
-  issue: https://github.com/elastic/elasticsearch/issues/116521
 - class: org.elasticsearch.xpack.ccr.rest.ShardChangesRestIT
   method: testShardChangesNoOperation
   issue: https://github.com/elastic/elasticsearch/issues/118800
@@ -223,9 +217,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_unattended/Test unattended put and start}
   issue: https://github.com/elastic/elasticsearch/issues/120019
-- class: org.elasticsearch.index.mapper.IntervalThrottlerTests
-  method: testThrottling
-  issue: https://github.com/elastic/elasticsearch/issues/120023
 - class: org.elasticsearch.xpack.ilm.actions.SearchableSnapshotActionIT
   method: testUpdatePolicyToAddPhasesYieldsInvalidActionsToBeSkipped
   issue: https://github.com/elastic/elasticsearch/issues/118406
@@ -247,6 +238,22 @@ tests:
 - class: org.elasticsearch.xpack.ccr.FollowIndexSecurityIT
   method: testCleanShardFollowTaskAfterDeleteFollower
   issue: https://github.com/elastic/elasticsearch/issues/120339
+- class: org.elasticsearch.search.ccs.CrossClusterIT
+  method: testCancel
+  issue: https://github.com/elastic/elasticsearch/issues/108061
+- class: org.elasticsearch.xpack.logsdb.seqno.RetentionLeaseRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/120434
+- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
+  method: testCheckActionWithPolicyPass {pathPrefix=allowed actionName=create_ldap_cert_store}
+  issue: https://github.com/elastic/elasticsearch/issues/120422
+- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
+  method: testCheckActionWithPolicyPass {pathPrefix=allowed_nonmodular actionName=create_ldap_cert_store}
+  issue: https://github.com/elastic/elasticsearch/issues/120423
+- class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
+  method: testInvalidJSON
+  issue: https://github.com/elastic/elasticsearch/issues/120482
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/120497
 
 # Examples:
 #

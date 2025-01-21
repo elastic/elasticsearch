@@ -41,7 +41,6 @@ public class GetPipelineTransportAction extends TransportMasterNodeReadAction<Ge
             threadPool,
             actionFilters,
             GetPipelineRequest::new,
-            indexNameExpressionResolver,
             GetPipelineResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

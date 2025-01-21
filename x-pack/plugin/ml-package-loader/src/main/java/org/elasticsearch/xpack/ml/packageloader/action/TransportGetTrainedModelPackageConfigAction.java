@@ -63,7 +63,6 @@ public class TransportGetTrainedModelPackageConfigAction extends TransportMaster
             threadPool,
             actionFilters,
             GetTrainedModelPackageConfigAction.Request::new,
-            indexNameExpressionResolver,
             GetTrainedModelPackageConfigAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

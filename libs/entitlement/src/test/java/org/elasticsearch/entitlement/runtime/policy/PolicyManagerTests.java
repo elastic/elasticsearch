@@ -59,6 +59,7 @@ public class PolicyManagerTests extends ESTestCase {
             List.of(),
             Map.of("plugin1", createPluginPolicy("plugin.module")),
             c -> "plugin1",
+            NO_ENTITLEMENTS_MODULE,
             NO_ENTITLEMENTS_MODULE
         );
 
@@ -72,7 +73,14 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testGetEntitlementsThrowsOnMissingPolicyForPlugin() {
-        var policyManager = new PolicyManager(createEmptyTestServerPolicy(), List.of(), Map.of(), c -> "plugin1", NO_ENTITLEMENTS_MODULE);
+        var policyManager = new PolicyManager(
+            createEmptyTestServerPolicy(),
+            List.of(),
+            Map.of(),
+            c -> "plugin1",
+            NO_ENTITLEMENTS_MODULE,
+            NO_ENTITLEMENTS_MODULE
+        );
 
         // Any class from the current module (unnamed) will do
         var callerClass = this.getClass();
@@ -84,7 +92,14 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testGetEntitlementsFailureIsCached() {
-        var policyManager = new PolicyManager(createEmptyTestServerPolicy(), List.of(), Map.of(), c -> "plugin1", NO_ENTITLEMENTS_MODULE);
+        var policyManager = new PolicyManager(
+            createEmptyTestServerPolicy(),
+            List.of(),
+            Map.of(),
+            c -> "plugin1",
+            NO_ENTITLEMENTS_MODULE,
+            NO_ENTITLEMENTS_MODULE
+        );
 
         // Any class from the current module (unnamed) will do
         var callerClass = this.getClass();
@@ -106,6 +121,7 @@ public class PolicyManagerTests extends ESTestCase {
             List.of(),
             Map.ofEntries(entry("plugin2", createPluginPolicy(ALL_UNNAMED))),
             c -> "plugin2",
+            NO_ENTITLEMENTS_MODULE,
             NO_ENTITLEMENTS_MODULE
         );
 
@@ -117,7 +133,14 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testGetEntitlementsThrowsOnMissingPolicyForServer() throws ClassNotFoundException {
-        var policyManager = new PolicyManager(createTestServerPolicy("example"), List.of(), Map.of(), c -> null, NO_ENTITLEMENTS_MODULE);
+        var policyManager = new PolicyManager(
+            createTestServerPolicy("example"),
+            List.of(),
+            Map.of(),
+            c -> null,
+            NO_ENTITLEMENTS_MODULE,
+            NO_ENTITLEMENTS_MODULE
+        );
 
         // Tests do not run modular, so we cannot use a server class.
         // But we know that in production code the server module and its classes are in the boot layer.
@@ -137,6 +160,7 @@ public class PolicyManagerTests extends ESTestCase {
             List.of(),
             Map.of(),
             c -> null,
+            NO_ENTITLEMENTS_MODULE,
             NO_ENTITLEMENTS_MODULE
         );
 
@@ -161,6 +185,7 @@ public class PolicyManagerTests extends ESTestCase {
             List.of(),
             Map.of("mock-plugin", createPluginPolicy("org.example.plugin")),
             c -> "mock-plugin",
+            NO_ENTITLEMENTS_MODULE,
             NO_ENTITLEMENTS_MODULE
         );
 
@@ -181,6 +206,7 @@ public class PolicyManagerTests extends ESTestCase {
             List.of(),
             Map.ofEntries(entry("plugin2", createPluginPolicy(ALL_UNNAMED))),
             c -> "plugin2",
+            NO_ENTITLEMENTS_MODULE,
             NO_ENTITLEMENTS_MODULE
         );
 
@@ -200,7 +226,10 @@ public class PolicyManagerTests extends ESTestCase {
 
     public void testRequestingClassFastPath() throws IOException, ClassNotFoundException {
         var callerClass = makeClassInItsOwnModule();
-        assertEquals(callerClass, policyManagerWithEntitlementsModule(NO_ENTITLEMENTS_MODULE).requestingClass(callerClass));
+        assertEquals(
+            callerClass,
+            policyManagerWithEntitlementsModule(NO_ENTITLEMENTS_MODULE, NO_ENTITLEMENTS_MODULE).requestingClass(callerClass)
+        );
     }
 
     public void testRequestingModuleWithStackWalk() throws IOException, ClassNotFoundException {
@@ -209,7 +238,10 @@ public class PolicyManagerTests extends ESTestCase {
         var instrumentedClass = makeClassInItsOwnModule();    // The class that called the check method
         var ignorableClass = makeClassInItsOwnModule();
 
-        var policyManager = policyManagerWithEntitlementsModule(entitlementsClass.getModule());
+        var policyManager = policyManagerWithEntitlementsModule(
+            ClassLoader.getSystemClassLoader().getUnnamedModule(),
+            entitlementsClass.getModule()
+        );
 
         assertEquals(
             "Skip entitlement library and the instrumented method",
@@ -236,8 +268,8 @@ public class PolicyManagerTests extends ESTestCase {
         return layer.findLoader("org.example.plugin").loadClass("q.B");
     }
 
-    private static PolicyManager policyManagerWithEntitlementsModule(Module entitlementsModule) {
-        return new PolicyManager(createEmptyTestServerPolicy(), List.of(), Map.of(), c -> "test", entitlementsModule);
+    private static PolicyManager policyManagerWithEntitlementsModule(Module agentsModule, Module entitlementsModule) {
+        return new PolicyManager(createEmptyTestServerPolicy(), List.of(), Map.of(), c -> "test", agentsModule, entitlementsModule);
     }
 
     private static Policy createEmptyTestServerPolicy() {

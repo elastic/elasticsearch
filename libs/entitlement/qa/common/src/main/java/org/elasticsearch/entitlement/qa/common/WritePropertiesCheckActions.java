@@ -11,10 +11,10 @@ package org.elasticsearch.entitlement.qa.common;
 
 import org.elasticsearch.core.SuppressForbidden;
 
+@SuppressForbidden(reason = "testing entitlements")
 class WritePropertiesCheckActions {
     private WritePropertiesCheckActions() {}
 
-    @SuppressForbidden(reason = "testing entitlements")
     static void setSystemProperty() {
         System.setProperty("es.entitlements.checkSetSystemProperty", "true");
         try {
@@ -25,12 +25,10 @@ class WritePropertiesCheckActions {
 
     }
 
-    @SuppressForbidden(reason = "testing entitlements")
     static void clearSystemProperty() {
         System.clearProperty("es.entitlements.checkClearSystemProperty");
     }
 
-    @SuppressForbidden(reason = "testing entitlements")
     static void setSystemProperties() {
         System.setProperties(System.getProperties()); // no side effect in case if allowed (but shouldn't)
     }

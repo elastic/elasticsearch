@@ -194,7 +194,7 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
             var enumTaskTypes = EnumSet.noneOf(TaskType.class);
 
             for (var supportedTaskTypeString : taskTypes) {
-                enumTaskTypes.add(TaskType.fromString(supportedTaskTypeString));
+                enumTaskTypes.add(TaskType.fromStringOrStatusException(supportedTaskTypeString));
             }
             this.taskTypes = enumTaskTypes;
             return this;

@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.elastic.auth.ElasticInferenceServiceAuthorization;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -305,7 +306,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 createWithEmptySettings(threadPool),
                 new ElasticInferenceServiceComponents(getUrl(webServer)),
                 mockModelRegistry(),
-                ElasticInferenceServiceACLTests.createEnabledAcl()
+                ElasticInferenceServiceAuthorizationTests.createEnabledAuth()
             )
         ) {
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer));
@@ -331,7 +332,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 createWithEmptySettings(threadPool),
                 new ElasticInferenceServiceComponents(null),
                 mockModelRegistry(),
-                ElasticInferenceServiceACLTests.createEnabledAcl()
+                ElasticInferenceServiceAuthorizationTests.createEnabledAuth()
             )
         ) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -381,7 +382,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 createWithEmptySettings(threadPool),
                 new ElasticInferenceServiceComponents(null),
                 mockModelRegistry(),
-                ElasticInferenceServiceACLTests.createEnabledAcl()
+                ElasticInferenceServiceAuthorizationTests.createEnabledAuth()
             )
         ) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -428,7 +429,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 createWithEmptySettings(threadPool),
                 new ElasticInferenceServiceComponents(null),
                 mockModelRegistry(),
-                ElasticInferenceServiceACLTests.createEnabledAcl()
+                ElasticInferenceServiceAuthorizationTests.createEnabledAuth()
             )
         ) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -473,7 +474,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 createWithEmptySettings(threadPool),
                 new ElasticInferenceServiceComponents(eisGatewayUrl),
                 mockModelRegistry(),
-                ElasticInferenceServiceACLTests.createEnabledAcl()
+                ElasticInferenceServiceAuthorizationTests.createEnabledAuth()
             )
         ) {
             String responseJson = """
@@ -532,7 +533,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 createWithEmptySettings(threadPool),
                 new ElasticInferenceServiceComponents(eisGatewayUrl),
                 mockModelRegistry(),
-                ElasticInferenceServiceACLTests.createEnabledAcl()
+                ElasticInferenceServiceAuthorizationTests.createEnabledAuth()
             )
         ) {
             String responseJson = """
@@ -589,7 +590,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     }
 
     public void testHideFromConfigurationApi_ReturnsTrue_WithNoAvailableModels() throws Exception {
-        try (var service = createServiceWithMockSender(ElasticInferenceServiceACL.newDisabledService())) {
+        try (var service = createServiceWithMockSender(ElasticInferenceServiceAuthorization.newDisabledService())) {
             assertTrue(service.hideFromConfigurationApi());
         }
     }
@@ -597,7 +598,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     public void testHideFromConfigurationApi_ReturnsTrue_WithModelTaskTypesThatAreNotImplemented() throws Exception {
         try (
             var service = createServiceWithMockSender(
-                new ElasticInferenceServiceACL(Map.of("model-1", EnumSet.of(TaskType.TEXT_EMBEDDING)))
+                new ElasticInferenceServiceAuthorization(Map.of("model-1", EnumSet.of(TaskType.TEXT_EMBEDDING)))
             )
         ) {
             assertTrue(service.hideFromConfigurationApi());
@@ -607,7 +608,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     public void testHideFromConfigurationApi_ReturnsFalse_WithAvailableModels() throws Exception {
         try (
             var service = createServiceWithMockSender(
-                new ElasticInferenceServiceACL(Map.of("model-1", EnumSet.of(TaskType.CHAT_COMPLETION)))
+                new ElasticInferenceServiceAuthorization(Map.of("model-1", EnumSet.of(TaskType.CHAT_COMPLETION)))
             )
         ) {
             assertFalse(service.hideFromConfigurationApi());
@@ -617,7 +618,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     public void testGetConfiguration() throws Exception {
         try (
             var service = createServiceWithMockSender(
-                new ElasticInferenceServiceACL(Map.of("model-1", EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)))
+                new ElasticInferenceServiceAuthorization(Map.of("model-1", EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)))
             )
         ) {
             String content = XContentHelper.stripWhitespace("""
@@ -672,7 +673,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     }
 
     public void testGetConfiguration_WithoutSupportedTaskTypes() throws Exception {
-        try (var service = createServiceWithMockSender(ElasticInferenceServiceACL.newDisabledService())) {
+        try (var service = createServiceWithMockSender(ElasticInferenceServiceAuthorization.newDisabledService())) {
             String content = XContentHelper.stripWhitespace("""
                 {
                        "service": "elastic",
@@ -725,7 +726,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         try (
             var service = createServiceWithMockSender(
                 // this service doesn't yet support text embedding so we should still have no task types
-                new ElasticInferenceServiceACL(Map.of("model-1", EnumSet.of(TaskType.TEXT_EMBEDDING)))
+                new ElasticInferenceServiceAuthorization(Map.of("model-1", EnumSet.of(TaskType.TEXT_EMBEDDING)))
             )
         ) {
             String content = XContentHelper.stripWhitespace("""
@@ -782,11 +783,11 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             createWithEmptySettings(threadPool),
             new ElasticInferenceServiceComponents(null),
             mockModelRegistry(),
-            ElasticInferenceServiceACLTests.createEnabledAcl()
+            ElasticInferenceServiceAuthorizationTests.createEnabledAuth()
         );
     }
 
-    private ElasticInferenceService createServiceWithMockSender(ElasticInferenceServiceACL acl) {
+    private ElasticInferenceService createServiceWithMockSender(ElasticInferenceServiceAuthorization acl) {
         return new ElasticInferenceService(
             mock(HttpRequestSender.Factory.class),
             createWithEmptySettings(threadPool),

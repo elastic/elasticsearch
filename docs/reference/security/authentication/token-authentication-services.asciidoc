@@ -40,7 +40,7 @@ generate access tokens and refresh tokens based on the OAuth2 specification.
 The access token is a short-lived token. By default, it expires after 20 minutes
 but it can be configured to last a maximum of 1 hour. It can be refreshed by
 using a refresh token, which has a lifetime of 24 hours. The access token is a
-bearer token. You can use it by sending a request with an `Authorization`
+bearer token. You can use it by sending a request with an `ElasticInferenceServiceAuthorizationHandler`
 header with a value that has the prefix "Bearer " followed by the value of the
 access token. For example:
 +
@@ -59,7 +59,7 @@ The API key service uses the
 By default, the API keys do not expire. When you make a request to create API
 keys, you can specify an expiration and permissions for the API key. The
 permissions are limited by the authenticated user's permissions. You can use the
-API key by sending a request with an `Authorization` header with a value that
+API key by sending a request with an `ElasticInferenceServiceAuthorizationHandler` header with a value that
 has the prefix "ApiKey " followed by the credentials. The credentials are the
 base64 encoding of the API key ID and the API key joined by a colon. For example:
 +

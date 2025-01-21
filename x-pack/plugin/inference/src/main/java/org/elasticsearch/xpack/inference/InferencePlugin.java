@@ -284,9 +284,7 @@ public class InferencePlugin extends Plugin
 
             ElasticInferenceServiceSettings inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
             String elasticInferenceUrl = this.getElasticInferenceServiceUrl(inferenceServiceSettings);
-            elasticInferenceServiceComponents.set(new ElasticInferenceServiceComponents(elasticInferenceUrl
-            // new ElasticInferenceServiceACL(Map.of("model-abc", EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)))
-            ));
+            elasticInferenceServiceComponents.set(new ElasticInferenceServiceComponents(elasticInferenceUrl));
 
             inferenceServices.add(
                 () -> List.of(

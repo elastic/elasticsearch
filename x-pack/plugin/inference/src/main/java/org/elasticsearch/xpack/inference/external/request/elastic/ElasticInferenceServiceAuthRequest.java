@@ -20,12 +20,12 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Objects;
 
-public class ElasticInferenceServiceAclRequest implements ElasticInferenceServiceRequest {
+public class ElasticInferenceServiceAuthRequest implements ElasticInferenceServiceRequest {
 
     private final URI uri;
     private final TraceContextHandler traceContextHandler;
 
-    public ElasticInferenceServiceAclRequest(String url, TraceContext traceContext) {
+    public ElasticInferenceServiceAuthRequest(String url, TraceContext traceContext) {
         this.uri = createUri(Objects.requireNonNull(url));
         this.traceContextHandler = new TraceContextHandler(traceContext);
     }

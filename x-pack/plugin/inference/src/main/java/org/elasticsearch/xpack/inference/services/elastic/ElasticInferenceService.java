@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -36,20 +34,18 @@ import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionCreator;
-import org.elasticsearch.xpack.inference.external.elastic.ElasticInferenceServiceResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ElasticInferenceServiceUnifiedCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.external.request.elastic.ElasticInferenceServiceAclRequest;
-import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceAclResponseEntity;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.elastic.auth.ElasticInferenceServiceAuthorizationHandler;
+import org.elasticsearch.xpack.inference.services.elastic.auth.ElasticInferenceServiceAuthorization;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -62,7 +58,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Request.DEFAULT_TIMEOUT;
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
@@ -79,10 +74,8 @@ public class ElasticInferenceService extends SenderService {
     public static final String NAME = "elastic";
     public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
 
-    private static final Logger logger = LogManager.getLogger(ElasticInferenceService.class);
     private static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION);
     private static final String SERVICE_NAME = "Elastic";
-    private static final ResponseHandler aclResponseHandler = createAclResponseHandler();
 
     /**
      * The task types that the {@link InferenceAction.Request} can accept.
@@ -107,9 +100,7 @@ public class ElasticInferenceService extends SenderService {
         enabledTaskTypes = EnumSet.noneOf(TaskType.class);
         configuration = new Configuration(enabledTaskTypes);
 
-        init();
-
-        getAcl(elasticInferenceServiceComponents.elasticInferenceServiceUrl());
+        getAuth();
     }
 
     // TODO consider removing this should only be used for testing maybe mock getAcl instead?
@@ -118,52 +109,45 @@ public class ElasticInferenceService extends SenderService {
         ServiceComponents serviceComponents,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         ModelRegistry modelRegistry,
-        ElasticInferenceServiceACL acl
+        ElasticInferenceServiceAuthorization auth
     ) {
         super(factory, serviceComponents);
         this.elasticInferenceServiceComponents = Objects.requireNonNull(elasticInferenceServiceComponents);
         this.modelRegistry = Objects.requireNonNull(modelRegistry);
 
-        setEnabledTaskTypes(acl);
+        setEnabledTaskTypes(auth);
     }
 
-    private void getAcl(String baseEISUrl) {
-        ActionListener<InferenceServiceResults> listener = ActionListener.wrap(results -> {
-            if (results instanceof ElasticInferenceServiceAclResponseEntity aclResponseEntity) {
-                setEnabledTaskTypes(ElasticInferenceServiceACL.of(aclResponseEntity));
-            } else {
-                logger.warn(
-                    Strings.format(
-                        "Failed to retrieve ACL information for the Elastic Inference Service gateway. "
-                            + "Received an invalid response type: %s",
-                        results.getClass().getSimpleName()
-                    )
-                );
-            }
-        }, e -> logger.warn(Strings.format("Failed to retrieve ACL information for the Elastic Inference Service gateway: %s", e)));
+    private void getAuth() {
+        try {
+            ActionListener<ElasticInferenceServiceAuthorization> listener = ActionListener.wrap(
+                this::setEnabledTaskTypes,
+                e -> {
+                    // we don't need to do anything if there was a failure, everything is disabled by default
+                }
+            );
 
-        var request = new ElasticInferenceServiceAclRequest(baseEISUrl, getCurrentTraceInfo());
-
-        getSender().sendWithoutQueuing(logger, request, aclResponseHandler, DEFAULT_TIMEOUT, listener);
+            var auth = new ElasticInferenceServiceAuthorizationHandler(
+                elasticInferenceServiceComponents.elasticInferenceServiceUrl(),
+                getSender(),
+                getServiceComponents().threadPool()
+            );
+            auth.getAuth(listener);
+        } catch (Exception e) {
+            // we don't need to do anything if there was a failure, everything is disabled by default
+        }
     }
 
-    private static ResponseHandler createAclResponseHandler() {
-        return new ElasticInferenceServiceResponseHandler(
-            String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),
-            ElasticInferenceServiceAclResponseEntity::fromResponse
-        );
-    }
-
-    private synchronized void setEnabledTaskTypes(ElasticInferenceServiceACL acl) {
-        enabledTaskTypes = filterTaskTypesByAcl(acl);
+    private synchronized void setEnabledTaskTypes(ElasticInferenceServiceAuthorization auth) {
+        enabledTaskTypes = filterTaskTypesByAuth(auth);
         configuration = new Configuration(enabledTaskTypes);
 
         defaultConfigIds().forEach(modelRegistry::addDefaultIds);
     }
 
-    private static EnumSet<TaskType> filterTaskTypesByAcl(ElasticInferenceServiceACL acl) {
+    private static EnumSet<TaskType> filterTaskTypesByAuth(ElasticInferenceServiceAuthorization auth) {
         var implementedTaskTypes = EnumSet.copyOf(IMPLEMENTED_TASK_TYPES);
-        implementedTaskTypes.retainAll(acl.enabledTaskTypes());
+        implementedTaskTypes.retainAll(auth.enabledTaskTypes());
         return implementedTaskTypes;
     }
 
@@ -477,7 +461,7 @@ public class ElasticInferenceService extends SenderService {
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES_FOR_SERVICES_API).setDescription(
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)).setDescription(
                         "The name of the model to use for the inference task."
                     )
                         .setLabel("Model ID")
@@ -501,7 +485,9 @@ public class ElasticInferenceService extends SenderService {
                         .build()
                 );
 
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES_FOR_SERVICES_API));
+                configurationMap.putAll(
+                    RateLimitSettings.toSettingsConfiguration(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION))
+                );
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)

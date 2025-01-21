@@ -148,12 +148,7 @@ public abstract class SenderService implements InferenceService {
         listener.onResponse(true);
     }
 
-    /**
-     * Normally we shouldn't need to call this from a child service. This is handled when an inference request
-     * is received automatically. Services that need to make one-off requests before inference requests are sent will
-     * need to call this to initialize the internals.
-     */
-    protected void init() {
+    private void init() {
         sender.start();
     }
 

@@ -76,7 +76,7 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-disa
 ==== Elasticsearch Token Service tokens
 
 If you want the client to authenticate with an Elasticsearch access token, set the relevant HTTP request header.
-If the client makes requests on behalf of a single user only, you can set the necessary `Authorization` header as a default header as shown
+If the client makes requests on behalf of a single user only, you can set the necessary `ElasticInferenceServiceAuthorizationHandler` header as a default header as shown
 in the following example:
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -87,7 +87,7 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-auth-bearer
 ==== Elasticsearch API keys
 
 If you want the client to authenticate with an Elasticsearch API key, set the relevant HTTP request header.
-If the client makes requests on behalf of a single user only, you can set the necessary `Authorization` header as a default header as shown
+If the client makes requests on behalf of a single user only, you can set the necessary `ElasticInferenceServiceAuthorizationHandler` header as a default header as shown
 in the following example:
 
 ["source","java",subs="attributes,callouts,macros"]

@@ -30,51 +30,58 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class ElasticInferenceServiceAclResponseEntity implements InferenceServiceResults {
+public class ElasticInferenceServiceAuthResponseEntity implements InferenceServiceResults {
 
-    public static final String NAME = "elastic_inference_service_acl_results";
-    public static final String COMPLETION = TaskType.COMPLETION.name().toLowerCase(Locale.ROOT);
+    public static final String NAME = "elastic_inference_service_auth_results";
+    private static final Map<String, TaskType> ELASTIC_INFERENCE_SERVICE_TASK_TYPE_MAPPING = Map.of(
+        "embedding/text/sparse",
+        TaskType.SPARSE_EMBEDDING,
+        "chat/completion",
+        TaskType.CHAT_COMPLETION
+    );
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<ElasticInferenceServiceAclResponseEntity, Void> PARSER = new ConstructingObjectParser<>(
-        ElasticInferenceServiceAclResponseEntity.class.getSimpleName(),
-        args -> new ElasticInferenceServiceAclResponseEntity((List<AllowedModel>) args[0])
+    public static ConstructingObjectParser<ElasticInferenceServiceAuthResponseEntity, Void> PARSER = new ConstructingObjectParser<>(
+        ElasticInferenceServiceAuthResponseEntity.class.getSimpleName(),
+        args -> new ElasticInferenceServiceAuthResponseEntity((List<AuthorizedModel>) args[0])
     );
 
     static {
-        PARSER.declareObjectArray(constructorArg(), AllowedModel.ALLOWED_MODEL_PARSER::apply, new ParseField("allowed_models"));
+        PARSER.declareObjectArray(constructorArg(), AuthorizedModel.ALLOWED_MODEL_PARSER::apply, new ParseField("models"));
     }
 
-    public record AllowedModel(String modelName, EnumSet<TaskType> taskTypes) implements Writeable, ToXContentObject {
+    public record AuthorizedModel(String modelName, EnumSet<TaskType> taskTypes) implements Writeable, ToXContentObject {
 
         @SuppressWarnings("unchecked")
-        public static ConstructingObjectParser<AllowedModel, Void> ALLOWED_MODEL_PARSER = new ConstructingObjectParser<>(
-            AllowedModel.class.getSimpleName(),
-            args -> new AllowedModel((String) args[0], toTaskTypes((List<String>) args[1]))
+        public static ConstructingObjectParser<AuthorizedModel, Void> ALLOWED_MODEL_PARSER = new ConstructingObjectParser<>(
+            AuthorizedModel.class.getSimpleName(),
+            args -> new AuthorizedModel((String) args[0], toTaskTypes((List<String>) args[1]))
         );
 
         static {
-            ALLOWED_MODEL_PARSER.declareString(constructorArg(), new ParseField("model_name"));
-            ALLOWED_MODEL_PARSER.declareStringArray(constructorArg(), new ParseField("task_types"));
+            ALLOWED_MODEL_PARSER.declareString(constructorArg(), new ParseField("model-name"));
+            ALLOWED_MODEL_PARSER.declareStringArray(constructorArg(), new ParseField("task-types"));
         }
 
         private static EnumSet<TaskType> toTaskTypes(List<String> stringTaskTypes) {
             var taskTypes = EnumSet.noneOf(TaskType.class);
             for (String taskType : stringTaskTypes) {
-                taskTypes.add(TaskType.fromStringOrStatusException(taskType));
+                var mappedTaskType = ELASTIC_INFERENCE_SERVICE_TASK_TYPE_MAPPING.get(taskType);
+                if (mappedTaskType != null) {
+                    taskTypes.add(mappedTaskType);
+                }
             }
 
             return taskTypes;
         }
 
-        public AllowedModel(StreamInput in) throws IOException {
+        public AuthorizedModel(StreamInput in) throws IOException {
             this(in.readString(), in.readEnumSet(TaskType.class));
         }
 
@@ -97,17 +104,24 @@ public class ElasticInferenceServiceAclResponseEntity implements InferenceServic
         }
     }
 
-    private final List<AllowedModel> allowedModels;
+    private final List<AuthorizedModel> allowedModels;
 
-    public ElasticInferenceServiceAclResponseEntity(List<AllowedModel> allowedModels) {
+    public ElasticInferenceServiceAuthResponseEntity(List<AuthorizedModel> allowedModels) {
         this.allowedModels = Objects.requireNonNull(allowedModels);
     }
 
-    public ElasticInferenceServiceAclResponseEntity(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(AllowedModel::new));
+    /**
+     * Create an empty response
+     */
+    public ElasticInferenceServiceAuthResponseEntity() {
+        this(List.of());
     }
 
-    public static ElasticInferenceServiceAclResponseEntity fromResponse(Request request, HttpResult response) throws IOException {
+    public ElasticInferenceServiceAuthResponseEntity(StreamInput in) throws IOException {
+        this(in.readCollectionAsList(AuthorizedModel::new));
+    }
+
+    public static ElasticInferenceServiceAuthResponseEntity fromResponse(Request request, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
@@ -115,7 +129,7 @@ public class ElasticInferenceServiceAclResponseEntity implements InferenceServic
         }
     }
 
-    public List<AllowedModel> getAllowedModels() {
+    public List<AuthorizedModel> getAllowedModels() {
         return allowedModels;
     }
 

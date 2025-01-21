@@ -24,8 +24,11 @@ import java.io.IOException;
  */
 public class MatchOperator extends Match {
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MatchOperator",
-        MatchOperator::readFrom);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "MatchOperator",
+        MatchOperator::readFrom
+    );
 
     @FunctionInfo(
         returnType = "boolean",

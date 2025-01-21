@@ -550,9 +550,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             baseClient.admin()
                 .indices()
                 .addBlock(
-                    new AddIndexBlockRequest(WRITE, index.getName()).masterNodeTimeout(
-                        MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT
-                    ),
+                    new AddIndexBlockRequest(WRITE, index.getName()).masterNodeTimeout(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT),
                     listener.delegateFailureAndWrap((l, response) -> {
                         if (response.isAcknowledged() == false) {
                             throw new ElasticsearchException("Failed to acknowledge read-only block index request");
@@ -562,9 +560,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 );
         } else {
             // The only way to remove a Block is via a settings update.
-            final Settings readOnlySettings = Settings.builder()
-                .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false)
-                .build();
+            final Settings readOnlySettings = Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false).build();
             metadataUpdateSettingsService.updateSettings(
                 new UpdateSettingsClusterStateUpdateRequest(
                     MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -280,10 +281,10 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
             if (resolution.unresolved()) {
                 throw new InvalidArgumentException(resolution.message());
             }
-            Object optionExprFold = optionExpr.fold(FoldContext.small());
-            Object valueExprFold = valueExpr.fold(FoldContext.small());
-            String optionName = optionExprFold instanceof BytesRef br ? br.utf8ToString() : optionExprFold.toString();
-            String optionValue = valueExprFold instanceof BytesRef br ? br.utf8ToString() : valueExprFold.toString();
+            Object optionExprLiteral = ((Literal) optionExpr).value();
+            Object valueExprLiteral = ((Literal) valueExpr).value();
+            String optionName = optionExprLiteral instanceof BytesRef br ? br.utf8ToString() : optionExprLiteral.toString();
+            String optionValue = valueExprLiteral instanceof BytesRef br ? br.utf8ToString() : valueExprLiteral.toString();
             // validate the optionExpr is supported
             DataType dataType = ALLOWED_OPTIONS.get(optionName);
             if (dataType == null) {

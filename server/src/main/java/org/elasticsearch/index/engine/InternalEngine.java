@@ -334,7 +334,7 @@ public class InternalEngine extends Engine {
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(writer, translog, internalReaderManager, externalReaderManager, scheduler);
-                if (isClosed.get() == false) {
+                if (isClosed() == false) {
                     // failure we need to dec the store reference
                     store.decRef();
                 }
@@ -2302,7 +2302,7 @@ public class InternalEngine extends Engine {
             // reread the last committed segment infos
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
         } catch (Exception e) {
-            if (isClosed.get() == false) {
+            if (isClosed() == false) {
                 logger.warn("failed to read latest segment infos on flush", e);
                 if (Lucene.isCorruptionException(e)) {
                     throw new FlushFailedEngineException(shardId, e);
@@ -2543,7 +2543,7 @@ public class InternalEngine extends Engine {
         } else if (translog.isOpen() == false && translog.getTragicException() != null) {
             failEngine("already closed by tragic event on the translog", translog.getTragicException());
             engineFailed = true;
-        } else if (failedEngine.get() == null && isClosing() == false && isClosed.get() == false) {
+        } else if (getFailedEngine() == null && isClosing() == false && isClosed() == false) {
             // we are closed but the engine is not failed yet?
             // this smells like a bug - we only expect ACE if we are in a fatal case ie. either translog or IW is closed by
             // a tragic event or has closed itself. if that is not the case we are in a buggy state and raise an assertion error
@@ -2862,7 +2862,7 @@ public class InternalEngine extends Engine {
                 engineConfig.getThreadPool().executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        if (isClosed.get() == false) {
+                        if (isClosed() == false) {
                             logger.warn("failed to flush after merge has finished", e);
                         } else {
                             logger.info("failed to flush after merge has finished during shard close");

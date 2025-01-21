@@ -109,6 +109,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -142,8 +143,8 @@ public abstract class Engine implements Closeable {
 
     private final AtomicBoolean isClosing = new AtomicBoolean();
     private final SubscribableListener<Void> drainOnCloseListener = new SubscribableListener<>();
-    private final RefCounted ensureOpenRefs = AbstractRefCounted.of(() -> drainOnCloseListener.onResponse(null));
-    private final Releasable releaseEnsureOpenRef = ensureOpenRefs::decRef; // reuse this to avoid allocation for each op
+    protected final Supplier<RefCounted> ensureOpenRefs;
+    private final Releasable releaseEnsureOpenRef; // reuse this to avoid allocation for each op
 
     /*
      * on {@code lastWriteNanos} we use System.nanoTime() to initialize this since:
@@ -158,7 +159,7 @@ public abstract class Engine implements Closeable {
      */
     protected volatile long lastWriteNanos = System.nanoTime();
 
-    protected Engine(EngineConfig engineConfig) {
+    protected Engine(EngineConfig engineConfig, @Nullable Supplier<RefCounted> ensureOpenRefs) {
         Objects.requireNonNull(engineConfig.getStore(), "Store must be provided to the engine");
 
         this.engineConfig = engineConfig;
@@ -170,6 +171,17 @@ public abstract class Engine implements Closeable {
         this.enableRecoverySource = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(
             engineConfig.getIndexSettings().getSettings()
         );
+        if (ensureOpenRefs == null) {
+            var newEnsureOpenRefs = AbstractRefCounted.of(() -> drainOnCloseListener.onResponse(null));
+            this.ensureOpenRefs = () -> newEnsureOpenRefs;
+        } else {
+            this.ensureOpenRefs = ensureOpenRefs;
+        }
+        this.releaseEnsureOpenRef = () -> this.ensureOpenRefs.get().decRef();
+    }
+
+    protected Engine(EngineConfig engineConfig) {
+        this(engineConfig, null);
     }
 
     /**
@@ -816,7 +828,7 @@ public abstract class Engine implements Closeable {
          * to make sure that the store is not closed before
          * the searcher is acquired. */
         if (store.tryIncRef() == false) {
-            throw new AlreadyClosedException(shardId + " store is closed", failedEngine.get());
+            throw new AlreadyClosedException(shardId + " store is closed", getFailedEngine());
         }
         Releasable releasable = store::decRef;
         try {
@@ -975,13 +987,17 @@ public abstract class Engine implements Closeable {
     public abstract Translog.Location getTranslogLastWriteLocation();
 
     protected final void ensureOpen(Exception suppressed) {
-        if (isClosed.get()) {
-            AlreadyClosedException ace = new AlreadyClosedException(shardId + " engine is closed", failedEngine.get());
+        if (isClosed()) {
+            AlreadyClosedException ace = new AlreadyClosedException(shardId + " engine is closed", getFailedEngine());
             if (suppressed != null) {
                 ace.addSuppressed(suppressed);
             }
             throw ace;
         }
+    }
+
+    protected @Nullable Exception getFailedEngine() {
+        return failedEngine.get();
     }
 
     protected final void ensureOpen() {
@@ -1401,7 +1417,7 @@ public abstract class Engine implements Closeable {
         }
         if (failEngineLock.tryLock()) {
             try {
-                if (failedEngine.get() != null) {
+                if (getFailedEngine() != null) {
                     logger.warn(() -> "tried to fail engine but engine is already failed. ignoring. [" + reason + "]", failure);
                     return;
                 }
@@ -1989,17 +2005,21 @@ public abstract class Engine implements Closeable {
     protected abstract void closeNoLock(String reason, CountDownLatch closedLatch);
 
     protected final boolean isDrainedForClose() {
-        return ensureOpenRefs.hasReferences() == false;
+        return ensureOpenRefs.get().hasReferences() == false;
     }
 
     protected final boolean isClosing() {
         return isClosing.get();
     }
 
+    protected boolean isClosed() {
+        return isClosed.get();
+    }
+
     protected final Releasable acquireEnsureOpenRef() {
-        if (isClosing() || ensureOpenRefs.tryIncRef() == false) {
+        if (isClosing() || ensureOpenRefs.get().tryIncRef() == false) {
             ensureOpen(); // throws "engine is closed" exception if we're actually closed, otherwise ...
-            throw new AlreadyClosedException(shardId + " engine is closing", failedEngine.get());
+            throw new AlreadyClosedException(shardId + " engine is closing", getFailedEngine());
         }
         return Releasables.assertOnce(releaseEnsureOpenRef);
     }
@@ -2047,7 +2067,7 @@ public abstract class Engine implements Closeable {
      */
     public void flushAndClose() throws IOException {
         logger.trace("flushAndClose() maybe draining ops");
-        if (isClosed.get() == false && drainForClose()) {
+        if (isClosed() == false && drainForClose()) {
             logger.trace("flushAndClose drained ops");
             try {
                 logger.debug("flushing shard on close - this might take some time to sync files to disk");
@@ -2067,7 +2087,7 @@ public abstract class Engine implements Closeable {
     @Override
     public void close() throws IOException {
         logger.debug("close() maybe draining ops");
-        if (isClosed.get() == false && drainForClose()) {
+        if (isClosed() == false && drainForClose()) {
             logger.debug("close drained ops");
             closeNoLock("api", closedLatch);
         }

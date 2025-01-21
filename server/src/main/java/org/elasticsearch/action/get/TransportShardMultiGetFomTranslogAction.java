@@ -22,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.DelegateEngine;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -98,7 +99,7 @@ public class TransportShardMultiGetFomTranslogAction extends HandledTransportAct
             }
             long segmentGeneration = -1;
             if (someItemsNotFoundInTranslog) {
-                Engine engine = indexShard.getEngineOrNull();
+                Engine engine = DelegateEngine.unwrap(indexShard.getEngineOrNull());
                 if (engine == null) {
                     throw new AlreadyClosedException("engine closed");
                 }

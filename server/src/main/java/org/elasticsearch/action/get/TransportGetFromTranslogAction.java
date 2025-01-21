@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.DelegateEngine;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.get.GetResult;
@@ -77,7 +78,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
                 );
             long segmentGeneration = -1;
             if (result == null) {
-                Engine engine = indexShard.getEngineOrNull();
+                Engine engine = DelegateEngine.unwrap(indexShard.getEngineOrNull());
                 if (engine == null) {
                     throw new AlreadyClosedException("engine closed");
                 }

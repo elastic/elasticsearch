@@ -3839,7 +3839,7 @@ public class InternalEngineTests extends EngineTestCase {
                     IllegalStateException.class,
                     () -> engine.delete(new Engine.Delete("1", Uid.encodeId("1"), primaryTerm.get()))
                 );
-                assertTrue(engine.isClosed.get());
+                assertTrue(engine.isClosed());
                 assertSame(tragicException, engine.failedEngine.get());
             }
         }
@@ -4567,7 +4567,7 @@ public class InternalEngineTests extends EngineTestCase {
             t1.start();
             t.join();
             t1.join();
-            assertTrue(internalEngine.isClosed.get());
+            assertTrue(internalEngine.isClosed());
             assertTrue(internalEngine.failedEngine.get() instanceof MockDirectoryWrapper.FakeIOException);
         }
     }
@@ -6899,7 +6899,7 @@ public class InternalEngineTests extends EngineTestCase {
             );
             addDocException.set(new IOException("simulated"));
             expectThrows(IOException.class, () -> engine.index(index));
-            assertTrue(engine.isClosed.get());
+            assertTrue(engine.isClosed());
             assertNotNull(engine.failedEngine.get());
         }
     }
@@ -6951,7 +6951,7 @@ public class InternalEngineTests extends EngineTestCase {
             final Engine.NoOp op = new Engine.NoOp(0, 0, PRIMARY, System.currentTimeMillis(), "test");
             final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> engine.noOp(op));
             assertThat(e.getMessage(), equalTo("fatal"));
-            assertTrue(engine.isClosed.get());
+            assertTrue(engine.isClosed());
             assertThat(engine.failedEngine.get(), not(nullValue()));
             assertThat(engine.failedEngine.get(), instanceOf(IllegalArgumentException.class));
             assertThat(engine.failedEngine.get().getMessage(), equalTo("fatal"));
@@ -6979,7 +6979,7 @@ public class InternalEngineTests extends EngineTestCase {
             iw.get().setThrowFailure(() -> new IllegalArgumentException("fatal"));
             final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> engine.delete(op));
             assertThat(e.getMessage(), equalTo("fatal"));
-            assertTrue(engine.isClosed.get());
+            assertTrue(engine.isClosed());
             assertThat(engine.failedEngine.get(), not(nullValue()));
             assertThat(engine.failedEngine.get(), instanceOf(IllegalArgumentException.class));
             assertThat(engine.failedEngine.get().getMessage(), equalTo("fatal"));
@@ -7273,7 +7273,7 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(result.getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
                     assertThat(engine.getLocalCheckpointTracker().getMaxSeqNo(), equalTo(maxSeqNo));
                 }
-                assertFalse(engine.isClosed.get());
+                assertFalse(engine.isClosed());
             }
         } finally {
             restoreIndexWriterMaxDocs();
@@ -7294,7 +7294,7 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             });
             assertThat(error.getMessage(), containsString("number of documents in the index cannot exceed " + maxDocs));
-            assertTrue(engine.isClosed.get());
+            assertTrue(engine.isClosed());
         } finally {
             restoreIndexWriterMaxDocs();
         }

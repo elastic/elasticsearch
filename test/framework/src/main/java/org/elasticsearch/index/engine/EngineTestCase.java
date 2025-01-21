@@ -369,14 +369,14 @@ public abstract class EngineTestCase extends ESTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         try {
-            if (engine != null && engine.isClosed.get() == false) {
+            if (engine != null && engine.isClosed() == false) {
                 engine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
                 assertNoInFlightDocuments(engine);
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
                 assertMaxSeqNoInCommitUserData(engine);
                 assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
             }
-            if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
+            if (replicaEngine != null && replicaEngine.isClosed() == false) {
                 replicaEngine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
                 assertNoInFlightDocuments(replicaEngine);
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(replicaEngine);

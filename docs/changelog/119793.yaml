@@ -1,6 +1,0 @@
-pr: 119793
-summary: Resolve/cluster should mark remotes as not connected when a security exception
-  is thrown
-area: CCS
-type: bug
-issues: []

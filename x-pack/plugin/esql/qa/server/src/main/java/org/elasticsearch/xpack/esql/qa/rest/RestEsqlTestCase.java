@@ -256,7 +256,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testGetAnswer() throws IOException {
         Map<String, Object> answer = runEsql(requestObjectBuilder().query("row a = 1, b = 2"));
-        assertEquals(3, answer.size());
+        assertEquals(4, answer.size());
         assertThat(((Integer) answer.get("took")).intValue(), greaterThanOrEqualTo(0));
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
@@ -301,7 +301,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertResultMap(
             runEsql(builder),
             List.of(Map.of("name", "min(value)", "type", "long"), Map.of("name", "group", "type", "long")),
-            List.of(List.of(0, 0), List.of(1, 1))
+            List.of(List.of(2, 0), List.of(1, 1))
         );
     }
 

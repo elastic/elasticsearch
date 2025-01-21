@@ -94,6 +94,7 @@ public class CrossClusterEsqlRCS1UnavailableRemotesIT extends AbstractRemoteClus
         assertThat((int) map.get("took"), greaterThan(0));
         assertThat(columns.size(), is(4));
         assertThat(values.size(), is(9));
+        assertThat((boolean) map.get("is_partial"), is(false));
 
         assertThat((int) clusters.get("total"), is(2));
         assertThat((int) clusters.get("successful"), is(2));
@@ -101,7 +102,6 @@ public class CrossClusterEsqlRCS1UnavailableRemotesIT extends AbstractRemoteClus
         assertThat((int) clusters.get("skipped"), is(0));
         assertThat((int) clusters.get("partial"), is(0));
         assertThat((int) clusters.get("failed"), is(0));
-        assertThat((boolean) clusters.get("is_partial"), is(false));
 
         assertThat(clusterDetails.size(), is(2));
         assertThat((int) localClusterDetails.get("took"), greaterThan(0));

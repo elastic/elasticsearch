@@ -232,7 +232,7 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
                 | keep *number, geo.dest, _index
                 | sort geo.dest, _index
             """, b -> b.startObject("exists").field("field", "foobar").endObject());
-        assertResultMap(result, columns, values);
+        assertResultMap(result, columns, List.of());
     }
 
     public void testIndexFilteringWithEnrich_RemoveOneIndex() throws IOException {

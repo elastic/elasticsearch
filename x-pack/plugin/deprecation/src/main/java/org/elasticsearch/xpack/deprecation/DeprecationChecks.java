@@ -98,7 +98,6 @@ public class DeprecationChecks {
         IndexDeprecationChecks::translogRetentionSettingCheck,
         IndexDeprecationChecks::checkIndexDataPath,
         IndexDeprecationChecks::storeTypeSettingCheck,
-        IndexDeprecationChecks::frozenIndexSettingCheck,
         IndexDeprecationChecks::deprecatedCamelCasePattern
     );
 

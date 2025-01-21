@@ -2045,6 +2045,7 @@ public class VerifierTests extends ESTestCase {
         for (Map.Entry<String, DataType> allowedOptions : Match.ALLOWED_OPTIONS.entrySet()) {
             String optionName = allowedOptions.getKey();
             DataType optionType = allowedOptions.getValue();
+            // Check every possible type for the option - we'll try to convert it to the expected type
             for (DataType currentType : optionTypes) {
                 String optionValue = switch (currentType) {
                     case BOOLEAN -> String.valueOf(randomBoolean());
@@ -2061,11 +2062,13 @@ public class VerifierTests extends ESTestCase {
                 }
 
                 String query = "FROM test | WHERE match(first_name, \"Jean\", {\"" + optionName + "\": " + queryOptionValue + "})";
-                // Check conversion is possible
                 try {
+                    // Check conversion is possible
                     DataTypeConverter.convert(optionValue, optionType);
+                    // If no exception was thrown, conversion is possible and should be done
                     query(query);
                 } catch (InvalidArgumentException e) {
+                    // Conversion is not possible, query should fail
                     assertEquals(
                         "1:19: Invalid option ["
                             + optionName

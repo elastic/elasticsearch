@@ -388,7 +388,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
      */
     private record UnknownAction(Map<String, Object> actionMap) implements Action {
 
-    private static Action fromActionMap(Map<String, Object> actionMap) {
+        private static Action fromActionMap(Map<String, Object> actionMap) {
             return new UnknownAction(actionMap);
         }
 

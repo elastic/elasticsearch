@@ -220,21 +220,13 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         }
         {
             String q = "FROM nomatch";
-            VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, false));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [nomatch]"));
-
-            String limit0 = q + " | LIMIT 0";
-            e = expectThrows(VerificationException.class, () -> runQuery(limit0, false));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [nomatch]"));
+            String expectedError = "Unknown index [nomatch]";
+            expectVerificationExceptionForQuery(q, expectedError, false);
         }
         {
             String q = "FROM nomatch*";
-            VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, false));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [nomatch*]"));
-
-            String limit0 = q + " | LIMIT 0";
-            e = expectThrows(VerificationException.class, () -> runQuery(limit0, false));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [nomatch*]"));
+            String expectedError = "Unknown index [nomatch*]";
+            expectVerificationExceptionForQuery(q, expectedError, false);
         }
     }
 
@@ -314,23 +306,15 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         // missing concrete local index is an error
         {
             String q = "FROM nomatch,cluster-a:" + remote1Index;
-            VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [nomatch]"));
-
-            String limit0 = q + " | LIMIT 0";
-            e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [nomatch]"));
+            String expectedError = "Unknown index [nomatch]";
+            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
 
         // missing concrete remote index is fatal
         {
             String q = "FROM logs*,cluster-a:nomatch";
-            VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch]"));
-
-            String limit0 = q + " | LIMIT 0";
-            e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch]"));
+            String expectedError = "Unknown index [cluster-a:nomatch]";
+            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
 
         // No error since local non-matching index has wildcard and the remote cluster index expression matches
@@ -417,63 +401,39 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         // an error is thrown if there is a concrete index that does not match
         {
             String q = "FROM cluster-a:nomatch";
-            VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch]"));
-
-            String limit0 = q + " | LIMIT 0";
-            e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch]"));
+            String expectedError = "Unknown index [cluster-a:nomatch]";
+            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
 
         // an error is thrown if there are no matching indices at all - single remote cluster with wildcard index expression
         {
             String q = "FROM cluster-a:nomatch*";
-            VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*]"));
-
-            String limit0 = q + " | LIMIT 0";
-            e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*]"));
+            String expectedError = "Unknown index [cluster-a:nomatch*]";
+            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
 
         // an error is thrown if there is a concrete index that does not match
         {
             String q = "FROM nomatch*,cluster-a:nomatch";
-            VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch,nomatch*]"));
-
-            String limit0 = q + " | LIMIT 0";
-            e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch,nomatch*]"));
+            String expectedError = "Unknown index [cluster-a:nomatch,nomatch*]";
+            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
 
         // an error is thrown if there are no matching indices at all - local with wildcard, remote with wildcard
         {
             String q = "FROM nomatch*,cluster-a:nomatch*";
-            VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*,nomatch*]"));
-
-            String limit0 = q + " | LIMIT 0";
-            e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*,nomatch*]"));
+            String expectedError = "Unknown index [cluster-a:nomatch*,nomatch*]";
+            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
         {
             String q = "FROM nomatch,cluster-a:nomatch";
-            VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch,nomatch]"));
-
-            String limit0 = q + " | LIMIT 0";
-            e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch,nomatch]"));
+            String expectedError = "Unknown index [cluster-a:nomatch,nomatch]";
+            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
         {
             String q = "FROM nomatch,cluster-a:nomatch*";
-            VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*,nomatch]"));
-
-            String limit0 = q + " | LIMIT 0";
-            e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*,nomatch]"));
+            String expectedError = "Unknown index [cluster-a:nomatch*,nomatch]";
+            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
 
         // --- test against 3 clusters
@@ -483,16 +443,25 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             String localIndexName = randomFrom(localIndex, IDX_ALIAS, FILTERED_IDX_ALIAS);
             String remote2IndexName = randomFrom(remote2Index, IDX_ALIAS, FILTERED_IDX_ALIAS);
             String q = Strings.format("FROM %s*,cluster-a:nomatch,%s:%s*", localIndexName, REMOTE_CLUSTER_2, remote2IndexName);
-            VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch]"));
-
-            String limit0 = q + " | LIMIT 0";
-            e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
-            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch]"));
+            String expectedError = "Unknown index [cluster-a:nomatch]";
+            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
     }
 
     record ExpectedCluster(String clusterAlias, String indexExpression, EsqlExecutionInfo.Cluster.Status status, Integer totalShards) {}
+
+    /**
+     * Runs the provided query, expecting a VerificationError. It then runs the same query with a "| LIMIT 0"
+     * extra processing step to ensure that ESQL coordinator-only operations throw the same VerificationError.
+     */
+    private void expectVerificationExceptionForQuery(String query, String error, Boolean requestIncludeMeta) {
+        VerificationException e = expectThrows(VerificationException.class, () -> runQuery(query, requestIncludeMeta));
+        assertThat(e.getDetailedMessage(), containsString(error));
+
+        String limit0 = query + " | LIMIT 0";
+        e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
+        assertThat(e.getDetailedMessage(), containsString(error));
+    }
 
     public void assertExpectedClustersForMissingIndicesTests(EsqlExecutionInfo executionInfo, List<ExpectedCluster> expected) {
         long overallTookMillis = executionInfo.overallTook().millis();

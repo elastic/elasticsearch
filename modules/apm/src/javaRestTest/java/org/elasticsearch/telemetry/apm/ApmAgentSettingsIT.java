@@ -18,14 +18,17 @@ import org.junit.ClassRule;
 public class ApmAgentSettingsIT extends ESRestTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("apm").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("apm")
+        .systemProperty("es.entitlements.enabled", "true")
+        .build();
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
 
-    public void testApmAgentSettingsAreEntitled() throws Exception {
+    public void testChangingApmAgentSettingsIsAllowed() throws Exception {
         var settings = Settings.builder().put("telemetry.metrics.enabled", true);
         APMAgentSettings.PERMITTED_AGENT_KEYS.stream().forEach(key -> settings.put("telemetry.agent." + key, "value"));
         updateClusterSettings(settings.build());

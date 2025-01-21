@@ -3,3 +3,7 @@ ALL-UNNAMED:
   - set_https_connection_properties
   - inbound_network
   - outbound_network
+  - write_system_properties:
+      properties:
+        - es.entitlements.checkSetSystemProperty
+        - es.entitlements.checkClearSystemProperty

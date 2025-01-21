@@ -259,7 +259,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 aggsList,
                 topDocsList == null ? Collections.emptyList() : topDocsList,
                 topDocsStats,
-                numReducePhases,
+                2,
                 false,
                 aggReduceContextBuilder,
                 queryPhaseRankCoordinatorContext,

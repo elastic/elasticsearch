@@ -55,35 +55,31 @@ public class PolicyParserTests extends ESTestCase {
     public void testParseNetwork() throws IOException {
         Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
-              - network:
-                  actions:
-                    - listen
-                    - accept
-                    - connect
+              - inbound_network
             """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
         Policy expected = new Policy(
             "test-policy.yaml",
-            List.of(new Scope("entitlement-module-name", List.of(new NetworkEntitlement(List.of("listen", "accept", "connect")))))
+            List.of(new Scope("entitlement-module-name", List.of(new InboundNetworkEntitlement())))
         );
         assertEquals(expected, parsedPolicy);
-    }
 
-    public void testParseNetworkIllegalAction() throws IOException {
-        var ex = expectThrows(PolicyParserException.class, () -> new PolicyParser(new ByteArrayInputStream("""
+        parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
-              - network:
-                  actions:
-                    - listen
-                    - doesnotexist
-                    - connect
-            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy());
-        assertThat(
-            ex.getMessage(),
-            equalTo(
-                "[2:5] policy parsing error for [test-policy.yaml] in scope [entitlement-module-name] for entitlement type [network]: "
-                    + "unknown network action [doesnotexist]"
-            )
+              - outbound_network
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
+        expected = new Policy("test-policy.yaml", List.of(new Scope("entitlement-module-name", List.of(new OutboundNetworkEntitlement()))));
+        assertEquals(expected, parsedPolicy);
+
+        parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - outbound_network
+              - inbound_network
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
+        expected = new Policy(
+            "test-policy.yaml",
+            List.of(new Scope("entitlement-module-name", List.of(new OutboundNetworkEntitlement(), new InboundNetworkEntitlement())))
         );
+        assertEquals(expected, parsedPolicy);
     }
 
     public void testParseCreateClassloader() throws IOException {

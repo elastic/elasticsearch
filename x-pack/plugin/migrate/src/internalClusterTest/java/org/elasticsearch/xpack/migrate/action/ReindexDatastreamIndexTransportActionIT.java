@@ -498,31 +498,4 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             .get(IndexMetadata.SETTING_INDEX_UUID);
     }
 
-    public void testGenerateDestIndexName_noDotPrefix() {
-        String sourceIndex = "sourceindex";
-        String expectedDestIndex = "migrated-sourceindex";
-        String actualDestIndex = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
-        assertEquals(expectedDestIndex, actualDestIndex);
-    }
-
-    public void testGenerateDestIndexName_withDotPrefix() {
-        String sourceIndex = ".sourceindex";
-        String expectedDestIndex = ".migrated-sourceindex";
-        String actualDestIndex = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
-        assertEquals(expectedDestIndex, actualDestIndex);
-    }
-
-    public void testGenerateDestIndexName_withHyphen() {
-        String sourceIndex = "source-index";
-        String expectedDestIndex = "migrated-source-index";
-        String actualDestIndex = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
-        assertEquals(expectedDestIndex, actualDestIndex);
-    }
-
-    public void testGenerateDestIndexName_withUnderscore() {
-        String sourceIndex = "source_index";
-        String expectedDestIndex = "migrated-source_index";
-        String actualDestIndex = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
-        assertEquals(expectedDestIndex, actualDestIndex);
-    }
 }

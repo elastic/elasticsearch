@@ -1,0 +1,123 @@
+setup:
+  - requires:
+      cluster_features: ["mapper.counted_keyword.synthetic_source_native_support"]
+      reason: "Feature implemented"
+
+  - do:
+      indices.create:
+        index: test-events
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              events:
+                type: counted_keyword
+                synthetic_source_keep: none
+
+
+  - do:
+      index:
+        index: test-events
+        id: "1"
+        body: { "events": [ "a", "b", "a", "c" ] }
+
+  - do:
+      index:
+        index: test-events
+        id: "2"
+        body: { "events": ["b", "b", "c", "a", "b"] }
+
+  - do:
+      index:
+        index: test-events
+        id: "3"
+        body: { "events": ["c", "a", null, "b", null, "c"]}
+
+  - do:
+      index:
+        index: test-events
+        id: "4"
+        body: { "events": ["a"]}
+
+  - do:
+      index:
+        index: test-events
+        id: "5"
+        body: { "events": []}
+
+  - do:
+      index:
+        index: test-events
+        id: "6"
+        body: { "events": [null, null]}
+
+  - do:
+      indices.refresh: { }
+
+---
+"Source values are mutated as expected":
+ - do:
+    search:
+      index: test-events
+      body:
+        query:
+          ids:
+            values: [1]
+ - match:
+     hits.hits.0._source:
+       events: ["a", "a", "b", "c"]
+
+ - do:
+     search:
+       index: test-events
+       body:
+         query:
+           ids:
+             values: [2]
+ - match:
+     hits.hits.0._source:
+       events: ["a", "b", "b", "b", "c"]
+
+ - do:
+     search:
+       index: test-events
+       body:
+         query:
+           ids:
+             values: [3]
+ - match:
+     hits.hits.0._source:
+       events: ["a", "b", "c", "c"]
+
+ - do:
+     search:
+       index: test-events
+       body:
+         query:
+           ids:
+             values: [4]
+ - match:
+     hits.hits.0._source:
+       events: "a"
+
+ - do:
+     search:
+       index: test-events
+       body:
+         query:
+           ids:
+             values: [5]
+ - match:
+     hits.hits.0._source: {}
+
+ - do:
+     search:
+       index: test-events
+       body:
+         query:
+           ids:
+             values: [6]
+ - match:
+     hits.hits.0._source: {}

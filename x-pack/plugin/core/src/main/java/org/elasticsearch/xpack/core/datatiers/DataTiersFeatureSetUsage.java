@@ -45,7 +45,7 @@ public class DataTiersFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_10_0;
+        return TransportVersions.ZERO;
     }
 
     public Map<String, TierSpecificStats> getTierStats() {

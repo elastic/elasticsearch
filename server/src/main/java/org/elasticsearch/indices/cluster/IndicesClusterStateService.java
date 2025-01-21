@@ -1081,9 +1081,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     private void dumpHotThreadsOnce(AtomicBoolean hasDumpedHotThreads, ShardId shardId) {
-        final Level level = Level.WARN;
         if (hasDumpedHotThreads.compareAndSet(false, true)) {
-            HotThreads.logLocalCurrentThreads(logger, level, shardId + ": acquire shard lock for create");
+            HotThreads.logLocalCurrentThreads(logger, Level.WARN, shardId + ": acquire shard lock for create");
         }
     }
 

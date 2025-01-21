@@ -249,7 +249,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             return builder.startObject()
                 .array("cluster_settings", clusterSettingsIssues.toArray())
                 .array("node_settings", nodeSettingsIssues.toArray())
-                .map(resourceDeprecationIssues)
+                .mapContents(resourceDeprecationIssues)
                 .mapContents(pluginSettingsIssues)
                 .endObject();
         }

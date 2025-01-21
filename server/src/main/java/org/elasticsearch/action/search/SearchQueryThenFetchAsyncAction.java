@@ -599,7 +599,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
             shardIndexMap.put(iterator, i);
         }
         if (shardsIts.size() == 0) {
-            finishIfAllDone();
+            finish();
             return;
         }
         final boolean supportsBatchedQuery = minNodeVersion.onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION);
@@ -816,18 +816,12 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
 
     private void finishShardAndMaybePhase() {
         if ((int) OUTSTANDING_SHARDS.getAndAdd(this, -1) == 1) {
-            finishIfAllDone();
+            finish();
         }
     }
 
-    private final AtomicBoolean done = new AtomicBoolean(false);
-
-    private void finishIfAllDone() {
-        if (done.compareAndSet(false, true)) {
-            executeNextPhase(NAME, this::getNextPhase);
-        } else {
-            assert false;
-        }
+    private void finish() {
+        executeNextPhase(NAME, this::getNextPhase);
     }
 
     /**
@@ -870,7 +864,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
             }
 
             if (results.hasResult(shardIndex)) {
-                assert done.get() : "should only be called by subsequent phases, not during query";
+                assert (int) OUTSTANDING_SHARDS.getAcquire(this) == 0 : "should only be called by subsequent phases, not during query";
                 assert failure == null : "shard failed before but shouldn't: " + failure;
                 successfulOps.decrementAndGet(); // if this shard was successful before (initial phase) we have to adjust the counter
             }

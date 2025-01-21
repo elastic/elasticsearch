@@ -9,12 +9,15 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -1010,6 +1013,45 @@ public class NodeDeprecationChecks {
             "[tracing.apm.*] settings are no longer accepted as of 9.0.0"
                 + " and should be replaced by [telemetry.*] or [telemetry.tracing.*] settings.",
             DeprecationIssue.Level.CRITICAL
+        );
+    }
+
+    static DeprecationIssue checkSourceModeInComponentTemplates(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        List<String> templates = new ArrayList<>();
+        var templateNames = clusterState.metadata().componentTemplates().keySet();
+        for (String templateName : templateNames) {
+            ComponentTemplate template = clusterState.metadata().componentTemplates().get(templateName);
+            if (template.template().mappings() != null) {
+                var sourceAsMap = (Map<?, ?>) XContentHelper.convertToMap(template.template().mappings().uncompressed(), true)
+                    .v2()
+                    .get("_doc");
+                if (sourceAsMap != null) {
+                    Object source = sourceAsMap.get("_source");
+                    if (source instanceof Map<?, ?> sourceMap) {
+                        if (sourceMap.containsKey("mode")) {
+                            templates.add(templateName);
+                        }
+                    }
+                }
+            }
+
+        }
+        if (templates.isEmpty()) {
+            return null;
+        }
+        Collections.sort(templates);
+        return new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            SourceFieldMapper.DEPRECATION_WARNING,
+            "https://github.com/elastic/elasticsearch/pull/117172",
+            SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [" + String.join(", ", templates) + "]",
+            false,
+            null
         );
     }
 }

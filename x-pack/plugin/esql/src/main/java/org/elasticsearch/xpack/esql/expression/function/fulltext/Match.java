@@ -63,6 +63,8 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
 
 /**
  * Full text function that performs a {@link QueryStringQuery} .
+ * Unlike other ESQL functions, Match is both a function and an operator. This class provides implementation for both,
+ * but the operator documentation is generated in {@link MatchOperator}.
  */
 public class Match extends FullTextFunction implements PostOptimizationVerificationAware {
 
@@ -101,7 +103,6 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
 
     @FunctionInfo(
         returnType = "boolean",
-        operator = ":",
         preview = true,
         description = """
             Use `MATCH` to perform a <<query-dsl-match-query,match query>> on the specified field.
@@ -136,7 +137,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
         this.field = field;
     }
 
-    private static Match readFrom(StreamInput in) throws IOException {
+    protected static Match readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);

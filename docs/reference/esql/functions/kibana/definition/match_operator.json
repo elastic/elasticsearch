@@ -3,7 +3,7 @@
   "type" : "operator",
   "operator" : ":",
   "name" : "match_operator",
-  "description" : "Use `MATCH` to perform a <<query-dsl-match-query,match query>> on the specified field.\nUsing `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.\n\nMatch can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>,\nas well as other field types like keyword, boolean, dates, and numeric types.\n\nFor a simplified syntax, you can use the <<esql-search-operators,match operator>> `:` operator instead of `MATCH`.\n\n`MATCH` returns true if the provided query matches the row.",
+  "description" : "Use the match operator (`:`) to perform a <<query-dsl-match-query,match query>> on the specified field.\nUsing `:` is equivalent to using the `match` query in the Elasticsearch Query DSL.\n\nThe match operator is equivalent to the <<esql-match,match function>>.\n\nFor using the function syntax, or adding <<match-field-params,match query parameters>>, you can use the\n<<esql-match,match function>>.\n\n`:` returns true if the provided query matches the row.",
   "signatures" : [
     {
       "params" : [

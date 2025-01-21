@@ -14,13 +14,7 @@ The match operator is equivalent to the <<esql-match,match function>>.
 [.text-center]
 image::esql/functions/signature/match_operator.svg[Embedded,opts=inline]
 
-include::types/match.asciidoc[]
-
-[source.merge.styled,esql]
-----
-include::{esql-specs}/match-operator.csv-spec[tag=match-with-field]
-----
-[%header.monospaced.styled,format=dsv,separator=|]
-|===
-include::{esql-specs}/match-operator.csv-spec[tag=match-with-field-result]
-|===
+include::../parameters/match_operator.asciidoc[]
+include::../description/match_operator.asciidoc[]
+include::../types/match_operator.asciidoc[]
+include::../examples/match.asciidoc[]

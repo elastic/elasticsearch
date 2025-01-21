@@ -75,7 +75,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -196,10 +195,11 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * EsqlProject[[first_name{f}#9, last_name{r}#18]]
-     * \_MvExpand[last_name{f}#12,last_name{r}#18,1000]
-     *   \_Limit[1000[INTEGER]]
-     *     \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     * EsqlProject[[first_name{f}#7, last_name{r}#17]]
+     * \_Limit[1000[INTEGER],false]
+     *   \_MvExpand[last_name{f}#10,last_name{r}#17]
+     *     \_Limit[1000[INTEGER],true]
+     *       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      */
     public void testMissingFieldInMvExpand() {
         var plan = plan("""
@@ -215,8 +215,10 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var projections = project.projections();
         assertThat(Expressions.names(projections), contains("first_name", "last_name"));
 
-        var mvExpand = as(project.child(), MvExpand.class);
-//        assertThat(mvExpand.limit(), equalTo(1000));
+        var limit1 = as(project.child(), Limit.class);
+        assertEquals(as(limit1.limit(), Literal.class).value(), 1000);
+        assertFalse(limit1.allowDuplicatePastExpandingNode());
+        var mvExpand = as(limit1.child(), MvExpand.class);
         var limit2 = as(mvExpand.child(), Limit.class);
         as(limit2.child(), EsRelation.class);
     }
@@ -269,7 +271,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/110150")
     public void testMissingFieldInNewCommand() {
         var testStats = statsForMissingField("last_name");
         localPlan(

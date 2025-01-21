@@ -95,7 +95,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         indexAndAliasCreated.set(false);
         if (backlog == null) {
             // create a new backlog in case documents need
-            // to be temporarily store when the new index/alias is created
+            // to be temporarily stored when the new index/alias is created
             backlog = new ConcurrentLinkedQueue<>();
         }
     }

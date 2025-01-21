@@ -21,6 +21,7 @@ public record AddIndexBlockClusterStateUpdateRequest(
     TimeValue masterNodeTimeout,
     TimeValue ackTimeout,
     APIBlock block,
+    boolean markVerified,
     long taskId,
     Index[] indices
 ) {

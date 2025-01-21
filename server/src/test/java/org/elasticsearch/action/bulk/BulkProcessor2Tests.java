@@ -175,7 +175,7 @@ public class BulkProcessor2Tests extends ESTestCase {
             countingListener(requestCount, successCount, failureCount, docCount, exceptionRef),
             maxBatchSize,
             ByteSizeValue.ofBytes(Integer.MAX_VALUE),
-            new ByteSizeValue(50, ByteSizeUnit.MB),
+            ByteSizeValue.of(50, ByteSizeUnit.MB),
             null,
             threadPool
         );
@@ -280,7 +280,7 @@ public class BulkProcessor2Tests extends ESTestCase {
             countingListener(requestCount, successCount, failureCount, docCount, exceptionRef),
             maxBatchSize,
             ByteSizeValue.ofBytes(Integer.MAX_VALUE),
-            new ByteSizeValue(50, ByteSizeUnit.MB),
+            ByteSizeValue.of(50, ByteSizeUnit.MB),
             TimeValue.timeValueMillis(simulateWorkTimeInMillis * 2),
             threadPool
         );

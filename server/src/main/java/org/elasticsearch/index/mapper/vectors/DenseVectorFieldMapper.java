@@ -1462,10 +1462,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Int8FlatIndexOptions extends IndexOptions {
+    static class Int8FlatIndexOptions extends IndexOptions {
         private final Float confidenceInterval;
 
-        public Int8FlatIndexOptions(Float confidenceInterval) {
+        Int8FlatIndexOptions(Float confidenceInterval) {
             super(VectorIndexType.INT8_FLAT);
             this.confidenceInterval = confidenceInterval;
         }
@@ -1508,9 +1508,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    public static class FlatIndexOptions extends IndexOptions {
+    static class FlatIndexOptions extends IndexOptions {
 
-        public FlatIndexOptions() {
+        FlatIndexOptions() {
             super(VectorIndexType.FLAT);
         }
 
@@ -1546,12 +1546,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Int4HnswIndexOptions extends IndexOptions {
+    static class Int4HnswIndexOptions extends IndexOptions {
         private final int m;
         private final int efConstruction;
         private final float confidenceInterval;
 
-        public Int4HnswIndexOptions(int m, int efConstruction, Float confidenceInterval) {
+        Int4HnswIndexOptions(int m, int efConstruction, Float confidenceInterval) {
             super(VectorIndexType.INT4_HNSW);
             this.m = m;
             this.efConstruction = efConstruction;
@@ -1614,10 +1614,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Int4FlatIndexOptions extends IndexOptions {
+    static class Int4FlatIndexOptions extends IndexOptions {
         private final float confidenceInterval;
 
-        public Int4FlatIndexOptions(Float confidenceInterval) {
+        Int4FlatIndexOptions(Float confidenceInterval) {
             super(VectorIndexType.INT4_FLAT);
             // The default confidence interval for int4 is dynamic quantiles, this provides the best relevancy and is
             // effectively required for int4 to behave well across a wide range of data.
@@ -1668,12 +1668,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     }
 
-    public static class Int8HnswIndexOptions extends IndexOptions {
+    static class Int8HnswIndexOptions extends IndexOptions {
         private final int m;
         private final int efConstruction;
         private final Float confidenceInterval;
 
-        public Int8HnswIndexOptions(int m, int efConstruction, Float confidenceInterval) {
+        Int8HnswIndexOptions(int m, int efConstruction, Float confidenceInterval) {
             super(VectorIndexType.INT8_HNSW);
             this.m = m;
             this.efConstruction = efConstruction;

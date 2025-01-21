@@ -54,7 +54,8 @@ public class MapperFeatures implements FeatureSpecification {
             META_FETCH_FIELDS_ERROR_CODE_CHANGED,
             SPARSE_VECTOR_STORE_SUPPORT,
             COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT,
-            SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE
+            SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE,
+            ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX
         );
     }
 }

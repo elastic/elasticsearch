@@ -158,6 +158,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_PROFILE_ROWS_PROCESSED = def(8_824_00_0);
     public static final TransportVersion BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1 = def(8_825_00_0);
     public static final TransportVersion REVERT_BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1 = def(8_826_00_0);
+    public static final TransportVersion ESQL_SKIP_ES_INDEX_SERIALIZATION = def(8_827_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

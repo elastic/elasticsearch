@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -33,9 +32,9 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.FOUR;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
@@ -251,12 +250,6 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
     }
 
     private static EsRelation relation(List<Attribute> fieldAttributes) {
-        return new EsRelation(
-            EMPTY,
-            new EsIndex(randomAlphaOfLength(8), emptyMap()),
-            fieldAttributes,
-            randomFrom(IndexMode.values()),
-            randomBoolean()
-        );
+        return new EsRelation(EMPTY, randomIdentifier(), randomFrom(IndexMode.values()), Map.of(), fieldAttributes);
     }
 }

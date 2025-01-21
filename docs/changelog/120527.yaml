@@ -2,4 +2,5 @@ pr: 120527
 summary: Implement a `MetricsAware` interface
 area: ES|QL
 type: enhancement
-issues: []
+issues:
+ - 115992

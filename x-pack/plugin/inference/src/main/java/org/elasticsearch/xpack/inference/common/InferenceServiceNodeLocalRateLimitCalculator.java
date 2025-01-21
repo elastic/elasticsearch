@@ -23,7 +23,13 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -51,7 +57,7 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
      * Configuration mapping services to their task type rate limiting settings.
      * Each service can have multiple configs defining:
      * - Which task types support request re-routing and "node-local" rate limit calculation
-     * - How many nodes should handle requests for each task type, based on cluster size (this can either be dynamically calculated or statically provided)
+     * - How many nodes should handle requests for each task type, based on cluster size (dynamically calculated or statically provided)
      **/
     static final Map<String, Collection<NodeLocalRateLimitConfig>> SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS = Map.of(
         ElasticInferenceService.NAME,

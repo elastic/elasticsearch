@@ -243,9 +243,7 @@ public class PolicyManager {
             return;
         }
 
-        // FIXME: Having to pass the entitlement class here for logging purposes seems wrong.
-        // This API suggests it's doing something else than what it actually does. This looks like a filter, but isn't!
-        ModuleEntitlements entitlements = getEntitlements(requestingClass, Entitlement.class);
+        ModuleEntitlements entitlements = getEntitlements(requestingClass);
         if (entitlements.hasEntitlement(WriteAllSystemPropertiesEntitlement.class)) {
             logger.debug(
                 () -> Strings.format(

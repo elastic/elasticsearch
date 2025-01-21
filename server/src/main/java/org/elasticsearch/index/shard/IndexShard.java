@@ -4310,7 +4310,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Reset the current engine to a new one without doing translog recovery.
      */
-    public void resetEngine()  {
+    public void resetEngine() {
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
         assert getActiveOperationsCount() == OPERATIONS_BLOCKED
             : "resetting engine without blocking operations; active operations are [" + getActiveOperationsCount() + ']';

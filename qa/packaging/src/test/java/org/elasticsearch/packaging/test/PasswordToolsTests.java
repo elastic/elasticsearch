@@ -117,12 +117,11 @@ public class PasswordToolsTests extends PackagingTestCase {
 
     public void test40GeneratePasswordsBootstrapAlreadySet() throws Exception {
         assertWhileRunning(() -> {
-
+            waitForElasticsearch(installation, "elastic", BOOTSTRAP_PASSWORD);
             Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
             Map<String, String> userpasses = parseUsersAndPasswords(result.stdout());
             assertThat(userpasses, hasKey("elastic"));
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
-                waitForElasticsearch(installation, userpass.getKey(), userpass.getValue());
                 String response = ServerUtils.makeRequest(
                     Request.Get("http://localhost:9200"),
                     userpass.getKey(),

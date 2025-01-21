@@ -41,6 +41,41 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         return List.of(MigratePlugin.class, ReindexPlugin.class, MockTransportService.TestPlugin.class, DataStreamsPlugin.class);
     }
 
+    public void testOldSettingsManuallyFiltered() throws Exception {
+        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
+
+        var numShards = randomIntBetween(1, 10);
+        var staticSettings = Settings.builder()
+            // setting to filter
+            .put("index.soft_deletes.enabled", true)
+            // good setting to keep
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+            .build();
+
+        // start with a static setting
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex, staticSettings)).get();
+
+        // create from source
+        var destIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        assertAcked(
+            client().execute(CreateIndexFromSourceAction.INSTANCE, new CreateIndexFromSourceAction.Request(sourceIndex, destIndex))
+        );
+
+        // assert both static and dynamic settings set on dest index
+        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(sourceIndex, destIndex)).actionGet();
+        var destSettings = settingsResponse.getIndexToSettings().get(destIndex);
+        var sourceSettings = settingsResponse.getIndexToSettings().get(sourceIndex);
+
+        // sanity check that source settings were added
+        assertEquals(true, sourceSettings.getAsBoolean("index.soft_deletes.enabled", false));
+        assertEquals(numShards, Integer.parseInt(destSettings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS)));
+
+        // check that old setting was not added to index
+        assertNull(destSettings.get("index.soft_deletes.enabled"));
+        assertEquals(numShards, Integer.parseInt(destSettings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS)));
+    }
+
     public void testDestIndexCreated() throws Exception {
         assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
 
@@ -54,7 +89,7 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         );
 
         try {
-            indicesAdmin().getIndex(new GetIndexRequest().indices(destIndex)).actionGet();
+            indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(destIndex)).actionGet();
         } catch (IndexNotFoundException e) {
             fail();
         }

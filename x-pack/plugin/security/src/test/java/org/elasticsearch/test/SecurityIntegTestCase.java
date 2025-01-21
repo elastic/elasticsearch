@@ -416,7 +416,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 )
             )
         );
-        GetIndexRequest getIndexRequest = new GetIndexRequest();
+        GetIndexRequest getIndexRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT);
         getIndexRequest.indices(SECURITY_MAIN_ALIAS);
         getIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         GetIndexResponse getIndexResponse = client.admin().indices().getIndex(getIndexRequest).actionGet();

@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.qa;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.cluster.local.PluginInstallSpec;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -22,12 +23,7 @@ import java.util.Map;
 
 class EntitlementsUtil {
 
-    @FunctionalInterface
-    interface IOConsumer<T> {
-        void accept(T var1) throws IOException;
-    }
-
-    static final IOConsumer<XContentBuilder> ALLOWED_ENTITLEMENTS = builder -> {
+    static final CheckedConsumer<XContentBuilder, IOException> ALLOWED_ENTITLEMENTS = builder -> {
         builder.value("create_class_loader");
         builder.value("set_https_connection_properties");
         builder.value("inbound_network");
@@ -36,7 +32,7 @@ class EntitlementsUtil {
             Map.of("properties", List.of("es.entitlements.checkSetSystemProperty", "es.entitlements.checkClearSystemProperty"))));
     };
 
-    static void setupEntitlements(PluginInstallSpec spec, boolean modular, IOConsumer<XContentBuilder> policyBuilder) {
+    static void setupEntitlements(PluginInstallSpec spec, boolean modular, CheckedConsumer<XContentBuilder, IOException> policyBuilder) {
         String moduleName = modular ? "org.elasticsearch.entitlement.qa.test" : "ALL-UNNAMED";
         if (policyBuilder != null) {
             try {

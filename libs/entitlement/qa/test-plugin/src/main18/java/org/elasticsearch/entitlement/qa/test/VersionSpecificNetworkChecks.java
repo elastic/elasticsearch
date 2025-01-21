@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.qa.common;
+package org.elasticsearch.entitlement.qa.test;
 
 import java.io.IOException;
 import java.net.URI;

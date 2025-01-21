@@ -36,11 +36,7 @@ include::inference-shared.asciidoc[tag=inference-id]
 include::inference-shared.asciidoc[tag=task-type]
 +
 --
-<<<<<<< HEAD
-Refer to the service list in the <<put-inference-api-desc,API description section>> for the available task types. 
-=======
-Refer to the integration list in the <<put-inference-api-desc,API description section>> for the available task types.
->>>>>>> c60b3be6c72 ([DOCS] Rename inference services to inference integrations in docs (#120212))
+Refer to the integration list in the <<put-inference-api-desc,API description section>> for the available task types. 
 --
 
 

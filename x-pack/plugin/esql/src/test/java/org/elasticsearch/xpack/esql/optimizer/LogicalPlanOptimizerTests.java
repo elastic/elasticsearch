@@ -14,12 +14,12 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongVectorBlock;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -6929,6 +6929,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertEquals(DataType.DOUBLE, ee.dataType());
         Limit limit = as(eval.child(), Limit.class);
         EsRelation esRelation = as(limit.child(), EsRelation.class);
-        assertEquals(esRelation.index().name(), "test");
+        assertEquals(esRelation.indexPattern(), "test");
     }
 }

@@ -14,6 +14,8 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
 

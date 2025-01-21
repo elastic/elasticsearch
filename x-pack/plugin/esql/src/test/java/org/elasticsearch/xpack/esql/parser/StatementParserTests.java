@@ -2943,7 +2943,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testValidJoinPattern() {
-        var basePattern = randomIndexPattern();
+        var basePattern = randomIndexPatterns();
         var joinPattern = randomIndexPattern();
         var onField = randomIdentifier();
         var type = randomFrom("", "LOOKUP ");
@@ -2958,6 +2958,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(joinType.columns(), hasSize(1));
         assertThat(as(joinType.columns().getFirst(), UnresolvedAttribute.class).name(), equalTo(onField));
         assertThat(joinType.coreJoin().joinName(), equalTo("LEFT OUTER"));
+    }
+
+    private static String randomIndexPatterns() {
+        var patterns = String.join(",", randomList(1, 5, StatementParserTests::randomIndexPattern));
+        if (randomBoolean() && patterns.contains("\"") == false) {
+            patterns = quote(patterns);
+        }
+        return patterns;
     }
 
     private static String randomIndexPattern() {

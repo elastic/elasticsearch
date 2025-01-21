@@ -24,6 +24,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.packaging.util.docker.Docker.waitForElasticsearch;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.junit.Assume.assumeFalse;
@@ -50,6 +51,7 @@ public class PasswordToolsTests extends PackagingTestCase {
             Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
             Map<String, String> userpasses = parseUsersAndPasswords(result.stdout());
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
+                waitForElasticsearch(installation, userpass.getKey(), userpass.getValue());
                 String response = ServerUtils.makeRequest(
                     Request.Get("http://localhost:9200"),
                     userpass.getKey(),
@@ -102,6 +104,7 @@ public class PasswordToolsTests extends PackagingTestCase {
         installation.executables().keystoreTool.run("add --stdin bootstrap.password", BOOTSTRAP_PASSWORD);
 
         assertWhileRunning(() -> {
+            waitForElasticsearch(installation, "elastic", BOOTSTRAP_PASSWORD);
             String response = ServerUtils.makeRequest(
                 Request.Get("http://localhost:9200/_cluster/health?wait_for_status=green&timeout=180s"),
                 "elastic",
@@ -119,6 +122,7 @@ public class PasswordToolsTests extends PackagingTestCase {
             Map<String, String> userpasses = parseUsersAndPasswords(result.stdout());
             assertThat(userpasses, hasKey("elastic"));
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
+                waitForElasticsearch(installation, userpass.getKey(), userpass.getValue());
                 String response = ServerUtils.makeRequest(
                     Request.Get("http://localhost:9200"),
                     userpass.getKey(),

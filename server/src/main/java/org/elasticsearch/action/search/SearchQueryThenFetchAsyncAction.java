@@ -120,7 +120,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
     private final Object shardFailuresMutex = new Object();
     private final AtomicBoolean hasShardResponse = new AtomicBoolean(false);
-    private final AtomicInteger successfulOps = new AtomicInteger();
+    private final AtomicInteger successfulOps;
     private final TransportSearchAction.SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
 
@@ -140,7 +140,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
         }
     }
 
-    private int outstandingShards = 0;
+    private int outstandingShards;
 
     // protected for tests
     protected final List<Releasable> releasables = new ArrayList<>();
@@ -181,9 +181,11 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
             }
         }
         this.toSkipShardsIts = new GroupShardsIterator<>(toSkipIterators);
+        this.successfulOps = new AtomicInteger(toSkipIterators.size());
         this.shardsIts = new GroupShardsIterator<>(iterators);
 
         this.shardIterators = iterators.toArray(new SearchShardIterator[0]);
+        outstandingShards = shardIterators.length;
         // we compute the shard index based on the natural order of the shards
         // that participate in the search request. This means that this number is
         // consistent between two requests that target the same shards.
@@ -592,16 +594,9 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
     private void run() {
         // TODO: stupid but we kinda need to fill all of these in with the current logic, do something nicer before merging
         final Map<SearchShardIterator, Integer> shardIndexMap = Maps.newHashMapWithExpectedSize(shardIterators.length);
-        int outstandingShards = 0;
         for (int i = 0; i < shardIterators.length; i++) {
             var iterator = shardIterators[i];
             shardIndexMap.put(iterator, i);
-            outstandingShards++;
-        }
-        OUTSTANDING_SHARDS.setRelease(this, outstandingShards);
-        for (final SearchShardIterator iterator : toSkipShardsIts) {
-            assert iterator.skip();
-            skipShard(iterator);
         }
         if (shardsIts.size() == 0) {
             finishIfAllDone();
@@ -880,11 +875,6 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
                 successfulOps.decrementAndGet(); // if this shard was successful before (initial phase) we have to adjust the counter
             }
         }
-    }
-
-    void skipShard(SearchShardIterator iterator) {
-        successfulOps.incrementAndGet();
-        assert iterator.skip();
     }
 
     @Override

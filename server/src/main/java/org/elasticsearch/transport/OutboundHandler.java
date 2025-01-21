@@ -28,7 +28,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -41,7 +40,6 @@ final class OutboundHandler {
 
     private final String nodeName;
 
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // only used in assertions, can be dropped in future
     private final TransportVersion version;
 
     private final StatsTracker statsTracker;

@@ -60,7 +60,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_INDEX_VERSION;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.READ_ONLY_ALLOW_DELETE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.State.CLOSE;
 import static org.elasticsearch.core.Strings.format;
 
@@ -449,10 +449,12 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                                     delegate2,
                                     logAndThrowExceptionForFailures(bulkByScrollResponse)
                                 );
-                            } else {
-                                // Successful completion of reindexing. Now we need to set the alias and remove the old index.
-                                delegate2.delegateFailureAndWrap(setAliasAndRemoveOldIndex(migrationInfo, bulkByScrollResponse));
-                            }
+                            }  // Successful completion of reindexing - remove read only and delete old index
+                            setWriteBlock(
+                                oldIndex,
+                                false,
+                                delegate2.delegateFailureAndWrap(setAliasAndRemoveOldIndex(migrationInfo, bulkByScrollResponse))
+                            );
                         }, e -> {
                             logger.error(
                                 () -> format(
@@ -548,7 +550,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             baseClient.admin()
                 .indices()
                 .addBlock(
-                    new AddIndexBlockRequest(READ_ONLY_ALLOW_DELETE, index.getName()).masterNodeTimeout(
+                    new AddIndexBlockRequest(WRITE, index.getName()).masterNodeTimeout(
                         MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT
                     ),
                     listener.delegateFailureAndWrap((l, response) -> {
@@ -561,7 +563,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         } else {
             // The only way to remove a Block is via a settings update.
             final Settings readOnlySettings = Settings.builder()
-                .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false)
+                .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false)
                 .build();
             metadataUpdateSettingsService.updateSettings(
                 new UpdateSettingsClusterStateUpdateRequest(

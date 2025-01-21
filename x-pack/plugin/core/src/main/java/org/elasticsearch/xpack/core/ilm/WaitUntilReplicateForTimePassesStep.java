@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -32,8 +30,6 @@ import java.util.function.Supplier;
 public class WaitUntilReplicateForTimePassesStep extends AsyncWaitStep {
 
     public static final String NAME = "check-replicate-for-time-passed";
-
-    private static final Logger logger = LogManager.getLogger(WaitUntilReplicateForTimePassesStep.class);
 
     private final TimeValue replicateFor;
     private final Supplier<Instant> nowSupplier;

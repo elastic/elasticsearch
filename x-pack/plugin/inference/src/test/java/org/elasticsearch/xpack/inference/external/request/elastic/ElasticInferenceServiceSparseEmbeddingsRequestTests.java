@@ -61,6 +61,29 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
         assertThat(httpPost.getLastHeader(Task.TRACE_STATE).getValue(), is(traceState));
     }
 
+    public void testProjectTrialModePropagatedThroughHTTPHeaders() {
+        var url = "http://eis-gateway.com";
+        var input = "input";
+
+        var embeddingsModel = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url, true);
+
+        var request = new ElasticInferenceServiceSparseEmbeddingsRequest(
+            TruncatorTests.createTruncator(),
+            new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
+            embeddingsModel,
+            new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10))
+        );
+        var httpRequest = request.createHttpRequest();
+
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        assertThat(
+            httpPost.getLastHeader(ElasticInferenceServiceRequest.PROJECT_IN_TRIAL_MODE_HEADER).getValue(),
+            is(Boolean.TRUE.toString())
+        );
+    }
+
     public void testTruncate_ReducesInputTextSizeByHalf() throws IOException {
         var url = "http://eis-gateway.com";
         var input = "abcd";

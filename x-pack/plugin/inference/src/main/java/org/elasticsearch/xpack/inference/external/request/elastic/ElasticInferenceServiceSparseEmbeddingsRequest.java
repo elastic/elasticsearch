@@ -55,6 +55,9 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest implements ElasticIn
 
         traceContextHandler.propagateTraceContext(httpPost);
         httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
+        if (Boolean.TRUE.equals(model.elasticInferenceServiceComponents().isProjectInTrialMode())) {
+            httpPost.setHeader(new BasicHeader(ElasticInferenceServiceRequest.PROJECT_IN_TRIAL_MODE_HEADER, Boolean.TRUE.toString()));
+        }
 
         return new HttpRequest(httpPost, getInferenceEntityId());
     }

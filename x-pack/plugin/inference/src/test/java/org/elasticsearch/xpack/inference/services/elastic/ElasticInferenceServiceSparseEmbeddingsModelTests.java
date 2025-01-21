@@ -16,10 +16,22 @@ import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 public class ElasticInferenceServiceSparseEmbeddingsModelTests extends ESTestCase {
 
     public static ElasticInferenceServiceSparseEmbeddingsModel createModel(String url) {
-        return createModel(url, null);
+        return createModel(url, null, null);
     }
 
     public static ElasticInferenceServiceSparseEmbeddingsModel createModel(String url, Integer maxInputTokens) {
+        return createModel(url, maxInputTokens, null);
+    }
+
+    public static ElasticInferenceServiceSparseEmbeddingsModel createModel(String url, Boolean isProjectInTrialMode) {
+        return createModel(url, null, isProjectInTrialMode);
+    }
+
+    public static ElasticInferenceServiceSparseEmbeddingsModel createModel(
+        String url,
+        Integer maxInputTokens,
+        Boolean isProjectInTrialMode
+    ) {
         return new ElasticInferenceServiceSparseEmbeddingsModel(
             "id",
             TaskType.SPARSE_EMBEDDING,
@@ -27,7 +39,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModelTests extends ESTestCas
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings(ElserModels.ELSER_V2_MODEL, maxInputTokens, null),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
-            new ElasticInferenceServiceComponents(url, null)
+            new ElasticInferenceServiceComponents(url, isProjectInTrialMode)
         );
     }
 }

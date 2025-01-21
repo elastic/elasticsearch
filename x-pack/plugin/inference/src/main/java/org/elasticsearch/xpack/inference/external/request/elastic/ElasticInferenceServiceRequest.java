@@ -9,4 +9,8 @@ package org.elasticsearch.xpack.inference.external.request.elastic;
 
 import org.elasticsearch.xpack.inference.external.request.Request;
 
-public interface ElasticInferenceServiceRequest extends Request {}
+public interface ElasticInferenceServiceRequest extends Request {
+
+    String PROJECT_IN_TRIAL_MODE_HEADER = "X-Elastic-Project-In-Trial-Mode";
+
+}

@@ -1,5 +1,5 @@
 [[infer-service-amazon-bedrock]]
-=== Amazon Bedrock {infer} service
+=== Amazon Bedrock {infer} integration
 
 .New API reference
 [sidebar]

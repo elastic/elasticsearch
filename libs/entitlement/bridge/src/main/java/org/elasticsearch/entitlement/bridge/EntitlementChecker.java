@@ -281,10 +281,7 @@ public interface EntitlementChecker {
     // Network miscellanea
     void check$java_net_URL$openConnection(Class<?> callerClass, java.net.URL that, Proxy proxy);
 
-    // HttpClient.Builder is an interface, so we instrument its only (internal) implementation
-    void check$jdk_internal_net_http_HttpClientBuilderImpl$build(Class<?> callerClass, HttpClient.Builder that);
-
-    // HttpClient#send and sendAsync are abstract, so we instrument their internal implementation
+    // HttpClient#send and sendAsync are abstract, so we instrument their internal implementations
     void check$jdk_internal_net_http_HttpClientImpl$send(
         Class<?> callerClass,
         HttpClient that,
@@ -300,6 +297,28 @@ public interface EntitlementChecker {
     );
 
     void check$jdk_internal_net_http_HttpClientImpl$sendAsync(
+        Class<?> callerClass,
+        HttpClient that,
+        HttpRequest userRequest,
+        HttpResponse.BodyHandler<?> responseHandler,
+        HttpResponse.PushPromiseHandler<?> pushPromiseHandler
+    );
+
+    void check$jdk_internal_net_http_HttpClientFacade$send(
+        Class<?> callerClass,
+        HttpClient that,
+        HttpRequest request,
+        HttpResponse.BodyHandler<?> responseBodyHandler
+    );
+
+    void check$jdk_internal_net_http_HttpClientFacade$sendAsync(
+        Class<?> callerClass,
+        HttpClient that,
+        HttpRequest userRequest,
+        HttpResponse.BodyHandler<?> responseHandler
+    );
+
+    void check$jdk_internal_net_http_HttpClientFacade$sendAsync(
         Class<?> callerClass,
         HttpClient that,
         HttpRequest userRequest,

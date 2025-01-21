@@ -20,9 +20,6 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
@@ -84,44 +81,7 @@ class NetworkAccessCheckActions {
         assert urlConnection != null;
     }
 
-    static void httpClientBuilderBuild() {
-        try (HttpClient httpClient = HttpClient.newBuilder().build()) {
-            assert httpClient != null;
-        }
-    }
-
-    static void httpClientSend() throws InterruptedException {
-        try (HttpClient httpClient = HttpClient.newBuilder().build()) {
-            // Shutdown the client, so the send action will shortcut before actually executing any network operation
-            // (but after it run our check in the prologue)
-            httpClient.shutdown();
-            try {
-                httpClient.send(HttpRequest.newBuilder(URI.create("http://localhost")).build(), HttpResponse.BodyHandlers.discarding());
-            } catch (IOException e) {
-                // Expected, since we shut down the client.
-                // "send" will be called and exercise the Entitlement check, we don't care if it fails afterward for this known reason.
-            }
-        }
-    }
-
-    static void httpClientSendAsync() {
-        try (HttpClient httpClient = HttpClient.newBuilder().build()) {
-            // Shutdown the client, so the send action will return before actually executing any network operation
-            // (but after it run our check in the prologue)
-            httpClient.shutdown();
-            var future = httpClient.sendAsync(
-                HttpRequest.newBuilder(URI.create("http://localhost")).build(),
-                HttpResponse.BodyHandlers.discarding()
-            );
-            assert future.isCompletedExceptionally();
-            future.exceptionally(ex -> {
-                assert ex instanceof IOException;
-                return null;
-            });
-        }
-    }
-
-    static void createLDAPCertStore() {
+    static void createLDAPCertStore() throws NoSuchAlgorithmException {
         try {
             // We pass down null params to provoke a InvalidAlgorithmParameterException
             CertStore.getInstance("LDAP", null);
@@ -129,7 +89,7 @@ class NetworkAccessCheckActions {
             // Assert we actually hit the class we care about, LDAPCertStore (or its impl)
             assert Arrays.stream(ex.getStackTrace()).anyMatch(e -> e.getClassName().endsWith("LDAPCertStore"));
         } catch (NoSuchAlgorithmException e) {
-            // In some environments (e.g. openjdk17 with FIPS enabled) the LDAPCertStore is not present, so this will fail.
+            // In some environments (e.g. with FIPS enabled) the LDAPCertStore is not present, so this will fail.
             // This is OK, as this means the class we care about (LDAPCertStore) is not even present
         }
     }

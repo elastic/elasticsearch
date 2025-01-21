@@ -112,7 +112,7 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
         var rateLimitConfigs = SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.get(serviceName);
 
         // We need to check this to make sure the service actually has a rate limit configuration
-        if(rateLimitConfigs == null){
+        if (rateLimitConfigs == null) {
             return false;
         }
 

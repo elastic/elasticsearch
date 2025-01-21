@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -105,7 +106,8 @@ public class EsExecutors {
         boolean rejectAfterShutdown,
         ThreadFactory threadFactory,
         ThreadContext contextHolder,
-        TaskTrackingConfig config
+        TaskTrackingConfig config,
+        MeterRegistry meterRegistry
     ) {
         ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
         EsThreadPoolExecutor executor;
@@ -121,7 +123,8 @@ public class EsExecutors {
                 threadFactory,
                 new ForceQueuePolicy(rejectAfterShutdown),
                 contextHolder,
-                config
+                config,
+                meterRegistry
             );
         } else {
             executor = new EsThreadPoolExecutor(
@@ -159,7 +162,8 @@ public class EsExecutors {
             rejectAfterShutdown,
             threadFactory,
             contextHolder,
-            TaskTrackingConfig.DO_NOT_TRACK
+            TaskTrackingConfig.DO_NOT_TRACK,
+            MeterRegistry.NOOP
         );
     }
 
@@ -169,7 +173,8 @@ public class EsExecutors {
         int queueCapacity,
         ThreadFactory threadFactory,
         ThreadContext contextHolder,
-        TaskTrackingConfig config
+        TaskTrackingConfig config,
+        MeterRegistry meterRegistry
     ) {
         final BlockingQueue<Runnable> queue;
         final EsRejectedExecutionHandler rejectedExecutionHandler;
@@ -192,7 +197,8 @@ public class EsExecutors {
                 threadFactory,
                 rejectedExecutionHandler,
                 contextHolder,
-                config
+                config,
+                meterRegistry
             );
         } else {
             return new EsThreadPoolExecutor(

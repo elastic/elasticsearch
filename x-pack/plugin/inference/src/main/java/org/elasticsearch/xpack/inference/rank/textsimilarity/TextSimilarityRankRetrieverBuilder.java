@@ -40,8 +40,6 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         "text_similarity_reranker_alias_handling_fix"
     );
 
-    public static final String DEFAULT_RERANK_V1_INFERENCE_ID = DEFAULT_RERANK_ID;
-
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
     public static final ParseField INFERENCE_TEXT_FIELD = new ParseField("inference_text");
@@ -50,14 +48,10 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     public static final ConstructingObjectParser<TextSimilarityRankRetrieverBuilder, RetrieverParserContext> PARSER =
         new ConstructingObjectParser<>(TextSimilarityRankBuilder.NAME, args -> {
             RetrieverBuilder retrieverBuilder = (RetrieverBuilder) args[0];
-            String inferenceId = (String) args[1];
+            String inferenceId = args[1] == null ? DEFAULT_RERANK_ID : (String) args[1];
             String inferenceText = (String) args[2];
             String field = (String) args[3];
             int rankWindowSize = args[4] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[4];
-
-            if (inferenceId == null) {
-                inferenceId = DEFAULT_RERANK_V1_INFERENCE_ID;
-            }
 
             return new TextSimilarityRankRetrieverBuilder(retrieverBuilder, inferenceId, inferenceText, field, rankWindowSize);
         });

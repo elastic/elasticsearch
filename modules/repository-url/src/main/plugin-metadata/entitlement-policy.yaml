@@ -1,4 +1,2 @@
 org.apache.httpcomponents.httpclient:
-  - network:
-      actions:
-        - connect # for URLHttpClient
+  - outbound_network # for URLHttpClient

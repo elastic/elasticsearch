@@ -16,28 +16,28 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 
 public class MinimalServiceSettingsTests extends AbstractXContentTestCase<MinimalServiceSettings> {
-  @Override
-  protected MinimalServiceSettings createTestInstance() {
-    TaskType taskType = randomFrom(TaskType.values());
-    Integer dimensions = null;
-    SimilarityMeasure similarity = null;
-    DenseVectorFieldMapper.ElementType elementType = null;
+    @Override
+    protected MinimalServiceSettings createTestInstance() {
+        TaskType taskType = randomFrom(TaskType.values());
+        Integer dimensions = null;
+        SimilarityMeasure similarity = null;
+        DenseVectorFieldMapper.ElementType elementType = null;
 
-    if (taskType == TaskType.TEXT_EMBEDDING) {
-      dimensions = randomIntBetween(2, 1024);
-      similarity = randomFrom(SimilarityMeasure.values());
-      elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+        if (taskType == TaskType.TEXT_EMBEDDING) {
+            dimensions = randomIntBetween(2, 1024);
+            similarity = randomFrom(SimilarityMeasure.values());
+            elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+        }
+        return new MinimalServiceSettings(taskType, dimensions, similarity, elementType);
     }
-    return new MinimalServiceSettings(taskType, dimensions, similarity, elementType);
-  }
 
-  @Override
-  protected MinimalServiceSettings doParseInstance(XContentParser parser) throws IOException {
-    return MinimalServiceSettings.parse(parser);
-  }
+    @Override
+    protected MinimalServiceSettings doParseInstance(XContentParser parser) throws IOException {
+        return MinimalServiceSettings.parse(parser);
+    }
 
-  @Override
-  protected boolean supportsUnknownFields() {
-    return false;
-  }
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
 }

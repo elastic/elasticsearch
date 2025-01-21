@@ -57,17 +57,17 @@ public record MinimalServiceSettings(
     static final String ELEMENT_TYPE_FIELD = "element_type";
 
     private static final ConstructingObjectParser<MinimalServiceSettings, Void> PARSER = new ConstructingObjectParser<>(
-            "model_settings",
-            true,
-            args -> {
-                TaskType taskType = TaskType.fromString((String) args[0]);
-                Integer dimensions = (Integer) args[1];
-                SimilarityMeasure similarity = args[2] == null ? null : SimilarityMeasure.fromString((String) args[2]);
-                DenseVectorFieldMapper.ElementType elementType = args[3] == null
-                        ? null
-                        : DenseVectorFieldMapper.ElementType.fromString((String) args[3]);
-                return new MinimalServiceSettings(taskType, dimensions, similarity, elementType);
-            }
+        "model_settings",
+        true,
+        args -> {
+            TaskType taskType = TaskType.fromString((String) args[0]);
+            Integer dimensions = (Integer) args[1];
+            SimilarityMeasure similarity = args[2] == null ? null : SimilarityMeasure.fromString((String) args[2]);
+            DenseVectorFieldMapper.ElementType elementType = args[3] == null
+                ? null
+                : DenseVectorFieldMapper.ElementType.fromString((String) args[3]);
+            return new MinimalServiceSettings(taskType, dimensions, similarity, elementType);
+        }
     );
 
     static {

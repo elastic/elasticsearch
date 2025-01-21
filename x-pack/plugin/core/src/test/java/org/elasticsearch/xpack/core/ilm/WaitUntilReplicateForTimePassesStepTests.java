@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ilm.step.info.EmptyInfo;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.WaitUntilReplicateForTimePassesStep.approximateTimeRemaining;
@@ -61,13 +62,13 @@ public class WaitUntilReplicateForTimePassesStepTests extends AbstractStepTestCa
 
     public void testEvaluateCondition() {
         // a mutable box that we can put Instants into
-        final Instant[] returnVal = new Instant[1];
+        final AtomicReference<Instant> returnVal = new AtomicReference<>();
 
         final WaitUntilReplicateForTimePassesStep step = new WaitUntilReplicateForTimePassesStep(
             randomStepKey(),
             randomStepKey(),
             TimeValue.timeValueHours(1),
-            () -> returnVal[0]
+            () -> returnVal.get()
         );
 
         final Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
@@ -79,7 +80,7 @@ public class WaitUntilReplicateForTimePassesStepTests extends AbstractStepTestCa
         final Index index = indexMeta.getIndex();
 
         // if we evaluate the condition now, it hasn't been met, because it hasn't been an hour
-        returnVal[0] = now;
+        returnVal.set(now);
         step.evaluateCondition(metadata, index, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -92,7 +93,7 @@ public class WaitUntilReplicateForTimePassesStepTests extends AbstractStepTestCa
             }
         }, MASTER_TIMEOUT);
 
-        returnVal[0] = t1; // similarly, if we were in the past, enough time also wouldn't have passed
+        returnVal.set(t1); // similarly, if we were in the past, enough time also wouldn't have passed
         step.evaluateCondition(metadata, index, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -105,7 +106,7 @@ public class WaitUntilReplicateForTimePassesStepTests extends AbstractStepTestCa
             }
         }, MASTER_TIMEOUT);
 
-        returnVal[0] = t2; // but two hours from now in the future, an hour will have passed
+        returnVal.set(t2); // but two hours from now in the future, an hour will have passed
         step.evaluateCondition(metadata, index, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {

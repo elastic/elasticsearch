@@ -2951,8 +2951,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = statement("FROM " + basePattern + " | " + type + " JOIN " + joinPattern + " ON " + onField);
 
         var join = as(plan, LookupJoin.class);
-        assertThat(as(join.left(), UnresolvedRelation.class).table().index(), equalTo(removeQuotes(basePattern)));
-        assertThat(as(join.right(), UnresolvedRelation.class).table().index(), equalTo(removeQuotes(joinPattern)));
+        assertThat(as(join.left(), UnresolvedRelation.class).table().index(), equalTo(unquote(basePattern)));
+        assertThat(as(join.right(), UnresolvedRelation.class).table().index(), equalTo(unquote(joinPattern)));
 
         var joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
         assertThat(joinType.columns(), hasSize(1));
@@ -2965,8 +2965,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
         if (randomBoolean()) {// pattern
             pattern += "*";
         }
-        if (randomBoolean()) {// quoted
-            pattern = "\"" + pattern + "\"";
+        if (randomBoolean()) {// quoted pattern
+            pattern = quote(pattern);
+        }
+        if (randomBoolean()) {// remote cluster
+            var cluster = randomIdentifier();
+            if (randomBoolean() && false) {// quoted cluster, unsupported by grammar yet
+                cluster = quote(cluster);
+            }
+            pattern = cluster + ":" + pattern;
+            if (randomBoolean() && pattern.contains("\"") == false) {// quoted entire cluster:pattern
+                pattern = quote(pattern);
+            }
         }
         return pattern;
     }
@@ -2991,7 +3001,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
         return str.charAt(randomInt(str.length() - 1));
     }
 
-    private static String removeQuotes(String term) {
+    private static String quote(String term) {
+        return "\"" + term + "\"";
+    }
+
+    private static String unquote(String term) {
         return term.replace("\"", "");
     }
 }

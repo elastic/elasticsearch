@@ -178,7 +178,7 @@ include::{esql-specs}/docs.csv-spec[tag=dissectAppendWithOrderModifier-result]
 ====== Named skip key (`?`)
 include::../ingest/processors/dissect.asciidoc[tag=named-skip-key]
 This can be done with a named skip key using the `{?name}` syntax. In the
-following query, `ident` and `auth` are not added to the output table:
+following query, `ident` and `authorization` are not added to the output table:
 
 [source.merge.styled,esql]
 ----

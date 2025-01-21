@@ -42,7 +42,9 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.elastic.auth.ElasticInferenceServiceAuthorization;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorization;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationHandler;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationTests;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -71,6 +73,8 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -300,15 +304,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testCheckModelConfig_ReturnsNewModelReference() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (
-            var service = new ElasticInferenceService(
-                senderFactory,
-                createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(getUrl(webServer)),
-                mockModelRegistry(),
-                ElasticInferenceServiceAuthorizationTests.createEnabledAuth()
-            )
-        ) {
+        try (var service = createService(senderFactory, getUrl(webServer))) {
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer));
             PlainActionFuture<Model> listener = new PlainActionFuture<>();
             service.checkModelConfig(model, listener);
@@ -326,15 +322,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name", TaskType.SPARSE_EMBEDDING);
 
-        try (
-            var service = new ElasticInferenceService(
-                factory,
-                createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(null),
-                mockModelRegistry(),
-                ElasticInferenceServiceAuthorizationTests.createEnabledAuth()
-            )
-        ) {
+        try (var service = createService(factory)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -376,15 +364,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name", TaskType.TEXT_EMBEDDING);
 
-        try (
-            var service = new ElasticInferenceService(
-                factory,
-                createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(null),
-                mockModelRegistry(),
-                ElasticInferenceServiceAuthorizationTests.createEnabledAuth()
-            )
-        ) {
+        try (var service = createService(factory)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -423,15 +403,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name", TaskType.CHAT_COMPLETION);
 
-        try (
-            var service = new ElasticInferenceService(
-                factory,
-                createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(null),
-                mockModelRegistry(),
-                ElasticInferenceServiceAuthorizationTests.createEnabledAuth()
-            )
-        ) {
+        try (var service = createService(factory)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -468,15 +440,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var eisGatewayUrl = getUrl(webServer);
 
-        try (
-            var service = new ElasticInferenceService(
-                senderFactory,
-                createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(eisGatewayUrl),
-                mockModelRegistry(),
-                ElasticInferenceServiceAuthorizationTests.createEnabledAuth()
-            )
-        ) {
+        try (var service = createService(senderFactory, eisGatewayUrl)) {
             String responseJson = """
                 {
                     "data": [
@@ -527,15 +491,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var eisGatewayUrl = getUrl(webServer);
 
-        try (
-            var service = new ElasticInferenceService(
-                senderFactory,
-                createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(eisGatewayUrl),
-                mockModelRegistry(),
-                ElasticInferenceServiceAuthorizationTests.createEnabledAuth()
-            )
-        ) {
+        try (var service = createService(senderFactory, eisGatewayUrl)) {
             String responseJson = """
                 {
                     "data": [
@@ -686,7 +642,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                                "required": false,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "int"
+                               "type": "int",
+                               "supported_task_types": ["sparse_embedding" , "chat_completion"]
                            },
                            "model_id": {
                                "description": "The name of the model to use for the inference task.",
@@ -694,7 +651,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                                "required": true,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "str"
+                               "type": "str",
+                               "supported_task_types": ["sparse_embedding" , "chat_completion"]
                            },
                            "max_input_tokens": {
                                "description": "Allows you to specify the maximum number of tokens per input.",
@@ -702,7 +660,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                                "required": false,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "int"
+                               "type": "int",
+                               "supported_task_types": ["sparse_embedding"]
                            }
                        }
                    }
@@ -741,7 +700,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                                "required": false,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "int"
+                               "type": "int",
+                               "supported_task_types": ["sparse_embedding" , "chat_completion"]
                            },
                            "model_id": {
                                "description": "The name of the model to use for the inference task.",
@@ -749,7 +709,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                                "required": true,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "str"
+                               "type": "str",
+                               "supported_task_types": ["sparse_embedding" , "chat_completion"]
                            },
                            "max_input_tokens": {
                                "description": "Allows you to specify the maximum number of tokens per input.",
@@ -757,7 +718,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                                "required": false,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "int"
+                               "type": "int",
+                               "supported_task_types": ["sparse_embedding"]
                            }
                        }
                    }
@@ -778,22 +740,52 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     }
 
     private ElasticInferenceService createServiceWithMockSender() {
+        return createServiceWithMockSender(ElasticInferenceServiceAuthorizationTests.createEnabledAuth());
+    }
+
+    private ElasticInferenceService createServiceWithMockSender(ElasticInferenceServiceAuthorization auth) {
+        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationHandler.class);
+        doAnswer(invocation -> {
+            ActionListener<ElasticInferenceServiceAuthorization> listener = invocation.getArgument(0);
+            listener.onResponse(auth);
+            return Void.TYPE;
+        }).when(mockAuthHandler).getAuth(any(), any());
+
         return new ElasticInferenceService(
             mock(HttpRequestSender.Factory.class),
             createWithEmptySettings(threadPool),
             new ElasticInferenceServiceComponents(null),
             mockModelRegistry(),
-            ElasticInferenceServiceAuthorizationTests.createEnabledAuth()
+            mockAuthHandler
         );
     }
 
-    private ElasticInferenceService createServiceWithMockSender(ElasticInferenceServiceAuthorization acl) {
+    private ElasticInferenceService createService(HttpRequestSender.Factory senderFactory) {
+        return createService(senderFactory, ElasticInferenceServiceAuthorizationTests.createEnabledAuth(), null);
+    }
+
+    private ElasticInferenceService createService(HttpRequestSender.Factory senderFactory, String gatewayUrl) {
+        return createService(senderFactory, ElasticInferenceServiceAuthorizationTests.createEnabledAuth(), gatewayUrl);
+    }
+
+    private ElasticInferenceService createService(
+        HttpRequestSender.Factory senderFactory,
+        ElasticInferenceServiceAuthorization auth,
+        String gatewayUrl
+    ) {
+        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationHandler.class);
+        doAnswer(invocation -> {
+            ActionListener<ElasticInferenceServiceAuthorization> listener = invocation.getArgument(0);
+            listener.onResponse(auth);
+            return Void.TYPE;
+        }).when(mockAuthHandler).getAuth(any(), any());
+
         return new ElasticInferenceService(
-            mock(HttpRequestSender.Factory.class),
+            senderFactory,
             createWithEmptySettings(threadPool),
-            new ElasticInferenceServiceComponents(null),
+            new ElasticInferenceServiceComponents(gatewayUrl),
             mockModelRegistry(),
-            acl
+            mockAuthHandler
         );
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -28,12 +29,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.singletonList;
 import static java.util.Map.entry;
 import static java.util.Map.ofEntries;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.DATA_STREAM_CHECKS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DataStreamDeprecationChecksTests extends ESTestCase {
 
@@ -93,7 +95,10 @@ public class DataStreamDeprecationChecksTests extends ESTestCase {
             null
         );
 
-        Metadata metadata = Metadata.builder().indices(nameToIndexMetadata).build();
+        Metadata metadata = Metadata.builder()
+            .indices(nameToIndexMetadata)
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
         DeprecationIssue expected = new DeprecationIssue(
@@ -110,9 +115,14 @@ public class DataStreamDeprecationChecksTests extends ESTestCase {
             )
         );
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(DATA_STREAM_CHECKS, c -> c.apply(dataStream, clusterState));
-
-        assertThat(issues, equalTo(singletonList(expected)));
+        IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+        when(indexNameExpressionResolver.dataStreamNames(any(), any())).thenReturn(List.of(dataStream.getName()));
+        DataStreamDeprecationChecks dataStreamDeprecationChecks = new DataStreamDeprecationChecks(indexNameExpressionResolver);
+        // We know that the data stream checks ignore the request.
+        Map<String, List<DeprecationIssue>> issuesByDataStream = dataStreamDeprecationChecks.check(clusterState, null);
+        assertThat(issuesByDataStream.size(), equalTo(1));
+        assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
+        assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
     }
 
 }

@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.deprecation.DeprecationInfoAction.filterCh
  */
 public class DataStreamDeprecationChecks implements ResourceDeprecationChecker {
 
-    public static final String DATA_STREAMS_CHECKER_NAME = "data_streams";
+    public static final String NAME = "data_streams";
     private static final List<BiFunction<DataStream, ClusterState, DeprecationIssue>> DATA_STREAM_CHECKS = List.of(
         DataStreamDeprecationChecks::oldIndicesCheck
     );
@@ -47,7 +47,7 @@ public class DataStreamDeprecationChecks implements ResourceDeprecationChecker {
      * @return the name of the data streams that have violated the checks with their respective warnings.
      */
     @Override
-    public Map<String, List<DeprecationIssue>> check(ClusterState clusterState) {
+    public Map<String, List<DeprecationIssue>> check(ClusterState clusterState, DeprecationInfoAction.Request request) {
         List<String> dataStreamNames = indexNameExpressionResolver.dataStreamNames(
             clusterState,
             IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
@@ -100,6 +100,6 @@ public class DataStreamDeprecationChecks implements ResourceDeprecationChecker {
 
     @Override
     public String getName() {
-        return DATA_STREAMS_CHECKER_NAME;
+        return NAME;
     }
 }

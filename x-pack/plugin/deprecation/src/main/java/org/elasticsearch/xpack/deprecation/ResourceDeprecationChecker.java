@@ -28,7 +28,7 @@ public interface ResourceDeprecationChecker {
      *
      * @param clusterState The cluster state provided for the checker
      */
-    Map<String, List<DeprecationIssue>> check(ClusterState clusterState);
+    Map<String, List<DeprecationIssue>> check(ClusterState clusterState, DeprecationInfoAction.Request request);
 
     /**
      * @return The name of the checker

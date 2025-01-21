@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -229,7 +228,7 @@ public record SemanticTextField(
         }
     }
 
-    static IndexOptions parseIndexOptionsFromMap(String fieldName, Object node) {
+    static DenseVectorFieldMapper.IndexOptions parseIndexOptionsFromMap(String fieldName, Object node) {
         if (node == null) {
             return null;
         }

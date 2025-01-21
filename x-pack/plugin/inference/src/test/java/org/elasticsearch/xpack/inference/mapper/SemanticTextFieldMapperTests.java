@@ -51,7 +51,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
-import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.XFeatureField;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -463,7 +462,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             String inferenceId = "test_model";
             String fieldName = randomFieldName(depth);
 
-            IndexOptions indexOptions = DenseVectorFieldTypeTests.randomIndexOptionsAll();
+            DenseVectorFieldMapper.IndexOptions indexOptions = DenseVectorFieldTypeTests.randomIndexOptionsAll();
             Exception exc = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
                 b.startObject(fieldName);
                 b.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
@@ -498,7 +497,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             );
             String inferenceId = model.getInferenceEntityId();
 
-            IndexOptions expectedIndexOptions = DenseVectorFieldTypeTests.randomIndexOptionsAll();
+            DenseVectorFieldMapper.IndexOptions expectedIndexOptions = DenseVectorFieldTypeTests.randomIndexOptionsAll();
             MapperService mapperService = createMapperService(mapping(b -> {
                 b.startObject(fieldName);
                 b.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
@@ -506,7 +505,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 b.field(INDEX_OPTIONS_FIELD, expectedIndexOptions);
                 b.endObject();
             }), useLegacyFormat);
-            assertSemanticTextField(mapperService, fieldName, true, expectedIndexOptions);
+            assertSemanticTextField(mapperService, fieldName, false, expectedIndexOptions);
 
             // Verify we can successfully create a document without throwing
             DocumentMapper documentMapper = mapperService.documentMapper();
@@ -579,7 +578,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         MapperService mapperService,
         String fieldName,
         boolean expectedModelSettings,
-        IndexOptions expectedIndexOptions
+        DenseVectorFieldMapper.IndexOptions expectedIndexOptions
     ) {
         Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
         assertNotNull(mapper);
@@ -634,7 +633,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
 
         if (expectedIndexOptions != null) {
-            IndexOptions indexOptions = semanticFieldMapper.fieldType().getIndexOptions();
+            DenseVectorFieldMapper.IndexOptions indexOptions = semanticFieldMapper.fieldType().getIndexOptions();
             assertNotNull(indexOptions);
             assertEquals(expectedIndexOptions, indexOptions);
         } else {

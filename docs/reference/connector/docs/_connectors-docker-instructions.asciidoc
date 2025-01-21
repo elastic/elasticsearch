@@ -3,7 +3,7 @@ Follow these instructions.
 
 .*Step 1: Download sample configuration file*
 [%collapsible]
-====
+==============
 Download the sample configuration file.
 You can either download it manually or run the following command:
 
@@ -14,11 +14,11 @@ curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.exampl
 // NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
-====
+==============
 
 .*Step 2: Update the configuration file for your self-managed connector*
 [%collapsible]
-====
+==============
 Update the configuration file with the following settings to match your environment:
 
 * `elasticsearch.host`
@@ -45,11 +45,11 @@ Using the `elasticsearch.api_key` is the recommended authentication method. Howe
 
 Note: You can change other default configurations by simply uncommenting specific settings in the configuration file and modifying their values.
 
-====
+==============
 
 .*Step 3: Run the Docker image*
 [%collapsible]
-====
+==============
 Run the Docker image with the Connector Service using the following command:
 
 [source,sh,subs="attributes"]
@@ -63,7 +63,7 @@ docker.elastic.co/integrations/elastic-connectors:{version}.0 \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ----
-====
+==============
 
 Refer to {connectors-python}/docs/DOCKER.md[`DOCKER.md`^] in the `elastic/connectors` repo for more details.
 

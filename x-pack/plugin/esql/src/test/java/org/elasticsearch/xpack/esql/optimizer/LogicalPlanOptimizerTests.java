@@ -6916,6 +6916,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertEquals(DataType.DOUBLE, ee.dataType());
         Limit limit = as(eval.child(), Limit.class);
         EsRelation esRelation = as(limit.child(), EsRelation.class);
-        assertEquals(esRelation.index().name(), "test");
+        assertEquals(esRelation.indexPattern(), "test");
     }
 }

@@ -19,7 +19,6 @@ import org.elasticsearch.test.cluster.util.Version;
 
 import java.util.List;
 
-import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RollingUpgradeLuceneIndexCompatibilityTestCase extends RollingUpgradeIndexCompatibilityTestCase {
@@ -62,21 +61,14 @@ public class RollingUpgradeLuceneIndexCompatibilityTestCase extends RollingUpgra
             assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), index, numDocs);
 
-            logger.debug("--> flushing [{}]", index);
-            flush(index, true);
-
-            logger.debug("--> applying write block on [{}]", index);
-            addIndexWriteBlock(index);
-
-            logger.debug("--> applying verified read-only setting on [{}]", index);
-            updateIndexSettings(index, Settings.builder().put(VERIFIED_READ_ONLY_SETTING.getKey(), true));
+            logger.debug("--> marking index [{}] as read-only", index);
+            markAsReadOnly(index);
             return;
         }
 
         if (nodesVersions().values().stream().anyMatch(v -> v.onOrAfter(VERSION_CURRENT))) {
             var indexSettings = getIndexSettingsAsMap(index);
-            assertThat(indexSettings.get(IndexMetadata.APIBlock.WRITE.settingName()), equalTo(Boolean.TRUE.toString()));
-            assertThat(indexSettings.get(VERIFIED_READ_ONLY_SETTING.getKey()), equalTo(Boolean.TRUE.toString()));
+            assertMarkedAsReadOnly(index);
 
             if (isIndexClosed(index)) {
                 logger.debug("--> re-opening index [{}] after upgrade", index);
@@ -133,14 +125,8 @@ public class RollingUpgradeLuceneIndexCompatibilityTestCase extends RollingUpgra
             assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), index, numDocs);
 
-            logger.debug("--> flushing [{}]", index);
-            flush(index, true);
-
-            logger.debug("--> applying write block on [{}]", index);
-            addIndexWriteBlock(index);
-
-            logger.debug("--> applying verified read-only setting on [{}]", index);
-            updateIndexSettings(index, Settings.builder().put(VERIFIED_READ_ONLY_SETTING.getKey(), true));
+            logger.debug("--> marking index [{}] as read-only", index);
+            markAsReadOnly(index);
 
             logger.debug("--> creating snapshot [{}]", snapshot);
             createSnapshot(client(), repository, snapshot, true);
@@ -158,6 +144,7 @@ public class RollingUpgradeLuceneIndexCompatibilityTestCase extends RollingUpgra
                 restoreIndex(repository, snapshot, index, restoredIndex);
                 ensureGreen(restoredIndex);
 
+                assertMarkedAsReadOnly(restoredIndex);
                 assertThat(indexVersion(restoredIndex), equalTo(VERSION_MINUS_2));
                 assertDocCount(client(), restoredIndex, numDocs);
 

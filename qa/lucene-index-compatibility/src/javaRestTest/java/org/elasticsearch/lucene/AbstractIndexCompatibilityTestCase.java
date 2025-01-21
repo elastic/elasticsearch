@@ -15,6 +15,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.XContentTestUtils;
@@ -37,6 +38,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING;
 import static org.elasticsearch.test.cluster.util.Version.CURRENT;
 import static org.elasticsearch.test.cluster.util.Version.fromString;
 import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
@@ -259,13 +261,24 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
         return IndexMetadata.State.fromString((String) state) == IndexMetadata.State.CLOSE;
     }
 
-    protected static void addIndexWriteBlock(String indexName) throws Exception {
-        assertAcknowledged(client().performRequest(new Request("PUT", Strings.format("/%s/_block/write", indexName))));
-    }
-
     protected static void forceMerge(String indexName, int maxNumSegments) throws Exception {
         var request = new Request("POST", '/' + indexName + "/_forcemerge");
         request.addParameter("max_num_segments", String.valueOf(maxNumSegments));
         assertOK(client().performRequest(request));
+    }
+
+    protected static void markAsReadOnly(String indexName) throws Exception {
+        var block = randomFrom(IndexMetadata.APIBlock.READ_ONLY, IndexMetadata.APIBlock.WRITE);
+        var request = new Request("PUT", Strings.format("/%s/_block/%s", indexName, block.name().toLowerCase(Locale.ROOT)));
+        assertAcknowledged(client().performRequest(request));
+    }
+
+    protected void assertMarkedAsReadOnly(String indexName) throws Exception {
+        var indexSettings = getIndexSettingsAsMap(indexName);
+        assertThat(indexSettings.get(VERIFIED_READ_ONLY_SETTING.getKey()), equalTo(Boolean.TRUE.toString()));
+
+        boolean readOnly = Booleans.parseBoolean((String) indexSettings.get(IndexMetadata.APIBlock.READ_ONLY.settingName()), false);
+        boolean write = Booleans.parseBoolean((String) indexSettings.get(IndexMetadata.APIBlock.WRITE.settingName()), false);
+        assertThat("Expect either `read_only` [" + readOnly + "] or `write` [" + write + "] block", readOnly ^ write, is(true));
     }
 }

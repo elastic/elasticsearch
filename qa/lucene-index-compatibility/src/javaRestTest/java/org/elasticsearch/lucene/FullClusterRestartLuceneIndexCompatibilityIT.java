@@ -15,7 +15,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.cluster.util.Version;
 
-import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRestartIndexCompatibilityTestCase {
@@ -58,14 +57,8 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), index, numDocs);
 
-            logger.debug("--> flushing [{}]", index);
-            flush(index, true);
-
-            logger.debug("--> applying write block on [{}]", index);
-            addIndexWriteBlock(index);
-
-            logger.debug("--> applying verified read-only setting on [{}]", index);
-            updateIndexSettings(index, Settings.builder().put(VERIFIED_READ_ONLY_SETTING.getKey(), true));
+            logger.debug("--> marking index [{}] as read-only", index);
+            markAsReadOnly(index);
             return;
         }
 
@@ -75,9 +68,7 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), index, numDocs);
 
-            var indexSettings = getIndexSettingsAsMap(index);
-            assertThat(indexSettings.get(IndexMetadata.APIBlock.WRITE.settingName()), equalTo(Boolean.TRUE.toString()));
-            assertThat(indexSettings.get(VERIFIED_READ_ONLY_SETTING.getKey()), equalTo(Boolean.TRUE.toString()));
+            assertMarkedAsReadOnly(index);
 
             var numberOfReplicas = getNumberOfReplicas(index);
             if (0 < numberOfReplicas) {
@@ -146,14 +137,8 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), index, numDocs);
 
-            logger.debug("--> flushing [{}]", index);
-            flush(index, true);
-
-            logger.debug("--> applying write block on [{}]", index);
-            addIndexWriteBlock(index);
-
-            logger.debug("--> applying verified read-only setting on [{}]", index);
-            updateIndexSettings(index, Settings.builder().put(VERIFIED_READ_ONLY_SETTING.getKey(), true));
+            logger.debug("--> marking index [{}] as read-only", index);
+            markAsReadOnly(index);
 
             logger.debug("--> creating snapshot [{}]", snapshot);
             createSnapshot(client(), repository, snapshot, true);
@@ -169,6 +154,7 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             restoreIndex(repository, snapshot, index, restoredIndex);
             ensureGreen(restoredIndex);
 
+            assertMarkedAsReadOnly(restoredIndex);
             assertThat(indexVersion(restoredIndex), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), restoredIndex, numDocs);
 
@@ -233,14 +219,8 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), index, numDocs);
 
-            logger.debug("--> flushing [{}]", index);
-            flush(index, true);
-
-            logger.debug("--> applying write block on [{}]", index);
-            addIndexWriteBlock(index);
-
-            logger.debug("--> applying verified read-only setting on [{}]", index);
-            updateIndexSettings(index, Settings.builder().put(VERIFIED_READ_ONLY_SETTING.getKey(), true));
+            logger.debug("--> marking index [{}] as read-only", index);
+            markAsReadOnly(index);
 
             logger.debug("--> creating snapshot [{}]", snapshot);
             createSnapshot(client(), repository, snapshot, true);
@@ -255,10 +235,8 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
         }
 
         if (isFullyUpgradedTo(VERSION_CURRENT)) {
-            var indexSettings = getIndexSettingsAsMap(index);
-            assertThat(indexSettings.get(IndexMetadata.APIBlock.WRITE.settingName()), equalTo(Boolean.TRUE.toString()));
-            assertThat(indexSettings.get(VERIFIED_READ_ONLY_SETTING.getKey()), equalTo(Boolean.TRUE.toString()));
             assertThat(isIndexClosed(index), equalTo(true));
+            assertMarkedAsReadOnly(index);
 
             logger.debug("--> restoring index [{}] over existing closed index", index);
             restoreIndex(repository, snapshot, index, index);

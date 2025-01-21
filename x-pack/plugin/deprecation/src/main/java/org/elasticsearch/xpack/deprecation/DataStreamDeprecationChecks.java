@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -91,11 +90,6 @@ public class DataStreamDeprecationChecks implements ResourceDeprecationChecker {
         }
 
         return null;
-    }
-
-    @Override
-    public boolean enabled(Settings settings) {
-        return true;
     }
 
     @Override

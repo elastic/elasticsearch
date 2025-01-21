@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -148,7 +147,6 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         static final Set<String> RESERVED_NAMES = Set.of("cluster_settings", "node_settings", "index_settings", "data_streams");
         private final List<DeprecationIssue> clusterSettingsIssues;
         private final List<DeprecationIssue> nodeSettingsIssues;
-        private final Map<String, List<DeprecationIssue>> indexSettingsIssues;
         private final Map<String, Map<String, List<DeprecationIssue>>> resourceDeprecationIssues;
         private final Map<String, List<DeprecationIssue>> pluginSettingsIssues;
 
@@ -156,16 +154,17 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             super(in);
             clusterSettingsIssues = in.readCollectionAsList(DeprecationIssue::new);
             nodeSettingsIssues = in.readCollectionAsList(DeprecationIssue::new);
-            indexSettingsIssues = in.readMapOfLists(DeprecationIssue::new);
-            Map<String, Map<String, List<DeprecationIssue>>> mutableResourceDeprecations = Map.of();
-            if (in.getTransportVersion()
-                .between(TransportVersions.DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK, TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
-                mutableResourceDeprecations = new HashMap<>();
-                mutableResourceDeprecations.put(
-                    DataStreamDeprecationChecks.DATA_STREAMS_CHECKER_NAME,
-                    in.readMapOfLists(DeprecationIssue::new)
-                );
+            Map<String, Map<String, List<DeprecationIssue>>> mutableResourceDeprecations = in.getTransportVersion()
+                .before(TransportVersions.RESOURCE_DEPRECATION_CHECKS) ? new HashMap<>() : Map.of();
+            if (in.getTransportVersion().before(TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
+                mutableResourceDeprecations.put(IndexDeprecationChecks.NAME, in.readMapOfLists(DeprecationIssue::new));
             }
+            if (in.getTransportVersion().before(TransportVersions.DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK)) {
+                mutableResourceDeprecations.put(DataStreamDeprecationChecks.NAME, Map.of());
+            } else if (in.getTransportVersion()
+                .between(TransportVersions.DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK, TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
+                    mutableResourceDeprecations.put(DataStreamDeprecationChecks.NAME, in.readMapOfLists(DeprecationIssue::new));
+                }
             if (in.getTransportVersion().before(TransportVersions.V_7_11_0)) {
                 List<DeprecationIssue> mlIssues = in.readCollectionAsList(DeprecationIssue::new);
                 pluginSettingsIssues = new HashMap<>();
@@ -177,18 +176,18 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 mutableResourceDeprecations = in.readMap(in2 -> in2.readMapOfLists(DeprecationIssue::new));
             }
             resourceDeprecationIssues = mutableResourceDeprecations;
+            assert resourceDeprecationIssues.containsKey("index_settings") : "the field 'index_settings' is missing";
+            assert resourceDeprecationIssues.containsKey("data_streams") : "the field 'data_streams' is missing";
         }
 
         public Response(
             List<DeprecationIssue> clusterSettingsIssues,
             List<DeprecationIssue> nodeSettingsIssues,
-            Map<String, List<DeprecationIssue>> indexSettingsIssues,
             Map<String, Map<String, List<DeprecationIssue>>> resourceDeprecationIssues,
             Map<String, List<DeprecationIssue>> pluginSettingsIssues
         ) {
             this.clusterSettingsIssues = clusterSettingsIssues;
             this.nodeSettingsIssues = nodeSettingsIssues;
-            this.indexSettingsIssues = indexSettingsIssues;
             this.resourceDeprecationIssues = resourceDeprecationIssues;
             Set<String> intersection = Sets.intersection(RESERVED_NAMES, pluginSettingsIssues.keySet());
             if (intersection.isEmpty() == false) {
@@ -199,6 +198,8 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 );
             }
             this.pluginSettingsIssues = pluginSettingsIssues;
+            assert resourceDeprecationIssues.containsKey("index_settings") : "the field 'index_settings' is missing";
+            assert resourceDeprecationIssues.containsKey("data_streams") : "the field 'data_streams' is missing";
         }
 
         public List<DeprecationIssue> getClusterSettingsIssues() {
@@ -210,7 +211,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         }
 
         public Map<String, List<DeprecationIssue>> getIndexSettingsIssues() {
-            return indexSettingsIssues;
+            return resourceDeprecationIssues.get(IndexDeprecationChecks.NAME);
         }
 
         public Map<String, List<DeprecationIssue>> getPluginSettingsIssues() {
@@ -225,13 +226,13 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(clusterSettingsIssues);
             out.writeCollection(nodeSettingsIssues);
-            out.writeMap(indexSettingsIssues, StreamOutput::writeCollection);
+            if (out.getTransportVersion().before(TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
+                out.writeMap(getIndexSettingsIssues(), StreamOutput::writeCollection);
+            }
             if (out.getTransportVersion()
                 .between(TransportVersions.DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK, TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
-                Map<String, List<DeprecationIssue>> dataStreamIssues = resourceDeprecationIssues.get(
-                    DataStreamDeprecationChecks.DATA_STREAMS_CHECKER_NAME
-                );
-                out.writeMap(dataStreamIssues == null ? Map.of() : dataStreamIssues, StreamOutput::writeCollection);
+                Map<String, List<DeprecationIssue>> dataStreamIssues = resourceDeprecationIssues.get(DataStreamDeprecationChecks.NAME);
+                out.writeMap(dataStreamIssues, StreamOutput::writeCollection);
             }
             if (out.getTransportVersion().before(TransportVersions.V_7_11_0)) {
                 out.writeCollection(pluginSettingsIssues.getOrDefault("ml_settings", Collections.emptyList()));
@@ -248,8 +249,6 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             return builder.startObject()
                 .array("cluster_settings", clusterSettingsIssues.toArray())
                 .array("node_settings", nodeSettingsIssues.toArray())
-                .field("index_settings")
-                .map(indexSettingsIssues)
                 .map(resourceDeprecationIssues)
                 .mapContents(pluginSettingsIssues)
                 .endObject();
@@ -262,20 +261,13 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             Response response = (Response) o;
             return Objects.equals(clusterSettingsIssues, response.clusterSettingsIssues)
                 && Objects.equals(nodeSettingsIssues, response.nodeSettingsIssues)
-                && Objects.equals(indexSettingsIssues, response.indexSettingsIssues)
                 && Objects.equals(resourceDeprecationIssues, response.resourceDeprecationIssues)
                 && Objects.equals(pluginSettingsIssues, response.pluginSettingsIssues);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(
-                clusterSettingsIssues,
-                nodeSettingsIssues,
-                indexSettingsIssues,
-                resourceDeprecationIssues,
-                pluginSettingsIssues
-            );
+            return Objects.hash(clusterSettingsIssues, nodeSettingsIssues, resourceDeprecationIssues, pluginSettingsIssues);
         }
 
         /**
@@ -288,8 +280,6 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
          * @param indexNameExpressionResolver Used to resolve indices into their concrete names
          * @param request The originating request containing the index expressions to evaluate
          * @param nodeDeprecationResponse The response containing the deprecation issues found on each node
-         * @param indexSettingsChecks The list of index-level checks that will be run across all specified
-         *                            concrete indices
          * @param clusterSettingsChecks The list of cluster-level checks
          * @return The list of deprecation issues found in the cluster
          */
@@ -298,7 +288,6 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             IndexNameExpressionResolver indexNameExpressionResolver,
             Request request,
             NodesDeprecationCheckResponse nodeDeprecationResponse,
-            List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> indexSettingsChecks,
             List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks,
             Map<String, List<DeprecationIssue>> pluginSettingIssues,
             List<String> skipTheseDeprecatedSettings,
@@ -314,23 +303,11 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             );
             List<DeprecationIssue> nodeSettingsIssues = mergeNodeIssues(nodeDeprecationResponse);
 
-            Map<String, List<DeprecationIssue>> indexSettingsIssues = new HashMap<>();
-            for (String concreteIndex : concreteIndexNames) {
-                IndexMetadata indexMetadata = stateWithSkippedSettingsRemoved.getMetadata().index(concreteIndex);
-                List<DeprecationIssue> singleIndexIssues = filterChecks(
-                    indexSettingsChecks,
-                    c -> c.apply(indexMetadata, stateWithSkippedSettingsRemoved)
-                );
-                if (singleIndexIssues.size() > 0) {
-                    indexSettingsIssues.put(concreteIndex, singleIndexIssues);
-                }
-            }
-
             Map<String, Map<String, List<DeprecationIssue>>> resourceDeprecationIssues = new HashMap<>();
             for (ResourceDeprecationChecker resourceDeprecationChecker : resourceDeprecationCheckers) {
                 resourceDeprecationIssues.put(
                     resourceDeprecationChecker.getName(),
-                    resourceDeprecationChecker.check(stateWithSkippedSettingsRemoved)
+                    resourceDeprecationChecker.check(stateWithSkippedSettingsRemoved, request)
                 );
             }
 
@@ -345,7 +322,6 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             return new DeprecationInfoAction.Response(
                 clusterSettingsIssues,
                 nodeSettingsIssues,
-                indexSettingsIssues,
                 resourceDeprecationIssues,
                 pluginSettingIssues
             );

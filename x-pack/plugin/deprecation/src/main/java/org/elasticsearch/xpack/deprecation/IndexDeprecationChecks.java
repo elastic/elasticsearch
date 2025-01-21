@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.LegacyFormatNames;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -28,10 +30,51 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.deprecation.DeprecationInfoAction.filterChecks;
+
 /**
  * Index-specific deprecation checks
  */
-public class IndexDeprecationChecks {
+public class IndexDeprecationChecks implements ResourceDeprecationChecker {
+
+    public static final String NAME = "index_settings";
+    private static List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(
+        IndexDeprecationChecks::oldIndicesCheck,
+        IndexDeprecationChecks::translogRetentionSettingCheck,
+        IndexDeprecationChecks::checkIndexDataPath,
+        IndexDeprecationChecks::storeTypeSettingCheck,
+        IndexDeprecationChecks::frozenIndexSettingCheck,
+        IndexDeprecationChecks::deprecatedCamelCasePattern,
+        IndexDeprecationChecks::checkSourceModeInMapping
+    );
+
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+
+    public IndexDeprecationChecks(IndexNameExpressionResolver indexNameExpressionResolver) {
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+    }
+
+    @Override
+    public Map<String, List<DeprecationIssue>> check(ClusterState clusterState, DeprecationInfoAction.Request request) {
+        Map<String, List<DeprecationIssue>> indexSettingsIssues = new HashMap<>();
+        String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+        for (String concreteIndex : concreteIndexNames) {
+            IndexMetadata indexMetadata = clusterState.getMetadata().index(concreteIndex);
+            List<DeprecationIssue> singleIndexIssues = filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, clusterState));
+            if (singleIndexIssues.isEmpty() == false) {
+                indexSettingsIssues.put(concreteIndex, singleIndexIssues);
+            }
+        }
+        if (indexSettingsIssues.isEmpty()) {
+            return Map.of();
+        }
+        return indexSettingsIssues;
+    }
+
+    @Override
+    public String getName() {
+        return NAME;
+    }
 
     static DeprecationIssue oldIndicesCheck(IndexMetadata indexMetadata, ClusterState clusterState) {
         // TODO: this check needs to be revised. It's trivially true right now.

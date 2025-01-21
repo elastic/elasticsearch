@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -33,9 +34,6 @@ import static java.util.Map.entry;
 import static java.util.Map.ofEntries;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class DataStreamDeprecationChecksTests extends ESTestCase {
 
@@ -115,9 +113,8 @@ public class DataStreamDeprecationChecksTests extends ESTestCase {
             )
         );
 
-        IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        when(indexNameExpressionResolver.dataStreamNames(any(), any())).thenReturn(List.of(dataStream.getName()));
-        DataStreamDeprecationChecks dataStreamDeprecationChecks = new DataStreamDeprecationChecks(indexNameExpressionResolver);
+        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
+        DataStreamDeprecationChecks dataStreamDeprecationChecks = new DataStreamDeprecationChecks(resolver);
         // We know that the data stream checks ignore the request.
         Map<String, List<DeprecationIssue>> issuesByDataStream = dataStreamDeprecationChecks.check(clusterState, null);
         assertThat(issuesByDataStream.size(), equalTo(1));

@@ -83,8 +83,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         return new DeprecationInfoAction.Response(
             clusterIssues,
             nodeIssues,
-            indexIssues,
-            Map.of("data_streams", dataStreamIssues),
+            Map.of("data_streams", dataStreamIssues, "index_settings", indexIssues),
             pluginIssues
         );
     }
@@ -123,32 +122,17 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         boolean dataStreamIssueFound = randomBoolean();
         DeprecationIssue foundIssue = createTestDeprecationIssue();
         List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks = List.of((s) -> clusterIssueFound ? foundIssue : null);
-        List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> indexSettingsChecks = List.of(
-            (idx, cs) -> indexIssueFound ? foundIssue : null
-        );
-        List<BiFunction<DataStream, ClusterState, DeprecationIssue>> dataStreamChecks = List.of(
-            (ds, cs) -> dataStreamIssueFound ? foundIssue : null
-        );
-        List<ResourceDeprecationChecker> resourceCheckers = List.of(new ResourceDeprecationChecker() {
-
-            @Override
-            public boolean enabled(Settings settings) {
-                return true;
+        List<ResourceDeprecationChecker> resourceCheckers = List.of(createResourceChecker("index_settings", (cs, req) -> {
+            if (indexIssueFound) {
+                return Map.of("test", List.of(foundIssue));
             }
-
-            @Override
-            public Map<String, List<DeprecationIssue>> check(ClusterState clusterState) {
-                if (dataStreamIssueFound) {
-                    return Map.of("my-ds", List.of(foundIssue));
-                }
-                return Map.of();
+            return Map.of();
+        }), createResourceChecker("data_streams", (cs, req) -> {
+            if (dataStreamIssueFound) {
+                return Map.of("my-ds", List.of(foundIssue));
             }
-
-            @Override
-            public String getName() {
-                return "data_streams";
-            }
-        });
+            return Map.of();
+        }));
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
             new ClusterName(randomAlphaOfLength(5)),
@@ -166,7 +150,6 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             resolver,
             request,
             nodeDeprecationIssues,
-            indexSettingsChecks,
             clusterSettingsChecks,
             Collections.emptyMap(),
             Collections.emptyList(),
@@ -239,9 +222,10 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         DeprecationIssue foundIssue1 = createTestDeprecationIssue(metaMap1);
         DeprecationIssue foundIssue2 = createTestDeprecationIssue(foundIssue1, metaMap2);
         List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks = Collections.emptyList();
-        List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> indexSettingsChecks = List.of((idx, cs) -> null);
-        List<BiFunction<DataStream, ClusterState, DeprecationIssue>> dataStreamChecks = List.of((ds, cs) -> null);
-        List<ResourceDeprecationChecker> resourceCheckers = List.of();
+        List<ResourceDeprecationChecker> resourceCheckers = List.of(
+            createResourceChecker("index_settings", (cs, r) -> Map.of()),
+            createResourceChecker("data_streams", (cs, r) -> Map.of())
+        );
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
             new ClusterName(randomAlphaOfLength(5)),
@@ -258,7 +242,6 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             resolver,
             request,
             nodeDeprecationIssues,
-            indexSettingsChecks,
             clusterSettingsChecks,
             Collections.emptyMap(),
             Collections.emptyList(),
@@ -305,30 +288,16 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             return null;
         }));
         AtomicReference<Settings> visibleIndexSettings = new AtomicReference<>();
-        List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> indexSettingsChecks = Collections.unmodifiableList(
-            Arrays.asList((idx, cs) -> {
-                visibleIndexSettings.set(idx.getSettings());
-                return null;
-            })
-        );
         AtomicInteger backingIndicesCount = new AtomicInteger(0);
-        List<ResourceDeprecationChecker> resourceCheckers = List.of(new ResourceDeprecationChecker() {
-            @Override
-            public boolean enabled(Settings settings) {
-                return true;
+        List<ResourceDeprecationChecker> resourceCheckers = List.of(createResourceChecker("index_settings", (cs, req) -> {
+            for (String indexName : resolver.concreteIndexNames(cs, req)) {
+                visibleIndexSettings.set(cs.metadata().index(indexName).getSettings());
             }
-
-            @Override
-            public Map<String, List<DeprecationIssue>> check(ClusterState clusterState) {
-                clusterState.metadata().dataStreams().values().forEach(ds -> backingIndicesCount.set(ds.getIndices().size()));
-                return Map.of();
-            }
-
-            @Override
-            public String getName() {
-                return "data_streams";
-            }
-        });
+            return Map.of();
+        }), createResourceChecker("data_streams", (cs, req) -> {
+            cs.metadata().dataStreams().values().forEach(ds -> backingIndicesCount.set(ds.getIndices().size()));
+            return Map.of();
+        }));
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
             new ClusterName(randomAlphaOfLength(5)),
@@ -342,7 +311,6 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             resolver,
             request,
             nodeDeprecationIssues,
-            indexSettingsChecks,
             clusterSettingsChecks,
             Collections.emptyMap(),
             List.of("some.deprecated.property", "some.other.*.deprecated.property"),
@@ -382,8 +350,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
                 () -> new DeprecationInfoAction.Response(
                     Collections.emptyList(),
                     Collections.emptyList(),
-                    indexNames,
-                    Map.of("data_streams", dataStreamNames),
+                    Map.of("data_streams", dataStreamNames, "index_settings", indexNames),
                     pluginSettingsIssues
                 )
             );
@@ -415,5 +382,23 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             seedIssue.isResolveDuringRollingUpgrade(),
             metaMap
         );
+    }
+
+    private static ResourceDeprecationChecker createResourceChecker(
+        String name,
+        BiFunction<ClusterState, DeprecationInfoAction.Request, Map<String, List<DeprecationIssue>>> check
+    ) {
+        return new ResourceDeprecationChecker() {
+
+            @Override
+            public Map<String, List<DeprecationIssue>> check(ClusterState clusterState, DeprecationInfoAction.Request request) {
+                return check.apply(clusterState, request);
+            }
+
+            @Override
+            public String getName() {
+                return name;
+            }
+        };
     }
 }

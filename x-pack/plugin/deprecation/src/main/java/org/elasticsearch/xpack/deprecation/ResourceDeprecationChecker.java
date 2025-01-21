@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.List;
@@ -20,8 +19,6 @@ import java.util.Map;
  * the "data_streams" checker will contain a map from data stream name its deprecation issues.
  */
 public interface ResourceDeprecationChecker {
-
-    boolean enabled(Settings settings);
 
     /**
      * This runs the checks for the current deprecation checker.

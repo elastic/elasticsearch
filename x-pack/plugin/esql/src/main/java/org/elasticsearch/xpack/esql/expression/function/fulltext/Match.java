@@ -260,7 +260,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Match::new, field, query(), queryBuilder());
+        return NodeInfo.create(this, Match::new, field(), query(), queryBuilder());
     }
 
     protected TypeResolutions.ParamOrdinal queryParamOrdinal() {

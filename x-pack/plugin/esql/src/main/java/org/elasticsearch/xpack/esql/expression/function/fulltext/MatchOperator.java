@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * This class exists to generate documentation for the match operator.
@@ -73,5 +75,15 @@ public class MatchOperator extends Match {
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    @Override
+    protected NodeInfo<? extends Expression> info() {
+        return NodeInfo.create(this, MatchOperator::new, field(), query());
+    }
+
+    @Override
+    public Expression replaceChildren(List<Expression> newChildren) {
+        return new MatchOperator(source(), newChildren.get(0), newChildren.get(1));
     }
 }

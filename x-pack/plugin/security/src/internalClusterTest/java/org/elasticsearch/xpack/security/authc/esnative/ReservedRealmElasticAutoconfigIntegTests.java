@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -31,8 +32,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.junit.BeforeClass;
 
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
@@ -70,22 +70,26 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
         return null; // no bootstrap password for this test
     }
 
-    private void awaitSecurityMigrationRanOnce() throws Exception {
-        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        Supplier<IndexMetadata> securityIndexMetadata = () -> clusterService.state()
-            .getMetadata()
-            .getIndices()
-            .get(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7);
-        assertBusy(
-            () -> assertTrue(
-                securityIndexMetadata.get() != null && securityIndexMetadata.get().getCustomData(MIGRATION_VERSION_CUSTOM_KEY) != null
-            ),
-            30,
-            TimeUnit.SECONDS
-        );
+    private boolean isMigrationComplete(ClusterState state) {
+        IndexMetadata indexMetadata = state.metadata().getIndices().get(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7);
+        return indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY) != null;
     }
 
-    public void testAutoconfigFailedPasswordPromotion() throws Exception {
+    private void awaitSecurityMigrationRanOnce() {
+        final var latch = new CountDownLatch(1);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        clusterService.addListener((event) -> {
+            if (isMigrationComplete(event.state())) {
+                latch.countDown();
+            }
+        });
+        if (isMigrationComplete(clusterService.state())) {
+            latch.countDown();
+        }
+        safeAwait(latch);
+    }
+
+    public void testAutoconfigFailedPasswordPromotion() {
         try {
             // prevents the .security index from being created automatically (after elastic user authentication)
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest(

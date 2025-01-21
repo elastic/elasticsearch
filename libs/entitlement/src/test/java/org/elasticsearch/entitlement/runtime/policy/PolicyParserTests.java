@@ -100,18 +100,6 @@ public class PolicyParserTests extends ESTestCase {
         assertEquals(expected, parsedPolicy);
     }
 
-    public void testParseWriteAllSystemProperties() throws IOException {
-        Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
-            entitlement-module-name:
-              - write_all_system_properties
-            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
-        Policy expected = new Policy(
-            "test-policy.yaml",
-            List.of(new Scope("entitlement-module-name", List.of(new WriteAllSystemPropertiesEntitlement())))
-        );
-        assertEquals(expected, parsedPolicy);
-    }
-
     public void testParseCreateClassloader() throws IOException {
         Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:

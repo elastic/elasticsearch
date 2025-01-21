@@ -244,17 +244,6 @@ public class PolicyManager {
         }
 
         ModuleEntitlements entitlements = getEntitlements(requestingClass);
-        if (entitlements.hasEntitlement(WriteAllSystemPropertiesEntitlement.class)) {
-            logger.debug(
-                () -> Strings.format(
-                    "Entitled: class [%s], module [%s], entitlement [write_all_system_properties], property [%s]",
-                    requestingClass,
-                    requestingClass.getModule().getName(),
-                    property
-                )
-            );
-            return;
-        }
         if (entitlements.getEntitlements(WriteSystemPropertiesEntitlement.class).anyMatch(e -> e.properties().contains(property))) {
             logger.debug(
                 () -> Strings.format(

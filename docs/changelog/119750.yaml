@@ -1,6 +1,0 @@
-pr: 119750
-summary: "ESQL: `connect_transport_exception` should be thrown instead of `verification_exception`\
-  \ when ENRICH-ing if remote is disconnected"
-area: Search
-type: bug
-issues: []

@@ -26,14 +26,12 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
-import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.entityToMap;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.requestObjectBuilder;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -63,42 +61,35 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
 
         // filter includes both indices in the result (all columns, all rows)
         RestEsqlTestCase.RequestObjectBuilder builder = timestampFilter("gte", "2023-01-01").query(from("test*"));
-        Map<String, Object> result = runEsql(builder);
-        assertMap(
-            result,
-            matchesMap().entry(
-                "columns",
-                matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
-                    .item(matchesMap().entry("name", "id1").entry("type", "integer"))
-                    .item(matchesMap().entry("name", "id2").entry("type", "integer"))
-                    .item(matchesMap().entry("name", "value").entry("type", "long"))
-            ).entry("values", allOf(instanceOf(List.class), hasSize(docsTest1 + docsTest2))).entry("took", greaterThanOrEqualTo(0))
+        assertResultMap(
+            runEsql(builder),
+            matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
+                .item(matchesMap().entry("name", "id1").entry("type", "integer"))
+                .item(matchesMap().entry("name", "id2").entry("type", "integer"))
+                .item(matchesMap().entry("name", "value").entry("type", "long")),
+            allOf(instanceOf(List.class), hasSize(docsTest1 + docsTest2))
         );
 
         // filter includes only test1. Columns from test2 are filtered out, as well (not only rows)!
         builder = timestampFilter("gte", "2024-01-01").query(from("test*"));
-        assertMap(
+        assertResultMap(
             runEsql(builder),
-            matchesMap().entry(
-                "columns",
-                matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
-                    .item(matchesMap().entry("name", "id1").entry("type", "integer"))
-                    .item(matchesMap().entry("name", "value").entry("type", "long"))
-            ).entry("values", allOf(instanceOf(List.class), hasSize(docsTest1))).entry("took", greaterThanOrEqualTo(0))
+            matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
+                .item(matchesMap().entry("name", "id1").entry("type", "integer"))
+                .item(matchesMap().entry("name", "value").entry("type", "long")),
+            allOf(instanceOf(List.class), hasSize(docsTest1))
         );
 
         // filter excludes both indices (no rows); the first analysis step fails because there are no columns, a second attempt succeeds
         // after eliminating the index filter. All columns are returned.
         builder = timestampFilter("gte", "2025-01-01").query(from("test*"));
-        assertMap(
+        assertResultMap(
             runEsql(builder),
-            matchesMap().entry(
-                "columns",
-                matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
-                    .item(matchesMap().entry("name", "id1").entry("type", "integer"))
-                    .item(matchesMap().entry("name", "id2").entry("type", "integer"))
-                    .item(matchesMap().entry("name", "value").entry("type", "long"))
-            ).entry("values", allOf(instanceOf(List.class), hasSize(0))).entry("took", greaterThanOrEqualTo(0))
+            matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
+                .item(matchesMap().entry("name", "id1").entry("type", "integer"))
+                .item(matchesMap().entry("name", "id2").entry("type", "integer"))
+                .item(matchesMap().entry("name", "value").entry("type", "long")),
+            allOf(instanceOf(List.class), hasSize(0))
         );
     }
 
@@ -110,27 +101,22 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
 
         // filter includes only test1. Columns and rows of test2 are filtered out
         RestEsqlTestCase.RequestObjectBuilder builder = existsFilter("id1").query(from("test*"));
-        Map<String, Object> result = runEsql(builder);
-        assertMap(
-            result,
-            matchesMap().entry(
-                "columns",
-                matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
-                    .item(matchesMap().entry("name", "id1").entry("type", "integer"))
-                    .item(matchesMap().entry("name", "value").entry("type", "long"))
-            ).entry("values", allOf(instanceOf(List.class), hasSize(docsTest1))).entry("took", greaterThanOrEqualTo(0))
+        assertResultMap(
+            runEsql(builder),
+            matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
+                .item(matchesMap().entry("name", "id1").entry("type", "integer"))
+                .item(matchesMap().entry("name", "value").entry("type", "long")),
+            allOf(instanceOf(List.class), hasSize(docsTest1))
         );
 
         // filter includes only test1. Columns from test2 are filtered out, as well (not only rows)!
         builder = existsFilter("id1").query(from("test*") + " METADATA _index | KEEP _index, id*");
-        result = runEsql(builder);
-        assertMap(
+        Map<String, Object> result = runEsql(builder);
+        assertResultMap(
             result,
-            matchesMap().entry(
-                "columns",
-                matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
-                    .item(matchesMap().entry("name", "id1").entry("type", "integer"))
-            ).entry("values", allOf(instanceOf(List.class), hasSize(docsTest1))).entry("took", greaterThanOrEqualTo(0))
+            matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
+                .item(matchesMap().entry("name", "id1").entry("type", "integer")),
+            allOf(instanceOf(List.class), hasSize(docsTest1))
         );
         @SuppressWarnings("unchecked")
         var values = (List<List<Object>>) result.get("values");
@@ -151,14 +137,12 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
             from("test*") + " METADATA _index | SORT id2 | KEEP _index, id*"
         );
         Map<String, Object> result = runEsql(builder);
-        assertMap(
+        assertResultMap(
             result,
-            matchesMap().entry(
-                "columns",
-                matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
-                    .item(matchesMap().entry("name", "id1").entry("type", "integer"))
-                    .item(matchesMap().entry("name", "id2").entry("type", "integer"))
-            ).entry("values", allOf(instanceOf(List.class), hasSize(docsTest1))).entry("took", greaterThanOrEqualTo(0))
+            matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
+                .item(matchesMap().entry("name", "id1").entry("type", "integer"))
+                .item(matchesMap().entry("name", "id2").entry("type", "integer")),
+            allOf(instanceOf(List.class), hasSize(docsTest1))
         );
         @SuppressWarnings("unchecked")
         var values = (List<List<Object>>) result.get("values");

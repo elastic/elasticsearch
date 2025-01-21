@@ -113,7 +113,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         maybeActivateThrottling();
         maybeDeactivateThrottling();
         // in case max thread count changed (and more merges can be running simultaneously)
-        while (maybeExecuteNextMerge()) {}
+        while (maybeExecuteNextMerge()) {
+        }
         // the IO auto-throttled setting change is only honoured for new merges
         // (existing ones continue with the value of the setting when the merge created (queued))
     }

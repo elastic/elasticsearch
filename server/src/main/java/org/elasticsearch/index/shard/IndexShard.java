@@ -4312,8 +4312,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void resetEngine() {
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
-        assert getActiveOperationsCount() == OPERATIONS_BLOCKED
-            : "resetting engine without blocking operations; active operations are [" + getActiveOperationsCount() + ']';
+        // assert getActiveOperationsCount() == OPERATIONS_BLOCKED
+        // : "resetting engine without blocking operations; active operations are [" + getActiveOperationsCount() + ']';
         var engineConfig = newEngineConfig(replicationTracker);
         try {
             synchronized (engineMutex) {

@@ -14,7 +14,6 @@ import org.elasticsearch.common.time.LegacyFormatNames;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;

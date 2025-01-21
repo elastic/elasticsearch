@@ -188,6 +188,9 @@
 
 ---
 "modify field type with subobjects:false":
+  - requires:
+      cluster_features: [ "mapper.subobjects_false_mapping_update_fix" ]
+      reason: requires fix for mapping updates when [subobjects:false] is set
   - do:
       indices.create:
         index: test_index
@@ -228,6 +231,9 @@
 
 ---
 "modify nested field type with subobjects:false":
+  - requires:
+      cluster_features: [ "mapper.subobjects_false_mapping_update_fix" ]
+      reason: requires fix for mapping updates when [subobjects:false] is set
   - do:
       indices.create:
         index: test_index

@@ -70,11 +70,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final Logger logger;
     // per-scheduler merge stats
     private final MergeTracking mergeTracking;
-    // this
     private final ExecutorService executorService;
     // the size of the per-node
     private final int maxThreadPoolSize;
-    // used to communicate the IO rate limit to the {@IndexOutput} that's actually writing the merge
+    // used to communicate the IO rate limit to the {@IndexOutput} that's actually writing the merge result
     private final ThreadLocal<MergeRateLimiter> onGoingMergeRateLimiter = new ThreadLocal<>();
     private final PriorityQueue<MergeTask> activeMergeTasksLocalSchedulerQueue = new PriorityQueue<>();
     private final List<MergeTask> activeMergeTasksExecutingOnLocalSchedulerList = new ArrayList<>();

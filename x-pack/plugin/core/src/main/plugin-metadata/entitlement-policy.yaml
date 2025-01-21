@@ -1,4 +1,18 @@
 org.apache.httpcomponents.httpclient:
-  - network:
-      actions:
-        - connect # For SamlRealm
+  - outbound_network # For SamlRealm
+org.apache.httpcomponents.httpcore.nio:
+  - outbound_network
+unboundid.ldapsdk:
+  - write_system_properties:
+      properties:
+        - java.security.auth.login.config
+        - javax.security.auth.useSubjectCredsOnly
+        - java.security.krb5.kdc
+        - java.security.krb5.realm
+        - networkaddress.cache.ttl
+        - networkaddress.cache.negative.ttl
+        - javax.net.debug
+        - com.unboundid.util.PassphraseEncryptedOutputStream.defaultAES128CipherTypeIterationCount
+        - org.bouncycastle.fips.approved_only
+        - org.bouncycastle.rsa.allow_multi_use
+        - org.bouncycastle.jsse.enable_md5

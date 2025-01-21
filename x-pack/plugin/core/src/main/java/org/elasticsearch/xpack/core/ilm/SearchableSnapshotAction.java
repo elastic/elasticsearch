@@ -107,6 +107,12 @@ public class SearchableSnapshotAction implements LifecycleAction {
             throw new IllegalArgumentException("[" + TOTAL_SHARDS_PER_NODE.getPreferredName() + "] must be >= 1");
         }
         this.totalShardsPerNode = totalShardsPerNode;
+
+        if (replicateFor != null && replicateFor.millis() <= 0) {
+            throw new IllegalArgumentException(
+                "[" + REPLICATE_FOR.getPreferredName() + "] must be positive [" + replicateFor.getStringRep() + "]"
+            );
+        }
         this.replicateFor = replicateFor;
     }
 

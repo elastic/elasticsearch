@@ -49,7 +49,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -704,11 +703,10 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
     public void testDataStreamAliases() {
         ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
+            projectId,
             List.of(new Tuple<>("logs-foobar", 1), new Tuple<>("metrics-foobar", 1)),
             List.of()
         );
-        assertThat(state.metadata().projects().keySet(), hasSize(1));
-        projectId = state.metadata().projects().keySet().iterator().next();
 
         ClusterState result = service.applyAliasActions(
             state.projectState(projectId),
@@ -742,11 +740,10 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
     public void testDataStreamAliasesWithWriteFlag() {
         ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
+            projectId,
             List.of(new Tuple<>("logs-http-emea", 1), new Tuple<>("logs-http-nasa", 1)),
             List.of()
         );
-        assertThat(state.metadata().projects().keySet(), hasSize(1));
-        projectId = state.metadata().projects().keySet().iterator().next();
 
         ClusterState result = service.applyAliasActions(
             state.projectState(projectId),

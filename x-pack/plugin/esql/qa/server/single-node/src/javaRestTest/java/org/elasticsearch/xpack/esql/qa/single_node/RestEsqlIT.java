@@ -81,7 +81,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         Map<String, Object> result = runEsql(builder);
 
         Map<String, String> colA = Map.of("name", "avg(value)", "type", "double");
-        assertResultMap(result, colA, List.of(List.of(499.5d)));
+        assertResultMap(result, List.of(colA), List.of(List.of(499.5d)));
         assertTrue(result.containsKey("took"));
     }
 
@@ -116,7 +116,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             RequestObjectBuilder builder = requestObjectBuilder().query("ROW DO_NOT_LOG_ME = 1");
             Map<String, Object> result = runEsql(builder);
             Map<String, String> colA = Map.of("name", "DO_NOT_LOG_ME", "type", "integer");
-            assertResultMap(result, colA, List.of(List.of(1)));
+            assertResultMap(result, List.of(colA), List.of(List.of(1)));
             for (int i = 0; i < cluster.getNumNodes(); i++) {
                 try (InputStream log = cluster.getNodeLog(i, LogType.SERVER)) {
                     Streams.readAllLines(log, line -> assertThat(line, not(containsString("DO_NOT_LOG_ME"))));
@@ -133,7 +133,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             RequestObjectBuilder builder = requestObjectBuilder().query("ROW DO_LOG_ME = 1");
             Map<String, Object> result = runEsql(builder);
             Map<String, String> colA = Map.of("name", "DO_LOG_ME", "type", "integer");
-            assertResultMap(result, colA, List.of(List.of(1)));
+            assertResultMap(result, List.of(colA), List.of(List.of(1)));
             boolean[] found = new boolean[] { false };
             for (int i = 0; i < cluster.getNumNodes(); i++) {
                 try (InputStream log = cluster.getNodeLog(i, LogType.SERVER)) {

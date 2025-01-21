@@ -449,12 +449,14 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                                     delegate2,
                                     logAndThrowExceptionForFailures(bulkByScrollResponse)
                                 );
-                            }  // Successful completion of reindexing - remove read only and delete old index
-                            setWriteBlock(
-                                oldIndex,
-                                false,
-                                delegate2.delegateFailureAndWrap(setAliasAndRemoveOldIndex(migrationInfo, bulkByScrollResponse))
-                            );
+                            } else {
+                                // Successful completion of reindexing - remove read only and delete old index
+                                setWriteBlock(
+                                    oldIndex,
+                                    false,
+                                    delegate2.delegateFailureAndWrap(setAliasAndRemoveOldIndex(migrationInfo, bulkByScrollResponse))
+                                );
+                            }
                         }, e -> {
                             logger.error(
                                 () -> format(

@@ -12,6 +12,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.VersionType;
@@ -992,11 +993,23 @@ public final class IngestDocument {
 
     private static final class FieldPath {
 
+        private static final int MAX_SIZE = 512;
+        private static final Map<String, FieldPath> CACHE = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+
         static FieldPath of(String path) {
             if (Strings.isEmpty(path)) {
                 throw new IllegalArgumentException("path cannot be null nor empty");
             }
-            return new FieldPath(path);
+            FieldPath res = CACHE.get(path);
+            if (res != null) {
+                return res;
+            }
+            res = new FieldPath(path);
+            if (CACHE.size() > MAX_SIZE) {
+                CACHE.clear();
+            }
+            CACHE.put(path, res);
+            return res;
         }
 
         private final String[] pathElements;

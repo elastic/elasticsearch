@@ -134,6 +134,23 @@ renamed it to `data_retention` and added telemetry about the other configuration
 Users that use the field `data_lifecycle.retention` should use the `data_lifecycle.data_retention`
 ====
 
+[discrete]
+[[breaking_816_ingest_changes]]
+==== Ingest changes
+
+[[ingest_enrich.cache_size_name_inconsistency]]
+.Ingest enrich.cache_size name inconsistency
+[%collapsible]
+====
+*Details* +
+The setting `enrich.cache_size` was temporarily renamed to `enrich.cache.size` in `8.16.0` and `8.16.1`.
+The preferred resolution is upgrading to `8.16.2` or higher. If that is not possible, temporarily rename the setting to `enrich.cache.size` until you are able to upgrade to `8.16.2` or higher. The temporary name is deprecated and will be removed in a future version.
+
+*Impact* +
+If your cluster has `enrich.cache_size` configured prior to upgrading to `8.16.0` or `8.16.1` you may see errors that prevent the upgrade from proceeding. 
+====
+
+
 
 [discrete]
 [[deprecated-8.16]]

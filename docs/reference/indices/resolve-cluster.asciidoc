@@ -140,6 +140,13 @@ ignored when frozen. Defaults to `false`.
 +
 deprecated:[7.16.0]
 
+[TIP]
+====
+The index options above are only allowed when specifying an index expression.
+You will get back an error if you specify index options to the _resolve/cluster API
+that takes no index expression.
+====
+
 
 [discrete]
 [[usecases-for-resolve-cluster]]

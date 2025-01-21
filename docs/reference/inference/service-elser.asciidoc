@@ -1,5 +1,5 @@
 [[infer-service-elser]]
-=== ELSER {infer} service
+=== ELSER {infer} integration
 
 Creates an {infer} endpoint to perform an {infer} task with the `elser` service.
 You can also deploy ELSER by using the <<infer-service-elasticsearch>>.

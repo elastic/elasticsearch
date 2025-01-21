@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.is;
 public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestCase {
 
     public void testCreateHttpRequest() throws IOException {
-        var url = "http://eis-gateway.com";
+        var url = "http://elastic-inference-service.com";
         var input = "input";
 
         var request = createRequest(url, input);
@@ -45,7 +45,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
     }
 
     public void testTraceContextPropagatedThroughHTTPHeaders() {
-        var url = "http://eis-gateway.com";
+        var url = "http://elastic-inference-service.com";
         var input = "input";
 
         var request = createRequest(url, input);
@@ -62,7 +62,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
     }
 
     public void testProjectTrialModePropagatedThroughHTTPHeaders() {
-        var url = "http://eis-gateway.com";
+        var url = "http://elastic-inference-service.com";
         var input = "input";
 
         var embeddingsModel = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url, true);
@@ -85,7 +85,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
     }
 
     public void testTruncate_ReducesInputTextSizeByHalf() throws IOException {
-        var url = "http://eis-gateway.com";
+        var url = "http://elastic-inference-service.com";
         var input = "abcd";
 
         var request = createRequest(url, input);
@@ -101,7 +101,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
     }
 
     public void testIsTruncated_ReturnsTrue() {
-        var url = "http://eis-gateway.com";
+        var url = "http://elastic-inference-service.com";
         var input = "abcd";
 
         var request = createRequest(url, input);

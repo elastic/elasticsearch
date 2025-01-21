@@ -21,6 +21,8 @@ apply plugin: 'elasticsearch.dra-artifacts'
 String buildId = providers.systemProperty('build.id').getOrNull()
 boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false && useDra == false
 
+// This comment has been added only to test how pr-linking works for patch branch - remove it
+
 repositories {
   // Define a repository that allows Gradle to fetch a resource from GitHub. This
   // is only used to fetch the `tini` binary, when building the Iron Bank docker image

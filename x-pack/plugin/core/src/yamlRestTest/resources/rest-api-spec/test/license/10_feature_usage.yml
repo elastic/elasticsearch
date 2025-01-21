@@ -3,4 +3,4 @@
   - do:
       license.get_feature_usage: {}
 
-  - length: { features: 0 }
+  - length: { features: 1 }

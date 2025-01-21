@@ -70,6 +70,10 @@ dependencies {
   api 'javax.xml.bind:jaxb-api:2.2.2'
 }
 
+configurations.configureEach {
+  exclude group: 'org.yaml', module: "snakeyaml"
+}
+
 tasks.named("dependencyLicenses").configure {
   mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
   mapping from: /jmespath-java.*/, to: 'aws-java-sdk'

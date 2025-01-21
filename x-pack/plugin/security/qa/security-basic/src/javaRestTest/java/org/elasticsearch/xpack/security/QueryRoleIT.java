@@ -49,7 +49,8 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
 
     private static final String READ_SECURITY_USER_AUTH_HEADER = "Basic cmVhZF9zZWN1cml0eV91c2VyOnJlYWQtc2VjdXJpdHktcGFzc3dvcmQ=";
 
-    public void testSimpleQueryAllRoles() throws IOException {
+    public void testSimpleQueryAllRoles() throws Exception {
+        waitForMigrationCompletion(adminClient(), SecurityMigrations.ROLE_METADATA_FLATTENED_MIGRATION_VERSION);
         assertQuery(
             """
                 {"query": { "bool": { "must_not": { "term": { "metadata._reserved": true}}}}}""",

@@ -235,24 +235,26 @@ public class TransformAggregationsTests extends ESTestCase {
         assertThat(
             outputTypes,
             allOf(
-                hasEntry("extended_stats.std_upper_population", "extended_stats"),
-                hasEntry("extended_stats.variance", "extended_stats"),
+                hasEntry("extended_stats.count", "extended_stats"),
+                hasEntry("extended_stats.sum", "extended_stats"),
                 hasEntry("extended_stats.avg", "extended_stats"),
                 hasEntry("extended_stats.min", "extended_stats"),
-                hasEntry("extended_stats.sum_of_squares", "extended_stats"),
-                hasEntry("extended_stats.sum", "extended_stats"),
-                hasEntry("extended_stats.variance_sampling", "extended_stats"),
-                hasEntry("extended_stats.std_lower_population", "extended_stats"),
-                hasEntry("extended_stats.std_deviation", "extended_stats"),
-                hasEntry("extended_stats.std_upper_sampling", "extended_stats"),
-                hasEntry("extended_stats.std_deviation_population", "extended_stats"),
                 hasEntry("extended_stats.max", "extended_stats"),
-                hasEntry("extended_stats.std_lower_sampling", "extended_stats"),
-                hasEntry("extended_stats.std_deviation_sampling", "extended_stats"),
-                hasEntry("extended_stats.std_upper", "extended_stats"),
-                hasEntry("extended_stats.count", "extended_stats"),
+
+                hasEntry("extended_stats.sum_of_squares", "extended_stats"),
+                hasEntry("extended_stats.variance", "extended_stats"),
                 hasEntry("extended_stats.variance_population", "extended_stats"),
-                hasEntry("extended_stats.std_lower", "extended_stats")
+                hasEntry("extended_stats.variance_sampling", "extended_stats"),
+                hasEntry("extended_stats.std_deviation", "extended_stats"),
+                hasEntry("extended_stats.std_deviation_population", "extended_stats"),
+                hasEntry("extended_stats.std_deviation_sampling", "extended_stats"),
+
+                hasEntry("extended_stats.std_deviation_bounds.upper", "extended_stats"),
+                hasEntry("extended_stats.std_deviation_bounds.lower", "extended_stats"),
+                hasEntry("extended_stats.std_deviation_bounds.upper_population", "extended_stats"),
+                hasEntry("extended_stats.std_deviation_bounds.lower_population", "extended_stats"),
+                hasEntry("extended_stats.std_deviation_bounds.upper_sampling", "extended_stats"),
+                hasEntry("extended_stats.std_deviation_bounds.lower_sampling", "extended_stats")
             )
         );
     }

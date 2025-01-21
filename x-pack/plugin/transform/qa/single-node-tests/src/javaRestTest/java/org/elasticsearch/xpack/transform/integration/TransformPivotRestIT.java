@@ -2004,18 +2004,18 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     }
 
     @SuppressWarnings(value = "unchecked")
-    public void testPivotWithExtendedMetrics() throws Exception {
-        String transformId = "extended_metrics_transform";
-        String transformIndex = "extended_metrics_pivot_reviews";
+    public void testPivotWithExtendedStats() throws Exception {
+        var transformId = "extended_stats_transform";
+        var transformIndex = "extended_stats_pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
 
-        final Request createTransformRequest = createRequestWithAuth(
+        var createTransformRequest = createRequestWithAuth(
             "PUT",
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = Strings.format("""
+        var config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -2042,33 +2042,43 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             }""", REVIEWS_INDEX_NAME, transformIndex);
 
         createTransformRequest.setJsonEntity(config);
-        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        var createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
         startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
         assertTrue(indexExists(transformIndex));
 
-        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_4");
+        var searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_4");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         var stdDevMap = (Map<String, Object>) ((List<?>) XContentMapValues.extractValue("hits.hits._source.stars", searchResult)).get(0);
-        assertThat(stdDevMap.get("count"), is(equalTo(41.0)));
-        assertThat(stdDevMap.get("sum"), is(equalTo(159.0)));
-        assertThat(stdDevMap.get("min"), is(equalTo(1.0)));
-        assertThat(stdDevMap.get("max"), is(equalTo(5.0)));
-        assertThat(stdDevMap.get("avg"), is(equalTo(3.8780487804878048)));
-        assertThat(stdDevMap.get("sum_of_squares"), is(equalTo(711.0)));
-        assertThat(stdDevMap.get("variance"), is(equalTo(2.3022010707911953)));
-        assertThat(stdDevMap.get("variance_population"), is(equalTo(2.3022010707911953)));
-        assertThat(stdDevMap.get("variance_sampling"), is(equalTo(2.3597560975609753)));
-        assertThat(stdDevMap.get("std_deviation"), is(equalTo(1.5173005868288574)));
-        assertThat(stdDevMap.get("std_deviation_population"), is(equalTo(1.5173005868288574)));
-        assertThat(stdDevMap.get("std_deviation_sampling"), is(equalTo(1.5361497640402693)));
-        assertThat(stdDevMap.get("std_upper"), is(equalTo(6.91264995414552)));
-        assertThat(stdDevMap.get("std_lower"), is(equalTo(0.84344760683009)));
-        assertThat(stdDevMap.get("std_upper_population"), is(equalTo(6.91264995414552)));
-        assertThat(stdDevMap.get("std_lower_population"), is(equalTo(0.84344760683009)));
-        assertThat(stdDevMap.get("std_upper_sampling"), is(equalTo(6.950348308568343)));
-        assertThat(stdDevMap.get("std_lower_sampling"), is(equalTo(0.8057492524072662)));
+        assertThat(stdDevMap.get("count"), equalTo(41));
+        assertThat(
+            stdDevMap,
+            allOf(
+                hasEntry("sum", 159.0),
+                hasEntry("min", 1.0),
+                hasEntry("max", 5.0),
+                hasEntry("avg", 3.8780487804878048),
+                hasEntry("sum_of_squares", 711.0),
+                hasEntry("variance", 2.3022010707911953),
+                hasEntry("variance_population", 2.3022010707911953),
+                hasEntry("variance_sampling", 2.3597560975609753),
+                hasEntry("std_deviation", 1.5173005868288574),
+                hasEntry("std_deviation_sampling", 1.5361497640402693),
+                hasEntry("std_deviation_population", 1.5173005868288574)
+            )
+        );
+        assertThat(
+            (Map<String, ?>) stdDevMap.get("std_deviation_bounds"),
+            allOf(
+                hasEntry("upper", 6.91264995414552),
+                hasEntry("lower", 0.84344760683009),
+                hasEntry("upper_population", 6.91264995414552),
+                hasEntry("lower_population", 0.84344760683009),
+                hasEntry("upper_sampling", 6.950348308568343),
+                hasEntry("lower_sampling", 0.8057492524072662)
+            )
+        );
     }
 
     public void testPivotWithBoxplot() throws Exception {

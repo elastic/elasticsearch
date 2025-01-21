@@ -90,7 +90,7 @@ public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuil
 
     @Override
     public Optional<Set<String>> getOutputFieldNames() {
-        return Optional.of(InternalExtendedStats.METRIC_NAMES);
+        return Optional.of(InternalExtendedStats.Fields.OUTPUT_FORMAT);
     }
 
     @Override

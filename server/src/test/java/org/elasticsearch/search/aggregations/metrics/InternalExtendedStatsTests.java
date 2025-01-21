@@ -9,16 +9,29 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
+
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isA;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class InternalExtendedStatsTests extends InternalAggregationTestCase<InternalExtendedStats> {
 
@@ -208,5 +221,76 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
         }
         InternalExtendedStats reduced = (InternalExtendedStats) InternalAggregationTestCase.reduce(aggregations, null);
         assertEquals(expectedSumOfSqrs, reduced.getSumOfSquares(), delta);
+    }
+
+    @SuppressWarnings(value = "unchecked")
+    public void testAsMapMatchesXContent() throws IOException {
+        var stats = new InternalExtendedStats(
+            "testAsMapIsSameAsXContent",
+            randomLongBetween(1, 50),
+            randomDoubleBetween(1, 50, true),
+            randomDoubleBetween(1, 50, true),
+            randomDoubleBetween(1, 50, true),
+            randomDoubleBetween(1, 50, true),
+            sigma,
+            DocValueFormat.RAW,
+            Map.of()
+        );
+
+        var outputMap = stats.asIndexableMap();
+        assertThat(outputMap, notNullValue());
+
+        Map<String, Object> xContentMap;
+        try (var builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            stats.doXContentBody(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            xContentMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+        }
+        assertThat(xContentMap, notNullValue());
+
+        // serializing -> deserializing converts the long to an int, so we convert it back to test
+        var countMetricName = InternalStats.Metrics.count.name();
+        var xContentCount = xContentMap.get(countMetricName);
+        assertThat(xContentCount, isA(Integer.class));
+        assertThat(((Integer) xContentCount).longValue(), equalTo(outputMap.get(countMetricName)));
+
+        // verify the entries in the bounds map are similar
+        var xContentStdDevBounds = (Map<String, Object>) xContentMap.get(InternalExtendedStats.Fields.STD_DEVIATION_BOUNDS);
+        var outputStdDevBounds = (Map<String, Object>) outputMap.get(InternalExtendedStats.Fields.STD_DEVIATION_BOUNDS);
+        xContentStdDevBounds.forEach((key, value) -> {
+            if (value instanceof String == false || Double.isFinite(Double.parseDouble(value.toString()))) {
+                assertThat(outputStdDevBounds.get(key), equalTo(value));
+            }
+        });
+
+        // verify all the other entries that are not "std_deviation_bounds" or "count"
+        Predicate<Map.Entry<String, Object>> notCountOrStdDevBounds = Predicate.not(
+            e -> e.getKey().equals(countMetricName) || e.getKey().equals(InternalExtendedStats.Fields.STD_DEVIATION_BOUNDS)
+        );
+        xContentMap.entrySet().stream().filter(notCountOrStdDevBounds).forEach(e -> {
+            if (e.getValue() instanceof String == false || Double.isFinite(Double.parseDouble(e.getValue().toString()))) {
+                assertThat(outputMap.get(e.getKey()), equalTo(e.getValue()));
+            }
+        });
+    }
+
+    public void testIndexableMapExcludesNaN() {
+        var stats = new InternalExtendedStats(
+            "testAsMapIsSameAsXContent",
+            randomLongBetween(1, 50),
+            Double.NaN,
+            Double.NaN,
+            Double.NaN,
+            Double.NaN,
+            sigma,
+            DocValueFormat.RAW,
+            Map.of()
+        );
+
+        var outputMap = stats.asIndexableMap();
+        assertThat(outputMap, is(aMapWithSize(1)));
+        assertThat(outputMap, hasKey(InternalStats.Metrics.count.name()));
+        assertThat(outputMap.get(InternalStats.Metrics.count.name()), is(stats.getCount()));
     }
 }

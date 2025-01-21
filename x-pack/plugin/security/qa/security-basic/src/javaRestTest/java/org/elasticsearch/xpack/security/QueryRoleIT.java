@@ -16,8 +16,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,24 +51,21 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
 
     private static final String READ_SECURITY_USER_AUTH_HEADER = "Basic cmVhZF9zZWN1cml0eV91c2VyOnJlYWQtc2VjdXJpdHktcGFzc3dvcmQ=";
 
+    @Before
+    public void initialize() {
+        new ReservedRolesStore();
+    }
+
     public void testSimpleQueryAllRoles() throws Exception {
-        waitForMigrationCompletion(adminClient(), SecurityMigrations.ROLE_METADATA_FLATTENED_MIGRATION_VERSION);
-        assertQuery(
-            """
-                {"query": { "bool": { "must_not": { "term": { "metadata._reserved": true}}}}}""",
-            0,
-            roles -> assertThat(roles, emptyIterable())
-        );
-        RoleDescriptor createdRole = createRandomRole();
-        assertQuery("""
-            {"query": { "bool": { "must_not": { "term": { "metadata._reserved": true}}}}}""", 1, roles -> {
-            assertThat(roles, iterableWithSize(1));
-            assertRoleMap(roles.get(0), createdRole);
+        createRandomRole();
+        assertQuery("", 1 + ReservedRolesStore.names().size(), roles -> {
+            // default size is 10
+            assertThat(roles, iterableWithSize(10));
         });
         assertQuery(
-            """
-                {"query": { "bool": { "must_not": { "term": { "metadata._reserved": true}}}},"from":1}""",
-            1,
+            Strings.format("""
+                {"query":{"match_all":{}},"from":%d}""", 1 + ReservedRolesStore.names().size()),
+            1 + ReservedRolesStore.names().size(),
             roles -> assertThat(roles, emptyIterable())
         );
     }

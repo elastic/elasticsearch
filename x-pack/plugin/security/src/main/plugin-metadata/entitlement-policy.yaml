@@ -10,6 +10,6 @@ io.netty.common:
         - accept
         - connect
 org.opensaml.xmlsec.impl:
-  - write_properties:
+  - write_system_properties:
       properties:
         - org.apache.xml.security.ignoreLineBreaks

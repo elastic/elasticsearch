@@ -72,14 +72,16 @@ public class PolicyParserTests extends ESTestCase {
     public void testParseWriteProperties() throws IOException {
         Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
-              - write_properties:
+              - write_system_properties:
                   properties:
                     - es.property1
                     - es.property2
             """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
         Policy expected = new Policy(
             "test-policy.yaml",
-            List.of(new Scope("entitlement-module-name", List.of(new WritePropertiesEntitlement(Set.of("es.property1", "es.property2")))))
+            List.of(
+                new Scope("entitlement-module-name", List.of(new WriteSystemPropertiesEntitlement(Set.of("es.property1", "es.property2"))))
+            )
         );
         assertEquals(expected, parsedPolicy);
     }
@@ -87,11 +89,11 @@ public class PolicyParserTests extends ESTestCase {
     public void testParseWriteAllProperties() throws IOException {
         Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
-              - write_all_properties
+              - write_all_system_properties
             """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
         Policy expected = new Policy(
             "test-policy.yaml",
-            List.of(new Scope("entitlement-module-name", List.of(new WriteAllPropertiesEntitlement())))
+            List.of(new Scope("entitlement-module-name", List.of(new WriteAllSystemPropertiesEntitlement())))
         );
         assertEquals(expected, parsedPolicy);
     }

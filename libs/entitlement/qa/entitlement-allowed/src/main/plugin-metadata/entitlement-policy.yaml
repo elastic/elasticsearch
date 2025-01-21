@@ -6,7 +6,7 @@ org.elasticsearch.entitlement.qa.common:
         - listen
         - accept
         - connect
-  - write_properties:
+  - write_system_properties:
       properties:
         - es.entitlements.checkSetSystemProperty
         - es.entitlements.checkClearSystemProperty

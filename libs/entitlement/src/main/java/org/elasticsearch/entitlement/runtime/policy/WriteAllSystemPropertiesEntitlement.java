@@ -9,16 +9,10 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-import java.util.List;
-import java.util.Set;
-
 /**
- * An Entitlement to allow writing properties such as system properties.
+ * An Entitlement to allow writing all properties such as system properties.
  */
-public record WritePropertiesEntitlement(Set<String> properties) implements Entitlement {
-
-    @ExternalEntitlement(parameterNames = { "properties" }, esModulesOnly = false)
-    public WritePropertiesEntitlement(List<String> properties) {
-        this(Set.copyOf(properties));
-    }
+public record WriteAllSystemPropertiesEntitlement() implements Entitlement {
+    @ExternalEntitlement
+    public WriteAllSystemPropertiesEntitlement() {}
 }

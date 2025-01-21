@@ -231,10 +231,10 @@ public class PolicyManager {
         // FIXME: Having to pass the entitlement class here for logging purposes seems wrong.
         // This API suggests it's doing something else than what it actually does. This looks like a filter, but isn't!
         ModuleEntitlements entitlements = getEntitlements(requestingClass, Entitlement.class);
-        if (entitlements.hasEntitlement(WriteAllPropertiesEntitlement.class)) {
+        if (entitlements.hasEntitlement(WriteAllSystemPropertiesEntitlement.class)) {
             logger.debug(
                 () -> Strings.format(
-                    "Entitled: class [%s], module [%s], entitlement [write_all_properties], property [%s]",
+                    "Entitled: class [%s], module [%s], entitlement [write_all_system_properties], property [%s]",
                     requestingClass,
                     requestingClass.getModule().getName(),
                     property
@@ -242,10 +242,10 @@ public class PolicyManager {
             );
             return;
         }
-        if (entitlements.getEntitlements(WritePropertiesEntitlement.class).anyMatch(e -> e.properties().contains(property))) {
+        if (entitlements.getEntitlements(WriteSystemPropertiesEntitlement.class).anyMatch(e -> e.properties().contains(property))) {
             logger.debug(
                 () -> Strings.format(
-                    "Entitled: class [%s], module [%s], entitlement [write_properties], property [%s]",
+                    "Entitled: class [%s], module [%s], entitlement [write_system_properties], property [%s]",
                     requestingClass,
                     requestingClass.getModule().getName(),
                     property
@@ -255,7 +255,7 @@ public class PolicyManager {
         }
         throw new NotEntitledException(
             Strings.format(
-                "Missing entitlement: class [%s], module [%s], entitlement [write_properties], property [%s]",
+                "Missing entitlement: class [%s], module [%s], entitlement [write_system_properties], property [%s]",
                 requestingClass,
                 requestingClass.getModule().getName(),
                 property

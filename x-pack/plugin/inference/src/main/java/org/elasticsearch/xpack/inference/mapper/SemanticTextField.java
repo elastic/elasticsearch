@@ -148,17 +148,18 @@ public record SemanticTextField(
             return sb.toString();
         }
 
-        public boolean validate() {
+        private void validate() {
             switch (taskType) {
                 case TEXT_EMBEDDING:
-                    // We allow incomplete interstitial states without throwing, but need all data to eventually be populated to be
-                    // considered valid
-                    return isFieldPresent(dimensions) && isFieldPresent(similarity) && isFieldPresent(elementType);
+                    validateFieldPresent(DIMENSIONS_FIELD, dimensions);
+                    validateFieldPresent(SIMILARITY_FIELD, similarity);
+                    validateFieldPresent(ELEMENT_TYPE_FIELD, elementType);
+                    break;
                 case SPARSE_EMBEDDING:
                     validateFieldNotPresent(DIMENSIONS_FIELD, dimensions);
                     validateFieldNotPresent(SIMILARITY_FIELD, similarity);
                     validateFieldNotPresent(ELEMENT_TYPE_FIELD, elementType);
-                    return true;
+                    break;
                 default:
                     throw new IllegalArgumentException(
                         "Wrong ["
@@ -173,8 +174,10 @@ public record SemanticTextField(
             }
         }
 
-        private boolean isFieldPresent(Object fieldValue) {
-            return fieldValue != null;
+        private void validateFieldPresent(String field, Object fieldValue) {
+            if (fieldValue == null) {
+                throw new IllegalArgumentException("required [" + field + "] field is missing for task_type [" + taskType.name() + "]");
+            }
         }
 
         private void validateFieldNotPresent(String field, Object fieldValue) {

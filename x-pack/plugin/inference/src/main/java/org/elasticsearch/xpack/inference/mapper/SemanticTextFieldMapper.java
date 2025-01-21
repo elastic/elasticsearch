@@ -59,7 +59,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
@@ -364,7 +363,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
 
         final SemanticTextFieldMapper mapper;
-        if (fieldType().getModelSettings() == null || fieldType().getModelSettings().validate() == false) {
+        if (fieldType().getModelSettings() == null) {
             context.path().remove();
             Builder builder = (Builder) new Builder(
                 leafName(),
@@ -887,9 +886,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         chunksField.dynamic(ObjectMapper.Dynamic.FALSE);
         if (modelSettings != null) {
             chunksField.add(createEmbeddingsField(indexSettings.getIndexVersionCreated(), modelSettings, indexOptions, useLegacyFormat));
-        } else if (indexOptions != null) {
-            modelSettings = new SemanticTextField.ModelSettings(TaskType.TEXT_EMBEDDING, null, null, null);
-            chunksField.add(createEmbeddingsField(indexSettings.getIndexVersionCreated(), modelSettings, indexOptions, useLegacyFormat));
         }
         if (useLegacyFormat) {
             var chunkTextField = new KeywordFieldMapper.Builder(TEXT_FIELD, indexVersionCreated).indexed(false).docValues(false);
@@ -925,16 +921,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         );
                     }
                 }
-                if (modelSettings.dimensions() != null) {
-                    denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
-                }
-                if (modelSettings.elementType() != null) {
-                    denseVectorMapperBuilder.elementType(modelSettings.elementType());
-                }
-
-                if (indexOptions != null) {
-                    denseVectorMapperBuilder.indexOptions(indexOptions);
-                }
+                denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
+                denseVectorMapperBuilder.elementType(modelSettings.elementType());
+                denseVectorMapperBuilder.indexOptions(indexOptions);
 
                 yield denseVectorMapperBuilder;
             }

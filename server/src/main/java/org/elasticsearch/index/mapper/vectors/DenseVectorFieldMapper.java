@@ -1233,7 +1233,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    public enum VectorIndexType implements IndexType {
+    public enum VectorIndexType {
         HNSW("hnsw", false) {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
@@ -1747,7 +1747,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final int m;
         private final int efConstruction;
 
-        public HnswIndexOptions(int m, int efConstruction) {
+        HnswIndexOptions(int m, int efConstruction) {
             super(VectorIndexType.HNSW);
             this.m = m;
             this.efConstruction = efConstruction;

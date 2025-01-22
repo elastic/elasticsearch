@@ -44,7 +44,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     public LookupFromIndexService(
         ClusterService clusterService,
-        CreateShardContext createShardContext,
+        LookupShardContextFactory lookupShardContextFactory,
         TransportService transportService,
         BigArrays bigArrays,
         BlockFactory blockFactory
@@ -52,7 +52,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         super(
             LOOKUP_ACTION_NAME,
             clusterService,
-            createShardContext,
+            lookupShardContextFactory,
             transportService,
             bigArrays,
             blockFactory,

@@ -210,12 +210,13 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 new AsyncExecutionId("test", TaskId.EMPTY_TASK_ID),
                 TEST_REQUEST_TIMEOUT
             );
+            final String finalNodeWithShard = nodeWithShard;
             LookupFromIndexOperator.Factory lookup = new LookupFromIndexOperator.Factory(
                 "test",
                 parentTask,
                 QueryPragmas.ENRICH_MAX_WORKERS.get(Settings.EMPTY),
                 1,
-                internalCluster().getInstance(TransportEsqlQueryAction.class, nodeWithShard).getLookupFromIndexService(),
+                ctx -> internalCluster().getInstance(TransportEsqlQueryAction.class, finalNodeWithShard).getLookupFromIndexService(),
                 DataType.KEYWORD,
                 "lookup",
                 "data",

@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -30,7 +29,7 @@ public abstract class ReindexChallengeRestIT extends StandardVersusLogsIndexMode
         indexContenderDocuments();
     }
 
-    private Map<String, Object> indexBaselineDocuments(final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier)
+    private void indexBaselineDocuments(final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier)
         throws IOException {
         final StringBuilder sb = new StringBuilder();
         int id = 0;
@@ -39,13 +38,10 @@ public abstract class ReindexChallengeRestIT extends StandardVersusLogsIndexMode
             sb.append(Strings.toString(document)).append("\n");
             id++;
         }
-        var request = new Request("POST", "/" + getBaselineDataStreamName() + "/_bulk");
-        request.setJsonEntity(sb.toString());
-        request.addParameter("refresh", "true");
-        return performBulkRequest(request, true);
+        performBulkRequest(sb.toString(), true);
     }
 
-    private Map<String, Object> indexContenderDocuments() throws IOException {
+    private void indexContenderDocuments() throws IOException {
         var reindexRequest = new Request("POST", "/_reindex?refresh=true");
         reindexRequest.setJsonEntity(String.format(Locale.ROOT, """
             {
@@ -63,7 +59,5 @@ public abstract class ReindexChallengeRestIT extends StandardVersusLogsIndexMode
 
         var body = entityAsMap(response);
         assertThat("encountered failures when performing reindex:\n " + body, body.get("failures"), equalTo(List.of()));
-
-        return body;
     }
 }

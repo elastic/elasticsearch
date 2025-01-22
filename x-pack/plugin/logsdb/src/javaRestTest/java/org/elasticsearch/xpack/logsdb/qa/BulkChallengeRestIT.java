@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.logsdb.qa;
 
-import org.elasticsearch.client.Request;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -49,14 +48,11 @@ public class BulkChallengeRestIT extends StandardVersusLogsIndexModeRandomDataCh
             sb.append(Strings.toString(document)).append("\n");
             id++;
         }
-        var request = new Request("POST", "/" + getContenderDataStreamName() + "/_bulk");
-        request.setJsonEntity(sb.toString());
-        request.addParameter("refresh", "true");
-        return performBulkRequest(request, false);
+        return performBulkRequest(sb.toString(), false);
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> indexBaselineDocuments(
+    private void indexBaselineDocuments(
         final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier,
         final Map<String, Object> contenderResponseEntity
     ) throws IOException {
@@ -73,9 +69,6 @@ public class BulkChallengeRestIT extends StandardVersusLogsIndexModeRandomDataCh
             sb.append(Strings.toString(document)).append("\n");
             id++;
         }
-        var request = new Request("POST", "/" + getBaselineDataStreamName() + "/_bulk");
-        request.setJsonEntity(sb.toString());
-        request.addParameter("refresh", "true");
-        return performBulkRequest(request, true);
+        performBulkRequest(sb.toString(), true);
     }
 }

@@ -62,8 +62,11 @@ public abstract class StandardVersusLogsIndexModeRandomDataChallengeRestIT exten
         return document;
     }
 
-    protected final Map<String, Object> performBulkRequest(Request bulkRequest, boolean isBaseline) throws IOException {
-        var response = client.performRequest(bulkRequest);
+    protected final Map<String, Object> performBulkRequest(String json, boolean isBaseline) throws IOException {
+        var request = new Request("POST", "/" + (isBaseline ? getBaselineDataStreamName() : getContenderDataStreamName()) + "/_bulk");
+        request.setJsonEntity(json);
+        request.addParameter("refresh", "true");
+        var response = client.performRequest(request);
         assertOK(response);
         var responseBody = entityAsMap(response);
         assertThat(

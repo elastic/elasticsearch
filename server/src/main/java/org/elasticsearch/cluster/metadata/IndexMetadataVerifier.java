@@ -163,7 +163,7 @@ public class IndexMetadataVerifier {
     ) {
         if (isReadOnlyCompatible(indexMetadata, minimumCompatible, minimumReadOnlyCompatible)) {
             assert isFullySupportedVersion(indexMetadata, minimumCompatible) == false : indexMetadata;
-            final boolean isReadOnly = hasIndexWritesBlock(indexMetadata);
+            final boolean isReadOnly = hasReadOnlyBlocks(indexMetadata);
             if (isReadOnly == false) {
                 throw new IllegalStateException(
                     "The index "
@@ -206,12 +206,15 @@ public class IndexMetadataVerifier {
         return false;
     }
 
-    private static boolean hasIndexWritesBlock(IndexMetadata indexMetadata) {
+    private static boolean hasReadOnlyBlocks(IndexMetadata indexMetadata) {
         var indexSettings = indexMetadata.getSettings();
         if (IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(indexSettings) || IndexMetadata.INDEX_READ_ONLY_SETTING.get(indexSettings)) {
             return indexMetadata.isSearchableSnapshot()
                 || indexMetadata.getCreationVersion().isLegacyIndexVersion()
                 || MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexSettings);
+        }
+        if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
+            return MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.get(indexSettings);
         }
         return false;
     }

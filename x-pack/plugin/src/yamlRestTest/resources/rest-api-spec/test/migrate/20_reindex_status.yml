@@ -15,7 +15,7 @@ setup:
           capabilities: [migration_reindex]
   - do:
       catch: /resource_not_found_exception/
-      migrate.get_reindex_status:
+      indices.get_migrate_reindex_status:
         index: "does_not_exist"
 
 ---
@@ -58,7 +58,7 @@ setup:
   - match: { acknowledged: true }
 
   - do:
-      migrate.get_reindex_status:
+      indices.get_migrate_reindex_status:
         index: "my-data-stream"
   - match: { complete: true }
   - match: { total_indices_in_data_stream: 1 }
@@ -80,5 +80,5 @@ setup:
 
   - do:
       catch: /resource_not_found_exception/
-      migrate.get_reindex_status:
+      indices.get_migrate_reindex_status:
         index: "my-data-stream"

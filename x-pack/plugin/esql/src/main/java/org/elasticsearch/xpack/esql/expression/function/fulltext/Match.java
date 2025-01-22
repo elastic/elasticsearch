@@ -214,7 +214,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
                 @MapParam.MapParamEntry(
                     name = "lenient",
                     valueHint = { "true", "false" },
-                    description = "If false, format-based errors, such as providing a text query value for a numeric field, are not ignored."
+                    description = "If false, format-based errors, such as providing a text query value for a numeric field, are returned."
                 ),
                 @MapParam.MapParamEntry(
                     name = "max_expansions",

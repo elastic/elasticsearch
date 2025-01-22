@@ -53,7 +53,6 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DE
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
@@ -77,8 +76,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testDestIndexDeletedIfExists() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         // empty source index
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
@@ -98,8 +95,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testDestIndexNameSet_noDotPrefix() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
 
@@ -112,7 +107,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testDestIndexNameSet_withDotPrefix() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
 
         var sourceIndex = "." + randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
@@ -126,8 +120,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testDestIndexContainsDocs() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         // source index with docs
         var numDocs = randomIntBetween(1, 100);
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
@@ -144,8 +136,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testSetSourceToBlockWrites() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var settings = randomBoolean() ? Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build() : Settings.EMPTY;
 
         // empty source index
@@ -162,8 +152,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testSettingsAddedBeforeReindex() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         // start with a static setting
         var numShards = randomIntBetween(1, 10);
         var staticSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
@@ -192,8 +180,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testMappingsAddedToDestIndex() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         String mapping = """
             {
@@ -226,8 +212,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testFailIfMetadataBlockSet() {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         var settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_METADATA, true).build();
         indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)).actionGet();
@@ -242,8 +226,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testFailIfReadBlockSet() {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         var settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_READ, true).build();
         indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)).actionGet();
@@ -258,8 +240,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testReadOnlyBlocksNotAddedBack() {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         var settings = Settings.builder()
             .put(IndexMetadata.SETTING_READ_ONLY, randomBoolean())
@@ -283,8 +263,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testUpdateSettingsDefaultsRestored() {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         // ESIntegTestCase creates a template random_index_template which contains a value for number_of_replicas.
         // Since this test checks the behavior of default settings, there cannot be a value for number_of_replicas,
         // so we delete the template within this method. This has no effect on other tests which will still
@@ -315,8 +293,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testSettingsAndMappingsFromTemplate() throws IOException {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var numShards = randomIntBetween(1, 10);
         var numReplicas = randomIntBetween(0, 10);
 
@@ -395,8 +371,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         """;
 
     public void testTsdbStartEndSet() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var templateSettings = Settings.builder().put("index.mode", "time_series");
         if (randomBoolean()) {
             templateSettings.put("index.routing_path", "metricset");

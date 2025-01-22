@@ -39,6 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -330,7 +331,15 @@ public class MetadataUpdateSettingsService {
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
             boolean changedBlocks = false;
             for (IndexMetadata.APIBlock block : IndexMetadata.APIBlock.values()) {
-                changedBlocks |= maybeUpdateClusterBlock(actualIndices, blocks, block.block, block.setting, openSettings, metadataBuilder);
+                changedBlocks |= maybeUpdateClusterBlock(
+                    actualIndices,
+                    blocks,
+                    block.block,
+                    block.setting,
+                    openSettings,
+                    metadataBuilder,
+                    currentState.nodes().getMinSupportedIndexVersion()
+                );
             }
             changed |= changedBlocks;
 
@@ -426,7 +435,8 @@ public class MetadataUpdateSettingsService {
         ClusterBlock block,
         Setting<Boolean> setting,
         Settings openSettings,
-        Metadata.Builder metadataBuilder
+        Metadata.Builder metadataBuilder,
+        IndexVersion minSupportedIndexVersion
     ) {
         boolean changed = false;
         if (setting.exists(openSettings)) {
@@ -443,6 +453,17 @@ public class MetadataUpdateSettingsService {
                         changed = true;
                         if (block.contains(ClusterBlockLevel.WRITE)) {
                             IndexMetadata indexMetadata = metadataBuilder.get(index);
+                            if (indexMetadata.getCompatibilityVersion().before(minSupportedIndexVersion)) {
+                                // Forbid the removal of the block if the index cannot be written by one or more nodes of the cluster
+                                throw new IllegalArgumentException(
+                                    String.format(
+                                        Locale.ROOT,
+                                        "Can't update setting [%s] for read-only compatible index %s",
+                                        setting.getKey(),
+                                        indexMetadata.getIndex()
+                                    )
+                                );
+                            }
                             Settings.Builder indexSettings = Settings.builder().put(indexMetadata.getSettings());
                             indexSettings.remove(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey());
                             metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(indexSettings));

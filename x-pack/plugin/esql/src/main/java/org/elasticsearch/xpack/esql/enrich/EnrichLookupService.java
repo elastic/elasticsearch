@@ -52,7 +52,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
 
     public EnrichLookupService(
         ClusterService clusterService,
-        CreateShardContext createShardContext,
+        LookupShardContextFactory lookupShardContextFactory,
         TransportService transportService,
         BigArrays bigArrays,
         BlockFactory blockFactory
@@ -60,7 +60,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         super(
             LOOKUP_ACTION_NAME,
             clusterService,
-            createShardContext,
+            lookupShardContextFactory,
             transportService,
             bigArrays,
             blockFactory,

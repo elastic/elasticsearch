@@ -41,7 +41,7 @@ public class DiscoveryEc2EnvironmentVariableCredentialsIT extends DiscoveryEc2Cl
         .setting(Ec2ClientSettings.ENDPOINT_SETTING.getKey(), ec2ApiFixture::getAddress)
         .environment("AWS_REGION", REGION)
         .environment("AWS_ACCESS_KEY_ID", ACCESS_KEY)
-        .environment("AWS_SECRET_ACCESS_KEY", ESTestCase::randomIdentifier)
+        .environment("AWS_SECRET_ACCESS_KEY", ESTestCase::randomSecretKey)
         .build();
 
     private static List<String> getAvailableTransportEndpoints() {

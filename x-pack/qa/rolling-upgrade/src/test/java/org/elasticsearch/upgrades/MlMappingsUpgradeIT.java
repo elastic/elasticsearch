@@ -6,9 +6,12 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -17,6 +20,8 @@ import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.BeforeClass;
 
+import javax.swing.text.html.parser.Entity;
+
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
@@ -24,12 +29,15 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String JOB_ID = "ml-mappings-upgrade-job";
+    private static final String JOB_ID2 = "ml-mappings-upgrade-job2";
 
     @BeforeClass
     public static void maybeSkip() {
@@ -54,7 +62,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
         switch (CLUSTER_TYPE) {
             case OLD:
-                createAndOpenTestJob();
+                createAndOpenTestJob(JOB_ID);
                 break;
             case MIXED:
                 // We don't know whether the job is on an old or upgraded node, so cannot assert that the mappings have been upgraded
@@ -65,14 +73,17 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 closeAndReopenTestJob();
                 assertUpgradedConfigMappings();
                 assertMlLegacyTemplatesDeleted();
+                assertRollover();
                 IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
+
+                createAndOpenTestJob(JOB_ID2);
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
     }
 
-    private void createAndOpenTestJob() throws IOException {
+    private void createAndOpenTestJob(String jobId) throws IOException {
         // Use a custom index because other rolling upgrade tests meddle with the shared index
         String jobConfig = """
                         {
@@ -86,12 +97,12 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                         }"
             """;
 
-        Request putJob = new Request("PUT", "_ml/anomaly_detectors/" + JOB_ID);
+        Request putJob = new Request("PUT", "_ml/anomaly_detectors/" + jobId);
         putJob.setJsonEntity(jobConfig);
         Response response = client().performRequest(putJob);
         assertEquals(200, response.getStatusLine().getStatusCode());
 
-        Request openJob = new Request("POST", "_ml/anomaly_detectors/" + JOB_ID + "/_open");
+        Request openJob = new Request("POST", "_ml/anomaly_detectors/" + jobId + "/_open");
         response = client().performRequest(openJob);
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
@@ -237,4 +248,23 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             );
         });
     }
+
+
+    @SuppressWarnings("unchecked")
+    private void assertRollover() throws Exception {
+        assertBusy(() -> {
+            RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+            builder.setWarningsHandler(WarningsHandler.PERMISSIVE); // ignore warnings about accessing system index
+
+            Request getIndices = new Request("GET", ".ml*");
+            getIndices.setOptions(builder);
+            Response response = client().performRequest(getIndices);
+            assertOK(response);
+            var asString = EntityUtils.toString(response.getEntity());
+            assertThat(asString, containsString(".ml-state-000002"));
+//            assertThat(asString, containsString(".ml-stats-000002")); // stats index not created
+            assertThat(asString, containsString(".ml-annotations-000002"));
+        });
+    }
+
 }

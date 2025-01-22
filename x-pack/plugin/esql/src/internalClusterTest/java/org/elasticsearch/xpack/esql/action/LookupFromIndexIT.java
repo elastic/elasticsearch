@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -69,13 +70,55 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.empty;
 
 public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
+    // TODO should we remove this now that this is integrated into ESQL proper?
     /**
      * Quick and dirty test for looking up data from a lookup index.
      */
     public void testLookupIndex() throws IOException {
-        // TODO this should *fail* if the target index isn't a lookup type index - it doesn't now.
-        int docCount = between(10, 1000);
-        List<String> expected = new ArrayList<>(docCount);
+        runLookup(new UsingSingleLookupTable(new String[] { "aa", "bb", "cc", "dd" }));
+    }
+
+    /**
+     * Tests when multiple results match.
+     */
+    public void testLookupIndexMultiResults() throws IOException {
+        runLookup(new UsingSingleLookupTable(new String[] { "aa", "bb", "bb", "dd" }));
+    }
+
+    interface PopulateIndices {
+        void populate(int docCount, List<String> expected) throws IOException;
+    }
+
+    class UsingSingleLookupTable implements PopulateIndices {
+        private final Map<String, List<Integer>> matches = new HashMap<>();
+        private final String[] lookupData;
+
+        UsingSingleLookupTable(String[] lookupData) {
+            this.lookupData = lookupData;
+            for (int i = 0; i < lookupData.length; i++) {
+                matches.computeIfAbsent(lookupData[i], k -> new ArrayList<>()).add(i);
+            }
+        }
+
+        @Override
+        public void populate(int docCount, List<String> expected) {
+            List<IndexRequestBuilder> docs = new ArrayList<>();
+            for (int i = 0; i < docCount; i++) {
+                String data = lookupData[i % lookupData.length];
+                docs.add(client().prepareIndex("source").setSource(Map.of("data", data)));
+                for (Integer match : matches.get(data)) {
+                    expected.add(data + ":" + match);
+                }
+            }
+            for (int i = 0; i < lookupData.length; i++) {
+                docs.add(client().prepareIndex("lookup").setSource(Map.of("data", lookupData[i], "l", i)));
+            }
+            Collections.sort(expected);
+            indexRandom(true, true, docs);
+        }
+    }
+
+    private void runLookup(PopulateIndices populateIndices) throws IOException {
         client().admin()
             .indices()
             .prepareCreate("source")
@@ -95,17 +138,9 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             .get();
         client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
 
-        String[] data = new String[] { "aa", "bb", "cc", "dd" };
-        List<IndexRequestBuilder> docs = new ArrayList<>();
-        for (int i = 0; i < docCount; i++) {
-            docs.add(client().prepareIndex("source").setSource(Map.of("data", data[i % data.length])));
-            expected.add(data[i % data.length] + ":" + (i % data.length));
-        }
-        for (int i = 0; i < data.length; i++) {
-            docs.add(client().prepareIndex("lookup").setSource(Map.of("data", data[i], "l", i)));
-        }
-        Collections.sort(expected);
-        indexRandom(true, true, docs);
+        int docCount = between(10, 1000);
+        List<String> expected = new ArrayList<>(docCount);
+        populateIndices.populate(docCount, expected);
 
         /*
          * Find the data node hosting the only shard of the source index.
@@ -148,7 +183,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 DataPartitioning.SEGMENT,
                 1,
                 10000,
-                DocIdSetIterator.NO_MORE_DOCS
+                DocIdSetIterator.NO_MORE_DOCS,
+                false // no scoring
             );
             ValuesSourceReaderOperator.Factory reader = new ValuesSourceReaderOperator.Factory(
                 List.of(
@@ -174,12 +210,13 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 new AsyncExecutionId("test", TaskId.EMPTY_TASK_ID),
                 TEST_REQUEST_TIMEOUT
             );
+            final String finalNodeWithShard = nodeWithShard;
             LookupFromIndexOperator.Factory lookup = new LookupFromIndexOperator.Factory(
                 "test",
                 parentTask,
                 QueryPragmas.ENRICH_MAX_WORKERS.get(Settings.EMPTY),
                 1,
-                internalCluster().getInstance(TransportEsqlQueryAction.class, nodeWithShard).getLookupFromIndexService(),
+                ctx -> internalCluster().getInstance(TransportEsqlQueryAction.class, finalNodeWithShard).getLookupFromIndexService(),
                 DataType.KEYWORD,
                 "lookup",
                 "data",

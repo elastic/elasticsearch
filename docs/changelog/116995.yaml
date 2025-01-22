@@ -1,5 +1,0 @@
-pr: 116995
-summary: "Apm-data: disable date_detection for all apm data streams"
-area: Data streams
-type: enhancement
-issues: []

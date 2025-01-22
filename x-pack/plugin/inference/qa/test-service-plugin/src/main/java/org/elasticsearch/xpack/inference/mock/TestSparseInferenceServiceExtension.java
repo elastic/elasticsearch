@@ -16,9 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
-import org.elasticsearch.inference.EmptySettingsConfiguration;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -28,16 +26,14 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
-import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
@@ -125,15 +121,24 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         }
 
         @Override
+        public void unifiedCompletionInfer(
+            Model model,
+            UnifiedCompletionRequest request,
+            TimeValue timeout,
+            ActionListener<InferenceServiceResults> listener
+        ) {
+            throw new UnsupportedOperationException("unifiedCompletionInfer not supported");
+        }
+
+        @Override
         public void chunkedInfer(
             Model model,
             @Nullable String query,
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
-            ChunkingOptions chunkingOptions,
             TimeValue timeout,
-            ActionListener<List<ChunkedInferenceServiceResults>> listener
+            ActionListener<List<ChunkedInference>> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
                 case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeChunkedResults(input));
@@ -158,16 +163,22 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             return new SparseEmbeddingResults(embeddings);
         }
 
-        private List<ChunkedInferenceServiceResults> makeChunkedResults(List<String> input) {
-            List<ChunkedInferenceServiceResults> results = new ArrayList<>();
+        private List<ChunkedInference> makeChunkedResults(List<String> input) {
+            List<ChunkedInference> results = new ArrayList<>();
             for (int i = 0; i < input.size(); i++) {
                 var tokens = new ArrayList<WeightedToken>();
                 for (int j = 0; j < 5; j++) {
                     tokens.add(new WeightedToken("feature_" + j, generateEmbedding(input.get(i), j)));
                 }
                 results.add(
-                    new InferenceChunkedSparseEmbeddingResults(
-                        List.of(new MlChunkedTextExpansionResults.ChunkedResult(input.get(i), tokens))
+                    new ChunkedInferenceEmbeddingSparse(
+                        List.of(
+                            new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(
+                                tokens,
+                                input.get(i),
+                                new ChunkedInference.TextOffset(0, input.get(i).length())
+                            )
+                        )
                     )
                 );
             }
@@ -194,35 +205,28 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
 
                     configurationMap.put(
                         "model",
-                        new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                        new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING)).setDescription("")
                             .setLabel("Model")
-                            .setOrder(1)
                             .setRequired(true)
                             .setSensitive(false)
-                            .setTooltip("")
                             .setType(SettingsConfigurationFieldType.STRING)
                             .build()
                     );
 
                     configurationMap.put(
                         "hidden_field",
-                        new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                        new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING)).setDescription("")
                             .setLabel("Hidden Field")
-                            .setOrder(2)
                             .setRequired(true)
                             .setSensitive(false)
-                            .setTooltip("")
                             .setType(SettingsConfigurationFieldType.STRING)
                             .build()
                     );
 
-                    return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
-                        Map<String, SettingsConfiguration> taskSettingsConfig;
-                        switch (t) {
-                            default -> taskSettingsConfig = EmptySettingsConfiguration.get();
-                        }
-                        return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
-                    }).toList()).setConfiguration(configurationMap).build();
+                    return new InferenceServiceConfiguration.Builder().setService(NAME)
+                        .setTaskTypes(supportedTaskTypes)
+                        .setConfigurations(configurationMap)
+                        .build();
                 }
             );
         }

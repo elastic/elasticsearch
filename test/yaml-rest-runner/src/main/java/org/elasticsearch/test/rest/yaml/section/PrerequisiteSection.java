@@ -12,7 +12,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.Features;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -305,7 +304,6 @@ public class PrerequisiteSection {
             boolean valid = false;
             if (parser.currentToken().isValue()) {
                 valid = switch (parser.currentName()) {
-                    case "version" -> parseRestCompatVersion(parser, builder);
                     case "reason" -> parseString(parser, builder::setSkipReason);
                     case "features" -> parseString(parser, f -> parseFeatureField(f, builder));
                     case "os" -> parseString(parser, builder::skipIfOs);
@@ -326,17 +324,6 @@ public class PrerequisiteSection {
             if (valid == false) throwUnexpectedField("skip", parser);
         }
         parser.nextToken();
-    }
-
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    private static boolean parseRestCompatVersion(XContentParser parser, PrerequisiteSectionBuilder builder) throws IOException {
-        // allow skip version only for v7 REST compatibility tests, to be removed for V9
-        if ("true".equals(System.getProperty("tests.restCompat"))) return parseString(parser, builder::skipIfVersion);
-        throw new IllegalArgumentException(
-            "Skipping by version is no longer supported, please skip based on cluster features. Please check the docs: \n"
-                + "https://github.com/elastic/elasticsearch/tree/main"
-                + "/rest-api-spec/src/yamlRestTest/resources/rest-api-spec/test#skipping-tests"
-        );
     }
 
     private static void throwUnexpectedField(String section, XContentParser parser) throws IOException {

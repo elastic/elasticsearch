@@ -45,13 +45,13 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -170,7 +170,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             DataPartitioning.SHARD,
             randomIntBetween(1, 10),
             pageSize,
-            LuceneOperator.NO_LIMIT
+            LuceneOperator.NO_LIMIT,
+            false // no scoring
         );
         return luceneFactory.get(context);
     }
@@ -1301,7 +1302,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             randomFrom(DataPartitioning.values()),
             randomIntBetween(1, 10),
             randomPageSize(),
-            LuceneOperator.NO_LIMIT
+            LuceneOperator.NO_LIMIT,
+            false // no scoring
         );
         try (
             Driver driver = new Driver(
@@ -1524,7 +1526,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 DataPartitioning.SHARD,
                 randomIntBetween(1, 10),
                 1000,
-                LuceneOperator.NO_LIMIT
+                LuceneOperator.NO_LIMIT,
+                false // no scoring
             );
             MappedFieldType ft = mapperService.fieldType("key");
             var readerFactory = new ValuesSourceReaderOperator.Factory(

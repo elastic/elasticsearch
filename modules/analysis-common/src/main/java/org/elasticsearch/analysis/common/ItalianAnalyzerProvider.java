@@ -22,7 +22,7 @@ public class ItalianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Itali
     private final ItalianAnalyzer analyzer;
 
     ItalianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         analyzer = new ItalianAnalyzer(
             Analysis.parseStopWords(env, settings, ItalianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

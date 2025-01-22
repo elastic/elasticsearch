@@ -24,9 +24,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 
-import static org.elasticsearch.TransportVersions.FAST_REFRESH_RCO_2;
-import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
-
 public class TransportUnpromotableShardRefreshAction extends TransportBroadcastUnpromotableAction<
     UnpromotableShardRefreshRequest,
     ActionResponse.Empty> {
@@ -75,18 +72,6 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
             responseListener.onResponse(ActionResponse.Empty.INSTANCE);
             return;
         }
-
-        // During an upgrade to FAST_REFRESH_RCO_2, we expect search shards to be first upgraded before the primary is upgraded. Thus,
-        // when the primary is upgraded, and starts to deliver unpromotable refreshes, we expect the search shards to be upgraded already.
-        // Note that the fast refresh setting is final.
-        // TODO: remove assertion (ES-9563)
-        assert INDEX_FAST_REFRESH_SETTING.get(shard.indexSettings().getSettings()) == false
-            || transportService.getLocalNodeConnection().getTransportVersion().onOrAfter(FAST_REFRESH_RCO_2)
-            : "attempted to refresh a fast refresh search shard "
-                + shard
-                + " on transport version "
-                + transportService.getLocalNodeConnection().getTransportVersion()
-                + " (before FAST_REFRESH_RCO_2)";
 
         ActionListener.run(responseListener, listener -> {
             shard.waitForPrimaryTermAndGeneration(

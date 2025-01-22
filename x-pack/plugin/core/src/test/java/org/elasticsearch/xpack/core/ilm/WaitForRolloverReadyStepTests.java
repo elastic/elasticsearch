@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
@@ -38,7 +39,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -46,9 +46,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -60,20 +60,20 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         Step.StepKey stepKey = randomStepKey();
         Step.StepKey nextStepKey = randomStepKey();
         ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
-        ByteSizeValue maxSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
+        ByteSizeValue maxSize = randomBoolean() ? null : ByteSizeValue.of(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
         ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue maxPrimaryShardSize = randomBoolean()
             ? null
-            : new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
+            : ByteSizeValue.of(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
         Long maxDocs = randomBoolean() ? null : randomNonNegativeLong();
         TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean()) ? randomPositiveTimeValue() : null;
         Long maxPrimaryShardDocs = randomBoolean() ? null : randomNonNegativeLong();
         ByteSizeUnit minSizeUnit = randomFrom(ByteSizeUnit.values());
-        ByteSizeValue minSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / minSizeUnit.toBytes(1), minSizeUnit);
+        ByteSizeValue minSize = randomBoolean() ? null : ByteSizeValue.of(randomNonNegativeLong() / minSizeUnit.toBytes(1), minSizeUnit);
         ByteSizeUnit minPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue minPrimaryShardSize = randomBoolean()
             ? null
-            : new ByteSizeValue(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
+            : ByteSizeValue.of(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
         Long minDocs = randomBoolean() ? null : randomNonNegativeLong();
         TimeValue minAge = (minDocs == null || randomBoolean()) ? randomPositiveTimeValue() : null;
         Long minPrimaryShardDocs = randomBoolean() ? null : randomNonNegativeLong();
@@ -115,22 +115,22 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             case 1 -> nextKey = new Step.StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             case 2 -> maxSize = randomValueOtherThan(maxSize, () -> {
                 ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
-                return new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
+                return ByteSizeValue.of(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
             });
             case 3 -> maxPrimaryShardSize = randomValueOtherThan(maxPrimaryShardSize, () -> {
                 ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
-                return new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
+                return ByteSizeValue.of(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
             });
             case 4 -> maxAge = randomValueOtherThan(maxAge, () -> randomPositiveTimeValue());
             case 5 -> maxDocs = randomValueOtherThan(maxDocs, ESTestCase::randomNonNegativeLong);
             case 6 -> maxPrimaryShardDocs = randomValueOtherThan(maxPrimaryShardDocs, ESTestCase::randomNonNegativeLong);
             case 7 -> minSize = randomValueOtherThan(minSize, () -> {
                 ByteSizeUnit minSizeUnit = randomFrom(ByteSizeUnit.values());
-                return new ByteSizeValue(randomNonNegativeLong() / minSizeUnit.toBytes(1), minSizeUnit);
+                return ByteSizeValue.of(randomNonNegativeLong() / minSizeUnit.toBytes(1), minSizeUnit);
             });
             case 8 -> minPrimaryShardSize = randomValueOtherThan(minPrimaryShardSize, () -> {
                 ByteSizeUnit minPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
-                return new ByteSizeValue(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
+                return ByteSizeValue.of(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
             });
             case 9 -> minAge = randomValueOtherThan(minAge, () -> randomPositiveTimeValue());
             case 10 -> minDocs = randomValueOtherThan(minDocs, ESTestCase::randomNonNegativeLong);
@@ -237,7 +237,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 conditionsMet.set(complete);
             }
 
@@ -271,7 +271,11 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         WaitForRolloverReadyStep step = createRandomInstance();
 
-        mockRolloverIndexCall(dataStreamName, step, true);
+        mockRolloverIndexCall(
+            failureStoreIndex ? dataStreamName + SELECTOR_SEPARATOR + IndexComponentSelector.FAILURES.getKey() : dataStreamName,
+            step,
+            true
+        );
 
         SetOnce<Boolean> conditionsMet = new SetOnce<>();
         Metadata metadata = Metadata.builder()
@@ -289,7 +293,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(metadata, indexToOperateOn.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 conditionsMet.set(complete);
             }
 
@@ -308,8 +312,14 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         verify(indicesClient, Mockito.only()).rolloverIndex(requestCaptor.capture(), Mockito.any());
 
         RolloverRequest request = requestCaptor.getValue();
-        assertThat(request.indicesOptions().includeFailureIndices(), equalTo(failureStoreIndex));
-        assertThat(request.indicesOptions().includeRegularIndices(), not(equalTo(failureStoreIndex)));
+        if (failureStoreIndex == false) {
+            assertThat(request.getRolloverTarget(), equalTo(dataStreamName));
+        } else {
+            assertThat(
+                request.getRolloverTarget(),
+                equalTo(dataStreamName + SELECTOR_SEPARATOR + IndexComponentSelector.FAILURES.getKey())
+            );
+        }
     }
 
     public void testSkipRolloverIfDataStreamIsAlreadyRolledOver() {
@@ -359,7 +369,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(metadata, indexToOperateOn.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 conditionsMet.set(complete);
             }
 
@@ -396,11 +406,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             .putAlias(AliasMetadata.builder(rolloverAlias))
             .settings(settings(IndexVersion.current()).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias))
             .putRolloverInfo(
-                new RolloverInfo(
-                    rolloverAlias,
-                    Collections.singletonList(new MaxSizeCondition(ByteSizeValue.ofBytes(2L))),
-                    System.currentTimeMillis()
-                )
+                new RolloverInfo(rolloverAlias, List.of(new MaxSizeCondition(ByteSizeValue.ofBytes(2L))), System.currentTimeMillis())
             )
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
@@ -432,7 +438,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             .putRolloverInfo(
                 new RolloverInfo(
                     randomAlphaOfLength(5),
-                    Collections.singletonList(new MaxSizeCondition(ByteSizeValue.ofBytes(2L))),
+                    List.of(new MaxSizeCondition(ByteSizeValue.ofBytes(2L))),
                     System.currentTimeMillis()
                 )
             )
@@ -471,7 +477,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 fail("expecting failure as the write index must be set to true or null");
             }
 
@@ -512,7 +518,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 conditionsMet.set(complete);
             }
 
@@ -543,7 +549,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 throw new AssertionError("Should have failed with indexing_complete but index is not write index");
             }
 
@@ -573,7 +579,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 actionCompleted.set(complete);
             }
 
@@ -615,7 +621,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 throw new AssertionError("Unexpected method call");
             }
 
@@ -645,7 +651,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         SetOnce<Exception> exceptionThrown = new SetOnce<>();
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 throw new AssertionError("Unexpected method call");
             }
 
@@ -680,7 +686,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         SetOnce<Exception> exceptionThrown = new SetOnce<>();
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+            public void onResponse(boolean complete, ToXContentObject informationContext) {
                 throw new AssertionError("Unexpected method call");
             }
 

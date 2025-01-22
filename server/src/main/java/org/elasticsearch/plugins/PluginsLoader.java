@@ -50,7 +50,6 @@ import static org.elasticsearch.jdk.ModuleQualifiedExportsService.exposeQualifie
  * to have all the plugin information they need prior to starting.
  */
 public class PluginsLoader {
-
     /**
      * Contains information about the {@link ClassLoader} required to load a plugin
      */
@@ -64,18 +63,26 @@ public class PluginsLoader {
          * @return The {@link ClassLoader} used to instantiate the main class for the plugin
          */
         ClassLoader pluginClassLoader();
+
+        /**
+         * @return The {@link ModuleLayer} for the plugin modules
+         */
+        ModuleLayer pluginModuleLayer();
     }
 
     /**
      * Contains information about the {@link ClassLoader}s and {@link ModuleLayer} required for loading a plugin
-     * @param pluginBundle Information about the bundle of jars used in this plugin
+     *
+     * @param pluginBundle      Information about the bundle of jars used in this plugin
      * @param pluginClassLoader The {@link ClassLoader} used to instantiate the main class for the plugin
-     * @param spiClassLoader The exported {@link ClassLoader} visible to other Java modules
-     * @param spiModuleLayer The exported {@link ModuleLayer} visible to other Java modules
+     * @param pluginModuleLayer The {@link ModuleLayer} containing the Java modules of the plugin
+     * @param spiClassLoader    The exported {@link ClassLoader} visible to other Java modules
+     * @param spiModuleLayer    The exported {@link ModuleLayer} visible to other Java modules
      */
     private record LoadedPluginLayer(
         PluginBundle pluginBundle,
         ClassLoader pluginClassLoader,
+        ModuleLayer pluginModuleLayer,
         ClassLoader spiClassLoader,
         ModuleLayer spiModuleLayer
     ) implements PluginLayer {
@@ -103,6 +110,10 @@ public class PluginsLoader {
         public static LayerAndLoader ofLoader(ClassLoader loader) {
             return new LayerAndLoader(ModuleLayer.boot(), loader);
         }
+
+        public static LayerAndLoader ofUberModuleLoader(UberModuleClassLoader loader) {
+            return new LayerAndLoader(loader.getLayer(), loader);
+        }
     }
 
     private static final Logger logger = LogManager.getLogger(PluginsLoader.class);
@@ -111,54 +122,104 @@ public class PluginsLoader {
     private final List<PluginDescriptor> moduleDescriptors;
     private final List<PluginDescriptor> pluginDescriptors;
     private final Map<String, LoadedPluginLayer> loadedPluginLayers;
+    private final Set<PluginBundle> moduleBundles;
+    private final Set<PluginBundle> pluginBundles;
 
     /**
-     * Constructs a new PluginsLoader
+     * Loads a set of PluginBundles from the modules directory
      *
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
-     * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      */
-    @SuppressWarnings("this-escape")
-    public PluginsLoader(Path modulesDirectory, Path pluginsDirectory) {
-
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>(ModuleQualifiedExportsService.getBootServices());
-        addServerExportsService(qualifiedExports);
-
-        Set<PluginBundle> seenBundles = new LinkedHashSet<>();
-
+    public static Set<PluginBundle> loadModulesBundles(Path modulesDirectory) {
         // load (elasticsearch) module layers
+        final Set<PluginBundle> modules;
         if (modulesDirectory != null) {
             try {
-                Set<PluginBundle> modules = PluginsUtils.getModuleBundles(modulesDirectory);
-                moduleDescriptors = modules.stream().map(PluginBundle::pluginDescriptor).toList();
-                seenBundles.addAll(modules);
+                modules = PluginsUtils.getModuleBundles(modulesDirectory);
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize modules", ex);
             }
         } else {
-            moduleDescriptors = Collections.emptyList();
+            modules = Collections.emptySet();
         }
+        return modules;
+    }
 
-        // load plugin layers
+    /**
+     * Loads a set of PluginBundles from the plugins directory
+     *
+     * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
+     */
+    public static Set<PluginBundle> loadPluginsBundles(Path pluginsDirectory) {
+        final Set<PluginBundle> plugins;
         if (pluginsDirectory != null) {
             try {
                 // TODO: remove this leniency, but tests bogusly rely on it
                 if (isAccessibleDirectory(pluginsDirectory, logger)) {
                     PluginsUtils.checkForFailedPluginRemovals(pluginsDirectory);
-                    Set<PluginBundle> plugins = PluginsUtils.getPluginBundles(pluginsDirectory);
-                    pluginDescriptors = plugins.stream().map(PluginBundle::pluginDescriptor).toList();
-                    seenBundles.addAll(plugins);
+                    plugins = PluginsUtils.getPluginBundles(pluginsDirectory);
                 } else {
-                    pluginDescriptors = Collections.emptyList();
+                    plugins = Collections.emptySet();
                 }
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize plugins", ex);
             }
         } else {
-            pluginDescriptors = Collections.emptyList();
+            plugins = Collections.emptySet();
+        }
+        return plugins;
+    }
+
+    /**
+     * Constructs a new PluginsLoader
+     *
+     * @param modules           The set of module bundles present on the filesystem
+     * @param plugins           The set of plugin bundles present on the filesystem
+     */
+    public static PluginsLoader createPluginsLoader(Set<PluginBundle> modules, Set<PluginBundle> plugins) {
+        return createPluginsLoader(modules, plugins, true);
+    }
+
+    /**
+     * Constructs a new PluginsLoader
+     *
+     * @param modules           The set of module bundles present on the filesystem
+     * @param plugins           The set of plugin bundles present on the filesystem
+     * @param withServerExports {@code true} to add server module exports
+     */
+    public static PluginsLoader createPluginsLoader(Set<PluginBundle> modules, Set<PluginBundle> plugins, boolean withServerExports) {
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports;
+        if (withServerExports) {
+            qualifiedExports = new HashMap<>(ModuleQualifiedExportsService.getBootServices());
+            addServerExportsService(qualifiedExports);
+        } else {
+            qualifiedExports = Collections.emptyMap();
         }
 
-        this.loadedPluginLayers = Collections.unmodifiableMap(loadPluginLayers(seenBundles, qualifiedExports));
+        Set<PluginBundle> seenBundles = new LinkedHashSet<>();
+        seenBundles.addAll(modules);
+        seenBundles.addAll(plugins);
+
+        Map<String, LoadedPluginLayer> loadedPluginLayers = new LinkedHashMap<>();
+        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
+        List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(seenBundles);
+        if (sortedBundles.isEmpty() == false) {
+            Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
+            for (PluginBundle bundle : sortedBundles) {
+                PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
+                loadPluginLayer(bundle, loadedPluginLayers, qualifiedExports);
+            }
+        }
+
+        return new PluginsLoader(modules, plugins, loadedPluginLayers);
+    }
+
+    PluginsLoader(Set<PluginBundle> modules, Set<PluginBundle> plugins, Map<String, LoadedPluginLayer> loadedPluginLayers) {
+        this.moduleBundles = modules;
+        this.pluginBundles = plugins;
+        this.moduleDescriptors = modules.stream().map(PluginBundle::pluginDescriptor).toList();
+        this.pluginDescriptors = plugins.stream().map(PluginBundle::pluginDescriptor).toList();
+        this.loadedPluginLayers = loadedPluginLayers;
     }
 
     public List<PluginDescriptor> moduleDescriptors() {
@@ -173,25 +234,15 @@ public class PluginsLoader {
         return loadedPluginLayers.values().stream().map(Function.identity());
     }
 
-    private Map<String, LoadedPluginLayer> loadPluginLayers(
-        Set<PluginBundle> bundles,
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports
-    ) {
-        Map<String, LoadedPluginLayer> loaded = new LinkedHashMap<>();
-        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
-        List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
-        if (sortedBundles.isEmpty() == false) {
-            Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
-            for (PluginBundle bundle : sortedBundles) {
-                PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
-                loadPluginLayer(bundle, loaded, qualifiedExports);
-            }
-        }
-
-        return loaded;
+    public Set<PluginBundle> moduleBundles() {
+        return moduleBundles;
     }
 
-    private void loadPluginLayer(
+    public Set<PluginBundle> pluginBundles() {
+        return pluginBundles;
+    }
+
+    private static void loadPluginLayer(
         PluginBundle bundle,
         Map<String, LoadedPluginLayer> loaded,
         Map<String, List<ModuleQualifiedExportsService>> qualifiedExports
@@ -211,7 +262,7 @@ public class PluginsLoader {
         }
 
         final ClassLoader parentLoader = ExtendedPluginsClassLoader.create(
-            getClass().getClassLoader(),
+            PluginsLoader.class.getClassLoader(),
             extendedPlugins.stream().map(LoadedPluginLayer::spiClassLoader).toList()
         );
         LayerAndLoader spiLayerAndLoader = null;
@@ -220,7 +271,7 @@ public class PluginsLoader {
         }
 
         final ClassLoader pluginParentLoader = spiLayerAndLoader == null ? parentLoader : spiLayerAndLoader.loader();
-        final LayerAndLoader pluginLayerAndLoader = createPlugin(
+        final LayerAndLoader pluginLayerAndLoader = createPluginLayerAndLoader(
             bundle,
             pluginParentLoader,
             extendedPlugins,
@@ -234,7 +285,16 @@ public class PluginsLoader {
             spiLayerAndLoader = pluginLayerAndLoader;
         }
 
-        loaded.put(name, new LoadedPluginLayer(bundle, pluginClassLoader, spiLayerAndLoader.loader, spiLayerAndLoader.layer));
+        loaded.put(
+            name,
+            new LoadedPluginLayer(
+                bundle,
+                pluginClassLoader,
+                pluginLayerAndLoader.layer(),
+                spiLayerAndLoader.loader,
+                spiLayerAndLoader.layer
+            )
+        );
     }
 
     static LayerAndLoader createSPI(
@@ -258,7 +318,7 @@ public class PluginsLoader {
         }
     }
 
-    static LayerAndLoader createPlugin(
+    private static LayerAndLoader createPluginLayerAndLoader(
         PluginBundle bundle,
         ClassLoader pluginParentLoader,
         List<LoadedPluginLayer> extendedPlugins,
@@ -275,7 +335,7 @@ public class PluginsLoader {
             return createPluginModuleLayer(bundle, pluginParentLoader, parentLayers, qualifiedExports);
         } else if (plugin.isStable()) {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", non-modular as synthetic module");
-            return LayerAndLoader.ofLoader(
+            return LayerAndLoader.ofUberModuleLoader(
                 UberModuleClassLoader.getInstance(
                     pluginParentLoader,
                     ModuleLayer.boot(),
@@ -370,7 +430,7 @@ public class PluginsLoader {
         return result;
     }
 
-    static final String toPackageName(String className) {
+    static String toPackageName(String className) {
         assert className.endsWith(".") == false;
         int index = className.lastIndexOf('.');
         if (index == -1) {
@@ -380,11 +440,11 @@ public class PluginsLoader {
     }
 
     @SuppressForbidden(reason = "I need to convert URL's to Paths")
-    static final Path[] urlsToPaths(Set<URL> urls) {
+    static Path[] urlsToPaths(Set<URL> urls) {
         return urls.stream().map(PluginsLoader::uncheckedToURI).map(PathUtils::get).toArray(Path[]::new);
     }
 
-    static final URI uncheckedToURI(URL url) {
+    static URI uncheckedToURI(URL url) {
         try {
             return url.toURI();
         } catch (URISyntaxException e) {
@@ -427,7 +487,7 @@ public class PluginsLoader {
         }
     }
 
-    protected void addServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
+    private static void addServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
         var exportsService = new ModuleQualifiedExportsService(serverModule) {
             @Override
             protected void addExports(String pkg, Module target) {

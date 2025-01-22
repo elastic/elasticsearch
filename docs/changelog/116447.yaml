@@ -1,5 +1,0 @@
-pr: 116447
-summary: Adding a deprecation info API warning for data streams with old indices
-area: Data streams
-type: enhancement
-issues: []

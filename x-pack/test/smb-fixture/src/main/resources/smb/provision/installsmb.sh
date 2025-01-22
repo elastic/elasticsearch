@@ -21,7 +21,7 @@ cat $SSL_DIR/ca.pem >> /etc/ssl/certs/ca-certificates.crt
 
 mv /etc/samba/smb.conf /etc/samba/smb.conf.orig
 
-samba-tool domain provision --server-role=dc --use-rfc2307 --dns-backend=SAMBA_INTERNAL --realm=AD.TEST.ELASTICSEARCH.COM --domain=ADES --adminpass=Passw0rd --use-ntvfs
+samba-tool domain provision --server-role=dc --use-rfc2307 --dns-backend=SAMBA_INTERNAL --realm=AD.TEST.ELASTICSEARCH.COM --domain=ADES --adminpass=Passw0rd
 
 cp /var/lib/samba/private/krb5.conf /etc/krb5.conf
 

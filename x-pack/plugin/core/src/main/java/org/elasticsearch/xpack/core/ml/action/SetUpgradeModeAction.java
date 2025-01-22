@@ -7,17 +7,13 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.action.SetUpgradeModeActionRequest;
 
 import java.io.IOException;
-import java.util.Objects;
 
 public class SetUpgradeModeAction extends ActionType<AcknowledgedResponse> {
 
@@ -28,9 +24,7 @@ public class SetUpgradeModeAction extends ActionType<AcknowledgedResponse> {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
-
-        private final boolean enabled;
+    public static class Request extends SetUpgradeModeActionRequest {
 
         private static final ParseField ENABLED = new ParseField("enabled");
         public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
@@ -43,48 +37,11 @@ public class SetUpgradeModeAction extends ActionType<AcknowledgedResponse> {
         }
 
         public Request(boolean enabled) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
-            this.enabled = enabled;
+            super(enabled);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.enabled = in.readBoolean();
-        }
-
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeBoolean(enabled);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(enabled);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null || obj.getClass() != getClass()) {
-                return false;
-            }
-            Request other = (Request) obj;
-            return Objects.equals(enabled, other.enabled);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(ENABLED.getPreferredName(), enabled);
-            builder.endObject();
-            return builder;
         }
     }
 }

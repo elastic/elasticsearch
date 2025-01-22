@@ -97,7 +97,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
                 Map.of(),
                 null,
                 SnapshotInfoTestUtils.randomUserMetadata(),
-                IndexVersionUtils.randomVersion(random())
+                IndexVersionUtils.randomVersion()
             )
         );
         ClusterState state = ClusterState.builder(clusterState(index)).putCustom(SnapshotsInProgress.TYPE, snaps).build();
@@ -153,7 +153,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         String alias = randomAlphaOfLength(5);
 
         IndexMetadata idxMetadata = IndexMetadata.builder(index)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random())))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion()))
             .putAlias(AliasMetadata.builder(alias).writeIndex(true).build())
             .numberOfShards(1)
             .numberOfReplicas(1)
@@ -304,10 +304,10 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
 
         DataStream dataStream = after.metadata().dataStreams().get(dataStreamName);
         assertThat(dataStream, notNullValue());
-        assertThat(dataStream.getFailureIndices().getIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
+        assertThat(dataStream.getFailureIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
         for (Index i : indicesToDelete) {
             assertThat(after.metadata().getIndices().get(i.getName()), nullValue());
-            assertFalse(dataStream.getFailureIndices().getIndices().contains(i));
+            assertFalse(dataStream.getFailureIndices().contains(i));
         }
         assertThat(after.metadata().getIndices().size(), equalTo((2 * numBackingIndices) - indexNumbersToDelete.size()));
     }
@@ -348,7 +348,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
 
     private ClusterState clusterState(String index) {
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random())))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();

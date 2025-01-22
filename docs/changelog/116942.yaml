@@ -1,5 +1,0 @@
-pr: 116942
-summary: Fix handling of bulk requests with semantic text fields and delete ops
-area: Relevance
-type: bug
-issues: []

@@ -1,6 +1,0 @@
-pr: 114227
-summary: Ignore conflicting fields during dynamic mapping update
-area: Mapping
-type: bug
-issues:
- - 114228

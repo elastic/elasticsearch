@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -109,10 +108,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         if (iterator == null) {
             return null;
         }
-        return new PlainShardIterator(
-            iterator.shardId(),
-            iterator.getShardRoutings().stream().filter(shardRouting -> OperationRouting.canSearchShard(shardRouting, state)).toList()
-        );
+        return PlainShardIterator.allSearchableShards(iterator);
     }
 
     @Override
@@ -129,9 +125,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             handleGetOnUnpromotableShard(request, indexShard, listener);
             return;
         }
-        // TODO: adapt assertion to assert only that it is not stateless (ES-9563)
-        assert DiscoveryNode.isStateless(clusterService.getSettings()) == false || indexShard.indexSettings().isFastRefresh()
-            : "in Stateless a promotable to primary shard can receive a TransportGetAction only if an index has the fast refresh setting";
+        assert DiscoveryNode.isStateless(clusterService.getSettings()) == false
+            : "in Stateless a promotable to primary shard should not receive a TransportGetAction";
         if (request.realtime()) { // we are not tied to a refresh cycle here anyway
             asyncGet(request, shardId, listener);
         } else {

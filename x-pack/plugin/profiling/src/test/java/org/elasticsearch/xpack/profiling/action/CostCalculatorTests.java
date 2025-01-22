@@ -63,7 +63,7 @@ public class CostCalculatorTests extends ESTestCase {
 
         double samplingDurationInSeconds = 1_800.0d; // 30 minutes
         long samples = 100_000L; // 100k samples
-        double annualCoreHours = CostCalculator.annualCoreHours(samplingDurationInSeconds, samples, 20.0d);
+        double annualCoreHours = CostCalculator.annualCoreHours(samplingDurationInSeconds, samples, 19.0d);
         CostCalculator costCalculator = new CostCalculator(hostsTable, samplingDurationInSeconds, null, null, null);
 
         // Checks whether the cost calculation is based on the lookup data.

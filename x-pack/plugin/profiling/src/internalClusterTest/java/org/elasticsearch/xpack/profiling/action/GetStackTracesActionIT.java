@@ -28,7 +28,6 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             null,
             null,
             null,
-            null,
             null
         );
         request.setAdjustSampleCount(true);
@@ -46,8 +45,8 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(18, stackTrace.fileIds.length);
         assertEquals(18, stackTrace.frameIds.length);
         assertEquals(18, stackTrace.typeIds.length);
-        assertEquals(0.0000048475146d, stackTrace.annualCO2Tons, 0.0000000001d);
-        assertEquals(0.18834d, stackTrace.annualCostsUSD, 0.00001d);
+        assertEquals(0.0000051026469d, stackTrace.annualCO2Tons, 0.0000000001d);
+        assertEquals(0.19825d, stackTrace.annualCostsUSD, 0.00001d);
         // not determined by default
         assertNull(stackTrace.subGroups);
 
@@ -68,8 +67,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             null,
             null,
             null,
-            "service.name",
-            null,
+            new String[] { "service.name" },
             null,
             null,
             null,
@@ -91,8 +89,8 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(18, stackTrace.fileIds.length);
         assertEquals(18, stackTrace.frameIds.length);
         assertEquals(18, stackTrace.typeIds.length);
-        assertEquals(0.0000048475146d, stackTrace.annualCO2Tons, 0.0000000001d);
-        assertEquals(0.18834d, stackTrace.annualCostsUSD, 0.00001d);
+        assertEquals(0.0000051026469d, stackTrace.annualCO2Tons, 0.0000000001d);
+        assertEquals(0.19825d, stackTrace.annualCostsUSD, 0.00001d);
         assertEquals(Long.valueOf(2L), stackTrace.subGroups.getCount("basket"));
 
         assertNotNull(response.getStackFrames());
@@ -117,8 +115,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             // also match an index that does not contain stacktrace ids to ensure it is ignored
             new String[] { "apm-test-*", "apm-legacy-test-*" },
             "transaction.profiler_stack_trace_ids",
-            "transaction.name",
-            null,
+            new String[] { "transaction.name" },
             null,
             null,
             null,
@@ -163,7 +160,6 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             query,
             new String[] { "apm-test-*" },
             "transaction.profiler_stack_trace_ids",
-            null,
             null,
             null,
             null,
@@ -219,7 +215,6 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             null,
             null,
             null,
-            null,
             null
         );
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
@@ -242,7 +237,6 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             null,
             null,
             null,
-            null,
             null
         );
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
@@ -260,7 +254,6 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             query,
             new String[] { "apm-legacy-test-*" },
             "transaction.profiler_stack_trace_ids",
-            null,
             null,
             null,
             null,

@@ -93,6 +93,7 @@ import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -180,7 +181,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -241,9 +241,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class SnapshotResiliencyTests extends ESTestCase {
 
@@ -2111,8 +2109,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     }
                 );
                 recoverySettings = new RecoverySettings(settings, clusterSettings);
-                FeatureService mockFeatureService = mock(FeatureService.class);
-                when(mockFeatureService.clusterHasFeature(any(), any())).thenReturn(true);
                 mockTransport = new DisruptableMockTransport(node, deterministicTaskQueue) {
                     @Override
                     protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {
@@ -2314,9 +2310,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool,
                     scriptService,
                     bigArrays,
-                    new RankFeatureShardPhase(),
                     new FetchPhase(Collections.emptyList()),
-                    responseCollectorService,
                     new NoneCircuitBreakerService(),
                     EmptySystemIndices.INSTANCE.getExecutorSelector(),
                     Tracer.NOOP
@@ -2405,13 +2399,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             null,
                             FailureStoreMetrics.NOOP
                         ),
-                        mockFeatureService,
                         client,
                         actionFilters,
                         indexNameExpressionResolver,
                         new IndexingPressure(settings),
                         EmptySystemIndices.INSTANCE,
-                        FailureStoreMetrics.NOOP
+                        FailureStoreMetrics.NOOP,
+                        DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings())
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(
@@ -2470,7 +2464,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         threadPool,
                         metadataMappingService,
                         actionFilters,
-                        indexNameExpressionResolver,
                         EmptySystemIndices.INSTANCE
                     )
                 );
@@ -2483,6 +2476,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         new NoneCircuitBreakerService(),
                         transportService,
                         searchService,
+                        responseCollectorService,
                         searchTransportService,
                         searchPhaseController,
                         clusterService,

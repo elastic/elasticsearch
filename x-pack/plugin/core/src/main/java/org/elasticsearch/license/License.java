@@ -15,9 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -39,8 +37,6 @@ import java.util.stream.Stream;
  * Provides serialization/deserialization &amp; validation methods for license object
  */
 public class License implements ToXContentObject {
-
-    public static final NodeFeature INDEPENDENT_TRIAL_VERSION_FEATURE = new NodeFeature("license-trial-independent-version");
 
     public enum LicenseType {
         BASIC,
@@ -142,7 +138,7 @@ public class License implements ToXContentObject {
      */
     public static final String LICENSE_VERSION_MODE = "license_version";
     /**
-     * Set for {@link RestApiVersion#V_7} requests only
+     * Set for RestApiVersion#V_7 requests only
      * XContent param name to map the "enterprise" license type to "platinum"
      * for backwards compatibility with older clients
      */

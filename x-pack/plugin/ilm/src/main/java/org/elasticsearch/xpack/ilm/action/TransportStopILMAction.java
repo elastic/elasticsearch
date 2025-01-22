@@ -45,7 +45,6 @@ public class TransportStopILMAction extends AcknowledgedTransportMasterNodeActio
             threadPool,
             actionFilters,
             StopILMRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }

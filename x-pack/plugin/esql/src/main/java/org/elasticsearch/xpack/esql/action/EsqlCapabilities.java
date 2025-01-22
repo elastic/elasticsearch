@@ -27,6 +27,113 @@ import java.util.Set;
  */
 public class EsqlCapabilities {
     public enum Cap {
+        /**
+         * Introduction of {@code MV_SORT}, {@code MV_SLICE}, and {@code MV_ZIP}.
+         * Added in #106095.
+         */
+        MV_SORT,
+
+        /**
+         * When we disabled some broken optimizations around {@code nullable}.
+         * Fixed in #105691.
+         */
+        DISABLE_NULLABLE_OPTS,
+
+        /**
+         * Introduction of {@code ST_X} and {@code ST_Y}. Added in #105768.
+         */
+        ST_X_Y,
+
+        /**
+         * Changed precision of {@code geo_point} and {@code cartesian_point} fields, by loading from source into WKB. Done in #103691.
+         */
+        SPATIAL_POINTS_FROM_SOURCE,
+
+        /**
+         * Support for loading {@code geo_shape} and {@code cartesian_shape} fields. Done in #104269.
+         */
+        SPATIAL_SHAPES,
+
+        /**
+         * Support for spatial aggregation {@code ST_CENTROID}. Done in #104269.
+         */
+        ST_CENTROID_AGG,
+
+        /**
+         * Support for spatial aggregation {@code ST_INTERSECTS}. Done in #104907.
+         */
+        ST_INTERSECTS,
+
+        /**
+         * Support for spatial aggregation {@code ST_CONTAINS} and {@code ST_WITHIN}. Done in #106503.
+         */
+        ST_CONTAINS_WITHIN,
+
+        /**
+         * Support for spatial aggregation {@code ST_DISJOINT}. Done in #107007.
+         */
+        ST_DISJOINT,
+
+        /**
+         * The introduction of the {@code VALUES} agg.
+         */
+        AGG_VALUES,
+
+        /**
+         * Does ESQL support async queries.
+         */
+        ASYNC_QUERY,
+
+        /**
+         * Does ESQL support FROM OPTIONS?
+         */
+        @Deprecated
+        FROM_OPTIONS,
+
+        /**
+         * Cast string literals to a desired data type.
+         */
+        STRING_LITERAL_AUTO_CASTING,
+
+        /**
+         * Base64 encoding and decoding functions.
+         */
+        BASE64_DECODE_ENCODE,
+
+        /**
+         * Support for the :: casting operator
+         */
+        CASTING_OPERATOR,
+
+        /**
+         * Blocks can be labelled with {@link org.elasticsearch.compute.data.Block.MvOrdering#SORTED_ASCENDING} for optimizations.
+         */
+        MV_ORDERING_SORTED_ASCENDING,
+
+        /**
+         * Support for metrics counter fields
+         */
+        METRICS_COUNTER_FIELDS,
+
+        /**
+         * Cast string literals to a desired data type for IN predicate and more types for BinaryComparison.
+         */
+        STRING_LITERAL_AUTO_CASTING_EXTENDED,
+
+        /**
+         * Support for metadata fields.
+         */
+        METADATA_FIELDS,
+
+        /**
+         * Support for timespan units abbreviations
+         */
+        TIMESPAN_ABBREVIATIONS,
+
+        /**
+         * Support metrics counter types
+         */
+        COUNTER_TYPES,
 
         /**
          * Support for function {@code BIT_LENGTH}. Done in #115792
@@ -84,6 +191,11 @@ public class EsqlCapabilities {
          * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
          */
         FN_SUBSTRING_EMPTY_NULL,
+
+        /**
+         * Fixes on function {@code ROUND} that avoid it throwing exceptions on runtime for unsigned long cases.
+         */
+        FN_ROUND_UL_FIXES,
 
         /**
          * All functions that take TEXT should never emit TEXT, only KEYWORD. #114334
@@ -189,6 +301,12 @@ public class EsqlCapabilities {
          */
         ST_DISTANCE,
 
+        /** Support for function {@code ST_EXTENT_AGG}. */
+        ST_EXTENT_AGG,
+
+        /** Optimization of ST_EXTENT_AGG with doc-values as IntBlock. */
+        ST_EXTENT_AGG_DOCVALUES,
+
         /**
          * Fix determination of CRS types in spatial functions when folding.
          */
@@ -213,6 +331,11 @@ public class EsqlCapabilities {
          * Fix for spatial centroid when no records are found.
          */
         SPATIAL_CENTROID_NO_RECORDS,
+
+        /**
+         * Support ST_ENVELOPE function (and related ST_XMIN, etc.).
+         */
+        ST_ENVELOPE,
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
@@ -341,19 +464,50 @@ public class EsqlCapabilities {
         DATE_NANOS_BINARY_COMPARISON(),
 
         /**
+         * Support for mixed comparisons between nanosecond and millisecond dates
+         */
+        DATE_NANOS_COMPARE_TO_MILLIS(),
+        /**
+         * Support implicit casting of strings to date nanos
+         */
+        DATE_NANOS_IMPLICIT_CASTING(),
+        /**
          * Support Least and Greatest functions on Date Nanos type
          */
         LEAST_GREATEST_FOR_DATENANOS(),
 
+        /**
+         * Support add and subtract on date nanos
+         */
+        DATE_NANOS_ADD_SUBTRACT(),
         /**
          * Support for date_trunc function on date nanos type
          */
         DATE_TRUNC_DATE_NANOS(),
 
         /**
+         * Support date nanos values as the field argument to bucket
+         */
+        DATE_NANOS_BUCKET(),
+
+        /**
          * support aggregations on date nanos
          */
         DATE_NANOS_AGGREGATIONS(),
+
+        /**
+         * Support the {@link org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In} operator for date nanos
+         */
+        DATE_NANOS_IN_OPERATOR(),
+        /**
+         * Support running date format function on nanosecond dates
+         */
+        DATE_NANOS_DATE_FORMAT(),
+
+        /**
+         * DATE_PARSE supports reading timezones
+         */
+        DATE_PARSE_TZ(),
 
         /**
          * Support for datetime in least and greatest functions
@@ -403,8 +557,12 @@ public class EsqlCapabilities {
         /**
          * Supported the text categorization function "CATEGORIZE".
          */
-        CATEGORIZE(Build.current().isSnapshot()),
+        CATEGORIZE_V5,
 
+        /**
+         * Support for multiple groupings in "CATEGORIZE".
+         */
+        CATEGORIZE_MULTIPLE_GROUPINGS,
         /**
          * QSTR function
          */
@@ -418,7 +576,16 @@ public class EsqlCapabilities {
         /**
          * KQL function
          */
-        KQL_FUNCTION(Build.current().isSnapshot()),
+        KQL_FUNCTION,
+
+        /**
+         * Hash function
+         */
+        HASH_FUNCTION,
+        /**
+         * Hash function aliases such as MD5
+         */
+        HASH_FUNCTION_ALIASES_V1,
 
         /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
@@ -521,7 +688,12 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP(Build.current().isSnapshot()),
+        JOIN_LOOKUP_V11(Build.current().isSnapshot()),
+
+        /**
+         * LOOKUP JOIN without MV matching (https://github.com/elastic/elasticsearch/issues/118780)
+         */
+        JOIN_LOOKUP_SKIP_MV(JOIN_LOOKUP_V11.isEnabled()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054
@@ -536,7 +708,42 @@ public class EsqlCapabilities {
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/114714, again
          */
-        FIX_STATS_BY_FOLDABLE_EXPRESSION_2,;
+        FIX_STATS_BY_FOLDABLE_EXPRESSION_2,
+
+        /**
+         * Support the "METADATA _score" directive to enable _score column.
+         */
+        METADATA_SCORE,
+
+        /**
+         * Term function
+         */
+        TERM_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Additional types for match function and operator
+         */
+        MATCH_ADDITIONAL_TYPES,
+
+        /**
+         * Fix for regex folding with case-insensitive pattern https://github.com/elastic/elasticsearch/issues/118371
+         */
+        FIXED_REGEX_FOLD,
+
+        /**
+         * Full text functions can be used in disjunctions
+         */
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS,
+
+        /**
+         * Change field caps response for semantic_text fields to be reported as text
+         */
+        SEMANTIC_TEXT_FIELD_CAPS,
+
+        /**
+         * Support named argument for function in map format.
+         */
+        OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

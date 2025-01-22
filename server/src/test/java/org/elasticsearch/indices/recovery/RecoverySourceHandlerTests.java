@@ -721,7 +721,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
             .settings(
-                indexSettings(IndexVersionUtils.randomVersion(random()), between(1, 5), between(0, 5)).put(
+                indexSettings(IndexVersionUtils.randomVersion(), between(1, 5), between(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     UUIDs.randomBase64UUID(random())
                 )
@@ -1686,7 +1686,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             0
         );
 
-        ByteSizeValue partSize = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
+        ByteSizeValue partSize = ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES);
 
         List<StoreFileMetadata> filesToRecoverFromSource = sourceFiles.subList(0, sourceFileCount);
         List<StoreFileMetadata> filesToRecoverFromSnapshot = sourceFiles.subList(sourceFileCount, sourceFiles.size());

@@ -16,8 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -32,8 +31,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -111,22 +110,6 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(Map.of(ServiceFields.MODEL_ID, ElserModels.ELSER_V2_MODEL), Map.of(), Map.of()),
                 modelListener
-            );
-        }
-    }
-
-    public void testParseRequestConfig_ThrowsUnsupportedModelType() throws IOException {
-        try (var service = createServiceWithMockSender()) {
-            var failureListener = getModelListenerForException(
-                ElasticsearchStatusException.class,
-                "The [elastic] service does not support task type [completion]"
-            );
-
-            service.parseRequestConfig(
-                "id",
-                TaskType.COMPLETION,
-                getRequestConfigMap(Map.of(ServiceFields.MODEL_ID, ElserModels.ELSER_V2_MODEL), Map.of(), Map.of()),
-                failureListener
             );
         }
     }
@@ -336,7 +319,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        var mockModel = getInvalidModel("model_id", "service_name");
+        var mockModel = getInvalidModel("model_id", "service_name", TaskType.SPARSE_EMBEDDING);
 
         try (
             var service = new ElasticInferenceService(
@@ -361,6 +344,98 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             MatcherAssert.assertThat(
                 thrownException.getMessage(),
                 is("The internal model was invalid, please delete the service [service_name] with id [model_id] and add it again.")
+            );
+
+            verify(factory, times(1)).createSender();
+            verify(sender, times(1)).start();
+        }
+
+        verify(sender, times(1)).close();
+        verifyNoMoreInteractions(factory);
+        verifyNoMoreInteractions(sender);
+    }
+
+    public void testInfer_ThrowsErrorWhenTaskTypeIsNotValid() throws IOException {
+        var sender = mock(Sender.class);
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var mockModel = getInvalidModel("model_id", "service_name", TaskType.TEXT_EMBEDDING);
+
+        try (
+            var service = new ElasticInferenceService(
+                factory,
+                createWithEmptySettings(threadPool),
+                new ElasticInferenceServiceComponents(null)
+            )
+        ) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(
+                mockModel,
+                null,
+                List.of(""),
+                false,
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            MatcherAssert.assertThat(
+                thrownException.getMessage(),
+                is(
+                    "Inference entity [model_id] does not support task type [text_embedding] "
+                        + "for inference, the task type must be one of [sparse_embedding]."
+                )
+            );
+
+            verify(factory, times(1)).createSender();
+            verify(sender, times(1)).start();
+        }
+
+        verify(sender, times(1)).close();
+        verifyNoMoreInteractions(factory);
+        verifyNoMoreInteractions(sender);
+    }
+
+    public void testInfer_ThrowsErrorWhenTaskTypeIsNotValid_ChatCompletion() throws IOException {
+        var sender = mock(Sender.class);
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var mockModel = getInvalidModel("model_id", "service_name", TaskType.CHAT_COMPLETION);
+
+        try (
+            var service = new ElasticInferenceService(
+                factory,
+                createWithEmptySettings(threadPool),
+                new ElasticInferenceServiceComponents(null)
+            )
+        ) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(
+                mockModel,
+                null,
+                List.of(""),
+                false,
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            MatcherAssert.assertThat(
+                thrownException.getMessage(),
+                is(
+                    "Inference entity [model_id] does not support task type [chat_completion] "
+                        + "for inference, the task type must be one of [sparse_embedding]. "
+                        + "The task type for the inference entity is chat_completion, "
+                        + "please use the _inference/chat_completion/model_id/_unified URL."
+                )
             );
 
             verify(factory, times(1)).createSender();
@@ -454,35 +529,33 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(eisGatewayUrl);
-            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
                 null,
                 List.of("input text"),
                 new HashMap<>(),
                 InputType.INGEST,
-                new ChunkingOptions(null, null),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
 
             var results = listener.actionGet(TIMEOUT);
-            MatcherAssert.assertThat(
-                results.get(0).asMap(),
-                Matchers.is(
-                    Map.of(
-                        InferenceChunkedSparseEmbeddingResults.FIELD_NAME,
-                        List.of(
-                            Map.of(
-                                ChunkedNlpInferenceResults.TEXT,
-                                "input text",
-                                ChunkedNlpInferenceResults.INFERENCE,
-                                Map.of("hello", 2.1259406f, "greet", 1.7073475f)
-                            )
+            assertThat(results.get(0), instanceOf(ChunkedInferenceEmbeddingSparse.class));
+            var sparseResult = (ChunkedInferenceEmbeddingSparse) results.get(0);
+            assertThat(
+                sparseResult.chunks(),
+                is(
+                    List.of(
+                        new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(
+                            List.of(new WeightedToken("hello", 2.1259406f), new WeightedToken("greet", 1.7073475f)),
+                            "input text",
+                            new ChunkedInference.TextOffset(0, "input text".length())
                         )
                     )
                 )
             );
+
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             MatcherAssert.assertThat(
@@ -499,55 +572,36 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         try (var service = createServiceWithMockSender()) {
             String content = XContentHelper.stripWhitespace("""
                 {
-                       "provider": "elastic",
-                       "task_types": [
-                            {
-                                "task_type": "sparse_embedding",
-                                "configuration": {}
-                            }
-                       ],
-                       "configuration": {
+                       "service": "elastic",
+                       "name": "Elastic",
+                       "task_types": ["sparse_embedding", "chat_completion"],
+                       "configurations": {
                            "rate_limit.requests_per_minute": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "numeric",
+                               "description": "Minimize the number of rate limit errors.",
                                "label": "Rate Limit",
-                               "order": 6,
                                "required": false,
                                "sensitive": false,
-                               "tooltip": "Minimize the number of rate limit errors.",
+                               "updatable": false,
                                "type": "int",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "supported_task_types": ["sparse_embedding" , "chat_completion"]
                            },
                            "model_id": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "textbox",
+                               "description": "The name of the model to use for the inference task.",
                                "label": "Model ID",
-                               "order": 2,
                                "required": true,
                                "sensitive": false,
-                               "tooltip": "The name of the model to use for the inference task.",
+                               "updatable": false,
                                "type": "str",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "supported_task_types": ["sparse_embedding" , "chat_completion"]
                            },
                            "max_input_tokens": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "numeric",
+                               "description": "Allows you to specify the maximum number of tokens per input.",
                                "label": "Maximum Input Tokens",
-                               "order": 3,
                                "required": false,
                                "sensitive": false,
-                               "tooltip": "Allows you to specify the maximum number of tokens per input.",
+                               "updatable": false,
                                "type": "int",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "supported_task_types": ["sparse_embedding"]
                            }
                        }
                    }

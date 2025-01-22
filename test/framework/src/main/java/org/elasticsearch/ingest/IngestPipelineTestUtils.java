@@ -14,11 +14,13 @@ import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
@@ -123,5 +125,19 @@ public class IngestPipelineTestUtils {
                 )
             );
         }
+    }
+
+    /**
+     * Construct a new {@link SimulatePipelineRequest} whose content is the given JSON document, represented as a {@link String}.
+     */
+    public static SimulatePipelineRequest jsonSimulatePipelineRequest(String jsonString) {
+        return jsonSimulatePipelineRequest(new BytesArray(jsonString));
+    }
+
+    /**
+     * Construct a new {@link SimulatePipelineRequest} whose content is the given JSON document, represented as a {@link BytesReference}.
+     */
+    public static SimulatePipelineRequest jsonSimulatePipelineRequest(BytesReference jsonBytes) {
+        return new SimulatePipelineRequest(ReleasableBytesReference.wrap(jsonBytes), XContentType.JSON);
     }
 }

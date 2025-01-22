@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InferenceService;
@@ -35,12 +34,15 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
@@ -58,6 +60,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveTaskType;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
 
@@ -67,6 +70,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateInferenceModelAction.class);
 
+    private final XPackLicenseState licenseState;
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
     private final Client client;
@@ -78,10 +82,10 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        XPackLicenseState licenseState,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
-        Client client,
-        Settings settings
+        Client client
     ) {
         super(
             UpdateInferenceModelAction.NAME,
@@ -90,10 +94,10 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             threadPool,
             actionFilters,
             UpdateInferenceModelAction.Request::new,
-            indexNameExpressionResolver,
             UpdateInferenceModelAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.licenseState = licenseState;
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
         this.client = client;
@@ -106,6 +110,11 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         ClusterState state,
         ActionListener<UpdateInferenceModelAction.Response> masterListener
     ) {
+        if (INFERENCE_API_FEATURE.check(licenseState) == false) {
+            masterListener.onFailure(LicenseUtils.newComplianceException(XPackField.INFERENCE));
+            return;
+        }
+
         var bodyTaskType = request.getContentAsSettings().taskType();
         var resolvedTaskType = resolveTaskType(request.getTaskType(), bodyTaskType != null ? bodyTaskType.toString() : null);
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,11 +37,13 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.transform.TransformConfigAutoMigration;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.AuthorizationStatePersistenceUtils;
@@ -55,10 +59,12 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     private static final Logger logger = LogManager.getLogger(TransportPutTransformAction.class);
 
     private final Settings settings;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Client client;
     private final TransformConfigManager transformConfigManager;
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
+    private final TransformConfigAutoMigration transformConfigAutoMigration;
 
     @Inject
     public TransportPutTransformAction(
@@ -69,7 +75,8 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
         TransformServices transformServices,
-        Client client
+        Client client,
+        TransformConfigAutoMigration transformConfigAutoMigration
     ) {
         super(
             PutTransformAction.NAME,
@@ -78,21 +85,32 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             threadPool,
             actionFilters,
             PutTransformAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.settings = settings;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
         this.transformConfigManager = transformServices.configManager();
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.auditor = transformServices.auditor();
+        this.transformConfigAutoMigration = transformConfigAutoMigration;
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
+
+        if (TransformMetadata.upgradeMode(clusterState)) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Cannot create new Transform while the Transform feature is upgrading.",
+                    RestStatus.CONFLICT
+                )
+            );
+            return;
+        }
 
         TransformConfig config = request.getConfig().setCreateTime(Instant.now()).setVersion(TransformConfigVersion.CURRENT);
         config.setHeaders(getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterState));
@@ -169,7 +187,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     }
 
     private void putTransform(Request request, ActionListener<AcknowledgedResponse> listener) {
-        var config = request.getConfig();
+        var config = transformConfigAutoMigration.migrate(request.getConfig());
         transformConfigManager.putTransformConfiguration(config, listener.delegateFailureAndWrap((l, unused) -> {
             var transformId = config.getId();
             logger.info("[{}] created transform", transformId);

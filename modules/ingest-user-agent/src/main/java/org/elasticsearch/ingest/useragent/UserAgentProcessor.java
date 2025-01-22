@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.useragent;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.ingest.AbstractProcessor;
@@ -95,19 +96,8 @@ public class UserAgentProcessor extends AbstractProcessor {
                     }
                     break;
                 case VERSION:
-                    StringBuilder version = new StringBuilder();
                     if (uaClient.userAgent() != null && uaClient.userAgent().major() != null) {
-                        version.append(uaClient.userAgent().major());
-                        if (uaClient.userAgent().minor() != null) {
-                            version.append(".").append(uaClient.userAgent().minor());
-                            if (uaClient.userAgent().patch() != null) {
-                                version.append(".").append(uaClient.userAgent().patch());
-                                if (uaClient.userAgent().build() != null) {
-                                    version.append(".").append(uaClient.userAgent().build());
-                                }
-                            }
-                        }
-                        uaDetails.put("version", version.toString());
+                        uaDetails.put("version", versionToString(uaClient.userAgent()));
                     }
                     break;
                 case OS:
@@ -115,20 +105,10 @@ public class UserAgentProcessor extends AbstractProcessor {
                         Map<String, String> osDetails = Maps.newMapWithExpectedSize(3);
                         if (uaClient.operatingSystem().name() != null) {
                             osDetails.put("name", uaClient.operatingSystem().name());
-                            StringBuilder sb = new StringBuilder();
                             if (uaClient.operatingSystem().major() != null) {
-                                sb.append(uaClient.operatingSystem().major());
-                                if (uaClient.operatingSystem().minor() != null) {
-                                    sb.append(".").append(uaClient.operatingSystem().minor());
-                                    if (uaClient.operatingSystem().patch() != null) {
-                                        sb.append(".").append(uaClient.operatingSystem().patch());
-                                        if (uaClient.operatingSystem().build() != null) {
-                                            sb.append(".").append(uaClient.operatingSystem().build());
-                                        }
-                                    }
-                                }
-                                osDetails.put("version", sb.toString());
-                                osDetails.put("full", uaClient.operatingSystem().name() + " " + sb.toString());
+                                String version = versionToString(uaClient.operatingSystem());
+                                osDetails.put("version", version);
+                                osDetails.put("full", uaClient.operatingSystem().name() + " " + version);
                             }
                             uaDetails.put("os", osDetails);
                         }
@@ -158,6 +138,23 @@ public class UserAgentProcessor extends AbstractProcessor {
 
         ingestDocument.setFieldValue(targetField, uaDetails);
         return ingestDocument;
+    }
+
+    private static String versionToString(final UserAgentParser.VersionedName version) {
+        final StringBuilder versionString = new StringBuilder();
+        if (Strings.hasLength(version.major())) {
+            versionString.append(version.major());
+            if (Strings.hasLength(version.minor())) {
+                versionString.append(".").append(version.minor());
+                if (Strings.hasLength(version.patch())) {
+                    versionString.append(".").append(version.patch());
+                    if (Strings.hasLength(version.build())) {
+                        versionString.append(".").append(version.build());
+                    }
+                }
+            }
+        }
+        return versionString.toString();
     }
 
     @Override

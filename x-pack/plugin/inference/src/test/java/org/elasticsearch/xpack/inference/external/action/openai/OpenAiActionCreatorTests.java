@@ -21,6 +21,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -43,7 +44,7 @@ import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUt
 import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createChatCompletionModel;
+import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createCompletionModel;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionRequestTaskSettingsTests.getChatCompletionRequestTaskSettingsMap;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests.createModel;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsRequestTaskSettingsTests.createRequestTaskSettingsMap;
@@ -324,13 +325,13 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = createChatCompletionModel(getUrl(webServer), "org", "secret", "model", "user");
+            var model = createCompletionModel(getUrl(webServer), "org", "secret", "model", "user");
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = getChatCompletionRequestTaskSettingsMap("overridden_user");
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -345,11 +346,12 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             assertThat(request.getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(4));
+            assertThat(requestMap.size(), is(5));
             assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("user"), is("overridden_user"));
             assertThat(requestMap.get("n"), is(1));
+            assertThat(requestMap.get("stream"), is(false));
         }
     }
 
@@ -387,13 +389,13 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = createChatCompletionModel(getUrl(webServer), "org", "secret", "model", null);
+            var model = createCompletionModel(getUrl(webServer), "org", "secret", "model", null);
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = getChatCompletionRequestTaskSettingsMap(null);
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -408,10 +410,11 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             assertThat(request.getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.size(), is(4));
             assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("n"), is(1));
+            assertThat(requestMap.get("stream"), is(false));
         }
     }
 
@@ -449,13 +452,13 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = createChatCompletionModel(getUrl(webServer), null, "secret", "model", null);
+            var model = createCompletionModel(getUrl(webServer), null, "secret", "model", null);
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = getChatCompletionRequestTaskSettingsMap("overridden_user");
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -470,11 +473,12 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             assertNull(request.getHeader(ORGANIZATION_HEADER));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(4));
+            assertThat(requestMap.size(), is(5));
             assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("user"), is("overridden_user"));
             assertThat(requestMap.get("n"), is(1));
+            assertThat(requestMap.get("stream"), is(false));
         }
     }
 
@@ -517,13 +521,13 @@ public class OpenAiActionCreatorTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = createChatCompletionModel(getUrl(webServer), null, "secret", "model", null);
+            var model = createCompletionModel(getUrl(webServer), null, "secret", "model", null);
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = getChatCompletionRequestTaskSettingsMap("overridden_user");
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -542,11 +546,12 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             assertNull(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(4));
+            assertThat(requestMap.size(), is(5));
             assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("user"), is("overridden_user"));
             assertThat(requestMap.get("n"), is(1));
+            assertThat(requestMap.get("stream"), is(false));
         }
     }
 

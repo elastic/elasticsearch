@@ -199,12 +199,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {categorize.Categorize ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/116373
-- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
-  method: testPutE5WithTrainedModelAndInference
-  issue: https://github.com/elastic/elasticsearch/issues/114023
-- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
-  method: testPutE5Small_withPlatformAgnosticVariant
-  issue: https://github.com/elastic/elasticsearch/issues/113983
 - class: org.elasticsearch.datastreams.LazyRolloverDuringDisruptionIT
   method: testRolloverIsExecutedOnce
   issue: https://github.com/elastic/elasticsearch/issues/112634
@@ -214,9 +208,6 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
   issue: https://github.com/elastic/elasticsearch/issues/112731
-- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
-  method: testPutE5Small_withPlatformSpecificVariant
-  issue: https://github.com/elastic/elasticsearch/issues/113950
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/rest-api/usage/line_38}
   issue: https://github.com/elastic/elasticsearch/issues/113694
@@ -226,9 +217,6 @@ tests:
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
   method: testProcessFileChanges
   issue: https://github.com/elastic/elasticsearch/issues/115280
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testInferDeploysDefaultE5
-  issue: https://github.com/elastic/elasticsearch/issues/115361
 - class: org.elasticsearch.xpack.inference.InferenceCrudIT
   method: testSupportedStream
   issue: https://github.com/elastic/elasticsearch/issues/113430
@@ -285,9 +273,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/61_enrich_ip/IP strings}
   issue: https://github.com/elastic/elasticsearch/issues/116529
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testInferDeploysDefaultElser
-  issue: https://github.com/elastic/elasticsearch/issues/114913
 - class: org.elasticsearch.threadpool.SimpleThreadPoolIT
   method: testThreadPoolMetrics
   issue: https://github.com/elastic/elasticsearch/issues/108320
@@ -336,9 +321,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   method: testRetryPointInTime
   issue: https://github.com/elastic/elasticsearch/issues/117116
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testMultipleInferencesTriggeringDownloadAndDeploy
-  issue: https://github.com/elastic/elasticsearch/issues/117208
 - class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
   method: testGeoPointGeoTile
   issue: https://github.com/elastic/elasticsearch/issues/115818

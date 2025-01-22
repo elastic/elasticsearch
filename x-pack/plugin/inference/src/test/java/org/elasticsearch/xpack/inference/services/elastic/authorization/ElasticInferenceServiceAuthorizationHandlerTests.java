@@ -92,7 +92,7 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
                 is(
                     "Failed to retrieve the authorization information from the Elastic Inference Service."
                         + " Encountered an exception: org.elasticsearch.xcontent.XContentParseException: [4:28] "
-                        + "[ElasticInferenceServiceAuthResponseEntity] failed to parse field [models]"
+                        + "[ElasticInferenceServiceAuthorizationResponseEntity] failed to parse field [models]"
                 )
             );
         }
@@ -118,8 +118,8 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
                 {
                     "models": [
                         {
-                          "model-name": "model-a",
-                          "task-types": ["embedding/text/sparse", "chat/completion"]
+                          "model_name": "model-a",
+                          "task_types": ["embedding/text/sparse", "chat/completion"]
                         }
                     ]
                 }

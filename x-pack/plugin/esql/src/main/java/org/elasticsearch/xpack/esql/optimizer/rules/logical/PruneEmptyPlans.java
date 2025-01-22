@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -30,7 +29,7 @@ public final class PruneEmptyPlans extends OptimizerRules.OptimizerRule<UnaryPla
             if (plan.anyMatch(intermediary -> intermediary.output().isEmpty())) {
                 return plan.transformUp(LogicalPlan.class, p -> {
                     if (p instanceof EsRelation es && es.indexMode() != IndexMode.LOOKUP) {// a lookup should return all fields
-                        return new EsRelation(es.source(), es.index(), NO_FIELDS, es.indexMode());
+                        return new EsRelation(es.source(), es.indexPattern(), es.indexMode(), es.indexNameWithModes(), NO_FIELDS);
                     } else if (p instanceof UnaryPlan up && up.output().isEmpty()) {
                         return up.child();
                     } else {

@@ -256,6 +256,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {lookup-join.NonUniqueRightKeyOnTheCoordinator SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/120603
+- class: org.elasticsearch.index.reindex.BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests
+  method: testReindex
+  issue: https://github.com/elastic/elasticsearch/issues/120605
 
 # Examples:
 #

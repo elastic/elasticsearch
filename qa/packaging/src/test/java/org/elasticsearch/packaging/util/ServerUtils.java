@@ -64,7 +64,7 @@ public class ServerUtils {
 
     // generous timeout as nested virtualization can be quite slow ...
     private static final long waitTime = TimeUnit.MINUTES.toMillis(3);
-    private static final long timeoutLength = TimeUnit.SECONDS.toMillis(30);
+    private static final long timeoutLength = TimeUnit.SECONDS.toMillis(45);
     private static final long requestInterval = TimeUnit.SECONDS.toMillis(5);
     private static final long dockerWaitForSecurityIndex = TimeUnit.SECONDS.toMillis(60);
 

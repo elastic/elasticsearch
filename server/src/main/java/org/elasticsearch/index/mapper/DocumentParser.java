@@ -452,7 +452,7 @@ public final class DocumentParser {
                 parseObjectOrNested(context.createFlattenContext(currentFieldName));
                 context.path().add(currentFieldName);
             } else {
-                var sourceKeepMode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
+                var sourceKeepMode = fieldMapper.sourceKeepMode();
                 if (context.canAddIgnoredField()
                     && (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
                         || sourceKeepMode == Mapper.SourceKeepMode.ALL
@@ -700,7 +700,7 @@ public final class DocumentParser {
             boolean fieldWithFallbackSyntheticSource = false;
             boolean fieldWithStoredArraySource = false;
             if (mapper instanceof FieldMapper fieldMapper) {
-                mode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
+                mode = fieldMapper.sourceKeepMode();
                 fieldWithFallbackSyntheticSource = fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
                 fieldWithStoredArraySource = mode != Mapper.SourceKeepMode.NONE;
             }

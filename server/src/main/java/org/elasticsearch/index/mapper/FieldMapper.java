@@ -86,14 +86,15 @@ public abstract class FieldMapper extends Mapper {
     /**
      * @param multiFields       sub fields of this mapper
      * @param copyTo            copyTo fields of this mapper
-     * @param sourceKeepMode   mode for storing the field source in synthetic source mode
+     * @param sourceKeepMode    mode for storing the field source in synthetic source mode
      * @param hasScript         whether a script is defined for the field
      * @param onScriptError     the behaviour for when the defined script fails at runtime
      */
     protected record BuilderParams(
         MultiFields multiFields,
         CopyTo copyTo,
-        Optional<SourceKeepMode> sourceKeepMode,
+        SourceKeepMode sourceKeepMode,
+        Optional<SourceKeepMode> localSourceKeepMode,
         boolean hasScript,
         OnScriptError onScriptError
     ) {
@@ -101,7 +102,14 @@ public abstract class FieldMapper extends Mapper {
             return empty;
         }
 
-        private static final BuilderParams empty = new BuilderParams(MultiFields.empty(), CopyTo.empty(), Optional.empty(), false, null);
+        private static final BuilderParams empty = new BuilderParams(
+            MultiFields.empty(),
+            CopyTo.empty(),
+            SourceKeepMode.NONE,
+            Optional.empty(),
+            false,
+            null
+        );
     }
 
     protected final MappedFieldType mappedFieldType;
@@ -146,8 +154,12 @@ public abstract class FieldMapper extends Mapper {
         return builderParams.multiFields;
     }
 
-    public Optional<SourceKeepMode> sourceKeepMode() {
+    public SourceKeepMode sourceKeepMode() {
         return builderParams.sourceKeepMode;
+    }
+
+    public Optional<SourceKeepMode> localSourceKeepMode() {
+        return builderParams.localSourceKeepMode;
     }
 
     /**
@@ -434,8 +446,8 @@ public abstract class FieldMapper extends Mapper {
         getMergeBuilder().toXContent(builder, params);
         builderParams.multiFields.toXContent(builder, params);
         builderParams.copyTo.toXContent(builder);
-        if (builderParams.sourceKeepMode.isPresent()) {
-            builderParams.sourceKeepMode.get().toXContent(builder);
+        if (builderParams.localSourceKeepMode.isPresent()) {
+            builderParams.localSourceKeepMode.get().toXContent(builder);
         }
     }
 
@@ -1387,7 +1399,14 @@ public abstract class FieldMapper extends Mapper {
         }
 
         protected BuilderParams builderParams(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
-            return new BuilderParams(multiFieldsBuilder.build(mainFieldBuilder, context), copyTo, sourceKeepMode, hasScript, onScriptError);
+            return new BuilderParams(
+                multiFieldsBuilder.build(mainFieldBuilder, context),
+                copyTo,
+                sourceKeepMode.orElseGet(context::sourceKeepMode),
+                sourceKeepMode,
+                hasScript,
+                onScriptError
+            );
         }
 
         protected void merge(FieldMapper in, Conflicts conflicts, MapperMergeContext mapperMergeContext) {
@@ -1399,7 +1418,7 @@ public abstract class FieldMapper extends Mapper {
                 multiFieldsBuilder.update(newSubField, childContext);
             }
             this.copyTo = in.builderParams.copyTo;
-            this.sourceKeepMode = in.builderParams.sourceKeepMode;
+            this.sourceKeepMode = in.builderParams.localSourceKeepMode;
             validate();
         }
 

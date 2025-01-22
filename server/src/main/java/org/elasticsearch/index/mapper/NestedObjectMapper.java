@@ -113,14 +113,16 @@ public class NestedObjectMapper extends ObjectMapper {
             }
             final Query nestedTypeFilter = NestedPathFieldMapper.filter(indexCreatedVersion, nestedTypePath);
             NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(
-                context.buildFullName(leafName()),
-                context.isSourceSynthetic(),
-                context.isDataStream(),
-                context.parentObjectContainsDimensions(),
+                new MapperBuilderContext.MapperBuilderContextParams(
+                    context.buildFullName(leafName()),
+                    context.isSourceSynthetic(),
+                    context.isDataStream(),
+                    context.parentObjectContainsDimensions(),
+                    context.getDynamic(dynamic),
+                    context.getMergeReason()
+                ),
                 nestedTypeFilter,
-                parentIncludedInRoot,
-                context.getDynamic(dynamic),
-                context.getMergeReason()
+                parentIncludedInRoot
             );
             return new NestedObjectMapper(
                 leafName(),
@@ -179,32 +181,26 @@ public class NestedObjectMapper extends ObjectMapper {
         final Query nestedTypeFilter;
 
         NestedMapperBuilderContext(
-            String path,
-            boolean isSourceSynthetic,
-            boolean isDataStream,
-            boolean parentObjectContainsDimensions,
+            MapperBuilderContextParams mapperBuilderContextParams,
             Query nestedTypeFilter,
-            boolean parentIncludedInRoot,
-            Dynamic dynamic,
-            MapperService.MergeReason mergeReason
+            boolean parentIncludedInRoot
         ) {
-            super(path, isSourceSynthetic, isDataStream, parentObjectContainsDimensions, dynamic, mergeReason, true);
+            super(mapperBuilderContextParams, true);
             this.parentIncludedInRoot = parentIncludedInRoot;
             this.nestedTypeFilter = nestedTypeFilter;
         }
 
         @Override
         public MapperBuilderContext createChildContext(String name, Dynamic dynamic) {
-            return new NestedMapperBuilderContext(
+            var params = new MapperBuilderContextParams(
                 buildFullName(name),
                 isSourceSynthetic(),
                 isDataStream(),
                 parentObjectContainsDimensions(),
-                nestedTypeFilter,
-                parentIncludedInRoot,
                 getDynamic(dynamic),
                 getMergeReason()
             );
+            return new NestedMapperBuilderContext(params, nestedTypeFilter, parentIncludedInRoot);
         }
     }
 
@@ -396,14 +392,16 @@ public class NestedObjectMapper extends ObjectMapper {
         }
         return mapperMergeContext.createChildContext(
             new NestedMapperBuilderContext(
-                mapperBuilderContext.buildFullName(name),
-                mapperBuilderContext.isSourceSynthetic(),
-                mapperBuilderContext.isDataStream(),
-                mapperBuilderContext.parentObjectContainsDimensions(),
+                new MapperBuilderContext.MapperBuilderContextParams(
+                    mapperBuilderContext.buildFullName(name),
+                    mapperBuilderContext.isSourceSynthetic(),
+                    mapperBuilderContext.isDataStream(),
+                    mapperBuilderContext.parentObjectContainsDimensions(),
+                    mapperBuilderContext.getDynamic(dynamic),
+                    mapperBuilderContext.getMergeReason()
+                ),
                 nestedTypeFilter,
-                parentIncludedInRoot,
-                mapperBuilderContext.getDynamic(dynamic),
-                mapperBuilderContext.getMergeReason()
+                parentIncludedInRoot
             )
         );
     }

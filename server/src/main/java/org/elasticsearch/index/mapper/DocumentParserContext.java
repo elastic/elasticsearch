@@ -781,15 +781,16 @@ public abstract class DocumentParserContext {
         if (objectMapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
             containsDimensions = passThroughObjectMapper.containsDimensions();
         }
-        return new MapperBuilderContext(
+
+        var contextParams = new MapperBuilderContext.MapperBuilderContextParams(
             p,
             mappingLookup.isSourceSynthetic(),
             mappingLookup.isDataStreamTimestampFieldEnabled(),
             containsDimensions,
             dynamic,
-            MergeReason.MAPPING_UPDATE,
-            false
+            MergeReason.MAPPING_UPDATE
         );
+        return new MapperBuilderContext(contextParams, false);
     }
 
     public abstract XContentParser parser();

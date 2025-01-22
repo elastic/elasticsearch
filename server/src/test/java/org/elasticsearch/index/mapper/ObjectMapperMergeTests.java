@@ -365,12 +365,14 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         KeywordFieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", IndexVersion.current());
         KeywordFieldMapper fieldMapper = fieldBuilder.build(
             new MapperBuilderContext(
-                "foo.metrics",
-                false,
-                false,
-                false,
-                ObjectMapper.Defaults.DYNAMIC,
-                MapperService.MergeReason.MAPPING_UPDATE,
+                new MapperBuilderContext.MapperBuilderContextParams(
+                    "foo.metrics",
+                    false,
+                    false,
+                    false,
+                    ObjectMapper.Defaults.DYNAMIC,
+                    MapperService.MergeReason.MAPPING_UPDATE
+                ),
                 false
             )
         );
@@ -385,12 +387,14 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         TextFieldMapper.Builder fieldBuilder = createTextKeywordMultiField("host.name");
         TextFieldMapper textKeywordMultiField = fieldBuilder.build(
             new MapperBuilderContext(
-                "foo.metrics",
-                false,
-                false,
-                false,
-                ObjectMapper.Defaults.DYNAMIC,
-                MapperService.MergeReason.MAPPING_UPDATE,
+                new MapperBuilderContext.MapperBuilderContextParams(
+                    "foo.metrics",
+                    false,
+                    false,
+                    false,
+                    ObjectMapper.Defaults.DYNAMIC,
+                    MapperService.MergeReason.MAPPING_UPDATE
+                ),
                 false
             )
         );

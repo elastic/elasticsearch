@@ -28,7 +28,15 @@ public class MapperBuilderContext {
     }
 
     public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream, MergeReason mergeReason) {
-        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream, false, ObjectMapper.Defaults.DYNAMIC, mergeReason, false);
+        var params = new MapperBuilderContextParams(
+            null,
+            isSourceSynthetic,
+            isDataStream,
+            false,
+            ObjectMapper.Defaults.DYNAMIC,
+            mergeReason
+        );
+        return new MapperBuilderContext(params, false);
     }
 
     private final String path;
@@ -39,22 +47,35 @@ public class MapperBuilderContext {
     private final MergeReason mergeReason;
     private final boolean inNestedContext;
 
-    MapperBuilderContext(
+    /**
+     * @param path the full name of the field, taking into account parent objects
+     * @param isSourceSynthetic is the {@code _source} field being reconstructed on the fly?
+     * @param isDataStream are these mappings being built for a data stream index?
+     * @param parentObjectContainsDimensions are these field mappings being built dimensions?
+     * @param dynamic strategy for handling dynamic mappings in this context
+     * @param mergeReason the merge reason to use when merging mappers while building the mapper
+     */
+    public record MapperBuilderContextParams(
         String path,
         boolean isSourceSynthetic,
         boolean isDataStream,
         boolean parentObjectContainsDimensions,
         ObjectMapper.Dynamic dynamic,
-        MergeReason mergeReason,
-        boolean inNestedContext
+        MergeReason mergeReason
     ) {
-        Objects.requireNonNull(dynamic, "dynamic must not be null");
-        this.path = path;
-        this.isSourceSynthetic = isSourceSynthetic;
-        this.isDataStream = isDataStream;
-        this.parentObjectContainsDimensions = parentObjectContainsDimensions;
-        this.dynamic = dynamic;
-        this.mergeReason = mergeReason;
+        public MapperBuilderContextParams {
+            Objects.requireNonNull(dynamic, "dynamic must not be null");
+        }
+    }
+
+    MapperBuilderContext(MapperBuilderContextParams params, boolean inNestedContext) {
+        Objects.requireNonNull(params, "params must not be null");
+        this.path = params.path;
+        this.isSourceSynthetic = params.isSourceSynthetic;
+        this.isDataStream = params.isDataStream;
+        this.parentObjectContainsDimensions = params.parentObjectContainsDimensions;
+        this.dynamic = params.dynamic;
+        this.mergeReason = params.mergeReason;
         this.inNestedContext = inNestedContext;
     }
 
@@ -82,15 +103,16 @@ public class MapperBuilderContext {
         boolean parentObjectContainsDimensions,
         @Nullable ObjectMapper.Dynamic dynamic
     ) {
-        return new MapperBuilderContext(
+        var params = new MapperBuilderContextParams(
             buildFullName(name),
             this.isSourceSynthetic,
             this.isDataStream,
             parentObjectContainsDimensions,
             getDynamic(dynamic),
-            this.mergeReason,
-            isInNestedContext()
+            this.mergeReason
         );
+
+        return new MapperBuilderContext(params, isInNestedContext());
     }
 
     protected ObjectMapper.Dynamic getDynamic(@Nullable ObjectMapper.Dynamic dynamic) {

@@ -1919,15 +1919,18 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testIsInNestedContext() {
-        NestedObjectMapper.NestedMapperBuilderContext context = new NestedObjectMapper.NestedMapperBuilderContext(
+        var mapperBuilderParams = new MapperBuilderContext.MapperBuilderContextParams(
             "nested_path",
             false,
             false,
             false,
-            null,
-            false,
             Dynamic.FALSE,
             MergeReason.INDEX_TEMPLATE
+        );
+        NestedObjectMapper.NestedMapperBuilderContext context = new NestedObjectMapper.NestedMapperBuilderContext(
+            mapperBuilderParams,
+            null,
+            false
         );
         assertTrue(context.isInNestedContext());
 

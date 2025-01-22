@@ -189,9 +189,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/118914
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryRunAsIT
   issue: https://github.com/elastic/elasticsearch/issues/115727
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/search/search-your-data/retrievers-examples/line_98}
-  issue: https://github.com/elastic/elasticsearch/issues/119155
 - class: org.elasticsearch.xpack.esql.action.EsqlNodeFailureIT
   method: testFailureLoadingFields
   issue: https://github.com/elastic/elasticsearch/issues/118000
@@ -254,6 +251,16 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120482
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/120497
+- class: org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeToCharProcessorTests
+  issue: https://github.com/elastic/elasticsearch/issues/120575
+- class: org.elasticsearch.discovery.ec2.DiscoveryEc2KeystoreCredentialsIT
+  issue: https://github.com/elastic/elasticsearch/issues/120576
+- class: org.elasticsearch.discovery.ec2.DiscoveryEc2KeystoreSessionCredentialsIT
+  issue: https://github.com/elastic/elasticsearch/issues/120577
+- class: org.elasticsearch.discovery.ec2.DiscoveryEc2SystemPropertyCredentialsIT
+  issue: https://github.com/elastic/elasticsearch/issues/120578
+- class: org.elasticsearch.discovery.ec2.DiscoveryEc2EnvironmentVariableCredentialsIT
+  issue: https://github.com/elastic/elasticsearch/issues/120579
 
 # Examples:
 #

@@ -19,7 +19,6 @@ import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfig;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
@@ -90,10 +89,7 @@ public class MlModelServer implements TestRule {
 
         // If a model specifically optimized for some platform is requested,
         // serve the default non-optimized model instead, which is compatible.
-        String defaultModelId = modelId;
-        for (String platform : XPackSettings.ML_NATIVE_CODE_PLATFORMS) {
-            defaultModelId = defaultModelId.replace("_" + platform, "");
-        }
+        String defaultModelId = modelId.replace("_linux-x86_64", "");
 
         ClassLoader classloader = Thread.currentThread().getContextClassLoader();
         InputStream is = classloader.getResourceAsStream(defaultModelId + "." + extension);

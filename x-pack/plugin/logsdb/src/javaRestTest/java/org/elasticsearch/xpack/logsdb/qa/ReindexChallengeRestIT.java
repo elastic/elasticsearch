@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.logsdb.qa;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -19,9 +20,32 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class ReindexChallengeRestIT extends StandardVersusLogsIndexModeRandomDataChallengeRestIT {
+
     @Override
-    public Map<String, Object> indexContenderDocuments(CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier)
+    public void indexDocuments(
+        final CheckedSupplier<List<XContentBuilder>, IOException> baselineSupplier,
+        final CheckedSupplier<List<XContentBuilder>, IOException> contencontenderSupplierderSupplier
+    ) throws IOException {
+        indexBaselineDocuments(baselineSupplier);
+        indexContenderDocuments();
+    }
+
+    private Map<String, Object> indexBaselineDocuments(final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier)
         throws IOException {
+        final StringBuilder sb = new StringBuilder();
+        int id = 0;
+        for (var document : documentsSupplier.get()) {
+            sb.append(Strings.format("{ \"create\": { \"_id\" : \"%d\" } }\n", id));
+            sb.append(Strings.toString(document)).append("\n");
+            id++;
+        }
+        var request = new Request("POST", "/" + getBaselineDataStreamName() + "/_bulk");
+        request.setJsonEntity(sb.toString());
+        request.addParameter("refresh", "true");
+        return performBulkRequest(request, true);
+    }
+
+    private Map<String, Object> indexContenderDocuments() throws IOException {
         var reindexRequest = new Request("POST", "/_reindex?refresh=true");
         reindexRequest.setJsonEntity(String.format(Locale.ROOT, """
             {
@@ -41,14 +65,5 @@ public abstract class ReindexChallengeRestIT extends StandardVersusLogsIndexMode
         assertThat("encountered failures when performing reindex:\n " + body, body.get("failures"), equalTo(List.of()));
 
         return body;
-    }
-
-    @Override
-    public void indexDocuments(
-        final CheckedSupplier<List<XContentBuilder>, IOException> baselineSupplier,
-        final CheckedSupplier<List<XContentBuilder>, IOException> contenderSupplier
-    ) throws IOException {
-        indexBaselineDocuments(baselineSupplier, null);
-        indexContenderDocuments(contenderSupplier);
     }
 }

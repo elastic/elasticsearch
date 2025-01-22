@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb.qa;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
@@ -17,11 +18,13 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
+
 /**
  * Challenge test (see {@link StandardVersusLogsIndexModeChallengeRestIT}) that uses randomly generated
  * mapping and documents in order to cover more code paths and permutations.
  */
-public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends StandardVersusLogsIndexModeChallengeRestIT {
+public abstract class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends StandardVersusLogsIndexModeChallengeRestIT {
     protected final DataGenerationHelper dataGenerationHelper;
 
     public StandardVersusLogsIndexModeRandomDataChallengeRestIT() {
@@ -57,5 +60,17 @@ public class StandardVersusLogsIndexModeRandomDataChallengeRestIT extends Standa
             Map.of("@timestamp", DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(timestamp))
         );
         return document;
+    }
+
+    protected final Map<String, Object> performBulkRequest(Request bulkRequest, boolean isBaseline) throws IOException {
+        var response = client.performRequest(bulkRequest);
+        assertOK(response);
+        var responseBody = entityAsMap(response);
+        assertThat(
+            "errors in " + (isBaseline ? "baseline" : "contender") + " bulk response:\n " + responseBody,
+            responseBody.get("errors"),
+            equalTo(false)
+        );
+        return responseBody;
     }
 }

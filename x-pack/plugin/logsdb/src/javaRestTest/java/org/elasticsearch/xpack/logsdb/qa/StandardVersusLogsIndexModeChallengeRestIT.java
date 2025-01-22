@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.greaterThan;
  * Then we verify that results of common operations are the same modulo knows differences like synthetic source modifications.
  * This test uses simple mapping and document structure in order to allow easier debugging of the test itself.
  */
-public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChallengeRestTest {
+public abstract class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChallengeRestTest {
     private final int numShards = randomBoolean() ? randomIntBetween(2, 4) : 0;
     private final int numReplicas = randomBoolean() ? randomIntBetween(1, 3) : 0;
     private final boolean fullyDynamicMapping = randomBoolean();
@@ -174,7 +174,6 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         waitForLogs(client());
     }
 
-    @Override
     public boolean autoGenerateId() {
         return routeOnSortFields;
     }

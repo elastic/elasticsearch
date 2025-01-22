@@ -27,10 +27,7 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractChallengeRestTest extends ESRestTestCase {
     private final String baselineDataStreamName;
@@ -229,70 +226,10 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
 
     public void commonSettings(Settings.Builder builder) {}
 
-    public boolean autoGenerateId() {
-        return false;
-    }
-
-    public Map<String, Object> indexContenderDocuments(final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier)
-        throws IOException {
-        final StringBuilder sb = new StringBuilder();
-        int id = 0;
-        for (var document : documentsSupplier.get()) {
-            if (autoGenerateId()) {
-                sb.append("{ \"create\": { } }\n");
-            } else {
-                sb.append(Strings.format("{ \"create\": { \"_id\" : \"%d\" } }\n", id));
-            }
-            sb.append(Strings.toString(document)).append("\n");
-            id++;
-        }
-        var request = new Request("POST", "/" + getContenderDataStreamName() + "/_bulk");
-        request.setJsonEntity(sb.toString());
-        request.addParameter("refresh", "true");
-        var response = client.performRequest(request);
-        assertOK(response);
-        var responseBody = entityAsMap(response);
-        assertThat("errors in contender bulk response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
-        return responseBody;
-    }
-
-    @SuppressWarnings("unchecked")
-    public Map<String, Object> indexBaselineDocuments(
-        final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier,
-        final Map<String, Object> contenderResponseEntity
-    ) throws IOException {
-        final StringBuilder sb = new StringBuilder();
-        int id = 0;
-        final List<Map<String, Object>> items = contenderResponseEntity != null
-            ? (List<Map<String, Object>>) contenderResponseEntity.get("items")
-            : List.of();
-        for (var document : documentsSupplier.get()) {
-            if (autoGenerateId() && items.isEmpty() == false) {
-                var contenderId = ((Map<String, Object>) items.get(id).get("create")).get("_id");
-                sb.append(Strings.format("{ \"create\": { \"_id\" : \"%s\" } }\n", contenderId));
-            } else {
-                sb.append(Strings.format("{ \"create\": { \"_id\" : \"%d\" } }\n", id));
-            }
-            sb.append(Strings.toString(document)).append("\n");
-            id++;
-        }
-        var request = new Request("POST", "/" + getBaselineDataStreamName() + "/_bulk");
-        request.setJsonEntity(sb.toString());
-        request.addParameter("refresh", "true");
-        var response = client.performRequest(request);
-        assertOK(response);
-        var responseBody = entityAsMap(response);
-        assertThat("errors in baseline bulk response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
-        return responseBody;
-    }
-
-    public void indexDocuments(
-        final CheckedSupplier<List<XContentBuilder>, IOException> baselineSupplier,
-        final CheckedSupplier<List<XContentBuilder>, IOException> contenderSupplier
-    ) throws IOException {
-        var contenderResponseEntity = indexContenderDocuments(contenderSupplier);
-        indexBaselineDocuments(baselineSupplier, contenderResponseEntity);
-    }
+    public abstract void indexDocuments(
+        CheckedSupplier<List<XContentBuilder>, IOException> baselineSupplier,
+        CheckedSupplier<List<XContentBuilder>, IOException> contenderSupplier
+    ) throws IOException;
 
     public Response queryBaseline(final SearchSourceBuilder search) throws IOException {
         return query(search, this::getBaselineDataStreamName);

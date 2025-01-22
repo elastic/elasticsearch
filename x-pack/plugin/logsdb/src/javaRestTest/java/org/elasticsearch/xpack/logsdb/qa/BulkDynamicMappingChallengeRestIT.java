@@ -9,9 +9,8 @@ package org.elasticsearch.xpack.logsdb.qa;
 
 import org.elasticsearch.common.settings.Settings;
 
-public class StandardVersusLogsIndexModeRandomDataDynamicMappingChallengeRestIT extends
-    StandardVersusLogsIndexModeRandomDataChallengeRestIT {
-    public StandardVersusLogsIndexModeRandomDataDynamicMappingChallengeRestIT() {
+public class BulkDynamicMappingChallengeRestIT extends BulkChallengeRestIT {
+    public BulkDynamicMappingChallengeRestIT() {
         super(new DataGenerationHelper(builder -> builder.withFullyDynamicMapping(true)));
     }
 

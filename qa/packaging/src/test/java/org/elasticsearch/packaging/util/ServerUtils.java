@@ -64,7 +64,7 @@ public class ServerUtils {
 
     // generous timeout as nested virtualization can be quite slow ...
     private static final long waitTime = TimeUnit.MINUTES.toMillis(3);
-    private static final long timeoutLength = TimeUnit.SECONDS.toMillis(45);
+    private static final long timeoutLength = TimeUnit.SECONDS.toMillis(30);
     private static final long requestInterval = TimeUnit.SECONDS.toMillis(5);
     private static final long dockerWaitForSecurityIndex = TimeUnit.SECONDS.toMillis(60);
 
@@ -260,9 +260,7 @@ public class ServerUtils {
                         // `elastic` , the reserved realm checks the security index first. It can happen that we check the security index
                         // too early after the security index creation in DockerTests causing an UnavailableShardsException. We retry
                         // authentication errors for a couple of seconds just to verify this is not the case.
-                        if (installation.distribution.isDocker()
-                            && timeElapsed < dockerWaitForSecurityIndex
-                            && response.getStatusLine().getStatusCode() == 401) {
+                        if (timeElapsed < dockerWaitForSecurityIndex && response.getStatusLine().getStatusCode() == 401) {
                             logger.info(
                                 "Authentication against docker failed (possibly due to UnavailableShardsException for the security index)"
                                     + ", retrying..."

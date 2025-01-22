@@ -244,16 +244,22 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                     }
                 };
 
-                var releaserListener = ActionListener.releaseAfter(remoteListener, refs.acquire());
-                var timeoutListener = ListenerTimeouts.wrapWithTimeout(
-                    threadPool,
-                    request.getTimeout(),
-                    searchCoordinationExecutor,
-                    releaserListener,
-                    ignored -> releaserListener.onFailure(new ConnectTransportException(null, "Could not connect to the remote node"))
-                );
+                ActionListener<ResolveClusterActionResponse> resultsListener;
+                if (request.getTimeout() != null) {
+                    var releaserListener = ActionListener.releaseAfter(remoteListener, refs.acquire());
+                    // Wrap the listener with a timeout only if a valid timeout was specified.
+                    resultsListener = ListenerTimeouts.wrapWithTimeout(
+                        threadPool,
+                        request.getTimeout(),
+                        searchCoordinationExecutor,
+                        releaserListener,
+                        ignored -> releaserListener.onFailure(new ConnectTransportException(null, "Could not connect to the remote node"))
+                    );
+                } else {
+                    resultsListener = ActionListener.releaseAfter(remoteListener, refs.acquire());
+                }
 
-                remoteClusterClient.execute(TransportResolveClusterAction.REMOTE_TYPE, remoteRequest, timeoutListener);
+                remoteClusterClient.execute(TransportResolveClusterAction.REMOTE_TYPE, remoteRequest, resultsListener);
             }
         }
     }

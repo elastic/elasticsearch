@@ -54,7 +54,7 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
     private boolean localIndicesRequested = false;
     private IndicesOptions indicesOptions;
     private final TimeValue DEFAULT_HANDSHAKE_TIMEOUT = TimeValue.timeValueSeconds(9);
-    private TimeValue timeout = DEFAULT_HANDSHAKE_TIMEOUT;
+    private TimeValue timeout;
 
     public ResolveClusterActionRequest(String[] names) {
         this(names, DEFAULT_INDICES_OPTIONS);

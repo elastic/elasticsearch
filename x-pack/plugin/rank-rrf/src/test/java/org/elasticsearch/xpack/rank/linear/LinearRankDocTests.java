@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.rank.linear;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.rank.AbstractRankDocWireSerializingTestCase;
+import org.elasticsearch.xpack.rank.rrf.RRFRankPlugin;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 public class LinearRankDocTests extends AbstractRankDocWireSerializingTestCase<LinearRankDoc> {
@@ -35,7 +35,11 @@ public class LinearRankDocTests extends AbstractRankDocWireSerializingTestCase<L
 
     @Override
     protected List<NamedWriteableRegistry.Entry> getAdditionalNamedWriteables() {
-        return Collections.emptyList();
+        try (RRFRankPlugin rrfRankPlugin = new RRFRankPlugin()) {
+            return rrfRankPlugin.getNamedWriteables();
+        } catch (IOException ex) {
+            throw new AssertionError("Failed to create RRFRankPlugin", ex);
+        }
     }
 
     @Override

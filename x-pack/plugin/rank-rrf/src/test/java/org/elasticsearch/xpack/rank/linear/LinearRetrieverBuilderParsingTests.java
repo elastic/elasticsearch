@@ -18,6 +18,7 @@ import org.elasticsearch.search.retriever.TestRetrieverBuilder;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -80,6 +81,13 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
                 TestRetrieverBuilder.TEST_SPEC.getName(),
                 (p, c) -> TestRetrieverBuilder.TEST_SPEC.getParser().fromXContent(p, (RetrieverParserContext) c),
                 TestRetrieverBuilder.TEST_SPEC.getName().getForRestApiVersion()
+            )
+        );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                RetrieverBuilder.class,
+                new ParseField(LinearRetrieverBuilder.NAME),
+                (p, c) -> LinearRetrieverBuilder.PARSER.apply(p, (RetrieverParserContext) c)
             )
         );
         return new NamedXContentRegistry(entries);

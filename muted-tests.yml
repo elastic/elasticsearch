@@ -445,3 +445,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {date.IN operator with null in list, doesn't find match, EVAL to check value}
   issue: https://github.com/elastic/elasticsearch/issues/120349
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testMultipleInferencesTriggeringDownloadAndDeploy
+  issue: https://github.com/elastic/elasticsearch/issues/117208

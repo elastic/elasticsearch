@@ -137,9 +137,10 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
             }
 
             private final Set<String> previousValues = new HashSet<>();
+
             private Tuple<String, String> generateValue() {
                 String v;
-                if(previousValues.size() > 0 && randomBoolean()) {
+                if (previousValues.size() > 0 && randomBoolean()) {
                     v = randomFrom(previousValues);
                 } else {
                     v = ESTestCase.randomAlphaOfLength(5);

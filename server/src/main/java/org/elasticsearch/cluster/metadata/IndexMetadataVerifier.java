@@ -209,10 +209,11 @@ public class IndexMetadataVerifier {
     }
 
     private static boolean hasIndexWritesBlock(IndexMetadata indexMetadata) {
-        if (IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings())) {
+        var indexSettings = indexMetadata.getSettings();
+        if (IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(indexSettings) || IndexMetadata.INDEX_READ_ONLY_SETTING.get(indexSettings)) {
             return indexMetadata.isSearchableSnapshot()
                 || indexMetadata.getCreationVersion().isLegacyIndexVersion()
-                || MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexMetadata.getSettings());
+                || MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexSettings);
         }
         return false;
     }

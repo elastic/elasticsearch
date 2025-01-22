@@ -24,6 +24,7 @@ import com.google.cloud.storage.StorageException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.ByteArrayInputStream;
@@ -105,6 +107,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private final GoogleCloudStorageOperationsStats stats;
     private final int bufferSize;
     private final BigArrays bigArrays;
+    private final BackoffPolicy casBackoffPolicy;
 
     GoogleCloudStorageBlobStore(
         String bucketName,
@@ -112,7 +115,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         String repositoryName,
         GoogleCloudStorageService storageService,
         BigArrays bigArrays,
-        int bufferSize
+        int bufferSize,
+        BackoffPolicy casBackoffPolicy
     ) {
         this.bucketName = bucketName;
         this.clientName = clientName;
@@ -121,6 +125,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         this.bigArrays = bigArrays;
         this.stats = new GoogleCloudStorageOperationsStats(bucketName);
         this.bufferSize = bufferSize;
+        this.casBackoffPolicy = casBackoffPolicy;
     }
 
     private Storage client() throws IOException {
@@ -691,28 +696,46 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             .setMd5(Base64.getEncoder().encodeToString(MessageDigests.digest(updated, MessageDigests.md5())))
             .build();
         final var bytesRef = updated.toBytesRef();
-        try {
-            SocketAccess.doPrivilegedVoidIOException(
-                () -> client().create(
-                    blobInfo,
-                    bytesRef.bytes,
-                    bytesRef.offset,
-                    bytesRef.length,
-                    Storage.BlobTargetOption.generationMatch()
-                )
-            );
-        } catch (Exception e) {
-            final var serviceException = unwrapServiceException(e);
-            if (serviceException != null) {
+
+        final Iterator<TimeValue> retries = casBackoffPolicy.iterator();
+        BaseServiceException finalException = null;
+        while (true) {
+            try {
+                SocketAccess.doPrivilegedVoidIOException(
+                    () -> client().create(
+                        blobInfo,
+                        bytesRef.bytes,
+                        bytesRef.offset,
+                        bytesRef.length,
+                        Storage.BlobTargetOption.generationMatch()
+                    )
+                );
+                return OptionalBytesReference.of(expected);
+            } catch (Exception e) {
+                final var serviceException = unwrapServiceException(e);
+                if (serviceException == null) {
+                    throw e;
+                }
                 final var statusCode = serviceException.getCode();
-                if (statusCode == RestStatus.PRECONDITION_FAILED.getStatus() || statusCode == RestStatus.TOO_MANY_REQUESTS.getStatus()) {
+                if (statusCode == RestStatus.PRECONDITION_FAILED.getStatus()) {
                     return OptionalBytesReference.MISSING;
                 }
+                if (statusCode == RestStatus.TOO_MANY_REQUESTS.getStatus()) {
+                    finalException = ExceptionsHelper.useOrSuppress(finalException, serviceException);
+                    if (retries.hasNext()) {
+                        try {
+                            // noinspection BusyWait
+                            Thread.sleep(retries.next().millis());
+                        } catch (InterruptedException iex) {
+                            Thread.currentThread().interrupt();
+                            finalException.addSuppressed(iex);
+                        }
+                    } else {
+                        throw finalException;
+                    }
+                }
             }
-            throw e;
         }
-
-        return OptionalBytesReference.of(expected);
     }
 
     private static BaseServiceException unwrapServiceException(Throwable t) {

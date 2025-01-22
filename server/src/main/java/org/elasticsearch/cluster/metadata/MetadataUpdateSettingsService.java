@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -332,7 +333,8 @@ public class MetadataUpdateSettingsService {
                     blocks,
                     block.block,
                     block.setting,
-                    openSettings
+                    openSettings,
+                    metadataBuilder
                 );
             }
             changed |= changedBlocks;
@@ -430,7 +432,8 @@ public class MetadataUpdateSettingsService {
         ClusterBlocks.Builder blocks,
         ClusterBlock block,
         Setting<Boolean> setting,
-        Settings openSettings
+        Settings openSettings,
+        ProjectMetadata.Builder metadataBuilder
     ) {
         boolean changed = false;
         if (setting.exists(openSettings)) {
@@ -445,6 +448,12 @@ public class MetadataUpdateSettingsService {
                     if (blocks.hasIndexBlock(projectId, index, block)) {
                         blocks.removeIndexBlock(projectId, index, block);
                         changed = true;
+                        if (block.contains(ClusterBlockLevel.WRITE)) {
+                            IndexMetadata indexMetadata = metadataBuilder.get(index);
+                            Settings.Builder indexSettings = Settings.builder().put(indexMetadata.getSettings());
+                            indexSettings.remove(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey());
+                            metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(indexSettings));
+                        }
                     }
                 }
             }

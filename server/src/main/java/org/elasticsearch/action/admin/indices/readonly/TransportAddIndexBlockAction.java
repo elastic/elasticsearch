@@ -118,6 +118,7 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
                 request.ackTimeout(),
                 projectResolver.getProjectId(),
                 request.getBlock(),
+                request.markVerified(),
                 task.getId(),
                 concreteIndices
             ),

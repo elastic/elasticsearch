@@ -38,6 +38,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -815,7 +816,7 @@ public final class IndicesPermission {
             assert indices.length != 0;
             this.privilege = privilege;
             this.actionMatcher = privilege.predicate();
-            this.indices = indices;
+            this.indices = resolveSelectors(indices);
             this.allowRestrictedIndices = allowRestrictedIndices;
             ConcurrentHashMap<String[], Automaton> indexNameAutomatonMemo = new ConcurrentHashMap<>(1);
             if (allowRestrictedIndices) {
@@ -832,6 +833,66 @@ public final class IndicesPermission {
             this.query = query;
         }
 
+        /**
+         * This method will transform the indices as defined for the group to resolve the selectors.
+         * The full expression (for index/datastream/alias named `name`) can be expressed as one of the following patterns:
+         * `name`, `name::data`, `name:failures`, or `name::*`
+         * This method will transform the selectors to the appropriate names used for authorization purposes.
+         * <ul>
+         * <li>`name::data` will be converted to `name`</li>
+         * <li>`name::*` will be converted into `name` and `name::failures`</li>
+         * <li>`name::failures` will remain `name:failures`</li>
+         * <li>`name` will remain `name`</li>
+         * </ul>
+         * @param indices - The indices as defined for the group.
+         * @return a String[] that contains the resolved selectors.
+         */
+        private String[] resolveSelectors(String [] indices){
+            System.out.println("[resolveSelectors] Before: " + Arrays.toString(indices)); //TODO: [Jake] remove
+            assert indices.length > 0 : "indices must not be empty";
+            //TODO: [Jake] ensure that selectors added to the role are validated at time of role create/update,
+            // for example test::failure (instead of ::failures) should eager fail at time of role create/update
+            //TODO: [Jake] ensure that remote_indices can not have selectors via similar role validation
+            List<String> indicesResolvedBySelector = new ArrayList<>(indices.length);
+            for(String index: indices){
+                if(IndexNameExpressionResolver.hasSelectorSuffix(index)) {
+                    Tuple<String, String> parts = IndexNameExpressionResolver.splitSelectorExpression(index);
+                    String name = parts.v1();
+                    String selectorString = parts.v2();
+                    if (selectorString != null) {
+                        IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString.toLowerCase(Locale.ROOT));
+                        assert selector != null;
+                        switch (selector) {
+                            case DATA:
+                                //remove `::data` from `name::data`
+                                indicesResolvedBySelector.add(name);
+                                break;
+                            case ALL_APPLICABLE:
+                                //expand `name::*` into `name`, `name::failures`
+                                indicesResolvedBySelector.add(name); //::data intentionally omitted
+                                indicesResolvedBySelector.add(
+                                    IndexNameExpressionResolver.combineSelector(name, IndexComponentSelector.FAILURES)
+                                );
+                                break;
+                            case FAILURES:
+                                //`name::failures`, add as-is
+                                indicesResolvedBySelector.add(index);
+                                break;
+                            default:
+                                //other validation should prevent this from happening
+                                throw new IllegalArgumentException("Unexpected selector: " + selector + " for index: " + index);
+                        }
+                    }
+                }else {
+                    indicesResolvedBySelector.add(index); //no selectors, add as-is
+                }
+            }
+            //TODO: [Jake] remove
+            System.out.println("[resolveSelectors] After: " + Arrays.toString(indicesResolvedBySelector.toArray(String[]::new)));
+            //TODO: [Jake] ensure that the resolved indices are not persisted to the role and is a runtime concern only.
+            return indicesResolvedBySelector.toArray(String[]::new);
+
+        }
         public IndexPrivilege privilege() {
             return privilege;
         }

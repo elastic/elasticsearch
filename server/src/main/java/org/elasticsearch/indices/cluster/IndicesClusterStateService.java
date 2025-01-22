@@ -42,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
@@ -90,7 +91,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -690,7 +690,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 primaryTerm,
                 0,
                 0L,
-                new AtomicBoolean(false),
+                new RunOnce(() -> HotThreads.logLocalCurrentThreads(logger, Level.WARN, shardId + ": acquire shard lock for create")),
                 ActionListener.runBefore(new ActionListener<>() {
                     @Override
                     public void onResponse(Boolean success) {
@@ -743,7 +743,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         long primaryTerm,
         int iteration,
         long delayMillis,
-        AtomicBoolean hasDumpedHotThreads,
+        RunOnce dumpHotThreads,
         ActionListener<Boolean> listener
     ) {
         try {
@@ -782,7 +782,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 e.getMessage()
             );
             if (level == Level.WARN) {
-                dumpHotThreadsOnce(hasDumpedHotThreads, shardRouting.shardId());
+                dumpHotThreads.run();
             }
             // TODO could we instead subscribe to the shard lock and trigger the retry exactly when it is released rather than polling?
             threadPool.scheduleUnlessShuttingDown(
@@ -821,7 +821,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                 shardLockRetryTimeout.millis(),
                                 shardRouting
                             );
-                            dumpHotThreadsOnce(hasDumpedHotThreads, shardRouting.shardId());
+                            dumpHotThreads.run();
                             listener.onFailure(
                                 new ElasticsearchTimeoutException("timed out while waiting to acquire shard lock for " + shardRouting)
                             );
@@ -850,7 +850,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             primaryTerm,
                             iteration + 1,
                             newDelayMillis,
-                            hasDumpedHotThreads,
+                            dumpHotThreads,
                             listener
                         );
 
@@ -1077,12 +1077,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 ),
                 inner
             );
-        }
-    }
-
-    private void dumpHotThreadsOnce(AtomicBoolean hasDumpedHotThreads, ShardId shardId) {
-        if (hasDumpedHotThreads.compareAndSet(false, true)) {
-            HotThreads.logLocalCurrentThreads(logger, Level.WARN, shardId + ": acquire shard lock for create");
         }
     }
 

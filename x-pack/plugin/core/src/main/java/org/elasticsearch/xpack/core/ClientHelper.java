@@ -196,6 +196,7 @@ public final class ClientHelper {
     public static final String APM_ORIGIN = "apm";
     public static final String OTEL_ORIGIN = "otel";
     public static final String KIBANA_ORIGIN = "kibana";
+    public static final String CLOUD_ORIGIN = "cloud";
 
     private ClientHelper() {}
 

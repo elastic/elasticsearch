@@ -48,7 +48,6 @@ public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<V
             threadPool,
             actionFilters,
             VerifyRepositoryRequest::new,
-            indexNameExpressionResolver,
             VerifyRepositoryResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

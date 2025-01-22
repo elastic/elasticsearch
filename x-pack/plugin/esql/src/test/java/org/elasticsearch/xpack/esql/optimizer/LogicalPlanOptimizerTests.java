@@ -6317,6 +6317,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(project.projections().get(0).name(), equalTo("languages"));
 
         var limit = as(project.child(), Limit.class);
+        assertEquals(as(limit.limit(), Literal.class).value(), 1000);
+        assertFalse(limit.allowDuplicatePastExpandingNode());
 
         var join = as(limit.child(), Join.class);
         var joinRightRelation = as(join.right(), EsRelation.class);
@@ -6352,6 +6354,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var plan = optimizedPlan(query);
 
         var limit1 = as(plan, Limit.class);
+        assertEquals(as(limit1.limit(), Literal.class).value(), 1000);
+        assertFalse(limit1.allowDuplicatePastExpandingNode());
 
         var finalJoin = as(limit1.child(), Join.class);
         var finalJoinRightRelation = as(finalJoin.right(), EsRelation.class);
@@ -6361,6 +6365,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(finalJoinRightRelation.output().get(1).name(), equalTo("language_name"));
 
         var limit2 = as(finalJoin.left(), Limit.class);
+        assertEquals(as(limit2.limit(), Literal.class).value(), 1000);
+        assertFalse(limit2.allowDuplicatePastExpandingNode());
 
         var initialJoin = as(limit2.child(), Join.class);
         var initialJoinRightRelation = as(initialJoin.right(), EsRelation.class);

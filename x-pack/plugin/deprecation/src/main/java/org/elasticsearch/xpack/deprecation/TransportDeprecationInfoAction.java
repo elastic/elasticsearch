@@ -68,7 +68,6 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             threadPool,
             actionFilters,
             DeprecationInfoAction.Request::new,
-            indexNameExpressionResolver,
             DeprecationInfoAction.Response::new,
             threadPool.executor(ThreadPool.Names.GENERIC)
         );

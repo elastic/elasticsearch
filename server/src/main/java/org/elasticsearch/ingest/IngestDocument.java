@@ -377,10 +377,11 @@ public final class IngestDocument {
             return ResolveResult.error("cannot resolve [" + pathElement + "] from null as part of path [" + fullPath + "]");
         }
         if (context instanceof Map<?, ?> map) {
-            if (map.containsKey(pathElement)) {
+            if (map.containsKey(pathElement) == false) {
+                return ResolveResult.error("field [" + pathElement + "] not present as part of path [" + fullPath + "]");
+            } else {
                 return ResolveResult.success(map.get(pathElement));
             }
-            return ResolveResult.error("field [" + pathElement + "] not present as part of path [" + fullPath + "]");
         }
         if (context instanceof List<?> list) {
             int index;
@@ -547,12 +548,12 @@ public final class IngestDocument {
             if (context instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> map = (Map<String, Object>) context;
-                if (map.containsKey(pathElement)) {
-                    context = map.get(pathElement);
-                } else {
+                if (map.containsKey(pathElement) == false) {
                     HashMap<Object, Object> newMap = new HashMap<>();
                     map.put(pathElement, newMap);
                     context = newMap;
+                } else {
+                    context = map.get(pathElement);
                 }
             } else if (context instanceof List<?> list) {
                 int index;
@@ -591,16 +592,16 @@ public final class IngestDocument {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) context;
             if (append) {
-                if (map.containsKey(leafKey)) {
+                if (map.containsKey(leafKey) == false) {
+                    List<Object> list = new ArrayList<>();
+                    appendValues(list, value);
+                    map.put(leafKey, list);
+                } else {
                     Object object = map.get(leafKey);
                     Object list = appendValues(object, value, allowDuplicates);
                     if (list != object) {
                         map.put(leafKey, list);
                     }
-                } else {
-                    List<Object> list = new ArrayList<>();
-                    appendValues(list, value);
-                    map.put(leafKey, list);
                 }
                 return;
             }

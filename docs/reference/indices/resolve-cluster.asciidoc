@@ -44,7 +44,7 @@ in the response to determine whether the remote cluster is available and ready f
 
 NOTE: When querying older clusters that do not support the _resolve/cluster endpoint
 without an index expression, the local cluster will send the index expression `dummy*`
-to those remote clusters, so if errors occur, you may see reference to that index
+to those remote clusters, so if an errors occur, you may see a reference to that index
 expression even though you didn't request it. If it causes a problem, you can instead
 include an index expression like `*:*` to this endpoint to bypass the issue.
 
@@ -83,7 +83,7 @@ GET /_resolve/cluster
 ----
 // TEST[continued]
 
-Returns information about all remotely configured clusters.
+Returns information about all remote clusters configured on the local cluster.
 
 [source,console]
 ----
@@ -91,8 +91,8 @@ GET /_resolve/cluster/my-index-*,cluster*:my-index-*
 ----
 // TEST[continued]
 
-Returns information about the local cluster and all remotely configured
-clusters that start with the alias `cluster*`. Each cluster will return information
+Returns information about the local cluster and all remote clusters that
+start with the alias `cluster*`. Each cluster will return information
 about whether it has any indices, aliases or data streams that match `my-index-*`.
 
 [[resolve-cluster-api-request]]
@@ -143,7 +143,7 @@ deprecated:[7.16.0]
 [TIP]
 ====
 The index options above are only allowed when specifying an index expression.
-You will get back an error if you specify index options to the _resolve/cluster API
+You will get an error if you specify index options to the _resolve/cluster API
 that takes no index expression.
 ====
 

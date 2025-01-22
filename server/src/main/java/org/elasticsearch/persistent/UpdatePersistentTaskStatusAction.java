@@ -124,7 +124,6 @@ public class UpdatePersistentTaskStatusAction {
                 threadPool,
                 actionFilters,
                 Request::new,
-                indexNameExpressionResolver,
                 PersistentTaskResponse::new,
                 threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );

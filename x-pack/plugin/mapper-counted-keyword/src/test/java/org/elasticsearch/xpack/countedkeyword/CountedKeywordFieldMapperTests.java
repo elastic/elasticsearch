@@ -25,7 +25,9 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -134,8 +136,15 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
                 return new SyntheticSourceExample(in, out, this::mapping);
             }
 
+            private final Set<String> previousValues = new HashSet<>();
             private Tuple<String, String> generateValue() {
-                String v = ESTestCase.randomAlphaOfLength(5);
+                String v;
+                if(previousValues.size() > 0 && randomBoolean()) {
+                    v = randomFrom(previousValues);
+                } else {
+                    v = ESTestCase.randomAlphaOfLength(5);
+                    previousValues.add(v);
+                }
                 return Tuple.tuple(v, v);
             }
 

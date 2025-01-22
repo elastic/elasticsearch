@@ -64,7 +64,6 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
             threadPool,
             actionFilters,
             PostFeatureUpgradeRequest::new,
-            indexNameExpressionResolver,
             PostFeatureUpgradeResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

@@ -138,7 +138,6 @@ public class StartPersistentTaskAction {
                 threadPool,
                 actionFilters,
                 Request::new,
-                indexNameExpressionResolver,
                 PersistentTaskResponse::new,
                 threadPool.executor(ThreadPool.Names.GENERIC)
             );

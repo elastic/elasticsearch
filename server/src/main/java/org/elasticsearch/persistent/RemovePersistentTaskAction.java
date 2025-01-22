@@ -95,7 +95,6 @@ public class RemovePersistentTaskAction {
                 threadPool,
                 actionFilters,
                 Request::new,
-                indexNameExpressionResolver,
                 PersistentTaskResponse::new,
                 threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );

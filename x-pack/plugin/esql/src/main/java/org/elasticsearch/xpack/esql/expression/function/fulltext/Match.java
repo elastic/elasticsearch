@@ -68,6 +68,7 @@ import static org.elasticsearch.index.query.MatchQueryBuilder.PREFIX_LENGTH_FIEL
 import static org.elasticsearch.index.query.MatchQueryBuilder.ZERO_TERMS_QUERY_FIELD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
@@ -277,8 +278,12 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
     }
 
     @Override
-    protected TypeResolution resolveNonQueryParamTypes() {
-        TypeResolution resolution = isNotNull(field, sourceText(), FIRST).and(
+    protected TypeResolution resolveParams() {
+        return resolveField().and(resolveQuery()).and(resolveOptions()).and(checkParamCompatibility());
+    }
+
+    private TypeResolution resolveField() {
+        return isNotNull(field, sourceText(), FIRST).and(
             isType(
                 field,
                 FIELD_DATA_TYPES::contains,
@@ -287,14 +292,16 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
                 "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
             )
         );
-        if (resolution.unresolved()) {
-            return resolution;
-        }
+    }
 
-        // TODO Extract common logic for validating options
+    private TypeResolution resolveOptions() {
         if (options() != null && EsqlCapabilities.Cap.MATCH_FUNCTION_OPTIONS.isEnabled()) {
+            TypeResolution resolution = isNotNull(options(), sourceText(), THIRD);
+            if (resolution.unresolved()) {
+                return resolution;
+            }
             // MapExpression does not have a DataType associated with it
-            resolution = isMapExpression(options(), sourceText(), SECOND);
+            resolution = isMapExpression(options(), sourceText(), THIRD);
             if (resolution.unresolved()) {
                 return resolution;
             }
@@ -306,6 +313,16 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
             }
         }
         return TypeResolution.TYPE_RESOLVED;
+    }
+
+    private TypeResolution resolveQuery() {
+        return isType(
+            query(),
+            QUERY_DATA_TYPES::contains,
+            sourceText(),
+            queryParamOrdinal(),
+            "keyword, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
+        ).and(isNotNullAndFoldable(query(), sourceText(), SECOND));
     }
 
     private Map<String, Object> parseOptions() throws InvalidArgumentException {
@@ -347,19 +364,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
         return matchOptions;
     }
 
-    @Override
-    protected TypeResolution resolveQueryParamType() {
-        return isType(
-            query(),
-            QUERY_DATA_TYPES::contains,
-            sourceText(),
-            queryParamOrdinal(),
-            "keyword, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
-        ).and(isNotNullAndFoldable(query(), sourceText(), queryParamOrdinal()));
-    }
-
-    @Override
-    protected TypeResolution checkParamCompatibility() {
+    private TypeResolution checkParamCompatibility() {
         DataType fieldType = field().dataType();
         DataType queryType = query().dataType();
 

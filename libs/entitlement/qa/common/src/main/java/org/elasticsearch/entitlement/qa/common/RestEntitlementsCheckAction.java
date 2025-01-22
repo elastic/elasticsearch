@@ -124,6 +124,10 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("timeZoneNameProvider", alwaysDenied(RestEntitlementsCheckAction::timeZoneNameProvider$)),
         entry("logManager", alwaysDenied(RestEntitlementsCheckAction::logManager$)),
 
+        entry("system_setProperty", forPlugins(WritePropertiesCheckActions::setSystemProperty)),
+        entry("system_clearProperty", forPlugins(WritePropertiesCheckActions::clearSystemProperty)),
+        entry("system_setSystemProperties", alwaysDenied(WritePropertiesCheckActions::setSystemProperties)),
+
         // This group is a bit nasty: if entitlements don't prevent these, then networking is
         // irreparably borked for the remainder of the test run.
         entry(
@@ -160,9 +164,8 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("server_socket_accept", forPlugins(NetworkAccessCheckActions::serverSocketAccept)),
 
         entry("url_open_connection_proxy", forPlugins(NetworkAccessCheckActions::urlOpenConnectionWithProxy)),
-        entry("http_client_builder_build", forPlugins(NetworkAccessCheckActions::httpClientBuilderBuild)),
-        entry("http_client_send", forPlugins(NetworkAccessCheckActions::httpClientSend)),
-        entry("http_client_send_async", forPlugins(NetworkAccessCheckActions::httpClientSendAsync)),
+        entry("http_client_send", forPlugins(VersionSpecificNetworkChecks::httpClientSend)),
+        entry("http_client_send_async", forPlugins(VersionSpecificNetworkChecks::httpClientSendAsync)),
         entry("create_ldap_cert_store", forPlugins(NetworkAccessCheckActions::createLDAPCertStore)),
 
         entry("server_socket_channel_bind", forPlugins(NetworkAccessCheckActions::serverSocketChannelBind)),

@@ -22,7 +22,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -47,7 +46,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     public LookupFromIndexService(
         ClusterService clusterService,
-        SearchService searchService,
+        LookupShardContextFactory lookupShardContextFactory,
         TransportService transportService,
         BigArrays bigArrays,
         BlockFactory blockFactory
@@ -55,7 +54,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         super(
             LOOKUP_ACTION_NAME,
             clusterService,
-            searchService,
+            lookupShardContextFactory,
             transportService,
             bigArrays,
             blockFactory,
@@ -82,7 +81,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     protected QueryList queryList(TransportRequest request, SearchExecutionContext context, Block inputBlock, DataType inputDataType) {
         MappedFieldType fieldType = context.getFieldType(request.matchField);
         validateTypes(request.inputDataType, fieldType);
-        return termQueryList(fieldType, context, inputBlock, inputDataType);
+        return termQueryList(fieldType, context, inputBlock, inputDataType).onlySingleValues();
     }
 
     @Override

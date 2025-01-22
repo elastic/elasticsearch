@@ -152,14 +152,13 @@ public class InstrumenterImpl implements Instrumenter {
             if (isAnnotationPresent == false) {
                 boolean isStatic = (access & ACC_STATIC) != 0;
                 boolean isCtor = "<init>".equals(name);
-                boolean hasReceiver = (isStatic || isCtor) == false;
                 var key = new MethodKey(className, name, Stream.of(Type.getArgumentTypes(descriptor)).map(Type::getInternalName).toList());
                 var instrumentationMethod = checkMethods.get(key);
                 if (instrumentationMethod != null) {
-                    // LOGGER.debug("Will instrument method {}", key);
+                    // System.out.println("Will instrument method " + key);
                     return new EntitlementMethodVisitor(Opcodes.ASM9, mv, isStatic, isCtor, descriptor, instrumentationMethod);
                 } else {
-                    // LOGGER.trace("Will not instrument method {}", key);
+                    // System.out.println("Will not instrument method " + key);
                 }
             }
             return mv;

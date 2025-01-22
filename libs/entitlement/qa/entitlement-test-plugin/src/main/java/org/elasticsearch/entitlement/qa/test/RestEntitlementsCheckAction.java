@@ -47,6 +47,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinWorkerThread;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -54,7 +59,9 @@ import java.util.stream.Stream;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 
+import static java.lang.Thread.currentThread;
 import static java.util.Map.entry;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 import static org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction.CheckAction.alwaysDenied;
 import static org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction.CheckAction.deniedToPlugins;
@@ -196,11 +203,94 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                 new CheckAction(VersionSpecificNativeChecks::memorySegmentReinterpretWithSizeAndCleanup, false, 22)
             ),
             entry("symbol_lookup_name", new CheckAction(VersionSpecificNativeChecks::symbolLookupWithName, false, 22)),
-            entry("symbol_lookup_path", new CheckAction(VersionSpecificNativeChecks::symbolLookupWithPath, false, 22))
+            entry("symbol_lookup_path", new CheckAction(VersionSpecificNativeChecks::symbolLookupWithPath, false, 22)),
+
+            entry("java_lang_Thread$setContextClassLoader", forPlugins(RestEntitlementsCheckAction::java_lang_Thread$setContextClassLoader)),
+            entry("java_lang_Thread$_1", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$_1)),
+            entry("java_lang_Thread$_2", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$_2)),
+            entry("java_lang_Thread$_3", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$_3)),
+            entry("java_lang_Thread$_4", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$_4)),
+            // entry("java_lang_Thread$_5", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$_5)), // This check is not yet active
+            entry("java_lang_Thread$_6", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$_6)),
+            entry("java_lang_Thread$_7", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$_7)),
+            entry(
+                "java_lang_ThreadBuilders$PlatformThreadBuilder$unstarted",
+                deniedToPlugins(RestEntitlementsCheckAction::java_lang_ThreadBuilders$PlatformThreadBuilder$unstarted)
+            ),
+            entry(
+                "java_lang_ThreadBuilders$PlatformThreadFactory$newThread",
+                deniedToPlugins(RestEntitlementsCheckAction::java_lang_ThreadBuilders$PlatformThreadFactory$newThread)
+            ),
+            entry("java_lang_ThreadGroup$_1", deniedToPlugins(RestEntitlementsCheckAction::java_lang_ThreadGroup$_1)),
+            entry("java_lang_ThreadGroup$_2", deniedToPlugins(RestEntitlementsCheckAction::java_lang_ThreadGroup$_2)),
+            entry("java_util_concurrent_ForkJoinPool$_1", deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinPool$_1)),
+            entry("java_util_concurrent_ForkJoinPool$_2", deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinPool$_2)),
+            entry("java_util_concurrent_ForkJoinPool$_3", deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinPool$_3)),
+            entry("java_util_concurrent_ForkJoinPool$_4", deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinPool$_4)),
+            entry(
+                "java_util_concurrent_ForkJoinPool$DefaultForkJoinWorkerThreadFactory$newThread",
+                deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinPool$DefaultForkJoinWorkerThreadFactory$newThread)
+            ),
+            entry(
+                "java_util_concurrent_ForkJoinWorkerThread$_1",
+                deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinWorkerThread$_1)
+            ),
+            entry(
+                "java_util_concurrent_ForkJoinWorkerThread$_2",
+                deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinWorkerThread$_2)
+            ),
+            entry("java_lang_Thread$setDaemon", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$setDaemon)),
+            entry("java_lang_ThreadGroup$setDaemon", deniedToPlugins(RestEntitlementsCheckAction::java_lang_ThreadGroup$setDaemon)),
+            entry(
+                "java_util_concurrent_ForkJoinPool$setParallelism",
+                deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinPool$setParallelism)
+            ),
+            entry("java_lang_Thread$interrupt", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$interrupt)),
+            entry("java_lang_ThreadGroup$interrupt", alwaysDenied(RestEntitlementsCheckAction::java_lang_ThreadGroup$interrupt)),
+            entry(
+                "java_util_concurrent_ForkJoinPool$close",
+                deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinPool$close)
+            ),
+            entry(
+                "java_util_concurrent_ForkJoinPool$shutdown",
+                deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinPool$shutdown)
+            ),
+            entry(
+                "java_util_concurrent_ForkJoinPool$shutdownNow",
+                deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinPool$shutdownNow)
+            ),
+            entry(
+                "java_util_concurrent_ThreadPerTaskExecutor$close",
+                deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ThreadPerTaskExecutor$close)
+            ),
+            entry(
+                "java_util_concurrent_ThreadPerTaskExecutor$shutdown",
+                deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ThreadPerTaskExecutor$shutdown)
+            ),
+            entry(
+                "java_util_concurrent_ThreadPerTaskExecutor$shutdownNow",
+                deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ThreadPerTaskExecutor$shutdownNow)
+            ),
+            entry(
+                "java_util_concurrent_ThreadPoolExecutor$shutdown",
+                deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ThreadPoolExecutor$shutdown)
+            ),
+            entry(
+                "java_util_concurrent_ThreadPoolExecutor$shutdownNow",
+                deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ThreadPoolExecutor$shutdownNow)
+            ),
+            entry("java_lang_Thread$setName", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$setName)),
+            entry("java_lang_Thread$setPriority", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$setPriority)),
+            entry(
+                "java_lang_Thread$setUncaughtExceptionHandler",
+                deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$setUncaughtExceptionHandler)
+            ),
+            entry("java_lang_ThreadGroup$setMaxPriority", deniedToPlugins(RestEntitlementsCheckAction::java_lang_ThreadGroup$setMaxPriority))
         ),
         getTestEntries(FileCheckActions.class),
         getTestEntries(SpiActions.class),
         getTestEntries(SystemActions.class)
+
     )
         .flatMap(Function.identity())
         .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
@@ -437,7 +527,175 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         return channel -> {
             logger.info("Calling check action [{}]", actionName);
             checkAction.action().run();
+            logger.debug("Check action [{}] returned", actionName);
             channel.sendResponse(new RestResponse(RestStatus.OK, Strings.format("Succesfully executed action [%s]", actionName)));
         };
     }
+
+    static void java_lang_Thread$setContextClassLoader() {
+        currentThread().setContextClassLoader(currentThread().getContextClassLoader());
+    }
+
+    static void java_lang_Thread$_1() {
+        new Thread();
+    }
+
+    static void java_lang_Thread$_2() {
+        new Thread(() -> {});
+    }
+
+    static void java_lang_Thread$_3() {
+        new Thread(currentThread().getThreadGroup(), () -> {});
+    }
+
+    static void java_lang_Thread$_4() {
+        new Thread("test");
+    }
+
+    static void java_lang_Thread$_5() {
+        new Thread(currentThread().getThreadGroup(), "test");
+    }
+
+    static void java_lang_Thread$_6() {
+        new Thread(currentThread().getThreadGroup(), () -> {}, "test");
+    }
+
+    static void java_lang_Thread$_7() {
+        new Thread(currentThread().getThreadGroup(), () -> {}, "test", 123);
+    }
+
+    static void java_lang_Thread$_8() {
+        new Thread(currentThread().getThreadGroup(), () -> {}, "test", 123, false);
+    }
+
+    static void java_lang_ThreadBuilders$PlatformThreadBuilder$unstarted() {
+        Thread.ofPlatform().unstarted(() -> {});
+    }
+
+    static void java_lang_ThreadBuilders$PlatformThreadFactory$newThread() {
+        Thread.ofPlatform().factory().newThread(() -> {});
+    }
+
+    static void java_lang_ThreadGroup$_1() {
+        new ThreadGroup("test");
+    }
+
+    static void java_lang_ThreadGroup$_2() {
+        new ThreadGroup(currentThread().getThreadGroup(), "test");
+    }
+
+    static void java_util_concurrent_ForkJoinPool$_1() {
+        try (var __ = new ForkJoinPool()) {}
+    }
+
+    static void java_util_concurrent_ForkJoinPool$_2() {
+        try (var __ = new ForkJoinPool(1)) {}
+    }
+
+    static void java_util_concurrent_ForkJoinPool$_3() {
+        try (var __ = new ForkJoinPool(1, null, null, false)) {}
+    }
+
+    static void java_util_concurrent_ForkJoinPool$_4() {
+        try (
+            var __ = new ForkJoinPool(1, ForkJoinPool.defaultForkJoinWorkerThreadFactory, null, false, 1, 1, 1, ___ -> false, 1, SECONDS)
+        ) {}
+    }
+
+    static void java_util_concurrent_ForkJoinPool$DefaultForkJoinWorkerThreadFactory$newThread() {
+        ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(ForkJoinPool.commonPool());
+    }
+
+    static void java_util_concurrent_ForkJoinWorkerThread$_1() {
+        new ForkJoinWorkerThread(ForkJoinPool.commonPool()) {
+        };
+    }
+
+    static void java_util_concurrent_ForkJoinWorkerThread$_2() {
+        new ForkJoinWorkerThread(currentThread().getThreadGroup(), ForkJoinPool.commonPool(), false) {
+        };
+    }
+
+    static void java_lang_Thread$setDaemon() {
+        currentThread().setDaemon(currentThread().isDaemon());
+    }
+
+    static void java_lang_ThreadGroup$setDaemon() {
+        currentThread().getThreadGroup().setDaemon(currentThread().getThreadGroup().isDaemon());
+    }
+
+    static void java_util_concurrent_ForkJoinPool$setParallelism() {
+        ForkJoinPool.commonPool().setParallelism(ForkJoinPool.commonPool().getParallelism());
+    }
+
+    static void java_lang_Thread$interrupt() {
+        currentThread().interrupt();
+        Thread.interrupted();
+    }
+
+    static void java_lang_ThreadGroup$interrupt() {
+        // Very disruptive!
+        currentThread().getThreadGroup().interrupt();
+    }
+
+    static void java_util_concurrent_ForkJoinPool$close() {
+        new ForkJoinPool().close();
+    }
+
+    static void java_util_concurrent_ForkJoinPool$shutdown() {
+        try (var pool = new ForkJoinPool()) {
+            pool.shutdown();
+        }
+    }
+
+    static void java_util_concurrent_ForkJoinPool$shutdownNow() {
+        try (var pool = new ForkJoinPool()) {
+            pool.shutdownNow();
+        }
+    }
+
+    static void java_util_concurrent_ThreadPerTaskExecutor$close() {
+        Executors.newVirtualThreadPerTaskExecutor().close();
+    }
+
+    static void java_util_concurrent_ThreadPerTaskExecutor$shutdown() {
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            executor.shutdown();
+        }
+    }
+
+    static void java_util_concurrent_ThreadPerTaskExecutor$shutdownNow() {
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            executor.shutdownNow();
+        }
+    }
+
+    static void java_util_concurrent_ThreadPoolExecutor$shutdown() {
+        try (ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 1, SECONDS, new SynchronousQueue<>())) {
+            executor.shutdown();
+        }
+    }
+
+    static void java_util_concurrent_ThreadPoolExecutor$shutdownNow() {
+        try (ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 1, SECONDS, new SynchronousQueue<>())) {
+            executor.shutdownNow();
+        }
+    }
+
+    static void java_lang_Thread$setName() {
+        currentThread().setName(currentThread().getName());
+    }
+
+    static void java_lang_Thread$setPriority() {
+        currentThread().setPriority(currentThread().getPriority());
+    }
+
+    static void java_lang_Thread$setUncaughtExceptionHandler() {
+        currentThread().setUncaughtExceptionHandler(currentThread().getUncaughtExceptionHandler());
+    }
+
+    static void java_lang_ThreadGroup$setMaxPriority() {
+        currentThread().getThreadGroup().setMaxPriority(currentThread().getThreadGroup().getMaxPriority());
+    }
+
 }

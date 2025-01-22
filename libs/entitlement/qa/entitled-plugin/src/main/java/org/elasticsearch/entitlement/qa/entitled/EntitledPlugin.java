@@ -15,7 +15,9 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 
-import static org.elasticsearch.entitlement.qa.entitled.EntitledActions.System_clearProperty;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.entitlement.qa.entitled.EntitledActions.newThread;
 
 public class EntitledPlugin extends Plugin implements ExtensiblePlugin {
 
@@ -28,11 +30,19 @@ public class EntitledPlugin extends Plugin implements ExtensiblePlugin {
         selfTestNotEntitled();
     }
 
-    private static final String SELF_TEST_PROPERTY = "org.elasticsearch.entitlement.qa.selfTest";
-
     private static void selfTestEntitled() {
         logger.debug("selfTestEntitled");
-        System_clearProperty(SELF_TEST_PROPERTY);
+        AtomicBoolean threadRan = new AtomicBoolean(false);
+        try {
+            Thread testThread = newThread(() -> threadRan.set(true), "testThread");
+            testThread.start();
+            testThread.join();
+        } catch (InterruptedException e) {
+            throw new AssertionError(e);
+        }
+        if (threadRan.get() == false) {
+            throw new AssertionError("Self-test thread did not run");
+        }
     }
 
     private static void selfTestNotEntitled() {

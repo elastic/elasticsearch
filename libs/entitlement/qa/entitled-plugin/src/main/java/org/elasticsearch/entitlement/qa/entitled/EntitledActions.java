@@ -9,8 +9,6 @@
 
 package org.elasticsearch.entitlement.qa.entitled;
 
-import org.elasticsearch.core.SuppressForbidden;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,9 +17,8 @@ import java.nio.file.attribute.UserPrincipal;
 public final class EntitledActions {
     private EntitledActions() {}
 
-    @SuppressForbidden(reason = "Exposes forbidden APIs for testing purposes")
-    static void System_clearProperty(String key) {
-        System.clearProperty(key);
+    public static Thread newThread(Runnable runnable, String name) {
+        return new Thread(runnable, name);
     }
 
     public static UserPrincipal getFileOwner(Path path) throws IOException {

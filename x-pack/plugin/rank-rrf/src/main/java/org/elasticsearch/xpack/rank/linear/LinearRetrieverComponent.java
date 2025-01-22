@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.search.retriever;
+package org.elasticsearch.xpack.rank.linear;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.search.retriever.IdentityScoreNormalizer;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
+import org.elasticsearch.search.retriever.RetrieverParserContext;
+import org.elasticsearch.search.retriever.ScoreNormalizer;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -18,7 +20,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.search.retriever.LinearRetrieverBuilder.RETRIEVERS_FIELD;
+import static org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder.RETRIEVERS_FIELD;
 
 public class LinearRetrieverComponent implements ToXContentObject {
 

@@ -232,7 +232,6 @@ import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
-import org.elasticsearch.search.retriever.LinearRetrieverBuilder;
 import org.elasticsearch.search.retriever.RescorerRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
@@ -1086,7 +1085,6 @@ public class SearchModule {
         registerRetriever(new RetrieverSpec<>(StandardRetrieverBuilder.NAME, StandardRetrieverBuilder::fromXContent));
         registerRetriever(new RetrieverSpec<>(KnnRetrieverBuilder.NAME, KnnRetrieverBuilder::fromXContent));
         registerRetriever(new RetrieverSpec<>(RescorerRetrieverBuilder.NAME, RescorerRetrieverBuilder::fromXContent));
-        registerRetriever(new RetrieverSpec<>(LinearRetrieverBuilder.NAME, LinearRetrieverBuilder::fromXContent));
 
         registerFromPlugin(plugins, SearchPlugin::getRetrievers, this::registerRetriever);
     }

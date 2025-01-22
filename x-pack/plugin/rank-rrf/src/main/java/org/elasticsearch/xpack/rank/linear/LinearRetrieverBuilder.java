@@ -1,26 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.search.retriever;
+package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.rank.LinearRankDoc;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
+import org.elasticsearch.search.retriever.IdentityScoreNormalizer;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
+import org.elasticsearch.search.retriever.RetrieverParserContext;
+import org.elasticsearch.search.retriever.ScoreNormalizer;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.rank.rrf.RRFRankPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,6 +35,8 @@ import java.util.Map;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.rank.RankRRFFeatures.LINEAR_RETRIEVER_SUPPORTED;
+import static org.elasticsearch.xpack.rank.linear.LinearRetrieverComponent.DEFAULT_WEIGHT;
 
 /**
  * The {@code LinearRetrieverBuilder} supports the combination of different retrievers through a weighted linear combination.
@@ -43,7 +50,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
 
     public static final String NAME = "linear";
 
-    public static final NodeFeature LINEAR_RETRIEVER_SUPPORTED = new NodeFeature("linear_retriever_supported");
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
 
     private final float[] weights;
@@ -80,7 +86,17 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         if (context.clusterSupportsFeature(LINEAR_RETRIEVER_SUPPORTED) == false) {
             throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
         }
+        if (RRFRankPlugin.LINEAR_RETRIEVER_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+            throw LicenseUtils.newComplianceException("linear retriever");
+        }
         return PARSER.apply(parser, context);
+    }
+
+    LinearRetrieverBuilder(
+        List<RetrieverSource> innerRetrievers,
+        int rankWindowSize
+    ) {
+        this(innerRetrievers, rankWindowSize, null, null);
     }
 
     public LinearRetrieverBuilder(
@@ -90,8 +106,18 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         ScoreNormalizer[] normalizers
     ) {
         super(innerRetrievers, rankWindowSize);
-        this.weights = weights;
-        this.normalizers = normalizers;
+        if (weights == null) {
+            this.weights = new float[innerRetrievers.size()];
+            Arrays.fill(this.weights, DEFAULT_WEIGHT);
+        } else {
+            this.weights = weights;
+        }
+        if (normalizers == null) {
+            this.normalizers = new ScoreNormalizer[innerRetrievers.size()];
+            Arrays.fill(this.normalizers, IdentityScoreNormalizer.INSTANCE);
+        } else {
+            this.normalizers = normalizers;
+        }
     }
 
     @Override

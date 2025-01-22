@@ -17,6 +17,7 @@ import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder;
 
 import java.util.List;
 
@@ -25,6 +26,12 @@ public class RRFRankPlugin extends Plugin implements SearchPlugin {
     public static final LicensedFeature.Momentary RANK_RRF_FEATURE = LicensedFeature.momentary(
         null,
         "rank-rrf",
+        License.OperationMode.ENTERPRISE
+    );
+
+    public static final LicensedFeature.Momentary LINEAR_RETRIEVER_FEATURE = LicensedFeature.momentary(
+        null,
+        "linear-retriever",
         License.OperationMode.ENTERPRISE
     );
 
@@ -46,6 +53,8 @@ public class RRFRankPlugin extends Plugin implements SearchPlugin {
 
     @Override
     public List<RetrieverSpec<?>> getRetrievers() {
-        return List.of(new RetrieverSpec<>(new ParseField(NAME), RRFRetrieverBuilder::fromXContent));
+        return List.of(
+            new RetrieverSpec<>(new ParseField(NAME), RRFRetrieverBuilder::fromXContent),
+            new RetrieverSpec<>(new ParseField(LinearRetrieverBuilder.NAME), LinearRetrieverBuilder::fromXContent));
     }
 }

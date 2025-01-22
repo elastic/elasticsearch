@@ -33,14 +33,7 @@ public class FrozenIndicesUsageTransportAction extends XPackUsageFeatureTranspor
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(
-            XPackUsageFeatureAction.FROZEN_INDICES.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.FROZEN_INDICES.name(), transportService, clusterService, threadPool, actionFilters);
     }
 
     @Override

@@ -268,7 +268,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
                 @Override
                 protected SearchPhase getNextPhase() {
-                    return new SearchPhase(getName()) {
+                    return new SearchPhase(name) {
                         @Override
                         protected void run() {
                             sendSearchResponse(SearchResponseSections.EMPTY_WITH_TOTAL_HITS, results.getAtomicArray());

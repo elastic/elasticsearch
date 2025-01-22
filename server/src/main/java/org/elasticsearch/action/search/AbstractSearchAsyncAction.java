@@ -69,7 +69,7 @@ import static org.elasticsearch.core.Strings.format;
  * The fan out and collect algorithm is traditionally used as the initial phase which can either be a query execution or collection of
  * distributed frequencies
  */
-abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase implements AsyncSearchContext {
+abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> implements AsyncSearchContext {
     static final float DEFAULT_INDEX_BOOST = 1.0f;
     private final Logger logger;
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -108,6 +108,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     // protected for tests
     protected final List<Releasable> releasables = new ArrayList<>();
+    protected final String name;
 
     AbstractSearchAsyncAction(
         String name,
@@ -128,7 +129,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         int maxConcurrentRequestsPerNode,
         SearchResponse.Clusters clusters
     ) {
-        super(name);
+        this.name = name;
         this.namedWriteableRegistry = namedWriteableRegistry;
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
         final List<SearchShardIterator> iterators = new ArrayList<>();
@@ -262,11 +263,17 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             );
             return;
         }
-        executePhase(this);
+        try {
+            run();
+        } catch (RuntimeException e) {
+            if (logger.isDebugEnabled()) {
+                logger.debug(() -> format("Failed to execute [%s] while moving to [%s] phase", request, name), e);
+            }
+            onPhaseFailure(name, "", e);
+        }
     }
 
-    @Override
-    protected final void run() {
+    private void run() {
         for (final SearchShardIterator iterator : toSkipShardsIts) {
             assert iterator.skip();
             skipShard(iterator);
@@ -276,7 +283,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             shardIndexMap.put(shardIterators[i], i);
         }
         if (shardsIts.size() > 0) {
-            doCheckNoMissingShards(getName(), request, shardsIts);
+            doCheckNoMissingShards(name, request, shardsIts);
             for (int i = 0; i < shardsIts.size(); i++) {
                 final SearchShardIterator shardRoutings = shardsIts.get(i);
                 assert shardRoutings.skip() == false;
@@ -297,32 +304,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         skippedOps.incrementAndGet();
         assert iterator.skip();
         successfulShardExecution(iterator);
-    }
-
-    private static boolean assertExecuteOnStartThread() {
-        // Ensure that the current code has the following stacktrace:
-        // AbstractSearchAsyncAction#start -> AbstractSearchAsyncAction#executePhase -> AbstractSearchAsyncAction#performPhaseOnShard
-        final StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
-        assert stackTraceElements.length >= 6 : stackTraceElements;
-        int index = 0;
-        assert stackTraceElements[index++].getMethodName().equals("getStackTrace");
-        assert stackTraceElements[index++].getMethodName().equals("assertExecuteOnStartThread");
-        assert stackTraceElements[index++].getMethodName().equals("failOnUnavailable");
-        if (stackTraceElements[index].getMethodName().equals("performPhaseOnShard")) {
-            assert stackTraceElements[index].getClassName().endsWith("CanMatchPreFilterSearchPhase");
-            index++;
-        }
-        assert stackTraceElements[index].getClassName().endsWith("AbstractSearchAsyncAction");
-        assert stackTraceElements[index++].getMethodName().equals("run");
-
-        assert stackTraceElements[index].getClassName().endsWith("AbstractSearchAsyncAction");
-        assert stackTraceElements[index++].getMethodName().equals("executePhase");
-
-        assert stackTraceElements[index].getClassName().endsWith("AbstractSearchAsyncAction");
-        assert stackTraceElements[index++].getMethodName().equals("start");
-
-        assert stackTraceElements[index].getClassName().endsWith("AbstractSearchAsyncAction") == false;
-        return true;
     }
 
     private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
@@ -366,7 +347,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private void failOnUnavailable(int shardIndex, SearchShardIterator shardIt) {
-        assert assertExecuteOnStartThread();
         SearchShardTarget unassignedShard = new SearchShardTarget(null, shardIt.shardId(), shardIt.getClusterAlias());
         onShardFailure(shardIndex, unassignedShard, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
     }
@@ -489,7 +469,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         } else if (totalOps > expectedTotalOps) {
             throw new AssertionError(
                 "unexpected higher total ops [" + totalOps + "] compared to expected [" + expectedTotalOps + "]",
-                new SearchPhaseExecutionException(getName(), "Shard failures", null, buildShardFailures(shardFailures))
+                new SearchPhaseExecutionException(name, "Shard failures", null, buildShardFailures(shardFailures))
             );
         } else {
             if (lastShard == false) {
@@ -607,7 +587,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         } else if (xTotalOps > expectedTotalOps) {
             throw new AssertionError(
                 "unexpected higher total ops [" + xTotalOps + "] compared to expected [" + expectedTotalOps + "]",
-                new SearchPhaseExecutionException(getName(), "Shard failures", null, buildShardFailures(shardFailures))
+                new SearchPhaseExecutionException(name, "Shard failures", null, buildShardFailures(shardFailures))
             );
         }
     }
@@ -767,7 +747,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @see #onShardResult(SearchPhaseResult, SearchShardIterator)
      */
     private void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
-        executeNextPhase(this.getName(), this::getNextPhase);
+        executeNextPhase(name, this::getNextPhase);
     }
 
     /**

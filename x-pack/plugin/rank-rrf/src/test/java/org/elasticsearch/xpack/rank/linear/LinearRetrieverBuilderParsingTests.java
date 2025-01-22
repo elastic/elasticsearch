@@ -9,12 +9,7 @@ package org.elasticsearch.xpack.rank.linear;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
-import org.elasticsearch.search.retriever.MinMaxScoreNormalizer;
-import org.elasticsearch.search.retriever.RetrieverBuilder;
-import org.elasticsearch.search.retriever.RetrieverParserContext;
-import org.elasticsearch.search.retriever.ScoreNormalizer;
-import org.elasticsearch.search.retriever.TestRetrieverBuilder;
+import org.elasticsearch.search.retriever.*;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.NamedXContentRegistry;

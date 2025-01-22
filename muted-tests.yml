@@ -240,30 +240,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testEnrichExplosionManyMatches
   issue: https://github.com/elastic/elasticsearch/issues/120587
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {lookup-join.NonUniqueRightKeyOnTheCoordinator ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/120600
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {lookup-join.NonUniqueRightKeyFromRow ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/120601
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {lookup-join.NonUniqueRightKeyFromRow SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/120602
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {lookup-join.NonUniqueRightKeyOnTheCoordinator SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/120603
 - class: org.elasticsearch.index.reindex.BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests
   method: testReindex
   issue: https://github.com/elastic/elasticsearch/issues/120605
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=migrate/30_create_from/Test create_from with remove_index_blocks set to false}
   issue: https://github.com/elastic/elasticsearch/issues/120657
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {lookup-join.MvJoinKeyOnFrom SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/120658
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {lookup-join.MvJoinKeyOnFrom ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/120659
 
 # Examples:
 #

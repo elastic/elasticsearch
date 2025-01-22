@@ -165,8 +165,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testGetJobs_GivenSingleJob
   issue: https://github.com/elastic/elasticsearch/issues/113655
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanosTests
-  issue: https://github.com/elastic/elasticsearch/issues/113661
 - class: org.elasticsearch.search.retriever.RankDocsRetrieverBuilderTests
   method: testRewrite
   issue: https://github.com/elastic/elasticsearch/issues/114467
@@ -462,3 +460,9 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   method: testRetryPointInTime
   issue: https://github.com/elastic/elasticsearch/issues/120442
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {date.IN operator with null in list, doesn't find match}
+  issue: https://github.com/elastic/elasticsearch/issues/120348
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {date.IN operator with null in list, doesn't find match, EVAL to check value}
+  issue: https://github.com/elastic/elasticsearch/issues/120349

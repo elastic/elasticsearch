@@ -15,6 +15,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
@@ -32,7 +33,6 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -174,14 +174,14 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 assert nextMigrationInfo.getFeatureName().equals(stateFeatureName)
                     && nextMigrationInfo.getCurrentIndexName().equals(stateIndexName)
                     : "index name ["
-                        + stateIndexName
-                        + "] or feature name ["
-                        + stateFeatureName
-                        + "] from task state did not match first index ["
-                        + nextMigrationInfo.getCurrentIndexName()
-                        + "] and feature ["
-                        + nextMigrationInfo.getFeatureName()
-                        + "] of locally computed queue, see logs";
+                    + stateIndexName
+                    + "] or feature name ["
+                    + stateFeatureName
+                    + "] from task state did not match first index ["
+                    + nextMigrationInfo.getCurrentIndexName()
+                    + "] and feature ["
+                    + nextMigrationInfo.getFeatureName()
+                    + "] of locally computed queue, see logs";
                 if (nextMigrationInfo.getCurrentIndexName().equals(stateIndexName) == false) {
                     if (clusterState.metadata().hasIndex(stateIndexName) == false) {
                         // If we don't have that index at all, and also don't have the next one
@@ -442,19 +442,37 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                             if ((bulkByScrollResponse.getBulkFailures() != null
                                 && bulkByScrollResponse.getBulkFailures().isEmpty() == false)
                                 || (bulkByScrollResponse.getSearchFailures() != null
-                                    && bulkByScrollResponse.getSearchFailures().isEmpty() == false)) {
+                                && bulkByScrollResponse.getSearchFailures().isEmpty() == false)) {
                                 removeReadOnlyBlockOnReindexFailure(
                                     oldIndex,
                                     delegate2,
                                     logAndThrowExceptionForFailures(bulkByScrollResponse)
                                 );
                             } else {
-                                // Successful completion of reindexing - remove read only and delete old index
-                                setWriteBlock(
-                                    oldIndex,
-                                    false,
-                                    delegate2.delegateFailureAndWrap(setAliasAndRemoveOldIndex(migrationInfo, bulkByScrollResponse))
-                                );
+                                // Successful completion of reindexing. Now we need to set the alias and remove the old index.
+                                setAliasAndRemoveOldIndex(migrationInfo, ActionListener.wrap(aliasesResponse -> {
+                                    if (aliasesResponse.isAcknowledged() == false || aliasesResponse.hasErrors()) {
+                                        throw new ElasticsearchException("Aliases request was not acknowledged or had errors");
+                                    }
+                                    logger.info(
+                                        "Successfully migrated old index [{}] to new index [{}] from feature [{}]",
+                                        oldIndexName,
+                                        migrationInfo.getNextIndexName(),
+                                        migrationInfo.getFeatureName()
+                                    );
+                                    delegate2.onResponse(bulkByScrollResponse);
+                                }, e -> {
+                                    logger.error(
+                                        () -> format(
+                                            "An error occurred while changing aliases and removing the old index [%s] from feature [%s]",
+                                            oldIndexName,
+                                            migrationInfo.getFeatureName()
+                                        ),
+                                        e
+                                    );
+                                    removeReadOnlyBlockOnReindexFailure(oldIndex, delegate2, e);
+                                    delegate2.onFailure(e);
+                                }));
                             }
                         }, e -> {
                             logger.error(
@@ -506,9 +524,9 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         metadataCreateIndexService.createIndex(TimeValue.MINUS_ONE, TimeValue.ZERO, null, createRequest, listener);
     }
 
-    private CheckedBiConsumer<ActionListener<BulkByScrollResponse>, AcknowledgedResponse, Exception> setAliasAndRemoveOldIndex(
+    private void setAliasAndRemoveOldIndex(
         SystemIndexMigrationInfo migrationInfo,
-        BulkByScrollResponse bulkByScrollResponse
+        ActionListener<IndicesAliasesResponse> listener
     ) {
         final IndicesAliasesRequestBuilder aliasesRequest = migrationInfo.createClient(baseClient).admin().indices().prepareAliases();
         aliasesRequest.removeIndex(migrationInfo.getCurrentIndexName());
@@ -528,11 +546,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             );
         });
 
-        // Technically this callback might have a different cluster state, but it shouldn't matter - these indices shouldn't be changing
-        // while we're trying to migrate them.
-        return (listener, unsetReadOnlyResponse) -> aliasesRequest.execute(
-            listener.delegateFailureAndWrap((l, deleteIndexResponse) -> l.onResponse(bulkByScrollResponse))
-        );
+        aliasesRequest.execute(listener);
     }
 
     /**

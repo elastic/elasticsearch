@@ -88,21 +88,21 @@ public final class EnrichCache {
      * for these search parameters, then the new cache value is computed using searchResponseFetcher.
      *
      * @param enrichIndex The enrich index from which the results will be retrieved
-     * @param value The value that will be used in the search
+     * @param lookupValue The value that will be used in the search
      * @param maxMatches The max number of matches that the search will return
      * @param searchResponseFetcher The function used to compute the value to be put in the cache, if there is no value in the cache already
      * @param listener A listener to be notified of the value in the cache
      */
     public void computeIfAbsent(
         String enrichIndex,
-        Object value,
+        Object lookupValue,
         int maxMatches,
         Consumer<ActionListener<SearchResponse>> searchResponseFetcher,
         ActionListener<List<Map<?, ?>>> listener
     ) {
         // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
         long cacheStart = relativeNanoTimeProvider.getAsLong();
-        var cacheKey = new CacheKey(enrichIndex, value, maxMatches);
+        var cacheKey = new CacheKey(enrichIndex, lookupValue, maxMatches);
         List<Map<?, ?>> response = get(cacheKey);
         long cacheRequestTime = relativeNanoTimeProvider.getAsLong() - cacheStart;
         if (response != null) {
@@ -198,14 +198,14 @@ public final class EnrichCache {
      * {@link org.elasticsearch.action.search.SearchRequest}.
      *
      * @param enrichIndex The enrich <i>index</i> (i.e. not the alias, but the concrete index that the alias points to)
-     * @param value The value that is used to find matches in the enrich index
+     * @param lookupValue The value that is used to find matches in the enrich index
      * @param maxMatches The max number of matches that the enrich lookup should return. This changes the size of the search response and
      * should thus be included in the cache key
      */
     // Visibility for testing
-    record CacheKey(String enrichIndex, Object value, int maxMatches) {
+    record CacheKey(String enrichIndex, Object lookupValue, int maxMatches) {
         /**
-         * In reality, the size in bytes of the cache key is a function of the {@link CacheKey#value} field plus some constant for
+         * In reality, the size in bytes of the cache key is a function of the {@link CacheKey#lookupValue} field plus some constant for
          * the object itself, the string reference for the enrich index (but not the string itself because it's taken from the metadata),
          * and the integer for the max number of matches. However, by defining a static cache key size, we can make the
          * {@link EnrichCache#EMPTY_CACHE_VALUE} static as well, which allows us to avoid having to instantiate new cache values for

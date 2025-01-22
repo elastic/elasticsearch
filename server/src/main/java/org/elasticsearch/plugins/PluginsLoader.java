@@ -363,17 +363,7 @@ public class PluginsLoader {
             );
         } else {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", non-modular");
-            var classLoader = URLClassLoader.newInstance(bundle.urls.toArray(URL[]::new), pluginParentLoader);
-            var controller = ModuleLayer.defineModulesWithOneLoader(
-                ModuleLayer.boot().configuration(),
-                List.of(ModuleLayer.boot()),
-                classLoader
-            );
-            if (modulesWithNativeAccess.isEmpty() == false) {
-                logger.debug(() -> "Enabling native access for the unnamed module in : " + plugin.getName());
-                NativeAccessUtil.enableNativeAccess(controller, classLoader.getUnnamedModule());
-            }
-            return new LayerAndLoader(controller.layer(), classLoader);
+            return LayerAndLoader.ofLoader(URLClassLoader.newInstance(bundle.urls.toArray(URL[]::new), pluginParentLoader));
         }
     }
 

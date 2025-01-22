@@ -46,7 +46,6 @@ public class TransportSnapshottableFeaturesAction extends TransportMasterNodeAct
             threadPool,
             actionFilters,
             GetSnapshottableFeaturesRequest::new,
-            indexNameExpressionResolver,
             GetSnapshottableFeaturesResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

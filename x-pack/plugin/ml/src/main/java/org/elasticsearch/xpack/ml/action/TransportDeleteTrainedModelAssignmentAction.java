@@ -46,7 +46,6 @@ public class TransportDeleteTrainedModelAssignmentAction extends AcknowledgedTra
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.trainedModelAssignmentClusterService = trainedModelAssignmentClusterService;

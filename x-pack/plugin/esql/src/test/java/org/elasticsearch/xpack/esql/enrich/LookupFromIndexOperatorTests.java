@@ -182,7 +182,13 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
         DriverContext ctx = beCranky ? crankyDriverContext() : driverContext();
         BigArrays bigArrays = ctx.bigArrays();
         BlockFactory blockFactory = ctx.blockFactory();
-        return new LookupFromIndexService(clusterService, createShardContext(), transportService(clusterService), bigArrays, blockFactory);
+        return new LookupFromIndexService(
+            clusterService,
+            lookupShardContextFactory(),
+            transportService(clusterService),
+            bigArrays,
+            blockFactory
+        );
     }
 
     private ThreadPool threadPool() {
@@ -216,7 +222,7 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
         return transportService;
     }
 
-    private AbstractLookupService.CreateShardContext createShardContext() {
+    private AbstractLookupService.LookupShardContextFactory lookupShardContextFactory() {
         return shardId -> {
             MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {
             };

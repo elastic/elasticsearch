@@ -15,19 +15,26 @@ import org.elasticsearch.action.admin.indices.resolve.TransportResolveClusterAct
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestResolveClusterAction extends BaseRestHandler {
+
+    private static Set<String> INDEX_OPTIONS_PARAMS = Set.of(
+        "expand_wildcards",
+        "ignore_unavailable",
+        "allow_no_indices",
+        "ignore_throttled"
+    );
 
     @Override
     public String getName() {
@@ -70,19 +77,6 @@ public class RestResolveClusterAction extends BaseRestHandler {
     }
 
     private static Set<String> requestIndexOptionsParams(RestRequest request) {
-        Set<String> indexOptions = new HashSet<>();
-        if (request.hasParam("expand_wildcards")) {
-            indexOptions.add("expand_wildcards");
-        }
-        if (request.hasParam("ignore_unavailable")) {
-            indexOptions.add("ignore_unavailable");
-        }
-        if (request.hasParam("allow_no_indices")) {
-            indexOptions.add("allow_no_indices");
-        }
-        if (request.hasParam("ignore_throttled")) {
-            indexOptions.add("ignore_throttled");
-        }
-        return indexOptions;
+        return Sets.intersection(request.params().keySet(), INDEX_OPTIONS_PARAMS);
     }
 }

@@ -65,8 +65,11 @@ import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordRequestBuilder;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -98,6 +101,11 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ProfileIntegTests extends AbstractProfileIntegTestCase {
+
+    @BeforeClass
+    public static void disableQueryableBuiltInRoles() {
+        AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty("es.queryable_built_in_roles_enabled", "false"));
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

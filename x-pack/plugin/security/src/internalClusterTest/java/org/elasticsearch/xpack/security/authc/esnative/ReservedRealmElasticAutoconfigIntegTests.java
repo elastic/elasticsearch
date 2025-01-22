@@ -32,6 +32,8 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.junit.BeforeClass;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -46,6 +48,11 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
     @BeforeClass
     public static void setHasher() {
         hasher = getFastStoredHashAlgoForTests();
+    }
+
+    @BeforeClass
+    public static void disableQueryableBuiltInRoles() {
+        AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty("es.queryable_built_in_roles_enabled", "false"));
     }
 
     @Override

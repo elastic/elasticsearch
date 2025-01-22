@@ -57,6 +57,7 @@ public class TransportUpdateReplicasAction extends TransportMasterNodeAction<Tra
 
     public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("internal:admin/stateless/update_replicas");
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final MetadataUpdateSettingsService metadataUpdateSettingsService;
 
     @Inject
@@ -75,10 +76,10 @@ public class TransportUpdateReplicasAction extends TransportMasterNodeAction<Tra
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.metadataUpdateSettingsService = metadataUpdateSettingsService;
     }
 

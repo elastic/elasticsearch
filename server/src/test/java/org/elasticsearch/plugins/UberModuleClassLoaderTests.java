@@ -311,7 +311,8 @@ public class UberModuleClassLoaderTests extends ESTestCase {
                 ModuleLayer.boot(),
                 "synthetic",
                 Set.of(toUrl(jar)),
-                Set.of("java.sql", "java.sql.rowset") // if present, java.sql.rowset requires java.sql transitively
+                Set.of("java.sql", "java.sql.rowset"), // if present, java.sql.rowset requires java.sql transitively
+                Set.of()
             )
         ) {
             Class<?> denyListed = denyListLoader.loadClass("p.MyImportingClass");
@@ -617,6 +618,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
             parentLayer,
             "synthetic",
             jarPaths.stream().map(UberModuleClassLoaderTests::pathToUrlUnchecked).collect(Collectors.toSet()),
+            Set.of(),
             Set.of()
         );
     }

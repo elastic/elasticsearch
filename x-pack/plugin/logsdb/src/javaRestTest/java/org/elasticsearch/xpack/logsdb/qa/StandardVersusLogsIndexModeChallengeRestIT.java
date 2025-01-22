@@ -11,13 +11,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
@@ -29,7 +27,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.logsdb.qa.matchers.MatchResult;
 import org.elasticsearch.xpack.logsdb.qa.matchers.Matcher;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -42,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
@@ -54,6 +50,8 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     private final int numShards = randomBoolean() ? randomIntBetween(2, 4) : 0;
     private final int numReplicas = randomBoolean() ? randomIntBetween(1, 3) : 0;
     private final boolean fullyDynamicMapping = randomBoolean();
+    private final boolean useCustomSortConfig = fullyDynamicMapping == false && randomBoolean();
+    private final boolean routeOnSortFields = useCustomSortConfig && randomBoolean();
 
     public StandardVersusLogsIndexModeChallengeRestIT() {
         super("standard-apache-baseline", "logs-apache-contender", "baseline-template", "contender-template", 101, 101);
@@ -159,6 +157,13 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     @Override
     public void contenderSettings(Settings.Builder builder) {
         builder.put("index.mode", "logsdb");
+        if (useCustomSortConfig) {
+            builder.putList("index.sort.field", "host.name", "method", "@timestamp");
+            builder.putList("index.sort.order", "asc", "asc", "desc");
+            if (routeOnSortFields) {
+                builder.put("index.logsdb.route_on_sort_fields", true);
+            }
+        }
     }
 
     @Override
@@ -167,6 +172,11 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
     @Override
     public void beforeStart() throws Exception {
         waitForLogs(client());
+    }
+
+    @Override
+    public boolean autoGenerateId() {
+        return routeOnSortFields;
     }
 
     protected static void waitForLogs(RestClient client) throws Exception {
@@ -330,28 +340,6 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
-    @Override
-    public Response indexBaselineDocuments(CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier) throws IOException {
-        var response = super.indexBaselineDocuments(documentsSupplier);
-
-        assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
-        var baselineResponseBody = entityAsMap(response);
-        assertThat("errors in baseline bulk response:\n " + baselineResponseBody, baselineResponseBody.get("errors"), equalTo(false));
-
-        return response;
-    }
-
-    @Override
-    public Response indexContenderDocuments(CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier) throws IOException {
-        var response = super.indexContenderDocuments(documentsSupplier);
-
-        assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(RestStatus.OK.getStatus()));
-        var contenderResponseBody = entityAsMap(response);
-        assertThat("errors in contender bulk response:\n " + contenderResponseBody, contenderResponseBody.get("errors"), equalTo(false));
-
-        return response;
-    }
-
     private List<XContentBuilder> generateDocuments(int numberOfDocuments) throws IOException {
         final List<XContentBuilder> documents = new ArrayList<>();
         // This is static in order to be able to identify documents between test runs.
@@ -383,7 +371,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
         assertThat(hitsList.size(), greaterThan(0));
 
         return hitsList.stream()
-            .sorted(Comparator.comparingInt((Map<String, Object> hit) -> Integer.parseInt((String) hit.get("_id"))))
+            .sorted(Comparator.comparing((Map<String, Object> hit) -> ((String) hit.get("_id"))))
             .map(hit -> (Map<String, Object>) hit.get("_source"))
             .toList();
     }
@@ -404,7 +392,7 @@ public class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChalleng
 
         // Results contain a list of [source, id] lists.
         return values.stream()
-            .sorted(Comparator.comparingInt((List<Object> value) -> Integer.parseInt((String) value.get(1))))
+            .sorted(Comparator.comparing((List<Object> value) -> ((String) value.get(1))))
             .map(value -> (Map<String, Object>) value.get(0))
             .toList();
     }

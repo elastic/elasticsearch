@@ -14,7 +14,6 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -28,7 +27,10 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractChallengeRestTest extends ESRestTestCase {
     private final String baselineDataStreamName;
@@ -227,37 +229,68 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
 
     public void commonSettings(Settings.Builder builder) {}
 
-    private Response indexDocuments(
-        final String dataStreamName,
+    public boolean autoGenerateId() {
+        return false;
+    }
+
+    public Map<String, Object> indexContenderDocuments(
         final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier
     ) throws IOException {
         final StringBuilder sb = new StringBuilder();
         int id = 0;
         for (var document : documentsSupplier.get()) {
-            sb.append(Strings.format("{ \"create\": { \"_id\" : \"%d\" } }", id)).append("\n");
+            if (autoGenerateId()) {
+                sb.append("{ \"create\": { } }\n");
+            } else {
+                sb.append(Strings.format("{ \"create\": { \"_id\" : \"%d\" } }\n", id));
+            }
             sb.append(Strings.toString(document)).append("\n");
             id++;
         }
-        var request = new Request("POST", "/" + dataStreamName + "/_bulk");
+        var request = new Request("POST", "/" + getContenderDataStreamName() + "/_bulk");
         request.setJsonEntity(sb.toString());
         request.addParameter("refresh", "true");
-        return client.performRequest(request);
+        var response = client.performRequest(request);
+        assertOK(response);
+        var responseBody = entityAsMap(response);
+        assertThat("errors in contender bulk response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
+        return responseBody;
     }
 
-    public Response indexBaselineDocuments(final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier) throws IOException {
-        return indexDocuments(getBaselineDataStreamName(), documentsSupplier);
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> indexBaselineDocuments(
+        final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier,
+        final Map<String, Object> contenderResponseEntity
+    ) throws IOException {
+        final StringBuilder sb = new StringBuilder();
+        int id = 0;
+        final List<Map<String, Object>> items = (List<Map<String, Object>>) contenderResponseEntity.get("items");
+        for (var document : documentsSupplier.get()) {
+            if (autoGenerateId()) {
+                var contenderId = ((Map<String, Object>) items.get(id).get("create")).get("_id");
+                sb.append(Strings.format("{ \"create\": { \"_id\" : \"%s\" } }\n", contenderId));
+            } else {
+                sb.append(Strings.format("{ \"create\": { \"_id\" : \"%d\" } }\n", id));
+            }
+            sb.append(Strings.toString(document)).append("\n");
+            id++;
+        }
+        var request = new Request("POST", "/" + getBaselineDataStreamName() + "/_bulk");
+        request.setJsonEntity(sb.toString());
+        request.addParameter("refresh", "true");
+        var response = client.performRequest(request);
+        assertOK(response);
+        var responseBody = entityAsMap(response);
+        assertThat("errors in baseline bulk response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
+        return responseBody;
     }
 
-    public Response indexContenderDocuments(final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier)
-        throws IOException {
-        return indexDocuments(getContenderDataStreamName(), documentsSupplier);
-    }
-
-    public Tuple<Response, Response> indexDocuments(
+    public void indexDocuments(
         final CheckedSupplier<List<XContentBuilder>, IOException> baselineSupplier,
         final CheckedSupplier<List<XContentBuilder>, IOException> contenderSupplier
     ) throws IOException {
-        return new Tuple<>(indexBaselineDocuments(baselineSupplier), indexContenderDocuments(contenderSupplier));
+        var contenderResponseEntity = indexContenderDocuments(contenderSupplier);
+        indexBaselineDocuments(baselineSupplier, contenderResponseEntity);
     }
 
     public Response queryBaseline(final SearchSourceBuilder search) throws IOException {

@@ -15,7 +15,7 @@ setup:
           capabilities: [migration_reindex]
   - do:
       catch: /illegal_argument_exception/
-      migrate.reindex:
+      indices.migrate_reindex:
         body: |
           {
             "mode": "unsupported_mode",
@@ -35,7 +35,7 @@ setup:
           capabilities: [migration_reindex]
   - do:
       catch: /resource_not_found_exception/
-      migrate.reindex:
+      indices.migrate_reindex:
         body: |
           {
             "mode": "upgrade",
@@ -46,7 +46,7 @@ setup:
 
   - do:
       catch: /resource_not_found_exception/
-      migrate.reindex:
+      indices.migrate_reindex:
         body: |
           {
             "mode": "upgrade",
@@ -67,7 +67,7 @@ setup:
           capabilities: [migration_reindex]
   - do:
       catch: /illegal_argument_exception/
-      migrate.reindex:
+      indices.migrate_reindex:
         body: |
           {
             "mode": "upgrade",
@@ -105,7 +105,7 @@ setup:
   - is_true: acknowledged
 
   - do:
-      migrate.reindex:
+      indices.migrate_reindex:
         body: |
           {
             "mode": "upgrade",
@@ -116,11 +116,11 @@ setup:
   - match: { acknowledged: true }
 
   - do:
-      migrate.cancel_reindex:
+      indices.cancel_migrate_reindex:
         index: "my-data-stream"
   - match: { acknowledged: true }
 
   - do:
       catch: /resource_not_found_exception/
-      migrate.cancel_reindex:
+      indices.cancel_migrate_reindex:
         index: "my-data-stream"

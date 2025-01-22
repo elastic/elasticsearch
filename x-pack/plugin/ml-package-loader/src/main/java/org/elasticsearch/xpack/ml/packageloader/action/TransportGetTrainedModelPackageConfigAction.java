@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
@@ -45,11 +44,9 @@ import static org.elasticsearch.core.Strings.format;
 public class TransportGetTrainedModelPackageConfigAction extends TransportMasterNodeAction<Request, Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportGetTrainedModelPackageConfigAction.class);
-    private final Settings settings;
 
     @Inject
     public TransportGetTrainedModelPackageConfigAction(
-        Settings settings,
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -67,12 +64,11 @@ public class TransportGetTrainedModelPackageConfigAction extends TransportMaster
             GetTrainedModelPackageConfigAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.settings = settings;
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        String repository = MachineLearningPackageLoader.MODEL_REPOSITORY.get(settings);
+        String repository = clusterService.getClusterSettings().get(MachineLearningPackageLoader.MODEL_REPOSITORY);
 
         String packagedModelId = request.getPackagedModelId();
         logger.debug(() -> format("Fetch package manifest for [%s] from [%s]", packagedModelId, repository));

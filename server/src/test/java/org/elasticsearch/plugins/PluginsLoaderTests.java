@@ -49,6 +49,7 @@ public class PluginsLoaderTests extends ESTestCase {
         return PluginsLoader.createPluginsLoader(
             Set.of(),
             PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsFile()),
+            Map.of(),
             false
         );
     }

@@ -187,7 +187,6 @@ public class ModelRegistryTests extends ESTestCase {
         var listener = new PlainActionFuture<UnparsedModel>();
         registry.getModel("1", listener);
 
-        registry.getModel("1", listener);
         var modelConfig = listener.actionGet(TIMEOUT);
         assertEquals("1", modelConfig.inferenceEntityId());
         assertEquals("foo", modelConfig.service());

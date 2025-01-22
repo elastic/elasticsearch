@@ -24,6 +24,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -151,9 +152,15 @@ public class Setting<T> implements ToXContentObject {
          * Indicates that this index-level setting was deprecated in {@link Version#V_7_17_0} and is
          * forbidden in indices created from {@link Version#V_8_0_0} onwards.
          */
-        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // introduce IndexSettingDeprecatedInV8AndRemovedInV10
+        @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)  // remove constant if indices created in V7 couldn't be read by v10 anymore
         // note we still need v7 settings in v9 because we support reading from N-2 indices now
         IndexSettingDeprecatedInV7AndRemovedInV8,
+
+        /**
+         * Indicates that this index-level setting was deprecated in {@link Version#V_8_18_0} and is
+         * forbidden in indices created from {@link Version#V_9_0_0} onwards.
+         */
+        IndexSettingDeprecatedInV8AndRemovedInV9,
 
         /**
          * Indicates that this setting is accessible by non-operator users (public) in serverless
@@ -176,7 +183,8 @@ public class Setting<T> implements ToXContentObject {
     private static final EnumSet<Property> DEPRECATED_PROPERTIES = EnumSet.of(
         Property.Deprecated,
         Property.DeprecatedWarning,
-        Property.IndexSettingDeprecatedInV7AndRemovedInV8
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8,
+        Property.IndexSettingDeprecatedInV8AndRemovedInV9
     );
 
     @SuppressWarnings("this-escape")
@@ -216,6 +224,7 @@ public class Setting<T> implements ToXContentObject {
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.PrivateIndex);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV7AndRemovedInV8);
+            checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV8AndRemovedInV9);
             checkPropertyRequiresNodeScope(propertiesAsSet);
             this.properties = propertiesAsSet;
         }
@@ -450,7 +459,8 @@ public class Setting<T> implements ToXContentObject {
     private boolean isDeprecated() {
         return properties.contains(Property.Deprecated)
             || properties.contains(Property.DeprecatedWarning)
-            || properties.contains(Property.IndexSettingDeprecatedInV7AndRemovedInV8);
+            || properties.contains(Property.IndexSettingDeprecatedInV7AndRemovedInV8)
+            || properties.contains(Property.IndexSettingDeprecatedInV8AndRemovedInV9);
     }
 
     private boolean isDeprecatedWarningOnly() {

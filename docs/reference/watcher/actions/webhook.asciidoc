@@ -165,7 +165,7 @@ the values serve as the header values:
 | `params`              | no        | -           | The URL query string parameters. The parameter values can be
                                                     static text or include Mustache <<templates,templates>>.
 
-| `authorization`                | no        | -           | Authentication related HTTP headers. Currently, only basic
+| `auth`                | no        | -           | Authentication related HTTP headers. Currently, only basic
                                                     authentication is supported.
 
 | `body`                | no        | -           | The HTTP request body. The body can be static text or include

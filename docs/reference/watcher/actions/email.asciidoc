@@ -149,9 +149,9 @@ killed by firewalls or load balancers in-between.
                     means, by default watcher tries to download a dashboard for 10 minutes,
                     forty times fifteen seconds). The setting `xpack.notification.reporting.interval`
                     can be configured globally to change the default.
-| `authorization`          | Additional auth configuration for the request, see
+| `auth`          | Additional auth configuration for the request, see 
                     {kibana-ref}/automating-report-generation.html#use-watcher[use watcher] for details
-| `proxy`         | Additional proxy configuration for the request. See <<http-input-attributes>>
+| `proxy`         | Additional proxy configuration for the request. See <<http-input-attributes>> 
                     on how to configure the values.
 |======
 
@@ -257,7 +257,7 @@ messages can contain basic HTML tags. You can control which groups of tags are
 allowed by <<email-html-sanitization, Configuring HTML Sanitization Options>>.
 
 You configure the accounts {watcher} can use to send email in the
-`xpack.notification.email` namespace in `elasticsearch.yml`.
+`xpack.notification.email` namespace in `elasticsearch.yml`. 
 The password for the specified SMTP user is stored securely in the
 <<secure-settings, {es} keystore>>.
 

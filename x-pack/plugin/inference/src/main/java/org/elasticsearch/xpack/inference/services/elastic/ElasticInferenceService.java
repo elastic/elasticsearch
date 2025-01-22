@@ -103,10 +103,10 @@ public class ElasticInferenceService extends SenderService {
         enabledTaskTypes = EnumSet.noneOf(TaskType.class);
         configuration = new Configuration(enabledTaskTypes);
 
-        getAuth();
+        getAuthorization();
     }
 
-    private void getAuth() {
+    private void getAuthorization() {
         try {
             ActionListener<ElasticInferenceServiceAuthorization> listener = ActionListener.wrap(this::setEnabledTaskTypes, e -> {
                 // we don't need to do anything if there was a failure, everything is disabled by default

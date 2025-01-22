@@ -82,8 +82,8 @@ public class ElasticInferenceServiceAuthorizationHandler {
                             results.getClass().getSimpleName()
                         )
                     );
+                    listener.onResponse(ElasticInferenceServiceAuthorization.newDisabledService());
                 }
-                listener.onResponse(ElasticInferenceServiceAuthorization.newDisabledService());
             }, e -> {
                 Throwable exception = e;
                 if (e instanceof ElasticsearchWrapperException wrapperException) {

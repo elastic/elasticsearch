@@ -46,7 +46,6 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -125,7 +124,6 @@ import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
-import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -328,13 +326,6 @@ public class InferencePlugin extends Plugin
         var stats = new PluginComponentBinding<>(InferenceStats.class, InferenceStats.create(meterRegistry));
 
         return List.of(modelRegistry, registry, httpClientManager, stats);
-    }
-
-    private TraceContext getCurrentTraceInfo() {
-        var traceParent = threadPoolSetOnce.get().getThreadContext().getHeader(Task.TRACE_PARENT);
-        var traceState = threadPoolSetOnce.get().getThreadContext().getHeader(Task.TRACE_STATE);
-
-        return new TraceContext(traceParent, traceState);
     }
 
     @Override

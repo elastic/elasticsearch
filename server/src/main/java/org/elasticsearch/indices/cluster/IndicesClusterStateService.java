@@ -42,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
@@ -74,6 +75,7 @@ import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
@@ -688,6 +690,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 primaryTerm,
                 0,
                 0L,
+                new RunOnce(() -> HotThreads.logLocalCurrentThreads(logger, Level.WARN, shardId + ": acquire shard lock for create")),
                 ActionListener.runBefore(new ActionListener<>() {
                     @Override
                     public void onResponse(Boolean success) {
@@ -740,6 +743,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         long primaryTerm,
         int iteration,
         long delayMillis,
+        RunOnce dumpHotThreads,
         ActionListener<Boolean> listener
     ) {
         try {
@@ -763,8 +767,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 listener.onFailure(e);
                 return;
             }
+            final Level level = (iteration + 25) % 30 == 0 ? Level.WARN : Level.DEBUG;
             logger.log(
-                (iteration + 25) % 30 == 0 ? Level.WARN : Level.DEBUG,
+                level,
                 """
                     shard lock for [{}] has been unavailable for at least [{}/{}ms], \
                     attempting to create shard while applying cluster state [version={},uuid={}], will retry in [{}]: [{}]""",
@@ -776,6 +781,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 shardLockRetryInterval,
                 e.getMessage()
             );
+            if (level == Level.WARN) {
+                dumpHotThreads.run();
+            }
             // TODO could we instead subscribe to the shard lock and trigger the retry exactly when it is released rather than polling?
             threadPool.scheduleUnlessShuttingDown(
                 shardLockRetryInterval,
@@ -813,6 +821,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                 shardLockRetryTimeout.millis(),
                                 shardRouting
                             );
+                            dumpHotThreads.run();
                             listener.onFailure(
                                 new ElasticsearchTimeoutException("timed out while waiting to acquire shard lock for " + shardRouting)
                             );
@@ -841,6 +850,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             primaryTerm,
                             iteration + 1,
                             newDelayMillis,
+                            dumpHotThreads,
                             listener
                         );
 

@@ -175,5 +175,5 @@ If `true`, the query request is still executing.
 +
 --
 (Boolean)
-If `true`, the query has partial results - for example, as a result of using the <<esql-async-query-stop-api, query stop API>>.
+If `true`, the query has partial results - for example, as a result of using the <<esql-async-query-stop-api, async query stop API>>.
 --

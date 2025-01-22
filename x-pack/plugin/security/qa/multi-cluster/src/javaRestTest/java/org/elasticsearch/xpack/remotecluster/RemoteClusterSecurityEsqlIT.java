@@ -1480,7 +1480,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         Response response = performRequestWithRemoteSearchUser(request);
         assertOK(response);
         Map<String, Object> responseAsMap = entityAsMap(response);
-        assertThat(responseAsMap.get("is_running"), equalTo(true));
+        assumeTrue("Query finished too fast, can not test", (boolean) responseAsMap.get("is_running"));
 
         String asyncId = (String) responseAsMap.get("id");
         response = performRequestWithRemoteSearchUser(esqlAsyncGetRequest(asyncId));

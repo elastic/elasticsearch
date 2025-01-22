@@ -234,7 +234,8 @@ final class ComputeListener implements Releasable {
                 esqlExecutionInfo.swapCluster(computeClusterAlias, (k, v) -> {
                     EsqlExecutionInfo.Cluster.Status resultStatus = v.getStatus();
                     // If we got the result after execution has been marked as partial, we declare it partial.
-                    // This should only happen if we didn't get any results yet from local, otherwise it's not partial.
+                    // We only mark the result as partial if we didn't receive all the local node data by the time
+                    // the stop is issued. If we did, getTook() will be not null.
                     if (v.getTook() == null && esqlExecutionInfo.isPartial()) {
                         resultStatus = EsqlExecutionInfo.Cluster.Status.PARTIAL;
                     }

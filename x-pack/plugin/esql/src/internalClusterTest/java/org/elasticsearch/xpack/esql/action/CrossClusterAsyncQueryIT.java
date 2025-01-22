@@ -275,7 +275,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             client(),
             "FROM logs-*,cluster-a:logs-*,remote-b:blocking | STATS total=sum(coalesce(const,v)) | LIMIT 1",
             includeCCSMetadata.v1(),
-            Map.of("page_size", 1, "data_partitioning", "shard")
+            Map.of("page_size", 1, "data_partitioning", "shard", "task_concurrency", 1)
         );
 
         // wait until we know that the query against 'remote-b:blocking' has started

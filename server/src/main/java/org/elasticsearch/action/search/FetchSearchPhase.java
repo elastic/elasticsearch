@@ -158,28 +158,29 @@ final class FetchSearchPhase extends SearchPhase {
         );
         for (int i = 0; i < docIdsToLoad.length; i++) {
             List<Integer> entry = docIdsToLoad[i];
-            RankDocShardInfo rankDocs = rankDocsPerShard == null || rankDocsPerShard.get(i).isEmpty()
-                ? null
-                : new RankDocShardInfo(rankDocsPerShard.get(i));
-            SearchPhaseResult shardPhaseResult = searchPhaseShardResults.get(i);
             if (entry == null) { // no results for this shard ID
-                if (shardPhaseResult != null) {
-                    // if we got some hits from this shard we have to release the context there
-                    // we do this as we go since it will free up resources and passing on the request on the
-                    // transport layer is cheap.
-                    releaseIrrelevantSearchContext(shardPhaseResult, context);
-                    progressListener.notifyFetchResult(i);
-                }
+                // if we got some hits from this shard we have to release the context
+                // we do this below after sending out the fetch requests relevant to the search to give priority to those requests
+                // that contribute to the final search response
                 // in any case we count down this result since we don't talk to this shard anymore
                 counter.countDown();
             } else {
                 executeFetch(
-                    shardPhaseResult,
+                    searchPhaseShardResults.get(i),
                     counter,
                     entry,
-                    rankDocs,
+                    rankDocsPerShard == null || rankDocsPerShard.get(i).isEmpty() ? null : new RankDocShardInfo(rankDocsPerShard.get(i)),
                     (lastEmittedDocPerShard != null) ? lastEmittedDocPerShard[i] : null
                 );
+            }
+        }
+        for (int i = 0; i < docIdsToLoad.length; i++) {
+            if (docIdsToLoad[i] == null) {
+                SearchPhaseResult shardPhaseResult = searchPhaseShardResults.get(i);
+                if (shardPhaseResult != null) {
+                    releaseIrrelevantSearchContext(shardPhaseResult, context);
+                    progressListener.notifyFetchResult(i);
+                }
             }
         }
     }

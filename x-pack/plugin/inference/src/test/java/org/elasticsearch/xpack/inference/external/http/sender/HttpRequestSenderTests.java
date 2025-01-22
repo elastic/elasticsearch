@@ -164,10 +164,7 @@ public class HttpRequestSenderTests extends ESTestCase {
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
-            assertThat(
-                thrownException.getMessage(),
-                is(format("Request timed out waiting to be sent after [%s]", TimeValue.timeValueNanos(1)))
-            );
+            assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueNanos(1))));
             assertThat(thrownException.status().getStatus(), is(408));
         }
     }
@@ -190,10 +187,7 @@ public class HttpRequestSenderTests extends ESTestCase {
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
-            assertThat(
-                thrownException.getMessage(),
-                is(format("Request timed out waiting to be sent after [%s]", TimeValue.timeValueNanos(1)))
-            );
+            assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueNanos(1))));
             assertThat(thrownException.status().getStatus(), is(408));
         }
     }

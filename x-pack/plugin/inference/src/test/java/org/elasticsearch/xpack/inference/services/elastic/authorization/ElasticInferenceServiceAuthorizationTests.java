@@ -5,12 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.elastic;
+package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceAuthResponseEntity;
-import org.elasticsearch.xpack.inference.services.elastic.auth.ElasticInferenceServiceAuthorization;
+import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceAuthorizationResponseEntity;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -28,8 +27,8 @@ public class ElasticInferenceServiceAuthorizationTests extends ESTestCase {
     }
 
     public void testExcludes_ModelsWithoutTaskTypes() {
-        var response = new ElasticInferenceServiceAuthResponseEntity(
-            List.of(new ElasticInferenceServiceAuthResponseEntity.AuthorizedModel("model-1", EnumSet.noneOf(TaskType.class)))
+        var response = new ElasticInferenceServiceAuthorizationResponseEntity(
+            List.of(new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel("model-1", EnumSet.noneOf(TaskType.class)))
         );
         var auth = ElasticInferenceServiceAuthorization.of(response);
         assertTrue(auth.enabledTaskTypes().isEmpty());

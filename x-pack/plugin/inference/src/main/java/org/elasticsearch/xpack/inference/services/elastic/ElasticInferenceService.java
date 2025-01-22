@@ -44,8 +44,8 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.elastic.auth.ElasticInferenceServiceAuthorizationHandler;
-import org.elasticsearch.xpack.inference.services.elastic.auth.ElasticInferenceServiceAuthorization;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorization;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationHandler;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -86,16 +86,19 @@ public class ElasticInferenceService extends SenderService {
     private Configuration configuration;
     private EnumSet<TaskType> enabledTaskTypes;
     private final ModelRegistry modelRegistry;
+    private final ElasticInferenceServiceAuthorizationHandler authorizationHandler;
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
-        ModelRegistry modelRegistry
+        ModelRegistry modelRegistry,
+        ElasticInferenceServiceAuthorizationHandler authorizationHandler
     ) {
         super(factory, serviceComponents);
         this.elasticInferenceServiceComponents = Objects.requireNonNull(elasticInferenceServiceComponents);
         this.modelRegistry = Objects.requireNonNull(modelRegistry);
+        this.authorizationHandler = Objects.requireNonNull(authorizationHandler);
 
         enabledTaskTypes = EnumSet.noneOf(TaskType.class);
         configuration = new Configuration(enabledTaskTypes);
@@ -103,49 +106,26 @@ public class ElasticInferenceService extends SenderService {
         getAuth();
     }
 
-    // TODO consider removing this should only be used for testing maybe mock getAcl instead?
-    ElasticInferenceService(
-        HttpRequestSender.Factory factory,
-        ServiceComponents serviceComponents,
-        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
-        ModelRegistry modelRegistry,
-        ElasticInferenceServiceAuthorization auth
-    ) {
-        super(factory, serviceComponents);
-        this.elasticInferenceServiceComponents = Objects.requireNonNull(elasticInferenceServiceComponents);
-        this.modelRegistry = Objects.requireNonNull(modelRegistry);
-
-        setEnabledTaskTypes(auth);
-    }
-
     private void getAuth() {
         try {
-            ActionListener<ElasticInferenceServiceAuthorization> listener = ActionListener.wrap(
-                this::setEnabledTaskTypes,
-                e -> {
-                    // we don't need to do anything if there was a failure, everything is disabled by default
-                }
-            );
+            ActionListener<ElasticInferenceServiceAuthorization> listener = ActionListener.wrap(this::setEnabledTaskTypes, e -> {
+                // we don't need to do anything if there was a failure, everything is disabled by default
+            });
 
-            var auth = new ElasticInferenceServiceAuthorizationHandler(
-                elasticInferenceServiceComponents.elasticInferenceServiceUrl(),
-                getSender(),
-                getServiceComponents().threadPool()
-            );
-            auth.getAuth(listener);
+            authorizationHandler.getAuth(listener, getSender());
         } catch (Exception e) {
             // we don't need to do anything if there was a failure, everything is disabled by default
         }
     }
 
     private synchronized void setEnabledTaskTypes(ElasticInferenceServiceAuthorization auth) {
-        enabledTaskTypes = filterTaskTypesByAuth(auth);
+        enabledTaskTypes = filterTaskTypesByAuthorization(auth);
         configuration = new Configuration(enabledTaskTypes);
 
         defaultConfigIds().forEach(modelRegistry::addDefaultIds);
     }
 
-    private static EnumSet<TaskType> filterTaskTypesByAuth(ElasticInferenceServiceAuthorization auth) {
+    private static EnumSet<TaskType> filterTaskTypesByAuthorization(ElasticInferenceServiceAuthorization auth) {
         var implementedTaskTypes = EnumSet.copyOf(IMPLEMENTED_TASK_TYPES);
         implementedTaskTypes.retainAll(auth.enabledTaskTypes());
         return implementedTaskTypes;

@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class ElasticInferenceServiceAuthResponseEntity implements InferenceServiceResults {
+public class ElasticInferenceServiceAuthorizationResponseEntity implements InferenceServiceResults {
 
     public static final String NAME = "elastic_inference_service_auth_results";
     private static final Map<String, TaskType> ELASTIC_INFERENCE_SERVICE_TASK_TYPE_MAPPING = Map.of(
@@ -47,10 +47,11 @@ public class ElasticInferenceServiceAuthResponseEntity implements InferenceServi
     );
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<ElasticInferenceServiceAuthResponseEntity, Void> PARSER = new ConstructingObjectParser<>(
-        ElasticInferenceServiceAuthResponseEntity.class.getSimpleName(),
-        args -> new ElasticInferenceServiceAuthResponseEntity((List<AuthorizedModel>) args[0])
-    );
+    public static ConstructingObjectParser<ElasticInferenceServiceAuthorizationResponseEntity, Void> PARSER =
+        new ConstructingObjectParser<>(
+            ElasticInferenceServiceAuthorizationResponseEntity.class.getSimpleName(),
+            args -> new ElasticInferenceServiceAuthorizationResponseEntity((List<AuthorizedModel>) args[0])
+        );
 
     static {
         PARSER.declareObjectArray(constructorArg(), AuthorizedModel.ALLOWED_MODEL_PARSER::apply, new ParseField("models"));
@@ -106,22 +107,22 @@ public class ElasticInferenceServiceAuthResponseEntity implements InferenceServi
 
     private final List<AuthorizedModel> allowedModels;
 
-    public ElasticInferenceServiceAuthResponseEntity(List<AuthorizedModel> allowedModels) {
+    public ElasticInferenceServiceAuthorizationResponseEntity(List<AuthorizedModel> allowedModels) {
         this.allowedModels = Objects.requireNonNull(allowedModels);
     }
 
     /**
      * Create an empty response
      */
-    public ElasticInferenceServiceAuthResponseEntity() {
+    public ElasticInferenceServiceAuthorizationResponseEntity() {
         this(List.of());
     }
 
-    public ElasticInferenceServiceAuthResponseEntity(StreamInput in) throws IOException {
+    public ElasticInferenceServiceAuthorizationResponseEntity(StreamInput in) throws IOException {
         this(in.readCollectionAsList(AuthorizedModel::new));
     }
 
-    public static ElasticInferenceServiceAuthResponseEntity fromResponse(Request request, HttpResult response) throws IOException {
+    public static ElasticInferenceServiceAuthorizationResponseEntity fromResponse(Request request, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {

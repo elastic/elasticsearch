@@ -5,10 +5,10 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.elastic.auth;
+package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceAuthResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceAuthorizationResponseEntity;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -24,12 +24,12 @@ import java.util.stream.Collectors;
 public record ElasticInferenceServiceAuthorization(Map<String, EnumSet<TaskType>> enabledModels) {
 
     /**
-     * Converts an ACL response into the {@link ElasticInferenceServiceAuthorization} format.
+     * Converts an authorization response from EIS into the {@link ElasticInferenceServiceAuthorization} format.
      *
-     * @param responseEntity the response from the upstream gateway.
+     * @param responseEntity the {@link ElasticInferenceServiceAuthorizationResponseEntity} response from the upstream gateway.
      * @return a new {@link ElasticInferenceServiceAuthorization}
      */
-    public static ElasticInferenceServiceAuthorization of(ElasticInferenceServiceAuthResponseEntity responseEntity) {
+    public static ElasticInferenceServiceAuthorization of(ElasticInferenceServiceAuthorizationResponseEntity responseEntity) {
         var enabledModels = new HashMap<String, EnumSet<TaskType>>();
 
         for (var model : responseEntity.getAllowedModels()) {

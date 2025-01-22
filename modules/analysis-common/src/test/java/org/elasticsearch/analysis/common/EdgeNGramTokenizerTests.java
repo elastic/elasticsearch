@@ -61,7 +61,7 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
             try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edge_ngram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
-                assertAnalyzesTo(analyzer, "test", new String[]{"t"});
+                assertAnalyzesTo(analyzer, "test", new String[] { "t" });
             }
         }
 
@@ -75,7 +75,7 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
             try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edgeNGram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
-                assertAnalyzesTo(analyzer, "test", new String[]{"t"});
+                assertAnalyzesTo(analyzer, "test", new String[] { "t" });
             }
         }
 
@@ -84,26 +84,21 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
             try (IndexAnalyzers indexAnalyzers = buildAnalyzers(IndexVersion.current(), "edge_ngram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
-                assertAnalyzesTo(analyzer, "test", new String[]{"t", "te"});
+                assertAnalyzesTo(analyzer, "test", new String[] { "t", "te" });
             }
         }
 
         // Check deprecated name as well, needs version before 8.0 because throws IAE after that
         {
-            try (
-                IndexAnalyzers indexAnalyzers = buildAnalyzers(
-                    IndexVersionUtils.randomVersionBetween(
-                        random(),
-                        IndexVersions.V_7_3_0,
-                        IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
-                    ),
-                    "edgeNGram"
-                )
-            ) {
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.V_7_3_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
+            );
+            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edge_ngram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
-                assertAnalyzesTo(analyzer, "test", new String[]{"t", "te"});
-
+                assertAnalyzesTo(analyzer, "test", new String[] { "t", "te" });
             }
         }
     }

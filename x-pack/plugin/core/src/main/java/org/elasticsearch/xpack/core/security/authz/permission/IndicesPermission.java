@@ -811,12 +811,12 @@ public final class IndicesPermission {
             @Nullable Set<BytesReference> query,
             boolean allowRestrictedIndices,
             RestrictedIndices restrictedIndices,
-            String... indices
+            String... roleIndices
         ) {
-            assert indices.length != 0;
+            assert roleIndices.length != 0;
             this.privilege = privilege;
             this.actionMatcher = privilege.predicate();
-            this.indices = resolveSelectors(indices);
+            this.indices = resolveSelectors(roleIndices);
             this.allowRestrictedIndices = allowRestrictedIndices;
             ConcurrentHashMap<String[], Automaton> indexNameAutomatonMemo = new ConcurrentHashMap<>(1);
             if (allowRestrictedIndices) {

@@ -26,6 +26,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ExitVMEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
 
@@ -136,7 +137,8 @@ public class EntitlementInitialization {
                         new CreateClassLoaderEntitlement(),
                         new InboundNetworkEntitlement(),
                         new OutboundNetworkEntitlement(),
-                        new LoadNativeLibrariesEntitlement()
+                        new LoadNativeLibrariesEntitlement(),
+                        new ManageThreadsEntitlement()
                     )
                 ),
                 new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),

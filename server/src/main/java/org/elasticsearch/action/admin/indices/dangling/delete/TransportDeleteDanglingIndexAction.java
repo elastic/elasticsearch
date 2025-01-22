@@ -73,7 +73,6 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
             threadPool,
             actionFilters,
             DeleteDanglingIndexRequest::new,
-            indexNameExpressionResolver,
             threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.settings = settings;

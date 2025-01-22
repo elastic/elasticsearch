@@ -32,14 +32,7 @@ public class RemoteClusterUsageTransportAction extends XPackUsageFeatureTranspor
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(
-            XPackUsageFeatureAction.REMOTE_CLUSTERS.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.REMOTE_CLUSTERS.name(), transportService, clusterService, threadPool, actionFilters);
     }
 
     @Override

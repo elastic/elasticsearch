@@ -43,7 +43,6 @@ public class TransportGetDesiredNodesAction extends TransportMasterNodeReadActio
             threadPool,
             actionFilters,
             GetDesiredNodesAction.Request::new,
-            indexNameExpressionResolver,
             GetDesiredNodesAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

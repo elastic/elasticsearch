@@ -174,7 +174,11 @@ public class DateDiff extends EsqlScalarFunction {
             type = { "date", "date_nanos" },
             description = "A string representing a start timestamp"
         ) Expression startTimestamp,
-        @Param(name = "endTimestamp", type = { "date", "date_nanos" }, description = "A string representing an end timestamp") Expression endTimestamp
+        @Param(
+            name = "endTimestamp",
+            type = { "date", "date_nanos" },
+            description = "A string representing an end timestamp"
+        ) Expression endTimestamp
     ) {
         super(source, List.of(unit, startTimestamp, endTimestamp));
         this.unit = unit;

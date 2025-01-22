@@ -63,7 +63,7 @@ public class CreateFromSourceIndexRequestTests extends AbstractWireSerializingTe
         if (randomBoolean()) {
             return new Request(source, dest);
         } else {
-            return new Request(source, dest, randomSettings(), randomMappings());
+            return new Request(source, dest, randomSettings(), randomMappings(), randomBoolean());
         }
     }
 
@@ -74,14 +74,16 @@ public class CreateFromSourceIndexRequestTests extends AbstractWireSerializingTe
         String destIndex = instance.destIndex();
         Settings settingsOverride = instance.settingsOverride();
         Map<String, Object> mappingsOverride = instance.mappingsOverride();
+        boolean removeIndexBlocks = instance.removeIndexBlocks();
 
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0 -> sourceIndex = randomValueOtherThan(sourceIndex, () -> randomAlphaOfLength(30));
             case 1 -> destIndex = randomValueOtherThan(destIndex, () -> randomAlphaOfLength(30));
             case 2 -> settingsOverride = randomValueOtherThan(settingsOverride, CreateFromSourceIndexRequestTests::randomSettings);
             case 3 -> mappingsOverride = randomValueOtherThan(mappingsOverride, CreateFromSourceIndexRequestTests::randomMappings);
+            case 4 -> removeIndexBlocks = removeIndexBlocks == false;
         }
-        return new Request(sourceIndex, destIndex, settingsOverride, mappingsOverride);
+        return new Request(sourceIndex, destIndex, settingsOverride, mappingsOverride, removeIndexBlocks);
     }
 
     public static Map<String, Object> randomMappings() {

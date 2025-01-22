@@ -93,6 +93,7 @@ public class ConnectorIndexService {
     private final Client clientWithOrigin;
 
     private static final int CONNECTORS_INDEX_VERSION = 1;
+    // TODO rename to CONNECTOR_ALIAS_NAME
     public static final String CONNECTOR_INDEX_NAME = ".elastic-connectors";
     public static final String CONNECTOR_INDEX_PREFIX = ".elastic-connectors-v";
     public static final String CONNECTOR_CONCRETE_INDEX_NAME = CONNECTOR_INDEX_PREFIX + CONNECTORS_INDEX_VERSION;

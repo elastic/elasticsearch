@@ -2,7 +2,7 @@
 [[aliases]]
 = Aliases
 
-An alias is a secondary name for a group of data streams or indices. Most {es}
+An alias points to one or more indices or data streams. Most {es}
 APIs accept an alias in place of a data stream or index name.
 
 If you use aliases in your application's {es} requests instead of directly using indices, you can update or change the backing data with **no

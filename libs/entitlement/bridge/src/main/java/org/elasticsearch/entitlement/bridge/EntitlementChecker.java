@@ -42,6 +42,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.security.cert.CertStoreParameters;
 import java.util.List;
+import java.util.Properties;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -123,6 +124,15 @@ public interface EntitlementChecker {
 
     ////////////////////
     //
+    // System Properties and similar
+    //
+
+    void check$java_lang_System$$setProperty(Class<?> callerClass, String key, String value);
+
+    void check$java_lang_System$$clearProperty(Class<?> callerClass, String key);
+
+    ////////////////////
+    //
     // JVM-wide state changes
     //
 
@@ -131,6 +141,8 @@ public interface EntitlementChecker {
     void check$java_lang_System$$setOut(Class<?> callerClass, PrintStream out);
 
     void check$java_lang_System$$setErr(Class<?> callerClass, PrintStream err);
+
+    void check$java_lang_System$$setProperties(Class<?> callerClass, Properties props);
 
     void check$java_lang_Runtime$addShutdownHook(Class<?> callerClass, Runtime runtime, Thread hook);
 
@@ -269,10 +281,7 @@ public interface EntitlementChecker {
     // Network miscellanea
     void check$java_net_URL$openConnection(Class<?> callerClass, java.net.URL that, Proxy proxy);
 
-    // HttpClient.Builder is an interface, so we instrument its only (internal) implementation
-    void check$jdk_internal_net_http_HttpClientBuilderImpl$build(Class<?> callerClass, HttpClient.Builder that);
-
-    // HttpClient#send and sendAsync are abstract, so we instrument their internal implementation
+    // HttpClient#send and sendAsync are abstract, so we instrument their internal implementations
     void check$jdk_internal_net_http_HttpClientImpl$send(
         Class<?> callerClass,
         HttpClient that,
@@ -288,6 +297,28 @@ public interface EntitlementChecker {
     );
 
     void check$jdk_internal_net_http_HttpClientImpl$sendAsync(
+        Class<?> callerClass,
+        HttpClient that,
+        HttpRequest userRequest,
+        HttpResponse.BodyHandler<?> responseHandler,
+        HttpResponse.PushPromiseHandler<?> pushPromiseHandler
+    );
+
+    void check$jdk_internal_net_http_HttpClientFacade$send(
+        Class<?> callerClass,
+        HttpClient that,
+        HttpRequest request,
+        HttpResponse.BodyHandler<?> responseBodyHandler
+    );
+
+    void check$jdk_internal_net_http_HttpClientFacade$sendAsync(
+        Class<?> callerClass,
+        HttpClient that,
+        HttpRequest userRequest,
+        HttpResponse.BodyHandler<?> responseHandler
+    );
+
+    void check$jdk_internal_net_http_HttpClientFacade$sendAsync(
         Class<?> callerClass,
         HttpClient that,
         HttpRequest userRequest,
@@ -367,4 +398,16 @@ public interface EntitlementChecker {
     void check$sun_nio_ch_DatagramChannelImpl$send(Class<?> callerClass, DatagramChannel that, ByteBuffer src, SocketAddress target);
 
     void check$sun_nio_ch_DatagramChannelImpl$receive(Class<?> callerClass, DatagramChannel that, ByteBuffer dst);
+
+    ////////////////////
+    //
+    // Load native libraries
+    //
+    void check$java_lang_Runtime$load(Class<?> callerClass, Runtime that, String filename);
+
+    void check$java_lang_Runtime$loadLibrary(Class<?> callerClass, Runtime that, String libname);
+
+    void check$java_lang_System$$load(Class<?> callerClass, String filename);
+
+    void check$java_lang_System$$loadLibrary(Class<?> callerClass, String libname);
 }

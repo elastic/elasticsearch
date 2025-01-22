@@ -129,5 +129,5 @@ keyword-text:
       catch: "bad_request"
 
   - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "Found 1 problem\nline 1:84: JOIN left field [color] of type [KEYWORD] is incompatible with right field [color] of type [TEXT]" }
+  - contains: { error.reason: "Found 1 problem\nline 1:84: JOIN with right field [color] of type [TEXT] is not supported" }
 

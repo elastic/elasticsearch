@@ -43,6 +43,7 @@ public abstract class ReindexChallengeRestIT extends StandardVersusLogsIndexMode
         return body;
     }
 
+    @Override
     public void indexDocuments(
         final CheckedSupplier<List<XContentBuilder>, IOException> baselineSupplier,
         final CheckedSupplier<List<XContentBuilder>, IOException> contenderSupplier

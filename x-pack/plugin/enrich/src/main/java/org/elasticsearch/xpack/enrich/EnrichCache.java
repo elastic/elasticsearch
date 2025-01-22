@@ -47,7 +47,7 @@ import java.util.function.ToLongBiFunction;
  */
 public final class EnrichCache {
 
-    private static final CacheValue EMPTY_CACHE_VALUE = new CacheValue(List.of(), 0L);
+    private static final CacheValue EMPTY_CACHE_VALUE = new CacheValue(List.of(), CacheKey.CACHE_KEY_SIZE);
 
     private final Cache<CacheKey, CacheValue> cache;
     private final LongSupplier relativeNanoTimeProvider;
@@ -157,7 +157,8 @@ public final class EnrichCache {
             return EMPTY_CACHE_VALUE;
         }
         List<Map<?, ?>> result = new ArrayList<>(response.getHits().getHits().length);
-        long size = 0;
+        // Include the size of the cache key.
+        long size = CacheKey.CACHE_KEY_SIZE;
         for (SearchHit hit : response.getHits()) {
             result.add(deepCopy(hit.getSourceAsMap(), true));
             size += hit.getSourceRef() != null ? hit.getSourceRef().ramBytesUsed() : 0;
@@ -193,7 +194,16 @@ public final class EnrichCache {
     }
 
     // Visibility for testing
-    record CacheKey(String enrichIndex, Object value, int maxMatches) {}
+    record CacheKey(String enrichIndex, Object value, int maxMatches) {
+        /**
+         * In reality, the size in bytes of the cache key is a function of the {@link CacheKey#value} field plus some constant for
+         * the object itself, the string reference for the enrich index (but not the string itself because it's taken from the metadata),
+         * and the integer for the max number of matches. However, by defining a static cache key size, we can make the
+         * {@link EnrichCache#EMPTY_CACHE_VALUE} static as well, which allows us to avoid having to instantiate new cache values for
+         * empty results and thus save some heap space.
+         */
+        private static final long CACHE_KEY_SIZE = 256L;
+    }
 
     // Visibility for testing
     record CacheValue(List<Map<?, ?>> hits, Long sizeInBytes) {}

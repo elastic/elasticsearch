@@ -27,6 +27,7 @@ public class PolicyParserTests extends ESTestCase {
     public static class ManyConstructorsEntitlement implements Entitlement {
         @ExternalEntitlement
         public ManyConstructorsEntitlement(String s) {}
+
         @ExternalEntitlement
         public ManyConstructorsEntitlement(int i) {}
     }
@@ -145,15 +146,24 @@ public class PolicyParserTests extends ESTestCase {
     }
 
     public void testMultipleConstructorsAnnotated() throws IOException {
-        var parser = new PolicyParser(new ByteArrayInputStream("""
-            entitlement-module-name:
-              - many_constructors
-            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", true,
-            Map.of("many_constructors", ManyConstructorsEntitlement.class));
+        var parser = new PolicyParser(
+            new ByteArrayInputStream("""
+                entitlement-module-name:
+                  - many_constructors
+                """.getBytes(StandardCharsets.UTF_8)),
+            "test-policy.yaml",
+            true,
+            Map.of("many_constructors", ManyConstructorsEntitlement.class)
+        );
 
         var e = expectThrows(IllegalStateException.class, parser::parsePolicy);
-        assertThat(e.getMessage(), equalTo("entitlement class " +
-            "[org.elasticsearch.entitlement.runtime.policy.PolicyParserTests$ManyConstructorsEntitlement]" +
-            " has more than one constructor annotated with ExternalEntitlement"));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "entitlement class "
+                    + "[org.elasticsearch.entitlement.runtime.policy.PolicyParserTests$ManyConstructorsEntitlement]"
+                    + " has more than one constructor annotated with ExternalEntitlement"
+            )
+        );
     }
 }

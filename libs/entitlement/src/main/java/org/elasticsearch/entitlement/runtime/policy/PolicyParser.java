@@ -71,7 +71,8 @@ public class PolicyParser {
     }
 
     // package private for tests
-    PolicyParser(InputStream inputStream, String policyName, boolean isExternalPlugin, Map<String, Class<?>> externalEntitlements) throws IOException {
+    PolicyParser(InputStream inputStream, String policyName, boolean isExternalPlugin, Map<String, Class<?>> externalEntitlements)
+        throws IOException {
         this.policyParser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, Objects.requireNonNull(inputStream));
         this.policyName = policyName;
         this.isExternalPlugin = isExternalPlugin;
@@ -143,8 +144,11 @@ public class PolicyParser {
             var metadata = ctor.getAnnotation(ExternalEntitlement.class);
             if (metadata != null) {
                 if (entitlementMetadata != null) {
-                    throw new IllegalStateException("entitlement class [" + entitlementClass.getName() +
-                        "] has more than one constructor annotated with ExternalEntitlement");
+                    throw new IllegalStateException(
+                        "entitlement class ["
+                            + entitlementClass.getName()
+                            + "] has more than one constructor annotated with ExternalEntitlement"
+                    );
                 }
                 entitlementConstructor = ctor;
                 entitlementMetadata = metadata;

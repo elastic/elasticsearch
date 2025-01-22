@@ -605,6 +605,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
         final boolean supportsBatchedQuery = minNodeVersion.onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION);
         final Map<String, NodeQueryRequest> perNodeQueries = new HashMap<>();
         doCheckNoMissingShards(NAME, request, shardsIts, SearchPhase::makeMissingShardsError);
+        final String localNodeId = searchTransportService.transportService().getLocalNode().getId();
         final String localClusterAlias = request.getLocalClusterAlias();
         for (int i = 0; i < shardsIts.size(); i++) {
             final SearchShardIterator shardRoutings = shardsIts.get(i);
@@ -616,9 +617,12 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
                 failOnUnavailable(shardIndex, shardRoutings);
             } else {
                 String clusterAlias = routing.getClusterAlias();
-                if (supportsBatchedQuery && (clusterAlias == null || Objects.equals(localClusterAlias, clusterAlias))) {
+                final String nodeId = routing.getNodeId();
+                if (supportsBatchedQuery
+                    && localNodeId.equals(nodeId) == false // local requests don't need batching as there's no network latency
+                    && (clusterAlias == null || Objects.equals(localClusterAlias, clusterAlias))) {
                     perNodeQueries.computeIfAbsent(
-                        routing.getNodeId(),
+                        nodeId,
                         ignored -> new NodeQueryRequest(
                             new ArrayList<>(),
                             request,

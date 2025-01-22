@@ -46,7 +46,6 @@ public class TransportUpdateTrainedModelAssignmentStateAction extends Acknowledg
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.trainedModelAssignmentClusterService = trainedModelAssignmentClusterService;

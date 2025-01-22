@@ -43,7 +43,6 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<Acknowle
             threadPool,
             actionFilters,
             AcknowledgedRequest.Plain::new,
-            indexNameExpressionResolver,
             Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

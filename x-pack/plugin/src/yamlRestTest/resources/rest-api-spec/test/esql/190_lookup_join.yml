@@ -103,8 +103,8 @@ non-lookup index:
 
 ---
 alias:
-  - version: "all"
-  - reason: "Lookup indices do not support aliases for now"
+  - skip:
+      awaits_fix: "Lookup indices do not support aliases for now"
   - do:
       esql.query:
         body:
@@ -119,8 +119,8 @@ alias:
 
 ---
 alias-repeated-alias:
-  - version: "all"
-  - reason: "Lookup indices do not support aliases for now"
+  - skip:
+      awaits_fix: "Lookup indices do not support aliases for now"
   - do:
       esql.query:
         body:
@@ -135,8 +135,8 @@ alias-repeated-alias:
 
 ---
 alias-repeated-index:
-  - version: "all"
-  - reason: "Lookup indices do not support aliases for now"
+  - skip:
+      awaits_fix: "Lookup indices do not support aliases for now"
   - do:
       esql.query:
         body:
@@ -151,8 +151,8 @@ alias-repeated-index:
 
 ---
 alias-pattern-multiple:
-  - version: "all"
-  - reason: "Lookup indices do not support aliases for now"
+  - skip:
+      awaits_fix: "Lookup indices do not support aliases for now"
   - do:
       esql.query:
         body:
@@ -164,8 +164,8 @@ alias-pattern-multiple:
 
 ---
 alias-pattern-single:
-  - version: "all"
-  - reason: "Lookup indices do not support aliases for now"
+  - skip:
+      awaits_fix: "Lookup indices do not support aliases for now"
   - do:
       esql.query:
         body:

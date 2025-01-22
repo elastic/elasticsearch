@@ -46,6 +46,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     private static final Logger logger = LogManager.getLogger(TransportCloseIndexAction.class);
 
     private final MetadataIndexStateService indexStateService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final DestructiveOperations destructiveOperations;
     private volatile boolean closeIndexEnabled;
     public static final Setting<Boolean> CLUSTER_INDICES_CLOSE_ENABLE_SETTING = Setting.boolSetting(
@@ -74,11 +75,11 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
             threadPool,
             actionFilters,
             CloseIndexRequest::new,
-            indexNameExpressionResolver,
             CloseIndexResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexStateService = indexStateService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destructiveOperations = destructiveOperations;
         this.closeIndexEnabled = CLUSTER_INDICES_CLOSE_ENABLE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_INDICES_CLOSE_ENABLE_SETTING, this::setCloseIndexEnabled);

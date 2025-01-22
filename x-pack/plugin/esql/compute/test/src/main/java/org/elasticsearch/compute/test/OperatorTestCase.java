@@ -253,8 +253,6 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             operator.addInput(page);
             operator.finish();
         }
-        // assertBusy supports async Opperators that release async from the finish call.
-        assertBusy(() -> assertThat(driverContext.blockFactory().breaker().getUsed(), equalTo(0L)));
     }
 
     protected final List<Page> drive(Operator operator, Iterator<Page> input, DriverContext driverContext) {

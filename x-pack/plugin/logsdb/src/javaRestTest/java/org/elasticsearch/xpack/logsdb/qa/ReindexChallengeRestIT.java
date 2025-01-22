@@ -29,8 +29,7 @@ public abstract class ReindexChallengeRestIT extends StandardVersusLogsIndexMode
         indexContenderDocuments();
     }
 
-    private void indexBaselineDocuments(final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier)
-        throws IOException {
+    private void indexBaselineDocuments(final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier) throws IOException {
         final StringBuilder sb = new StringBuilder();
         int id = 0;
         for (var document : documentsSupplier.get()) {

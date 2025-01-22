@@ -17,8 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Challenge test (see {@link StandardVersusLogsIndexModeChallengeRestIT}) that uses randomly generated
- * mapping and documents in order to cover more code paths and permutations.
+ * Challenge test that uses bulk indexing for both baseline and contender sides.
  */
 public class BulkChallengeRestIT extends StandardVersusLogsIndexModeRandomDataChallengeRestIT {
 

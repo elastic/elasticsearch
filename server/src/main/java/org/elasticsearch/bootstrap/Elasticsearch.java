@@ -32,6 +32,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
+import org.elasticsearch.entitlement.runtime.policy.PolicyParserUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.jdk.JarHell;
@@ -224,18 +225,17 @@ class Elasticsearch {
         if (bootstrap.useEntitlements()) {
             LogManager.getLogger(Elasticsearch.class).info("Bootstrapping Entitlements");
 
-            List<EntitlementBootstrap.PluginData> pluginData = Stream.concat(
+            var pluginData = Stream.concat(
                 pluginsLoader.moduleBundles()
                     .stream()
-                    .map(bundle -> new EntitlementBootstrap.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
+                    .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
                 pluginsLoader.pluginBundles()
                     .stream()
-                    .map(bundle -> new EntitlementBootstrap.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
+                    .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
             ).toList();
-
+            var pluginPolicies = PolicyParserUtils.createPluginPolicies(pluginData);
             var pluginsResolver = PluginsResolver.create(pluginsLoader);
-
-            EntitlementBootstrap.bootstrap(pluginData, pluginsResolver::resolveClassToPluginName);
+            EntitlementBootstrap.bootstrap(pluginPolicies, pluginsResolver::resolveClassToPluginName);
         } else if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
             // install SM after natives, shutdown hooks, etc.
             LogManager.getLogger(Elasticsearch.class).info("Bootstrapping java SecurityManager");

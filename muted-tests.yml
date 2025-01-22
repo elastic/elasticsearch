@@ -234,12 +234,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.ModelRegistryIT
   method: testGetModel
   issue: https://github.com/elastic/elasticsearch/issues/114657
-- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
-  method: testPutE5WithTrainedModelAndInference
-  issue: https://github.com/elastic/elasticsearch/issues/114023
-- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
-  method: testPutE5Small_withPlatformAgnosticVariant
-  issue: https://github.com/elastic/elasticsearch/issues/113983
 - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
   method: test {yaml=rrf/800_rrf_with_text_similarity_reranker_retriever/explain using rrf retriever and text-similarity}
   issue: https://github.com/elastic/elasticsearch/issues/114757
@@ -251,9 +245,6 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichIT
   method: testDeleteExistingPipeline
   issue: https://github.com/elastic/elasticsearch/issues/114775
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testInferDeploysDefaultE5
-  issue: https://github.com/elastic/elasticsearch/issues/115361
 - class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
   method: testNoStream
   issue: https://github.com/elastic/elasticsearch/issues/114788

@@ -216,7 +216,9 @@ class Elasticsearch {
         );
 
         // load the plugin Java modules and layers now for use in entitlements
-        var pluginsLoader = PluginsLoader.createPluginsLoader(nodeEnv.modulesFile(), nodeEnv.pluginsFile());
+        var modulesBundles = PluginsLoader.loadModulesBundles(nodeEnv.modulesFile());
+        var pluginsBundles = PluginsLoader.loadPluginsBundles(nodeEnv.pluginsFile());
+        var pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles);
         bootstrap.setPluginsLoader(pluginsLoader);
 
         if (bootstrap.useEntitlements()) {

@@ -61,7 +61,6 @@ public class TransportFinalizeJobExecutionAction extends AcknowledgedTransportMa
             threadPool,
             actionFilters,
             FinalizeJobExecutionAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;

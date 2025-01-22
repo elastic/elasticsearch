@@ -74,14 +74,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
         XPackLicenseState licenseState,
         SecurityUsageServices securityServices
     ) {
-        super(
-            XPackUsageFeatureAction.SECURITY.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.SECURITY.name(), transportService, clusterService, threadPool, actionFilters);
         this.settings = settings;
         this.licenseState = licenseState;
         this.realms = securityServices.realms;

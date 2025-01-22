@@ -9,7 +9,6 @@
 
 package org.elasticsearch.entitlement.initialization;
 
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
@@ -22,33 +21,21 @@ import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker
 import org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.ExitVMEntitlement;
-import org.elasticsearch.entitlement.runtime.policy.NetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.InboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.LoadNativeLibrariesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
-import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
 import org.elasticsearch.entitlement.runtime.policy.Scope;
 
-import java.io.IOException;
 import java.lang.instrument.Instrumentation;
-import java.lang.module.ModuleFinder;
-import java.lang.module.ModuleReference;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.entitlement.runtime.policy.NetworkEntitlement.ACCEPT_ACTION;
-import static org.elasticsearch.entitlement.runtime.policy.NetworkEntitlement.CONNECT_ACTION;
-import static org.elasticsearch.entitlement.runtime.policy.NetworkEntitlement.LISTEN_ACTION;
-import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
@@ -59,7 +46,6 @@ import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNN
  */
 public class EntitlementInitialization {
 
-    private static final String POLICY_FILE_NAME = "entitlement-policy.yaml";
     private static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
     private static ElasticsearchEntitlementChecker manager;
@@ -92,8 +78,8 @@ public class EntitlementInitialization {
         return retransform.toArray(new Class<?>[0]);
     }
 
-    private static PolicyManager createPolicyManager() throws IOException {
-        Map<String, Policy> pluginPolicies = createPluginPolicies(EntitlementBootstrap.bootstrapArgs().pluginData());
+    private static PolicyManager createPolicyManager() {
+        Map<String, Policy> pluginPolicies = EntitlementBootstrap.bootstrapArgs().pluginPolicies();
 
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
         var serverPolicy = new Policy(
@@ -106,10 +92,13 @@ public class EntitlementInitialization {
                     List.of(
                         new ExitVMEntitlement(),
                         new CreateClassLoaderEntitlement(),
-                        new NetworkEntitlement(LISTEN_ACTION | CONNECT_ACTION | ACCEPT_ACTION)
+                        new InboundNetworkEntitlement(),
+                        new OutboundNetworkEntitlement(),
+                        new LoadNativeLibrariesEntitlement()
                     )
                 ),
-                new Scope("org.apache.httpcomponents.httpclient", List.of(new NetworkEntitlement(CONNECT_ACTION)))
+                new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
+                new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement()))
             )
         );
         // agents run without a module, so this is a special hack for the apm agent
@@ -119,62 +108,7 @@ public class EntitlementInitialization {
         return new PolicyManager(serverPolicy, agentEntitlements, pluginPolicies, resolver, ENTITLEMENTS_MODULE);
     }
 
-    private static Map<String, Policy> createPluginPolicies(Collection<EntitlementBootstrap.PluginData> pluginData) throws IOException {
-        Map<String, Policy> pluginPolicies = new HashMap<>(pluginData.size());
-        for (var entry : pluginData) {
-            Path pluginRoot = entry.pluginPath();
-            String pluginName = pluginRoot.getFileName().toString();
-
-            final Policy policy = loadPluginPolicy(pluginRoot, entry.isModular(), pluginName, entry.isExternalPlugin());
-
-            pluginPolicies.put(pluginName, policy);
-        }
-        return pluginPolicies;
-    }
-
-    private static Policy loadPluginPolicy(Path pluginRoot, boolean isModular, String pluginName, boolean isExternalPlugin)
-        throws IOException {
-        Path policyFile = pluginRoot.resolve(POLICY_FILE_NAME);
-
-        final Set<String> moduleNames = getModuleNames(pluginRoot, isModular);
-        final Policy policy = parsePolicyIfExists(pluginName, policyFile, isExternalPlugin);
-
-        // TODO: should this check actually be part of the parser?
-        for (Scope scope : policy.scopes()) {
-            if (moduleNames.contains(scope.moduleName()) == false) {
-                throw new IllegalStateException(
-                    Strings.format(
-                        "Invalid module name in policy: plugin [%s] does not have module [%s]; available modules [%s]; policy file [%s]",
-                        pluginName,
-                        scope.moduleName(),
-                        String.join(", ", moduleNames),
-                        policyFile
-                    )
-                );
-            }
-        }
-        return policy;
-    }
-
-    private static Policy parsePolicyIfExists(String pluginName, Path policyFile, boolean isExternalPlugin) throws IOException {
-        if (Files.exists(policyFile)) {
-            return new PolicyParser(Files.newInputStream(policyFile, StandardOpenOption.READ), pluginName, isExternalPlugin).parsePolicy();
-        }
-        return new Policy(pluginName, List.of());
-    }
-
-    private static Set<String> getModuleNames(Path pluginRoot, boolean isModular) {
-        if (isModular) {
-            ModuleFinder moduleFinder = ModuleFinder.of(pluginRoot);
-            Set<ModuleReference> moduleReferences = moduleFinder.findAll();
-
-            return moduleReferences.stream().map(mr -> mr.descriptor().name()).collect(Collectors.toUnmodifiableSet());
-        }
-        // When isModular == false we use the same "ALL-UNNAMED" constant as the JDK to indicate (any) unnamed module for this plugin
-        return Set.of(ALL_UNNAMED);
-    }
-
-    private static ElasticsearchEntitlementChecker initChecker() throws IOException {
+    private static ElasticsearchEntitlementChecker initChecker() {
         final PolicyManager policyManager = createPolicyManager();
 
         int javaVersion = Runtime.version().feature();

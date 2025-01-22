@@ -71,7 +71,6 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             threadPool,
             actionFilters,
             MigrateToDataTiersRequest::new,
-            indexNameExpressionResolver,
             MigrateToDataTiersResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -22,7 +23,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamRequest;
-import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamResponse;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTask;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTaskParams;
 
@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.TAS
  * This transport action creates a new persistent task for reindexing the source data stream given in the request. On successful creation
  *  of the persistent task, it responds with the persistent task id so that the user can monitor the persistent task.
  */
-public class ReindexDataStreamTransportAction extends HandledTransportAction<ReindexDataStreamRequest, ReindexDataStreamResponse> {
+public class ReindexDataStreamTransportAction extends HandledTransportAction<ReindexDataStreamRequest, AcknowledgedResponse> {
     private final PersistentTasksService persistentTasksService;
     private final TransportService transportService;
     private final ClusterService clusterService;
@@ -59,7 +59,7 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
     }
 
     @Override
-    protected void doExecute(Task task, ReindexDataStreamRequest request, ActionListener<ReindexDataStreamResponse> listener) {
+    protected void doExecute(Task task, ReindexDataStreamRequest request, ActionListener<AcknowledgedResponse> listener) {
         String sourceDataStreamName = request.getSourceDataStream();
         Metadata metadata = clusterService.state().metadata();
         DataStream dataStream = metadata.dataStreams().get(sourceDataStreamName);
@@ -82,7 +82,7 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
             ReindexDataStreamTask.TASK_NAME,
             params,
             null,
-            ActionListener.wrap(startedTask -> listener.onResponse(new ReindexDataStreamResponse(persistentTaskId)), listener::onFailure)
+            ActionListener.wrap(startedTask -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
         );
     }
 

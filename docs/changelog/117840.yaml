@@ -1,5 +1,0 @@
-pr: 117840
-summary: Fix timeout ingesting an empty string into a `semantic_text` field
-area: Machine Learning
-type: bug
-issues: []

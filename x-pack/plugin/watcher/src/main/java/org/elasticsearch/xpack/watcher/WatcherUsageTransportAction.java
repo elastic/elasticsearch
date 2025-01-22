@@ -54,14 +54,7 @@ public class WatcherUsageTransportAction extends XPackUsageFeatureTransportActio
         XPackLicenseState licenseState,
         Client client
     ) {
-        super(
-            XPackUsageFeatureAction.WATCHER.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.WATCHER.name(), transportService, clusterService, threadPool, actionFilters);
         this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
         this.licenseState = licenseState;
         this.client = client;

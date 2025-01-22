@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.SystemIndices;
@@ -52,10 +53,11 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     GetFeatureUpgradeStatusResponse> {
 
     /**
-     * Once all feature migrations for 9.x -> 10.x have been tested, we can bump this to Version.V_9_0_0
+     * These versions should be set to current major and current major's index version
      */
-    public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_8_0_0;
-    public static final IndexVersion NO_UPGRADE_REQUIRED_INDEX_VERSION = IndexVersions.V_8_0_0;
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)
+    public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_9_0_0;
+    public static final IndexVersion NO_UPGRADE_REQUIRED_INDEX_VERSION = IndexVersions.UPGRADE_TO_LUCENE_10_0_0;
 
     private final SystemIndices systemIndices;
 

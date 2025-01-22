@@ -77,9 +77,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         .setSettings(createSettings(NEEDS_UPGRADE_INDEX_VERSION, INTERNAL_MANAGED_FLAG_VALUE))
         .setMappings(createMapping(true, true))
         .setOrigin(ORIGIN)
-        .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
-        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .setMigrationScript("""
             if (ctx._source.some_field != null) {
@@ -211,7 +209,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".int-man-old-reindexed-for-9",
+            ".int-man-old-reindexed-for-" + UPGRADED_TO_VERSION,
             INTERNAL_MANAGED_FLAG_VALUE,
             true,
             true,
@@ -219,7 +217,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".int-unman-old-reindexed-for-9",
+            ".int-unman-old-reindexed-for-" + UPGRADED_TO_VERSION,
             INTERNAL_UNMANAGED_FLAG_VALUE,
             false,
             true,
@@ -227,7 +225,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".ext-man-old-reindexed-for-9",
+            ".ext-man-old-reindexed-for-" + UPGRADED_TO_VERSION,
             EXTERNAL_MANAGED_FLAG_VALUE,
             true,
             false,
@@ -235,7 +233,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".ext-unman-old-reindexed-for-9",
+            ".ext-unman-old-reindexed-for-" + UPGRADED_TO_VERSION,
             EXTERNAL_UNMANAGED_FLAG_VALUE,
             false,
             false,
@@ -361,7 +359,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         ensureGreen();
 
         Metadata metadata = assertMetadataAfterMigration(SCRIPTED_INDEX_FEATURE_NAME);
-        String newIndexName = ".int-mans-old-reindexed-for-9";
+        String newIndexName = ".int-mans-old-reindexed-for-" + UPGRADED_TO_VERSION;
         assertIndexHasCorrectProperties(
             metadata,
             newIndexName,
@@ -371,8 +369,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             Arrays.asList(".int-mans-old", ".internal-managed-with-script-alias")
         );
 
-        SearchRequestBuilder searchRequestBuilder = prepareSearch(newIndexName)
-            .setQuery(QueryBuilders.termsQuery(FIELD_NAME, "migrated"))
+        SearchRequestBuilder searchRequestBuilder = prepareSearch(newIndexName).setQuery(QueryBuilders.termsQuery(FIELD_NAME, "migrated"))
             .setSize(0);
         assertHitCountAndNoFailures(searchRequestBuilder, INDEX_DOC_COUNT);
     }

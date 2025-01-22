@@ -69,10 +69,10 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     static final int INDEX_DOC_COUNT = 100; // arbitrarily chosen
     static final int INTERNAL_MANAGED_FLAG_VALUE = 1;
     static final String FIELD_NAME = "some_field";
-    public static final Version NEEDS_UPGRADE_VERSION = TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION.previousMajor();
-    public static final IndexVersion NEEDS_UPGRADE_INDEX_VERSION = IndexVersionUtils.getPreviousMajorVersion(
+    protected static final IndexVersion NEEDS_UPGRADE_INDEX_VERSION = IndexVersionUtils.getPreviousMajorVersion(
         TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_INDEX_VERSION
     );
+    protected static final int UPGRADED_TO_VERSION = TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION.major + 1;
 
     static final SystemIndexDescriptor EXTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
         .setIndexPattern(".ext-unman-*")
@@ -132,11 +132,6 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
 
     @Before
     public void setup() {
-        assumeTrue(
-            "We can only create the test indices we need if they're in the previous major version",
-            NEEDS_UPGRADE_VERSION.onOrAfter(Version.CURRENT.previousMajor())
-        );
-
         internalCluster().setBootstrapMasterNodeIndex(0);
         masterName = internalCluster().startMasterOnlyNode();
         masterAndDataNode = internalCluster().startNode();

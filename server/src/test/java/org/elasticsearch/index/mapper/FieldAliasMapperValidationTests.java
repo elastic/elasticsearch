@@ -165,6 +165,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
                 new MapperBuilderContext.MapperBuilderContextParams(
                     parent,
                     false,
+                    Mapper.SourceKeepMode.NONE,
                     false,
                     false,
                     ObjectMapper.Defaults.DYNAMIC,

@@ -785,6 +785,7 @@ public abstract class DocumentParserContext {
         var contextParams = new MapperBuilderContext.MapperBuilderContextParams(
             p,
             mappingLookup.isSourceSynthetic(),
+            sourceKeepModeFromIndexSettings(),
             mappingLookup.isDataStreamTimestampFieldEnabled(),
             containsDimensions,
             dynamic,

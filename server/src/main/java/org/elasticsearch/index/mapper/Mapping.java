@@ -143,7 +143,13 @@ public final class Mapping implements ToXContentFragment {
      * @return the resulting merged mapping.
      */
     Mapping merge(Mapping mergeWith, MergeReason reason, long newFieldsBudget) {
-        MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic(), false, reason, newFieldsBudget);
+        MapperMergeContext mergeContext = MapperMergeContext.root(
+            isSourceSynthetic(),
+            getRoot().sourceKeepMode().orElse(Mapper.SourceKeepMode.NONE),
+            false,
+            reason,
+            newFieldsBudget
+        );
         RootObjectMapper mergedRoot = root.merge(mergeWith.root, mergeContext);
 
         // When merging metadata fields as part of applying an index template, new field definitions
@@ -182,7 +188,13 @@ public final class Mapping implements ToXContentFragment {
      * @param fieldsBudget the maximum number of fields this mapping may have
      */
     public Mapping withFieldsBudget(long fieldsBudget) {
-        MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic(), false, MergeReason.MAPPING_RECOVERY, fieldsBudget);
+        MapperMergeContext mergeContext = MapperMergeContext.root(
+            isSourceSynthetic(),
+            getRoot().sourceKeepMode().orElse(Mapper.SourceKeepMode.NONE),
+            false,
+            MergeReason.MAPPING_RECOVERY,
+            fieldsBudget
+        );
         // get a copy of the root mapper, without any fields
         RootObjectMapper shallowRoot = root.withoutMappers();
         // calling merge on the shallow root to ensure we're only adding as many fields as allowed by the fields budget

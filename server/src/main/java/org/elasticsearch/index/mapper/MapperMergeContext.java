@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
+import java.util.Optional;
+
 /**
  * Holds context used when merging mappings.
  * As the merge process also involves building merged {@link Mapper.Builder}s,
@@ -29,9 +31,22 @@ public final class MapperMergeContext {
     /**
      * The root context, to be used when merging a tree of mappers
      */
+    public static MapperMergeContext root(
+        boolean isSourceSynthetic,
+        Mapper.SourceKeepMode sourceKeepMode,
+        boolean isDataStream,
+        MergeReason mergeReason,
+        long newFieldsBudget
+    ) {
+        return new MapperMergeContext(
+            MapperBuilderContext.root(isSourceSynthetic, sourceKeepMode, isDataStream, mergeReason),
+            NewFieldsBudget.of(newFieldsBudget)
+        );
+    }
+
     public static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream, MergeReason mergeReason, long newFieldsBudget) {
         return new MapperMergeContext(
-            MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason),
+            MapperBuilderContext.root(isSourceSynthetic, Mapper.SourceKeepMode.NONE, isDataStream, mergeReason),
             NewFieldsBudget.of(newFieldsBudget)
         );
     }
@@ -50,10 +65,27 @@ public final class MapperMergeContext {
      * Creates a new {@link MapperMergeContext} with a child {@link MapperBuilderContext}.
      * The child {@link MapperMergeContext} context will share the same field limit.
      * @param name the name of the child context
+     * @param dynamic strategy for handling dynamic mappings in this context
+     * @param sourceKeepMode the synthetic_source_keep mapping setting configured on the child
+     * @return a new {@link MapperMergeContext} with this context as its parent
+     */
+    public MapperMergeContext createChildContext(
+        String name,
+        ObjectMapper.Dynamic dynamic,
+        Optional<Mapper.SourceKeepMode> sourceKeepMode
+    ) {
+        return createChildContext(mapperBuilderContext.createChildContext(name, dynamic, sourceKeepMode));
+    }
+
+    /**
+     * Creates a new {@link MapperMergeContext} with a child {@link MapperBuilderContext}.
+     * The child {@link MapperMergeContext} context will share the same field limit.
+     * @param name the name of the child context
+     * @param dynamic strategy for handling dynamic mappings in this context
      * @return a new {@link MapperMergeContext} with this context as its parent
      */
     public MapperMergeContext createChildContext(String name, ObjectMapper.Dynamic dynamic) {
-        return createChildContext(mapperBuilderContext.createChildContext(name, dynamic));
+        return createChildContext(mapperBuilderContext.createChildContext(name, dynamic, Optional.empty()));
     }
 
     /**

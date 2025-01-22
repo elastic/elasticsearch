@@ -1922,6 +1922,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         var mapperBuilderParams = new MapperBuilderContext.MapperBuilderContextParams(
             "nested_path",
             false,
+            Mapper.SourceKeepMode.NONE,
             false,
             false,
             Dynamic.FALSE,

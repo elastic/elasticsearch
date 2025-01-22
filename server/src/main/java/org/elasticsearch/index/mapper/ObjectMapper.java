@@ -254,7 +254,7 @@ public class ObjectMapper extends Mapper {
                 subobjects,
                 sourceKeepMode,
                 dynamic,
-                buildMappers(context.createChildContext(leafName(), dynamic))
+                buildMappers(context.createChildContext(leafName(), dynamic, sourceKeepMode))
             );
         }
     }
@@ -546,7 +546,7 @@ public class ObjectMapper extends Mapper {
     }
 
     protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
-        return mapperMergeContext.createChildContext(name, dynamic);
+        return mapperMergeContext.createChildContext(name, dynamic, sourceKeepMode);
     }
 
     @Override

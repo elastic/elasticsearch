@@ -116,6 +116,7 @@ public class NestedObjectMapper extends ObjectMapper {
                 new MapperBuilderContext.MapperBuilderContextParams(
                     context.buildFullName(leafName()),
                     context.isSourceSynthetic(),
+                    sourceKeepMode.orElseGet(context::sourceKeepMode),
                     context.isDataStream(),
                     context.parentObjectContainsDimensions(),
                     context.getDynamic(dynamic),
@@ -191,10 +192,11 @@ public class NestedObjectMapper extends ObjectMapper {
         }
 
         @Override
-        public MapperBuilderContext createChildContext(String name, Dynamic dynamic) {
+        public MapperBuilderContext createChildContext(String name, Dynamic dynamic, Optional<Mapper.SourceKeepMode> sourceKeepMode) {
             var params = new MapperBuilderContextParams(
                 buildFullName(name),
                 isSourceSynthetic(),
+                sourceKeepMode.orElseGet(this::sourceKeepMode),
                 isDataStream(),
                 parentObjectContainsDimensions(),
                 getDynamic(dynamic),
@@ -395,6 +397,7 @@ public class NestedObjectMapper extends ObjectMapper {
                 new MapperBuilderContext.MapperBuilderContextParams(
                     mapperBuilderContext.buildFullName(name),
                     mapperBuilderContext.isSourceSynthetic(),
+                    sourceKeepMode.orElseGet(mapperMergeContext.getMapperBuilderContext()::sourceKeepMode),
                     mapperBuilderContext.isDataStream(),
                     mapperBuilderContext.parentObjectContainsDimensions(),
                     mapperBuilderContext.getDynamic(dynamic),

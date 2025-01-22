@@ -1,5 +1,5 @@
 [[infer-service-azure-ai-studio]]
-=== Azure AI studio {infer} service
+=== Azure AI studio {infer} integration
 
 .New API reference
 [sidebar]

@@ -65,7 +65,6 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
             threadPool,
             actionFilters,
             ClearVotingConfigExclusionsRequest::new,
-            indexNameExpressionResolver,
             in -> ActionResponse.Empty.INSTANCE,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

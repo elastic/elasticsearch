@@ -233,7 +233,7 @@ public class ShrinkAction implements LifecycleAction {
             readOnlyKey,
             Instant::now
         );
-        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, checkTargetShardsCountKey, client);
+        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, checkTargetShardsCountKey, client, false);
         CheckTargetShardsCountStep checkTargetShardsCountStep = new CheckTargetShardsCountStep(
             checkTargetShardsCountKey,
             cleanupShrinkIndexKey,

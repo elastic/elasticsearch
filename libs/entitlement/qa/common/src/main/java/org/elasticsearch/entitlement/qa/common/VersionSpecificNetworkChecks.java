@@ -9,6 +9,26 @@
 
 package org.elasticsearch.entitlement.qa.common;
 
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+
 class VersionSpecificNetworkChecks {
     static void createInetAddressResolverProvider() {}
+
+    static void httpClientSend() throws InterruptedException {
+        HttpClient httpClient = HttpClient.newBuilder().build();
+        try {
+            httpClient.send(HttpRequest.newBuilder(URI.create("http://localhost")).build(), HttpResponse.BodyHandlers.discarding());
+        } catch (IOException e) {
+            // Expected, the send action may fail with these parameters (but after it run the entitlement check in the prologue)
+        }
+    }
+
+    static void httpClientSendAsync() {
+        HttpClient httpClient = HttpClient.newBuilder().build();
+        httpClient.sendAsync(HttpRequest.newBuilder(URI.create("http://localhost")).build(), HttpResponse.BodyHandlers.discarding());
+    }
 }

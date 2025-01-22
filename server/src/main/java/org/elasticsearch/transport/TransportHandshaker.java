@@ -257,7 +257,7 @@ final class TransportHandshaker {
                         )
                     );
                 } else {
-                    listener.onResponse(responseVersion);
+                    listener.onResponse(TransportVersion.min(TransportHandshaker.this.version, response.getResponseVersion()));
                 }
             }
         }

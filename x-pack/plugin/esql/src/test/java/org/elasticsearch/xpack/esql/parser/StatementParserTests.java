@@ -2943,8 +2943,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testValidJoinPattern() {
-        var basePattern = randomIndexPatterns();
-        var joinPattern = randomIndexPattern();
+        var basePattern = randomIndexPatterns(true, true);
+        var joinPattern = randomIndexPattern(true, false);
         var onField = randomIdentifier();
         var type = randomFrom("", "LOOKUP ");
 
@@ -2960,13 +2960,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(joinType.coreJoin().joinName(), equalTo("LEFT OUTER"));
     }
 
-    private static String randomIndexPatterns() {
-        return maybeQuote(String.join(",", randomList(1, 5, StatementParserTests::randomIndexPattern)));
+    public void testInvalidJoinPatterns() {
+        expectError(
+            "FROM " + randomIndexPatterns(true, true) + " | JOIN my-index-pattern* ON " + randomIdentifier(),
+            "invalid index pattern [my-index-pattern*], * is not allowed in LOOKUP JOIN"
+        );
     }
 
-    private static String randomIndexPattern() {
-        String pattern = maybeQuote(randomIndexIdentifier());
-        if (randomBoolean()) {
+    private static String randomIndexPatterns(boolean includeRemotes, boolean includePatterns) {
+        return maybeQuote(String.join(",", randomList(1, 5, () -> randomIndexPattern(includeRemotes, includePatterns))));
+    }
+
+    private static String randomIndexPattern(boolean includeRemotes, boolean includePatterns) {
+        String pattern = maybeQuote(randomIndexIdentifier(includePatterns));
+        if (includeRemotes && randomBoolean()) {
             var cluster = randomIdentifier();
             pattern = maybeQuote(cluster + ":" + pattern);
         }
@@ -2976,7 +2983,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     /**
      * This generates random valid index, alias or pattern
      */
-    private static String randomIndexIdentifier() {
+    private static String randomIndexIdentifier(boolean includePatterns) {
         // https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params
         var validFirstCharacters = "abcdefghijklmnopqrstuvwxyz0123456789!'$^&";
         var validCharacters = validFirstCharacters + "+-_.";
@@ -2989,7 +2996,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         for (int i = 0; i < randomIntBetween(1, 100); i++) {
             index.append(randomCharacterFrom(validCharacters));
         }
-        if (randomBoolean()) {// pattern
+        if (includePatterns && randomBoolean()) {// pattern
             index.append('*');
         }
         return index.toString();

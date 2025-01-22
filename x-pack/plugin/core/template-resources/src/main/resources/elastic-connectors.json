@@ -16,10 +16,15 @@
         "api_key_id": {
           "type": "keyword"
         },
+        "api_key_secret_id": {
+          "type": "keyword"
+        },
         "configuration": {
+          "dynamic": "false",
           "type": "object"
         },
         "custom_scheduling": {
+          "dynamic": "false",
           "type": "object"
         },
         "deleted": {
@@ -32,6 +37,7 @@
           "type": "keyword"
         },
         "features": {
+          "dynamic": "false",
           "properties": {
             "filtering_advanced_config": {
               "type": "boolean"
@@ -67,6 +73,7 @@
           }
         },
         "filtering": {
+          "dynamic": "false",
           "properties": {
             "active": {
               "properties": {
@@ -79,6 +86,7 @@
                       "type": "date"
                     },
                     "value": {
+                      "dynamic": "false",
                       "type": "object"
                     }
                   }
@@ -144,6 +152,7 @@
                       "type": "date"
                     },
                     "value": {
+                      "dynamic": "false",
                       "type": "object"
                     }
                   }
@@ -243,6 +252,7 @@
           "type": "keyword"
         },
         "pipeline": {
+          "dynamic": "false",
           "properties": {
             "extract_binary_content": {
               "type": "boolean"
@@ -259,6 +269,7 @@
           }
         },
         "scheduling": {
+          "dynamic": "false",
           "properties": {
             "access_control": {
               "properties": {
@@ -299,6 +310,7 @@
           "type": "keyword"
         },
         "sync_cursor": {
+          "dynamic": "false",
           "type": "object"
         },
         "sync_now": {

@@ -25,9 +25,11 @@
         "connector": {
           "properties": {
             "configuration": {
+              "dynamic": "false",
               "type": "object"
             },
             "filtering": {
+              "dynamic": "false",
               "properties": {
                 "advanced_snippet": {
                   "properties": {
@@ -38,6 +40,7 @@
                       "type": "date"
                     },
                     "value": {
+                      "dynamic": "false",
                       "type": "object"
                     }
                   }
@@ -95,6 +98,7 @@
               "type": "keyword"
             },
             "pipeline": {
+              "dynamic": "false",
               "properties": {
                 "extract_binary_content": {
                   "type": "boolean"
@@ -114,6 +118,7 @@
               "type": "keyword"
             },
             "sync_cursor": {
+              "dynamic": "false",
               "type": "object"
             }
           }
@@ -140,6 +145,7 @@
           "type": "date"
         },
         "metadata": {
+          "dynamic": "false",
           "type": "object"
         },
         "started_at": {

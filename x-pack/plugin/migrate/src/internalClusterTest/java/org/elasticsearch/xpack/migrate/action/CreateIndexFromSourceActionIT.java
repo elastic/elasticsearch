@@ -178,7 +178,7 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         assertAcked(
             client().execute(
                 CreateIndexFromSourceAction.INSTANCE,
-                new CreateIndexFromSourceAction.Request(sourceIndex, destIndex, settingsOverride, Map.of())
+                new CreateIndexFromSourceAction.Request(sourceIndex, destIndex, settingsOverride, Map.of(), randomBoolean())
             )
         );
 
@@ -194,7 +194,10 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
 
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        var sourceSettings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
+        var sourceSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
+            .put(IndexMetadata.SETTING_BLOCKS_READ, true)
+            .build();
         indicesAdmin().create(new CreateIndexRequest(sourceIndex, sourceSettings)).get();
 
         Settings settingsOverride = Settings.builder().putNull(IndexMetadata.SETTING_BLOCKS_WRITE).build();
@@ -204,13 +207,53 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         assertAcked(
             client().execute(
                 CreateIndexFromSourceAction.INSTANCE,
-                new CreateIndexFromSourceAction.Request(sourceIndex, destIndex, settingsOverride, Map.of())
+                new CreateIndexFromSourceAction.Request(sourceIndex, destIndex, settingsOverride, Map.of(), false)
             )
         );
 
         // assert settings overridden
         var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
-        assertNull(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_BLOCKS_WRITE));
+        var destSettings = settingsResponse.getIndexToSettings().get(destIndex);
+
+        // sanity check
+        assertTrue(destSettings.getAsBoolean(IndexMetadata.SETTING_BLOCKS_READ, false));
+
+        // override null removed
+        assertNull(destSettings.get(IndexMetadata.SETTING_BLOCKS_WRITE));
+    }
+
+    public void testRemoveIndexBlocksByDefault() throws Exception {
+        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
+
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+
+        var sourceSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
+            .put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, randomBoolean())
+            .build();
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex, sourceSettings)).get();
+
+        var settingsOverride = Settings.builder()
+            .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
+            .put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, randomBoolean())
+            .put(IndexMetadata.SETTING_BLOCKS_READ, randomBoolean())
+            .build();
+
+        // create from source
+        var destIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+
+        CreateIndexFromSourceAction.Request request = new CreateIndexFromSourceAction.Request(sourceIndex, destIndex);
+        request.settingsOverride(settingsOverride);
+        assertAcked(client().execute(CreateIndexFromSourceAction.INSTANCE, request));
+
+        // assert settings overridden
+        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
+        var destSettings = settingsResponse.getIndexToSettings().get(destIndex);
+
+        // remove block settings override both source settings and override settings
+        assertNull(destSettings.get(IndexMetadata.SETTING_BLOCKS_WRITE));
+        assertNull(destSettings.get(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE));
+        assertNull(destSettings.get(IndexMetadata.SETTING_BLOCKS_READ));
     }
 
     public void testMappingsOverridden() {
@@ -256,7 +299,7 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         assertAcked(
             client().execute(
                 CreateIndexFromSourceAction.INSTANCE,
-                new CreateIndexFromSourceAction.Request(sourceIndex, destIndex, Settings.EMPTY, mappingOverride)
+                new CreateIndexFromSourceAction.Request(sourceIndex, destIndex, Settings.EMPTY, mappingOverride, randomBoolean())
             )
         );
 

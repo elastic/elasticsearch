@@ -89,7 +89,6 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

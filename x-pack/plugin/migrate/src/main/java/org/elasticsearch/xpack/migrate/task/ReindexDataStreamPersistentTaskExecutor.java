@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -42,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
+import static org.elasticsearch.xpack.core.ClientHelper.REINDEX_DATA_STREAM_ORIGIN;
 import static org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate.getReindexRequiredPredicate;
 
 public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExecutor<ReindexDataStreamTaskParams> {
@@ -60,12 +62,14 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
     private static final Logger logger = LogManager.getLogger(ReindexDataStreamPersistentTaskExecutor.class);
     private static final TimeValue TASK_KEEP_ALIVE_TIME = TimeValue.timeValueDays(1);
     private final Client client;
+    private final OriginSettingClient originSettingClient;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
 
     public ReindexDataStreamPersistentTaskExecutor(Client client, ClusterService clusterService, String taskName, ThreadPool threadPool) {
         super(taskName, threadPool.generic());
         this.client = client;
+        this.originSettingClient = new OriginSettingClient(client, REINDEX_DATA_STREAM_ORIGIN);
         this.clusterService = clusterService;
         this.threadPool = threadPool;
     }
@@ -107,15 +111,15 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         request.setParentTask(taskId);
         assert task instanceof ReindexDataStreamTask;
         final ReindexDataStreamTask reindexDataStreamTask = (ReindexDataStreamTask) task;
-        ExecuteWithHeadersClient reindexClient = new ExecuteWithHeadersClient(client, params.headers());
-        reindexClient.execute(GetDataStreamAction.INSTANCE, request, ActionListener.wrap(response -> {
+        ExecuteWithHeadersClient userClient = new ExecuteWithHeadersClient(client, params.headers());
+        userClient.execute(GetDataStreamAction.INSTANCE, request, ActionListener.wrap(response -> {
             List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = response.getDataStreams();
             if (dataStreamInfos.size() == 1) {
                 DataStream dataStream = dataStreamInfos.getFirst().getDataStream();
                 if (getReindexRequiredPredicate(clusterService.state().metadata()).test(dataStream.getWriteIndex())) {
                     RolloverRequest rolloverRequest = new RolloverRequest(sourceDataStream, null);
                     rolloverRequest.setParentTask(taskId);
-                    reindexClient.execute(
+                    userClient.execute(
                         RolloverAction.INSTANCE,
                         rolloverRequest,
                         ActionListener.wrap(
@@ -125,7 +129,6 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
                                 reindexDataStreamTask,
                                 params,
                                 state,
-                                reindexClient,
                                 sourceDataStream,
                                 taskId
                             ),
@@ -139,7 +142,6 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
                         reindexDataStreamTask,
                         params,
                         state,
-                        reindexClient,
                         sourceDataStream,
                         taskId
                     );
@@ -156,7 +158,6 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         ReindexDataStreamTask reindexDataStreamTask,
         ReindexDataStreamTaskParams params,
         ReindexDataStreamPersistentTaskState state,
-        ExecuteWithHeadersClient reindexClient,
         String sourceDataStream,
         TaskId parentTaskId
     ) {
@@ -188,7 +189,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         List<Index> indicesRemaining = Collections.synchronizedList(new ArrayList<>(indicesToBeReindexed));
         logger.debug("Reindexing {} indices, with up to {} handled concurrently", indicesRemaining.size(), maxConcurrentIndices);
         for (int i = 0; i < maxConcurrentIndices; i++) {
-            maybeProcessNextIndex(indicesRemaining, reindexDataStreamTask, reindexClient, sourceDataStream, listener, parentTaskId);
+            maybeProcessNextIndex(indicesRemaining, reindexDataStreamTask, sourceDataStream, listener, parentTaskId);
         }
         // This takes care of the additional latch count referenced above:
         listener.onResponse(null);
@@ -197,7 +198,6 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
     private void maybeProcessNextIndex(
         List<Index> indicesRemaining,
         ReindexDataStreamTask reindexDataStreamTask,
-        ExecuteWithHeadersClient reindexClient,
         String sourceDataStream,
         CountDownActionListener listener,
         TaskId parentTaskId
@@ -216,16 +216,16 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         reindexDataStreamIndexRequest.setParentTask(parentTaskId);
 
         SubscribableListener.<ReindexDataStreamIndexAction.Response>newForked(
-            l -> reindexClient.execute(ReindexDataStreamIndexAction.INSTANCE, reindexDataStreamIndexRequest, l)
+            l -> originSettingClient.execute(ReindexDataStreamIndexAction.INSTANCE, reindexDataStreamIndexRequest, l)
         )
             .<AcknowledgedResponse>andThen(
-                (l, result) -> updateDataStream(sourceDataStream, index.getName(), result.getDestIndex(), l, reindexClient, parentTaskId)
+                (l, result) -> updateDataStream(sourceDataStream, index.getName(), result.getDestIndex(), l, parentTaskId)
             )
-            .<AcknowledgedResponse>andThen(l -> deleteIndex(index.getName(), reindexClient, parentTaskId, l))
+            .<AcknowledgedResponse>andThen(l -> deleteIndex(index.getName(), parentTaskId, l))
             .addListener(ActionListener.wrap(unused -> {
                 reindexDataStreamTask.reindexSucceeded(index.getName());
                 listener.onResponse(null);
-                maybeProcessNextIndex(indicesRemaining, reindexDataStreamTask, reindexClient, sourceDataStream, listener, parentTaskId);
+                maybeProcessNextIndex(indicesRemaining, reindexDataStreamTask, sourceDataStream, listener, parentTaskId);
             }, e -> {
                 reindexDataStreamTask.reindexFailed(index.getName(), e);
                 listener.onResponse(null);
@@ -237,7 +237,6 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         String oldIndex,
         String newIndex,
         ActionListener<AcknowledgedResponse> listener,
-        ExecuteWithHeadersClient reindexClient,
         TaskId parentTaskId
     ) {
         ModifyDataStreamsAction.Request modifyDataStreamRequest = new ModifyDataStreamsAction.Request(
@@ -246,18 +245,13 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             List.of(DataStreamAction.removeBackingIndex(dataStream, oldIndex), DataStreamAction.addBackingIndex(dataStream, newIndex))
         );
         modifyDataStreamRequest.setParentTask(parentTaskId);
-        reindexClient.execute(ModifyDataStreamsAction.INSTANCE, modifyDataStreamRequest, listener);
+        originSettingClient.execute(ModifyDataStreamsAction.INSTANCE, modifyDataStreamRequest, listener);
     }
 
-    private void deleteIndex(
-        String indexName,
-        ExecuteWithHeadersClient reindexClient,
-        TaskId parentTaskId,
-        ActionListener<AcknowledgedResponse> listener
-    ) {
+    private void deleteIndex(String indexName, TaskId parentTaskId, ActionListener<AcknowledgedResponse> listener) {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName);
         deleteIndexRequest.setParentTask(parentTaskId);
-        reindexClient.execute(TransportDeleteIndexAction.TYPE, deleteIndexRequest, listener);
+        originSettingClient.execute(TransportDeleteIndexAction.TYPE, deleteIndexRequest, listener);
     }
 
     private void completeSuccessfulPersistentTask(

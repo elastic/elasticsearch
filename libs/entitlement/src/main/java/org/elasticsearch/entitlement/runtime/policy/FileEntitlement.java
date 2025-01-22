@@ -21,6 +21,7 @@ public record FileEntitlement(String path, Mode mode) implements Entitlement {
         READ_WRITE
     }
 
+    @ExternalEntitlement()
     public FileEntitlement {
         path = normalizePath(path);
     }

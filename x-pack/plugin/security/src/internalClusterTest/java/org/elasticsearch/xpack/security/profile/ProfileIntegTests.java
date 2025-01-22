@@ -19,6 +19,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -102,6 +103,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ProfileIntegTests extends AbstractProfileIntegTestCase {
 
+    @SuppressForbidden(reason = "temporary disabling queryable built-in roles to avoid unavailable shard exception during cluster setup")
     @BeforeClass
     public static void disableQueryableBuiltInRoles() {
         AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty("es.queryable_built_in_roles_enabled", "false"));

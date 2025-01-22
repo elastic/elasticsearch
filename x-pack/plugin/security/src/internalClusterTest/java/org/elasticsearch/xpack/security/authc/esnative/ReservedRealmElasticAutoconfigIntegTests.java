@@ -23,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
@@ -50,6 +51,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
         hasher = getFastStoredHashAlgoForTests();
     }
 
+    @SuppressForbidden(reason="temporary disabling queryable built-in roles to avoid unavailable shard exception during cluster setup")
     @BeforeClass
     public static void disableQueryableBuiltInRoles() {
         AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty("es.queryable_built_in_roles_enabled", "false"));

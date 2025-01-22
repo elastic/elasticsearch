@@ -146,7 +146,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         return pluginsService.filterPlugins(type).findFirst().get();
     }
 
-    protected void createSystemIndexForDescriptor(SystemIndexDescriptor descriptor) {
+    public void createSystemIndexForDescriptor(SystemIndexDescriptor descriptor) throws InterruptedException {
         assertThat(
             "the strategy used below to create index names for descriptors without a primary index name only works for simple patterns",
             descriptor.getIndexPattern(),
@@ -180,13 +180,9 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         CreateIndexResponse response = createRequest.get();
         Assert.assertTrue(response.isShardsAcknowledged());
 
-        indexDocs(indexName);
-    }
-
-    protected void indexDocs(String indexName) {
         List<IndexRequestBuilder> docs = new ArrayList<>(INDEX_DOC_COUNT);
         for (int i = 0; i < INDEX_DOC_COUNT; i++) {
-            docs.add(ESIntegTestCase.prepareIndex(indexName).setId(Integer.toString(i)).setSource(FIELD_NAME, "words words"));
+            docs.add(ESIntegTestCase.prepareIndex(indexName).setId(Integer.toString(i)).setSource("some_field", "words words"));
         }
         indexRandom(true, docs);
         IndicesStatsResponse indexStats = ESIntegTestCase.indicesAdmin().prepareStats(indexName).setDocs(true).get();
@@ -211,7 +207,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
                 builder.field("dynamic", "strict");
                 builder.startObject("properties");
                 {
-                    builder.startObject(FIELD_NAME);
+                    builder.startObject("some_field");
                     builder.field("type", "keyword");
                     builder.endObject();
                 }
@@ -225,7 +221,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         }
     }
 
-    protected void assertIndexHasCorrectProperties(
+    public void assertIndexHasCorrectProperties(
         Metadata metadata,
         String indexName,
         int settingsFlagValue,

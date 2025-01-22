@@ -26,7 +26,6 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
@@ -53,7 +52,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
 
     public EnrichLookupService(
         ClusterService clusterService,
-        SearchService searchService,
+        CreateShardContext createShardContext,
         TransportService transportService,
         BigArrays bigArrays,
         BlockFactory blockFactory
@@ -61,7 +60,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         super(
             LOOKUP_ACTION_NAME,
             clusterService,
-            searchService,
+            createShardContext,
             transportService,
             bigArrays,
             blockFactory,

@@ -852,3 +852,108 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
   - match: { hits.hits.0._source.dense_field: "updated text" }
+
+---
+"Multi-fields support":
+
+  - do:
+      indices.create:
+        index: test-multi-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              field:
+                type: text
+                fields:
+                  sparse:
+                    type: semantic_text
+                    inference_id: sparse-inference-id
+                  dense:
+                    type: semantic_text
+                    inference_id: dense-inference-id
+              non_inference_field:
+                type: text
+
+  - do:
+      bulk:
+        index: test-multi-index
+        refresh: true
+        body: |
+          {"index":{"_id": "1"}}
+          {"field": ["you know, for testing", "now with chunks"]}
+          {"index":{"_id": "2"}}
+          {"field": ["some more tests", "that include chunks"]}
+
+  - do:
+      search:
+        index: test-multi-index
+        body:
+          query:
+            semantic:
+              field: field.sparse
+              query: "you know, for testing"
+          highlight:
+            fields:
+              "field.sparse": {
+                "type": "semantic",
+                "number_of_fragments": 2
+              }
+
+  - match:  { hits.total.value: 2 }
+  - match:  { hits.total.relation: eq }
+  - length: { hits.hits.0.highlight.field\.sparse: 2 }
+  - match:  { hits.hits.0.highlight.field\.sparse.0: "you know, for testing" }
+  - match:  { hits.hits.0.highlight.field\.sparse.1: "now with chunks" }
+  - length: { hits.hits.1.highlight.field\.sparse: 2 }
+  - match:  { hits.hits.1.highlight.field\.sparse.0: "some more tests" }
+  - match:  { hits.hits.1.highlight.field\.sparse.1: "that include chunks" }
+
+  - do:
+      search:
+        index: test-multi-index
+        body:
+          query:
+            semantic:
+              field: field.dense
+              query: "you know, for testing"
+          highlight:
+            fields:
+              "field.dense": {
+                "type": "semantic",
+                "number_of_fragments": 2
+              }
+
+  - match:  { hits.total.value: 2 }
+  - match:  { hits.total.relation: eq }
+  - length: { hits.hits.0.highlight.field\.dense: 2 }
+  - match:  { hits.hits.0.highlight.field\.dense.0: "you know, for testing" }
+  - match:  { hits.hits.0.highlight.field\.dense.1: "now with chunks" }
+  - length: { hits.hits.1.highlight.field\.dense: 2 }
+  - match:  { hits.hits.1.highlight.field\.dense.0: "some more tests" }
+  - match:  { hits.hits.1.highlight.field\.dense.1: "that include chunks" }
+
+  - do:
+      search:
+        index: test-multi-index
+        body:
+          query:
+            match:
+              field: "you know tests, with chunks"
+          highlight:
+            fields:
+              field:
+                number_of_fragments: 2
+
+  - match:  { hits.total.value: 2 }
+  - match:  { hits.total.relation: eq }
+  - length: { hits.hits.0.highlight.field: 2 }
+  - match:  { hits.hits.0.highlight.field.0: "<em>you</em> <em>know</em>, for testing" }
+  - match:  { hits.hits.0.highlight.field.1: "now <em>with</em> <em>chunks</em>" }
+  - length: { hits.hits.1.highlight.field: 2 }
+  - match:  { hits.hits.1.highlight.field.0: "some more <em>tests</em>" }
+  - match:  { hits.hits.1.highlight.field.1: "that include <em>chunks</em>" }

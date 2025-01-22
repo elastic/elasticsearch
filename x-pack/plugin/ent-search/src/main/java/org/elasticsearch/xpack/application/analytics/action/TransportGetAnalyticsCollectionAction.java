@@ -43,7 +43,6 @@ public class TransportGetAnalyticsCollectionAction extends TransportMasterNodeRe
             threadPool,
             actionFilters,
             GetAnalyticsCollectionAction.Request::new,
-            indexNameExpressionResolver,
             GetAnalyticsCollectionAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

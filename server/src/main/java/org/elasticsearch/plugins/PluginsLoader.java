@@ -126,47 +126,31 @@ public class PluginsLoader {
     private final Set<PluginBundle> pluginBundles;
 
     /**
-     * Constructs a new PluginsLoader
+     * Loads a set of PluginBundles from the modules directory
      *
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
-     * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      */
-    public static PluginsLoader createPluginsLoader(Path modulesDirectory, Path pluginsDirectory) {
-        return createPluginsLoader(modulesDirectory, pluginsDirectory, true);
-    }
-
-    /**
-     * Constructs a new PluginsLoader
-     *
-     * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
-     * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
-     * @param withServerExports {@code true} to add server module exports
-     */
-    public static PluginsLoader createPluginsLoader(Path modulesDirectory, Path pluginsDirectory, boolean withServerExports) {
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports;
-        if (withServerExports) {
-            qualifiedExports = new HashMap<>(ModuleQualifiedExportsService.getBootServices());
-            addServerExportsService(qualifiedExports);
-        } else {
-            qualifiedExports = Collections.emptyMap();
-        }
-
-        Set<PluginBundle> seenBundles = new LinkedHashSet<>();
-
+    public static Set<PluginBundle> loadModulesBundles(Path modulesDirectory) {
         // load (elasticsearch) module layers
         final Set<PluginBundle> modules;
         if (modulesDirectory != null) {
             try {
                 modules = PluginsUtils.getModuleBundles(modulesDirectory);
-                seenBundles.addAll(modules);
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize modules", ex);
             }
         } else {
             modules = Collections.emptySet();
         }
+        return modules;
+    }
 
-        // load plugin layers
+    /**
+     * Loads a set of PluginBundles from the plugins directory
+     *
+     * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
+     */
+    public static Set<PluginBundle> loadPluginsBundles(Path pluginsDirectory) {
         final Set<PluginBundle> plugins;
         if (pluginsDirectory != null) {
             try {
@@ -174,8 +158,6 @@ public class PluginsLoader {
                 if (isAccessibleDirectory(pluginsDirectory, logger)) {
                     PluginsUtils.checkForFailedPluginRemovals(pluginsDirectory);
                     plugins = PluginsUtils.getPluginBundles(pluginsDirectory);
-
-                    seenBundles.addAll(plugins);
                 } else {
                     plugins = Collections.emptySet();
                 }
@@ -185,6 +167,38 @@ public class PluginsLoader {
         } else {
             plugins = Collections.emptySet();
         }
+        return plugins;
+    }
+
+    /**
+     * Constructs a new PluginsLoader
+     *
+     * @param modules           The set of module bundles present on the filesystem
+     * @param plugins           The set of plugin bundles present on the filesystem
+     */
+    public static PluginsLoader createPluginsLoader(Set<PluginBundle> modules, Set<PluginBundle> plugins) {
+        return createPluginsLoader(modules, plugins, true);
+    }
+
+    /**
+     * Constructs a new PluginsLoader
+     *
+     * @param modules           The set of module bundles present on the filesystem
+     * @param plugins           The set of plugin bundles present on the filesystem
+     * @param withServerExports {@code true} to add server module exports
+     */
+    public static PluginsLoader createPluginsLoader(Set<PluginBundle> modules, Set<PluginBundle> plugins, boolean withServerExports) {
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports;
+        if (withServerExports) {
+            qualifiedExports = new HashMap<>(ModuleQualifiedExportsService.getBootServices());
+            addServerExportsService(qualifiedExports);
+        } else {
+            qualifiedExports = Collections.emptyMap();
+        }
+
+        Set<PluginBundle> seenBundles = new LinkedHashSet<>();
+        seenBundles.addAll(modules);
+        seenBundles.addAll(plugins);
 
         Map<String, LoadedPluginLayer> loadedPluginLayers = new LinkedHashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();

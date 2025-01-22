@@ -14,7 +14,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -56,15 +55,25 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
     private final TimeValue DEFAULT_HANDSHAKE_TIMEOUT = TimeValue.timeValueSeconds(9);
     private TimeValue timeout;
 
+    // true if the user did not provide any index expression - they only want cluster level info, not index matching
+    private final boolean clusterInfoOnly;
+    // Whether this request is being processed on the primary ("local") cluster being queried or on a remote.
+    // This is needed when clusterInfoOnly=true since we need to know whether to list out all possible remotes
+    // on a node. (We don't want cross-cluster chaining on remotes that might be configured with their own remotes.)
+    private final boolean isQueryingCluster;
+
     public ResolveClusterActionRequest(String[] names) {
-        this(names, DEFAULT_INDICES_OPTIONS);
+        this(names, DEFAULT_INDICES_OPTIONS, false, true);
+        assert names != null && names.length > 0 : "One or more index expressions must be included with this constructor";
     }
 
     @SuppressWarnings("this-escape")
-    public ResolveClusterActionRequest(String[] names, IndicesOptions indicesOptions) {
+    public ResolveClusterActionRequest(String[] names, IndicesOptions indicesOptions, boolean clusterInfoOnly, boolean queryingCluster) {
         this.names = names;
         this.localIndicesRequested = localIndicesPresent(names);
         this.indicesOptions = indicesOptions;
+        this.clusterInfoOnly = clusterInfoOnly;
+        this.isQueryingCluster = queryingCluster;
     }
 
     @SuppressWarnings("this-escape")
@@ -76,6 +85,13 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
         this.names = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         this.localIndicesRequested = localIndicesPresent(names);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RESOLVE_CLUSTER_NO_INDEX_EXPRESSION)) {
+            this.clusterInfoOnly = in.readBoolean();
+            this.isQueryingCluster = in.readBoolean();
+        } else {
+            this.clusterInfoOnly = false;
+            this.isQueryingCluster = false;
+        }
     }
 
     @Override
@@ -86,9 +102,13 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
         }
         out.writeStringArray(names);
         indicesOptions.writeIndicesOptions(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RESOLVE_CLUSTER_NO_INDEX_EXPRESSION)) {
+            out.writeBoolean(clusterInfoOnly);
+            out.writeBoolean(isQueryingCluster);
+        }
     }
 
-    private String createVersionErrorMessage(TransportVersion versionFound) {
+    static String createVersionErrorMessage(TransportVersion versionFound) {
         return Strings.format(
             "%s %s but was %s",
             TRANSPORT_VERSION_ERROR_MESSAGE_PREFIX,
@@ -99,11 +119,7 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (names == null || names.length == 0) {
-            validationException = ValidateActions.addValidationError("no index expressions specified", validationException);
-        }
-        return validationException;
+        return null;
     }
 
     @Override
@@ -128,6 +144,13 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
 
     public TimeValue getTimeout() {
         return timeout;
+
+    public boolean clusterInfoOnly() {
+        return clusterInfoOnly;
+    }
+
+    public boolean queryingCluster() {
+        return isQueryingCluster;
     }
 
     public boolean isLocalIndicesRequested() {
@@ -167,7 +190,11 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
         return new CancellableTask(id, type, action, "", parentTaskId, headers) {
             @Override
             public String getDescription() {
-                return "resolve/cluster for " + Arrays.toString(indices());
+                if (indices().length == 0) {
+                    return "resolve/cluster";
+                } else {
+                    return "resolve/cluster for " + Arrays.toString(indices());
+                }
             }
         };
     }
@@ -188,5 +215,18 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
         if (this.timeout.getSeconds() > 9) {
             this.timeout = DEFAULT_HANDSHAKE_TIMEOUT;
         }
+
+    @Override
+    public String toString() {
+        return "ResolveClusterActionRequest{"
+            + "indices="
+            + Arrays.toString(names)
+            + ", localIndicesRequested="
+            + localIndicesRequested
+            + ", clusterInfoOnly="
+            + clusterInfoOnly
+            + ", queryingCluster="
+            + isQueryingCluster
+            + '}';
     }
 }

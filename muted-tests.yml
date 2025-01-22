@@ -52,21 +52,9 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
   method: testStopWaitForCheckpoint
   issue: https://github.com/elastic/elasticsearch/issues/106113
-- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
-  method: testPutE5Small_withPlatformAgnosticVariant
-  issue: https://github.com/elastic/elasticsearch/issues/113983
-- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
-  method: testPutE5WithTrainedModelAndInference
-  issue: https://github.com/elastic/elasticsearch/issues/114023
-- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
-  method: testPutE5Small_withPlatformSpecificVariant
-  issue: https://github.com/elastic/elasticsearch/issues/113950
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
   issue: https://github.com/elastic/elasticsearch/issues/112731
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testInferDeploysDefaultE5
-  issue: https://github.com/elastic/elasticsearch/issues/115361
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/115528
@@ -110,9 +98,6 @@ tests:
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/10_apm/Test template reinstallation}
   issue: https://github.com/elastic/elasticsearch/issues/116445
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testMultipleInferencesTriggeringDownloadAndDeploy
-  issue: https://github.com/elastic/elasticsearch/issues/117208
 - class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
   method: testEnterpriseDownloaderTask
   issue: https://github.com/elastic/elasticsearch/issues/115163
@@ -125,9 +110,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=snapshot/10_basic/Create a source only snapshot and then restore it}
   issue: https://github.com/elastic/elasticsearch/issues/117295
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testInferDeploysDefaultElser
-  issue: https://github.com/elastic/elasticsearch/issues/114913
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/40_semantic_text_query/Query a field that uses the default ELSER 2 endpoint}
   issue: https://github.com/elastic/elasticsearch/issues/117027
@@ -152,9 +134,6 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
   method: testEsqlRcs2UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/117419
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testInferDeploysDefaultRerank
-  issue: https://github.com/elastic/elasticsearch/issues/118184
 - class: org.elasticsearch.xpack.esql.action.EsqlActionTaskIT
   method: testCancelRequestWhenFailingFetchingPages
   issue: https://github.com/elastic/elasticsearch/issues/118193
@@ -189,9 +168,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/118914
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryRunAsIT
   issue: https://github.com/elastic/elasticsearch/issues/115727
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/search/search-your-data/retrievers-examples/line_98}
-  issue: https://github.com/elastic/elasticsearch/issues/119155
 - class: org.elasticsearch.xpack.esql.action.EsqlNodeFailureIT
   method: testFailureLoadingFields
   issue: https://github.com/elastic/elasticsearch/issues/118000
@@ -243,17 +219,42 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/108061
 - class: org.elasticsearch.xpack.logsdb.seqno.RetentionLeaseRestIT
   issue: https://github.com/elastic/elasticsearch/issues/120434
-- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
-  method: testCheckActionWithPolicyPass {pathPrefix=allowed actionName=create_ldap_cert_store}
-  issue: https://github.com/elastic/elasticsearch/issues/120422
-- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
-  method: testCheckActionWithPolicyPass {pathPrefix=allowed_nonmodular actionName=create_ldap_cert_store}
-  issue: https://github.com/elastic/elasticsearch/issues/120423
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
   method: testInvalidJSON
   issue: https://github.com/elastic/elasticsearch/issues/120482
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/120497
+- class: org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeToCharProcessorTests
+  issue: https://github.com/elastic/elasticsearch/issues/120575
+- class: org.elasticsearch.discovery.ec2.DiscoveryEc2KeystoreCredentialsIT
+  issue: https://github.com/elastic/elasticsearch/issues/120576
+- class: org.elasticsearch.discovery.ec2.DiscoveryEc2KeystoreSessionCredentialsIT
+  issue: https://github.com/elastic/elasticsearch/issues/120577
+- class: org.elasticsearch.discovery.ec2.DiscoveryEc2SystemPropertyCredentialsIT
+  issue: https://github.com/elastic/elasticsearch/issues/120578
+- class: org.elasticsearch.discovery.ec2.DiscoveryEc2EnvironmentVariableCredentialsIT
+  issue: https://github.com/elastic/elasticsearch/issues/120579
+- class: org.elasticsearch.action.search.SearchProgressActionListenerIT
+  method: testSearchProgressWithHitsAndAggs
+  issue: https://github.com/elastic/elasticsearch/issues/120583
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+  method: testEnrichExplosionManyMatches
+  issue: https://github.com/elastic/elasticsearch/issues/120587
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.NonUniqueRightKeyOnTheCoordinator ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/120600
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.NonUniqueRightKeyFromRow ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/120601
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.NonUniqueRightKeyFromRow SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/120602
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.NonUniqueRightKeyOnTheCoordinator SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/120603
+- class: org.elasticsearch.index.reindex.BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests
+  method: testReindex
+  issue: https://github.com/elastic/elasticsearch/issues/120605
 
 # Examples:
 #

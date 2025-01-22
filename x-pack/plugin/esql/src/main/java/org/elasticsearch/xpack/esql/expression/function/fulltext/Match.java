@@ -243,7 +243,8 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
                     valueHint = { "none", "all" },
                     description = "Number of beginning characters left unchanged for fuzzy matching."
                 ) },
-            description = "Match additional options. See <<query-dsl-match-query,match query>> for more information.",
+            description = "Match additional options as <<esql-function-named-params,function named parameters>>."
+                + " See <<query-dsl-match-query,match query>> for more information.",
             optional = true
         ) Expression options
     ) {

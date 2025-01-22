@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.index.TransportIndexAction;
@@ -198,6 +199,9 @@ public class InternalUsers {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
                     .privileges(
+                        GetDataStreamAction.NAME,
+                        RolloverAction.NAME,
+                        IndicesStatsAction.NAME,
                         TransportDeleteIndexAction.TYPE.name(),
                         "indices:admin/data_stream/index/reindex",
                         "indices:admin/index/create_from_source",

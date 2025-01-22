@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;

@@ -232,6 +232,34 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         assertFalse("mode is a noop parameter", mapper.isSynthetic());
     }
 
+    public void testSyntheticUpdatesLegacy() throws Exception {
+        var mappings = XContentBuilder.builder(XContentType.JSON.xContent()).startObject().startObject("_doc").startObject("_source");
+        mappings.field("mode", "synthetic").endObject().endObject().endObject();
+        // one version before SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP
+        MapperService mapperService = createMapperService(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME, mappings);
+        SourceFieldMapper mapper = mapperService.documentMapper().sourceMapper();
+        assertTrue(mapper.enabled());
+        assertTrue(mapper.isSynthetic());
+
+        merge(mapperService, """
+            { "_doc" : { "_source" : { "mode" : "synthetic" } } }
+            """);
+        mapper = mapperService.documentMapper().sourceMapper();
+        assertTrue(mapper.enabled());
+        assertTrue(mapper.isSynthetic());
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source("{}"));
+        assertNull(doc.rootDoc().get(SourceFieldMapper.NAME));
+
+        merge(mapperService, """
+            { "_doc" : { "_source" : { "mode" : "disabled" } } }
+            """);
+
+        mapper = mapperService.documentMapper().sourceMapper();
+        assertFalse(mapper.enabled());
+        assertFalse(mapper.isSynthetic());
+    }
+
     public void testSyntheticSourceInTimeSeries() throws IOException {
         XContentBuilder mapping = fieldMapping(b -> {
             b.field("type", "keyword");

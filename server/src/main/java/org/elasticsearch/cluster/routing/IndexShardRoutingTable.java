@@ -53,6 +53,7 @@ public class IndexShardRoutingTable {
     final List<ShardRouting> activeShards;
     final List<ShardRouting> assignedShards;
     private final List<ShardRouting> unpromotableShards;
+    private final List<ShardRouting> allUnpromotableShards;
     /**
      * The initializing list, including ones that are initializing on a target node because of relocation.
      * If we can come up with a better variable name, it would be nice...
@@ -73,6 +74,7 @@ public class IndexShardRoutingTable {
         List<ShardRouting> assignedShards = new ArrayList<>();
         List<ShardRouting> unpromotableShards = new ArrayList<>();
         List<ShardRouting> allInitializingShards = new ArrayList<>();
+        List<ShardRouting> allUnpromotableShards = new ArrayList<>();
         boolean allShardsStarted = true;
         int activeSearchShardCount = 0;
         int totalSearchShardCount = 0;
@@ -94,6 +96,9 @@ public class IndexShardRoutingTable {
             }
             if (shard.initializing()) {
                 allInitializingShards.add(shard);
+            }
+            if (shard.isPromotableToPrimary() == false) {
+                allUnpromotableShards.add(shard);
             }
             if (shard.relocating()) {
                 // create the target initializing shard routing on the node the shard is relocating to
@@ -122,6 +127,7 @@ public class IndexShardRoutingTable {
         this.activeShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(activeShards);
         this.assignedShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(assignedShards);
         this.unpromotableShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(unpromotableShards);
+        this.allUnpromotableShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(allUnpromotableShards);
         this.allInitializingShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(allInitializingShards);
         this.allShardsStarted = allShardsStarted;
         this.activeSearchShardCount = activeSearchShardCount;
@@ -186,6 +192,15 @@ public class IndexShardRoutingTable {
      */
     public List<ShardRouting> unpromotableShards() {
         return this.unpromotableShards;
+    }
+
+    /**
+     * Returns a {@link List} of all unpromotable shards, including unassigned shards
+     *
+     * @return a {@link List} of shards
+     */
+    public List<ShardRouting> allUnpromotableShards() {
+        return this.allUnpromotableShards;
     }
 
     public ShardIterator shardsRandomIt() {

@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.UnpromotableShardRefreshRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -66,7 +65,7 @@ public class PostWriteRefresh {
                 }
             });
             case IMMEDIATE -> immediate(indexShard, listener.delegateFailureAndWrap((l, r) -> {
-                if (isIndexNode()) {
+                if (indexShard.getReplicationGroup().getRoutingTable().allUnpromotableShards().size() > 0) {
                     sendUnpromotableRequests(indexShard, r.generation(), true, l, postWriteRefreshTimeout);
                 } else {
                     l.onResponse(true);
@@ -146,10 +145,6 @@ public class PostWriteRefresh {
             TransportRequestOptions.timeout(postWriteRefreshTimeout),
             new ActionListenerResponseHandler<>(listener.safeMap(r -> wasForced), in -> ActionResponse.Empty.INSTANCE, refreshExecutor)
         );
-    }
-
-    private boolean isIndexNode() {
-        return transportService.getLocalNode().hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName());
     }
 
 }

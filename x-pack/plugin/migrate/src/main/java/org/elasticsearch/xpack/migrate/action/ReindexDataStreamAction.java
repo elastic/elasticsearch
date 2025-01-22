@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -29,7 +28,6 @@ import java.util.Objects;
 import java.util.function.Predicate;
 
 public class ReindexDataStreamAction extends ActionType<AcknowledgedResponse> {
-    public static final FeatureFlag REINDEX_DATA_STREAM_FEATURE_FLAG = new FeatureFlag("reindex_data_stream");
     public static final String TASK_ID_PREFIX = "reindex-data-stream-";
 
     public static final ReindexDataStreamAction INSTANCE = new ReindexDataStreamAction();

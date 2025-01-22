@@ -7,7 +7,7 @@ setup:
 ---
 "Test get reindex status with nonexistent task id":
   - requires:
-      reason: "migration reindex is behind a feature flag"
+      reason: "requires a cluster with the migration reindex feature"
       test_runner_features: [capabilities]
       capabilities:
         - method: POST
@@ -21,7 +21,7 @@ setup:
 ---
 "Test Reindex With Existing Data Stream":
   - requires:
-      reason: "migration reindex is behind a feature flag"
+      reason: "requires a cluster with the migration reindex feature"
       test_runner_features: [capabilities]
       capabilities:
         - method: POST

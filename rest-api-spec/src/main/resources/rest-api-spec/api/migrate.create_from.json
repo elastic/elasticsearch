@@ -29,7 +29,7 @@
       ]
     },
     "body":{
-      "description":"The body contains the fields `mappings_override` and `settings_override`.",
+      "description":"The body contains the fields `mappings_override`, `settings_override`, and `remove_index_blocks`.",
       "required":false
     }
   }

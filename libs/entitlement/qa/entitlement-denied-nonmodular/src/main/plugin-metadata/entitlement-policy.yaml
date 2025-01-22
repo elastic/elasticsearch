@@ -1,0 +1,5 @@
+ALL-UNNAMED:
+  - write_system_properties:
+      properties:
+        # entitlement itself not sufficient, also no wildcard support
+        - "*"

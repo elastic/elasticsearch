@@ -242,6 +242,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120587
 - class: org.elasticsearch.lucene.FullClusterRestartLuceneIndexCompatibilityIT
   issue: https://github.com/elastic/elasticsearch/issues/120597
+- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
+  issue: https://github.com/elastic/elasticsearch/issues/120598
 
 # Examples:
 #

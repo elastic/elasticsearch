@@ -22,6 +22,7 @@ import org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement
 import org.elasticsearch.entitlement.runtime.policy.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.ExitVMEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.InboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
@@ -92,7 +93,8 @@ public class EntitlementInitialization {
                         new ExitVMEntitlement(),
                         new CreateClassLoaderEntitlement(),
                         new InboundNetworkEntitlement(),
-                        new OutboundNetworkEntitlement()
+                        new OutboundNetworkEntitlement(),
+                        new LoadNativeLibrariesEntitlement()
                     )
                 ),
                 new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),

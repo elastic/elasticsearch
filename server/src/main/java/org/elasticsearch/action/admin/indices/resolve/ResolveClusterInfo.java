@@ -22,7 +22,7 @@ public class ResolveClusterInfo implements Writeable {
 
     private final boolean connected;
     private final Boolean skipUnavailable;  // remote clusters don't know their setting, so they put null and querying cluster fills in
-    private final Boolean matchingIndices;  // null means 'unknown' when not connected
+    private final Boolean matchingIndices;  // null means no index expression requested by user or remote cluster was not connected
     private final Build build;
     private final String error;
 
@@ -38,8 +38,14 @@ public class ResolveClusterInfo implements Writeable {
         this(connected, skipUnavailable, matchingIndices, build, null);
     }
 
-    public ResolveClusterInfo(ResolveClusterInfo copyFrom, boolean skipUnavailable) {
-        this(copyFrom.isConnected(), skipUnavailable, copyFrom.getMatchingIndices(), copyFrom.getBuild(), copyFrom.getError());
+    public ResolveClusterInfo(ResolveClusterInfo copyFrom, boolean skipUnavailable, boolean clusterInfoOnly) {
+        this(
+            copyFrom.isConnected(),
+            skipUnavailable,
+            clusterInfoOnly ? null : copyFrom.getMatchingIndices(),
+            copyFrom.getBuild(),
+            clusterInfoOnly ? null : copyFrom.getError()
+        );
     }
 
     private ResolveClusterInfo(boolean connected, Boolean skipUnavailable, Boolean matchingIndices, Build build, String error) {
@@ -48,7 +54,6 @@ public class ResolveClusterInfo implements Writeable {
         this.matchingIndices = matchingIndices;
         this.build = build;
         this.error = error;
-        assert error != null || matchingIndices != null || connected == false : "If matchingIndices is null, connected must be false";
     }
 
     public ResolveClusterInfo(StreamInput in) throws IOException {
@@ -67,12 +72,7 @@ public class ResolveClusterInfo implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            throw new UnsupportedOperationException(
-                "ResolveClusterAction requires at least version "
-                    + TransportVersions.V_8_13_0.toReleaseVersion()
-                    + " but was "
-                    + out.getTransportVersion().toReleaseVersion()
-            );
+            throw new UnsupportedOperationException(ResolveClusterActionRequest.createVersionErrorMessage(out.getTransportVersion()));
         }
         out.writeBoolean(connected);
         out.writeOptionalBoolean(skipUnavailable);

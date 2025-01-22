@@ -39,9 +39,11 @@ import java.util.function.IntFunction;
  */
 public abstract class QueryList {
     protected final Block block;
+    protected final boolean onlySingleValues;
 
-    protected QueryList(Block block) {
+    protected QueryList(Block block, boolean onlySingleValues) {
         this.block = block;
+        this.onlySingleValues = onlySingleValues;
     }
 
     /**
@@ -50,6 +52,12 @@ public abstract class QueryList {
     int getPositionCount() {
         return block.getPositionCount();
     }
+
+    /**
+     * Returns a copy of this query list that only returns queries for single-valued positions.
+     * That is, it returns `null` queries for either multivalued or null positions.
+     */
+    public abstract QueryList onlySingleValues();
 
     /**
      * Returns the query at the given position.
@@ -93,7 +101,7 @@ public abstract class QueryList {
             case COMPOSITE -> throw new IllegalArgumentException("can't read values from [composite] block");
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };
-        return new TermQueryList(field, searchExecutionContext, block, blockToJavaObject);
+        return new TermQueryList(field, searchExecutionContext, block, false, blockToJavaObject);
     }
 
     /**
@@ -103,7 +111,7 @@ public abstract class QueryList {
     public static QueryList ipTermQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, BytesRefBlock block) {
         BytesRef scratch = new BytesRef();
         byte[] ipBytes = new byte[InetAddressPoint.BYTES];
-        return new TermQueryList(field, searchExecutionContext, block, offset -> {
+        return new TermQueryList(field, searchExecutionContext, block, false, offset -> {
             final var bytes = block.getBytesRef(offset, scratch);
             if (ipBytes.length != bytes.length) {
                 // Lucene only support 16-byte IP addresses, even IPv4 is encoded in 16 bytes
@@ -123,6 +131,7 @@ public abstract class QueryList {
             field,
             searchExecutionContext,
             block,
+            false,
             field instanceof RangeFieldMapper.RangeFieldType rangeFieldType
                 ? offset -> rangeFieldType.dateTimeFormatter().formatMillis(block.getLong(offset))
                 : block::getLong
@@ -133,7 +142,7 @@ public abstract class QueryList {
      * Returns a list of geo_shape queries for the given field and the input block.
      */
     public static QueryList geoShapeQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
-        return new GeoShapeQueryList(field, searchExecutionContext, block);
+        return new GeoShapeQueryList(field, searchExecutionContext, block, false);
     }
 
     private static class TermQueryList extends QueryList {
@@ -145,18 +154,27 @@ public abstract class QueryList {
             MappedFieldType field,
             SearchExecutionContext searchExecutionContext,
             Block block,
+            boolean onlySingleValues,
             IntFunction<Object> blockValueReader
         ) {
-            super(block);
+            super(block, onlySingleValues);
             this.field = field;
             this.searchExecutionContext = searchExecutionContext;
             this.blockValueReader = blockValueReader;
         }
 
         @Override
+        public TermQueryList onlySingleValues() {
+            return new TermQueryList(field, searchExecutionContext, block, true, blockValueReader);
+        }
+
+        @Override
         Query getQuery(int position) {
-            final int first = block.getFirstValueIndex(position);
             final int count = block.getValueCount(position);
+            if (onlySingleValues && count != 1) {
+                return null;
+            }
+            final int first = block.getFirstValueIndex(position);
             return switch (count) {
                 case 0 -> null;
                 case 1 -> field.termQuery(blockValueReader.apply(first), searchExecutionContext);
@@ -179,8 +197,13 @@ public abstract class QueryList {
         private final IntFunction<Geometry> blockValueReader;
         private final IntFunction<Query> shapeQuery;
 
-        private GeoShapeQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
-            super(block);
+        private GeoShapeQueryList(
+            MappedFieldType field,
+            SearchExecutionContext searchExecutionContext,
+            Block block,
+            boolean onlySingleValues
+        ) {
+            super(block, onlySingleValues);
 
             this.field = field;
             this.searchExecutionContext = searchExecutionContext;
@@ -189,9 +212,17 @@ public abstract class QueryList {
         }
 
         @Override
+        public GeoShapeQueryList onlySingleValues() {
+            return new GeoShapeQueryList(field, searchExecutionContext, block, true);
+        }
+
+        @Override
         Query getQuery(int position) {
-            final int first = block.getFirstValueIndex(position);
             final int count = block.getValueCount(position);
+            if (onlySingleValues && count != 1) {
+                return null;
+            }
+            final int first = block.getFirstValueIndex(position);
             return switch (count) {
                 case 0 -> null;
                 case 1 -> shapeQuery.apply(first);

@@ -485,30 +485,30 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             assertThat(
                 rrfDetails.getDescription(),
                 equalTo(
-                    "weighted linear combination score: [30.0] computed for normalized scores [9.0, 20.0, 1.0] " +
-                        "and weights [1.0, 1.0, 1.0] as sum of (weight[i] * score[i]) for each query."
+                    "weighted linear combination score: [30.0] computed for normalized scores [9.0, 20.0, 1.0] "
+                        + "and weights [1.0, 1.0, 1.0] as sum of (weight[i] * score[i]) for each query."
                 )
             );
 
             assertThat(
                 rrfDetails.getDetails()[0].getDescription(),
                 containsString(
-                    "weighted score: [9.0] in query at index [0] [my_custom_retriever] computed as [1.0 * 9.0] " +
-                        "using score normalizer [none] for original matching query with score"
+                    "weighted score: [9.0] in query at index [0] [my_custom_retriever] computed as [1.0 * 9.0] "
+                        + "using score normalizer [none] for original matching query with score"
                 )
             );
             assertThat(
                 rrfDetails.getDetails()[1].getDescription(),
                 containsString(
-                    "weighted score: [20.0] in query at index [1] computed as [1.0 * 20.0] using score normalizer [none] " +
-                        "for original matching query with score:"
+                    "weighted score: [20.0] in query at index [1] computed as [1.0 * 20.0] using score normalizer [none] "
+                        + "for original matching query with score:"
                 )
             );
             assertThat(
                 rrfDetails.getDetails()[2].getDescription(),
                 containsString(
-                    "weighted score: [1.0] in query at index [2] computed as [1.0 * 1.0] using score normalizer [none] " +
-                        "for original matching query with score"
+                    "weighted score: [1.0] in query at index [2] computed as [1.0 * 1.0] using score normalizer [none] "
+                        + "for original matching query with score"
                 )
             );
         });
@@ -589,8 +589,8 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             assertThat(
                 linearTopLevel.getDescription(),
                 containsString(
-                    "weighted linear combination score: [112.05882] computed for normalized scores [12.058824, 20.0] " +
-                        "and weights [1.0, 5.0] as sum of (weight[i] * score[i]) for each query."
+                    "weighted linear combination score: [112.05882] computed for normalized scores [12.058824, 20.0] "
+                        + "and weights [1.0, 5.0] as sum of (weight[i] * score[i]) for each query."
                 )
             );
             assertThat(linearTopLevel.getDetails()[0].getDescription(), containsString("weighted score: [12.058824]"));
@@ -674,8 +674,8 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         assertThat(
             ex.getMessage(),
             containsString(
-                "[linear] search failed - retrievers '[standard, test]' returned errors. " +
-                    "All failures are attached as suppressed exceptions."
+                "[linear] search failed - retrievers '[standard, test]' returned errors. "
+                    + "All failures are attached as suppressed exceptions."
             )
         );
         assertThat(ExceptionsHelper.status(ex), equalTo(RestStatus.INTERNAL_SERVER_ERROR));

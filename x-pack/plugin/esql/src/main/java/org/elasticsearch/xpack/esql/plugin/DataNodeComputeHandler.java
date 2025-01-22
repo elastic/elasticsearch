@@ -102,23 +102,17 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         var listener = ActionListener.runAfter(outListener, exchangeSource.addEmptySink()::close);
         final long startTimeInNanos = System.nanoTime();
         lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodeResult -> {
-            try (
-                ComputeListener computeListener = new ComputeListener(
-                    transportService.getThreadPool(),
-                    runOnTaskFailure,
-                    listener.map(profiles -> {
-                        TimeValue took = TimeValue.timeValueNanos(System.nanoTime() - startTimeInNanos);
-                        return new ComputeResponse(
-                            profiles,
-                            took,
-                            dataNodeResult.totalShards(),
-                            dataNodeResult.totalShards() - dataNodeResult.skippedShards(),
-                            dataNodeResult.skippedShards(),
-                            0
-                        );
-                    })
-                )
-            ) {
+            try (var computeListener = new ComputeListener(transportService.getThreadPool(), runOnTaskFailure, listener.map(profiles -> {
+                TimeValue took = TimeValue.timeValueNanos(System.nanoTime() - startTimeInNanos);
+                return new ComputeResponse(
+                    profiles,
+                    took,
+                    dataNodeResult.totalShards(),
+                    dataNodeResult.totalShards() - dataNodeResult.skippedShards(),
+                    dataNodeResult.skippedShards(),
+                    0
+                );
+            }))) {
                 // For each target node, first open a remote exchange on the remote node, then link the exchange source to
                 // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
                 for (DataNode node : dataNodeResult.dataNodes()) {
@@ -133,7 +127,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         esqlExecutor,
                         nodeListener.delegateFailureAndWrap((l, unused) -> {
                             var remoteSink = exchangeService.newRemoteSink(parentTask, childSessionId, transportService, node.connection);
-                            exchangeSource.addRemoteSink(remoteSink, true, queryPragmas.concurrentExchangeClients(), ActionListener.noop());
+                            exchangeSource.addRemoteSink(
+                                remoteSink,
+                                true,
+                                queryPragmas.concurrentExchangeClients(),
+                                computeListener.acquireAvoid()
+                            );
                             final boolean sameNode = transportService.getLocalNode().getId().equals(node.connection.getNode().getId());
                             var dataNodeRequest = new DataNodeRequest(
                                 childSessionId,

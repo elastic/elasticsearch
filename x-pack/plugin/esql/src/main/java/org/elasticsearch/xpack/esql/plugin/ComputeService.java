@@ -257,6 +257,7 @@ public class ComputeService {
                         dataNodePlan,
                         exchangeSource,
                         cluster,
+                        cancelQueryOnFailure,
                         computeListener.acquireCompute().map(r -> {
                             updateExecutionInfo(execInfo, cluster.clusterAlias(), r);
                             return r.getProfiles();

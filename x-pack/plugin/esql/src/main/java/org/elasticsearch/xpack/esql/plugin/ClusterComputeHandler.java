@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
@@ -69,32 +70,48 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         PhysicalPlan plan,
         ExchangeSourceHandler exchangeSource,
         RemoteCluster cluster,
+        Runnable cancelQueryOnFailure,
         ActionListener<ComputeResponse> listener
     ) {
         var queryPragmas = configuration.pragmas();
         listener = ActionListener.runBefore(listener, exchangeSource.addEmptySink()::close);
         final var childSessionId = computeService.newChildSession(sessionId);
-        ExchangeService.openExchange(
-            transportService,
-            cluster.connection,
-            childSessionId,
-            queryPragmas.exchangeBufferSize(),
-            esqlExecutor,
-            listener.delegateFailureAndWrap((l, unused) -> {
-                var remoteSink = exchangeService.newRemoteSink(rootTask, childSessionId, transportService, cluster.connection);
-                exchangeSource.addRemoteSink(remoteSink, true, queryPragmas.concurrentExchangeClients(), ActionListener.noop());
-                var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
-                var clusterRequest = new ClusterComputeRequest(cluster.clusterAlias, childSessionId, configuration, remotePlan);
-                transportService.sendChildRequest(
-                    cluster.connection,
-                    ComputeService.CLUSTER_ACTION_NAME,
-                    clusterRequest,
-                    rootTask,
-                    TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(l, ComputeResponse::new, esqlExecutor)
-                );
-            })
-        );
+        final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
+        try (var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure, listener.map(profiles -> {
+            var resp = finalResponse.get();
+            return Objects.requireNonNullElseGet(resp, () -> new ComputeResponse(profiles));
+        }))) {
+            ExchangeService.openExchange(
+                transportService,
+                cluster.connection,
+                childSessionId,
+                queryPragmas.exchangeBufferSize(),
+                esqlExecutor,
+                computeListener.acquireCompute().delegateFailureAndWrap((l, unused) -> {
+                    var remoteSink = exchangeService.newRemoteSink(rootTask, childSessionId, transportService, cluster.connection);
+                    exchangeSource.addRemoteSink(
+                        remoteSink,
+                        true,
+                        queryPragmas.concurrentExchangeClients(),
+                        computeListener.acquireAvoid()
+                    );
+                    var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
+                    var clusterRequest = new ClusterComputeRequest(cluster.clusterAlias, childSessionId, configuration, remotePlan);
+                    final ActionListener<ComputeResponse> clusterListener = l.map(r -> {
+                        finalResponse.set(r);
+                        return r.getProfiles();
+                    });
+                    transportService.sendChildRequest(
+                        cluster.connection,
+                        ComputeService.CLUSTER_ACTION_NAME,
+                        clusterRequest,
+                        rootTask,
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, esqlExecutor)
+                    );
+                })
+            );
+        }
     }
 
     List<RemoteCluster> getRemoteClusters(

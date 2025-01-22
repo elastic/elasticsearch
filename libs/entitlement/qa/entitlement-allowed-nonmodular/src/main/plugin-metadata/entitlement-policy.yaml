@@ -7,3 +7,4 @@ ALL-UNNAMED:
       properties:
         - es.entitlements.checkSetSystemProperty
         - es.entitlements.checkClearSystemProperty
+  - load_native_libraries

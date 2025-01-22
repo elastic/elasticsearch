@@ -94,6 +94,7 @@ public abstract class FieldMapper extends Mapper {
         MultiFields multiFields,
         CopyTo copyTo,
         Optional<SourceKeepMode> sourceKeepMode,
+        SourceKeepMode indexSourceKeepMode,
         boolean hasScript,
         OnScriptError onScriptError
     ) {
@@ -101,7 +102,14 @@ public abstract class FieldMapper extends Mapper {
             return empty;
         }
 
-        private static final BuilderParams empty = new BuilderParams(MultiFields.empty(), CopyTo.empty(), Optional.empty(), false, null);
+        private static final BuilderParams empty = new BuilderParams(
+            MultiFields.empty(),
+            CopyTo.empty(),
+            Optional.empty(),
+            SourceKeepMode.NONE,
+            false,
+            null
+        );
     }
 
     protected final MappedFieldType mappedFieldType;
@@ -1363,6 +1371,7 @@ public abstract class FieldMapper extends Mapper {
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
         protected CopyTo copyTo = CopyTo.EMPTY;
         protected Optional<SourceKeepMode> sourceKeepMode = Optional.empty();
+        protected SourceKeepMode indexSourceKeepMode;
         protected boolean hasScript = false;
         protected OnScriptError onScriptError = null;
 
@@ -1387,7 +1396,14 @@ public abstract class FieldMapper extends Mapper {
         }
 
         protected BuilderParams builderParams(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
-            return new BuilderParams(multiFieldsBuilder.build(mainFieldBuilder, context), copyTo, sourceKeepMode, hasScript, onScriptError);
+            return new BuilderParams(
+                multiFieldsBuilder.build(mainFieldBuilder, context),
+                copyTo,
+                sourceKeepMode,
+                indexSourceKeepMode,
+                hasScript,
+                onScriptError
+            );
         }
 
         protected void merge(FieldMapper in, Conflicts conflicts, MapperMergeContext mapperMergeContext) {
@@ -1400,6 +1416,7 @@ public abstract class FieldMapper extends Mapper {
             }
             this.copyTo = in.builderParams.copyTo;
             this.sourceKeepMode = in.builderParams.sourceKeepMode;
+            this.indexSourceKeepMode = in.builderParams.indexSourceKeepMode;
             validate();
         }
 
@@ -1565,6 +1582,9 @@ public abstract class FieldMapper extends Mapper {
                 parameter.parse(name, parserContext, propNode);
                 iterator.remove();
             }
+
+            indexSourceKeepMode = parserContext.getIndexSettings().sourceKeepMode();
+
             validate();
         }
 

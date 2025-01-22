@@ -9,12 +9,18 @@ package org.elasticsearch.upgrades;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
@@ -283,8 +289,18 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 "index": "%s"
               }
             }""", dataStreamName));
-        Response reindexResponse = client().performRequest(reindexRequest);
-        assertOK(reindexResponse);
+
+        {
+            // This runs the data stream reindex as a user who only has the manage privilege on this data stream
+            String upgradeUser = "upgrade_user";
+            String upgradeUserPassword = "x-pack-test-password";
+            createRole("upgrade_role", dataStreamName);
+            createUser(upgradeUser, upgradeUserPassword, "upgrade_role");
+            try (RestClient client = getClient(upgradeUser, upgradeUserPassword)) {
+                Response reindexResponse = client.performRequest(reindexRequest);
+                assertOK(reindexResponse);
+            }
+        }
         assertBusy(() -> {
             Request statusRequest = new Request("GET", "_migration/reindex/" + dataStreamName + "/_status");
             Response statusResponse = client().performRequest(statusRequest);
@@ -413,5 +429,25 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         assertOK(rolloverResponse);
         String oldIndexName = (String) entityAsMap(rolloverResponse).get("old_index");
         return oldIndexName;
+    }
+
+    private void createUser(String name, String password, String role) throws IOException {
+        Request request = new Request("PUT", "/_security/user/" + name);
+        request.setJsonEntity("{ \"password\": \"" + password + "\", \"roles\": [ \"" + role + "\"] }");
+        assertOK(adminClient().performRequest(request));
+    }
+
+    private void createRole(String name, String dataStream) throws IOException {
+        Request request = new Request("PUT", "/_security/role/" + name);
+        request.setJsonEntity("{ \"indices\": [ { \"names\" : [ \"" + dataStream + "\"], \"privileges\": [ \"manage\" ] } ] }");
+        assertOK(adminClient().performRequest(request));
+    }
+
+    private RestClient getClient(String user, String passwd) throws IOException {
+        RestClientBuilder builder = RestClient.builder(adminClient().getNodes().toArray(new Node[0]));
+        String token = basicAuthHeaderValue(user, new SecureString(passwd.toCharArray()));
+        configureClient(builder, Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build());
+        builder.setStrictDeprecationMode(true);
+        return builder.build();
     }
 }

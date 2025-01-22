@@ -562,7 +562,7 @@ public class LocalExecutionPlanner {
         if (localSourceExec.indexMode() != IndexMode.LOOKUP) {
             throw new IllegalArgumentException("can't plan [" + join + "]");
         }
-        Map<String, IndexMode> indicesWithModes = localSourceExec.index().indexNameWithModes();
+        Map<String, IndexMode> indicesWithModes = localSourceExec.indexNameWithModes();
         if (indicesWithModes.size() != 1) {
             throw new IllegalArgumentException("can't plan [" + join + "], found more than 1 index");
         }
@@ -589,7 +589,7 @@ public class LocalExecutionPlanner {
                 parentTask,
                 context.queryPragmas().enrichMaxWorkers(),
                 matchFields.getFirst().channel(),
-                lookupFromIndexService,
+                ctx -> lookupFromIndexService,
                 matchFields.getFirst().type(),
                 indexName,
                 join.leftFields().getFirst().name(),

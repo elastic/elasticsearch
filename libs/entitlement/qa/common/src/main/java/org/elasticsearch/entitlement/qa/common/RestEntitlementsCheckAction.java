@@ -90,7 +90,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         }
     }
 
-    private static final Map<String, CheckAction> checkActions = Stream.of(
+    private static final Map<String, CheckAction> checkActions = Stream.<Map.Entry<String, CheckAction>>of(
         entry("runtime_exit", deniedToPlugins(RestEntitlementsCheckAction::runtimeExit)),
         entry("runtime_halt", deniedToPlugins(RestEntitlementsCheckAction::runtimeHalt)),
         entry("system_exit", deniedToPlugins(RestEntitlementsCheckAction::systemExit)),
@@ -123,6 +123,10 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("localeNameProvider", alwaysDenied(RestEntitlementsCheckAction::localeNameProvider$)),
         entry("timeZoneNameProvider", alwaysDenied(RestEntitlementsCheckAction::timeZoneNameProvider$)),
         entry("logManager", alwaysDenied(RestEntitlementsCheckAction::logManager$)),
+
+        entry("system_setProperty", forPlugins(WritePropertiesCheckActions::setSystemProperty)),
+        entry("system_clearProperty", forPlugins(WritePropertiesCheckActions::clearSystemProperty)),
+        entry("system_setSystemProperties", alwaysDenied(WritePropertiesCheckActions::setSystemProperties)),
 
         // This group is a bit nasty: if entitlements don't prevent these, then networking is
         // irreparably borked for the remainder of the test run.
@@ -157,7 +161,43 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("socket_bind", forPlugins(NetworkAccessCheckActions::socketBind)),
         entry("socket_connect", forPlugins(NetworkAccessCheckActions::socketConnect)),
         entry("server_socket_bind", forPlugins(NetworkAccessCheckActions::serverSocketBind)),
-        entry("server_socket_accept", forPlugins(NetworkAccessCheckActions::serverSocketAccept))
+        entry("server_socket_accept", forPlugins(NetworkAccessCheckActions::serverSocketAccept)),
+
+        entry("url_open_connection_proxy", forPlugins(NetworkAccessCheckActions::urlOpenConnectionWithProxy)),
+        entry("http_client_send", forPlugins(VersionSpecificNetworkChecks::httpClientSend)),
+        entry("http_client_send_async", forPlugins(VersionSpecificNetworkChecks::httpClientSendAsync)),
+        entry("create_ldap_cert_store", forPlugins(NetworkAccessCheckActions::createLDAPCertStore)),
+
+        entry("server_socket_channel_bind", forPlugins(NetworkAccessCheckActions::serverSocketChannelBind)),
+        entry("server_socket_channel_bind_backlog", forPlugins(NetworkAccessCheckActions::serverSocketChannelBindWithBacklog)),
+        entry("server_socket_channel_accept", forPlugins(NetworkAccessCheckActions::serverSocketChannelAccept)),
+        entry("asynchronous_server_socket_channel_bind", forPlugins(NetworkAccessCheckActions::asynchronousServerSocketChannelBind)),
+        entry(
+            "asynchronous_server_socket_channel_bind_backlog",
+            forPlugins(NetworkAccessCheckActions::asynchronousServerSocketChannelBindWithBacklog)
+        ),
+        entry("asynchronous_server_socket_channel_accept", forPlugins(NetworkAccessCheckActions::asynchronousServerSocketChannelAccept)),
+        entry(
+            "asynchronous_server_socket_channel_accept_with_handler",
+            forPlugins(NetworkAccessCheckActions::asynchronousServerSocketChannelAcceptWithHandler)
+        ),
+        entry("socket_channel_bind", forPlugins(NetworkAccessCheckActions::socketChannelBind)),
+        entry("socket_channel_connect", forPlugins(NetworkAccessCheckActions::socketChannelConnect)),
+        entry("asynchronous_socket_channel_bind", forPlugins(NetworkAccessCheckActions::asynchronousSocketChannelBind)),
+        entry("asynchronous_socket_channel_connect", forPlugins(NetworkAccessCheckActions::asynchronousSocketChannelConnect)),
+        entry(
+            "asynchronous_socket_channel_connect_with_completion",
+            forPlugins(NetworkAccessCheckActions::asynchronousSocketChannelConnectWithCompletion)
+        ),
+        entry("datagram_channel_bind", forPlugins(NetworkAccessCheckActions::datagramChannelBind)),
+        entry("datagram_channel_connect", forPlugins(NetworkAccessCheckActions::datagramChannelConnect)),
+        entry("datagram_channel_send", forPlugins(NetworkAccessCheckActions::datagramChannelSend)),
+        entry("datagram_channel_receive", forPlugins(NetworkAccessCheckActions::datagramChannelReceive)),
+
+        entry("runtime_load", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoad)),
+        entry("runtime_load_library", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoadLibrary)),
+        entry("system_load", forPlugins(LoadNativeLibrariesCheckActions::systemLoad)),
+        entry("system_load_library", forPlugins(LoadNativeLibrariesCheckActions::systemLoadLibrary))
     )
         .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
         .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));

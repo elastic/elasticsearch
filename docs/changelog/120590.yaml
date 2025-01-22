@@ -1,0 +1,5 @@
+pr: 120590
+summary: Map `scope.name` as a dimension
+area: Data streams
+type: bug
+issues: []

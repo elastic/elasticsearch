@@ -56,7 +56,6 @@ public class TransportDeleteAutoscalingPolicyAction extends AcknowledgedTranspor
             threadPool,
             actionFilters,
             DeleteAutoscalingPolicyAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }

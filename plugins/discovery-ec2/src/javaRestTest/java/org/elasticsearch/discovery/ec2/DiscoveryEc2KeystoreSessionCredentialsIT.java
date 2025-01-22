@@ -42,7 +42,7 @@ public class DiscoveryEc2KeystoreSessionCredentialsIT extends DiscoveryEc2Cluste
         .setting(Ec2ClientSettings.ENDPOINT_SETTING.getKey(), ec2ApiFixture::getAddress)
         .environment("AWS_REGION", REGION)
         .keystore("discovery.ec2.access_key", ACCESS_KEY)
-        .keystore("discovery.ec2.secret_key", ESTestCase::randomIdentifier)
+        .keystore("discovery.ec2.secret_key", ESTestCase::randomSecretKey)
         .keystore("discovery.ec2.session_token", SESSION_TOKEN)
         .build();
 

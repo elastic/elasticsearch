@@ -65,7 +65,6 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
             threadPool,
             actionFilters,
             DeleteTrainedModelAliasAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.auditor = auditor;

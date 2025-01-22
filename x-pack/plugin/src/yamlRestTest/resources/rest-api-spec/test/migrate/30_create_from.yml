@@ -26,7 +26,7 @@ teardown:
           capabilities: [migration_reindex]
   - do:
       catch: /index_not_found_exception/
-      migrate.create_from:
+      indices.create_from:
         source: "does_not_exist"
         dest: "dest1"
 
@@ -53,7 +53,7 @@ teardown:
               bar:
                 type: text
   - do:
-      migrate.create_from:
+      indices.create_from:
         source: "source-index-1"
         dest: "dest-index-1"
   - do:
@@ -91,7 +91,7 @@ teardown:
               foo:
                 type: boolean
   - do:
-      migrate.create_from:
+      indices.create_from:
         source: "source-index-1"
         dest: "dest-index-1"
         body:
@@ -118,4 +118,69 @@ teardown:
   - match: {dest-index-1.mappings.properties.bar.type: keyword}
   - match: {dest-index-1.mappings.properties.foo.type: boolean}
   - match: {dest-index-1.mappings.properties.baz.type: integer}
+
+---
+"Test create_from with remove_index_blocks set to false":
+  - requires:
+      reason: "migration reindex is behind a feature flag"
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_migration/reindex
+          capabilities: [migration_reindex]
+  - do:
+      indices.create:
+        index: source-index-1
+        body:
+          settings:
+            index:
+              blocks.write: true
+              blocks.read: true
+  - do:
+      migrate.create_from:
+        source: "source-index-1"
+        dest: "dest-index-1"
+        body:
+          settings_override:
+            index:
+              blocks.write: false
+              blocks.read: true
+          remove_index_blocks: false
+  - do:
+      indices.get_settings:
+        index: dest-index-1
+  - match: { dest-index-1.settings.index.blocks.write: "false" }
+  - match: { dest-index-1.settings.index.blocks.read: "true" }
+
+---
+"Test create_from with remove_index_blocks default of true":
+  - requires:
+      reason: "migration reindex is behind a feature flag"
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_migration/reindex
+          capabilities: [migration_reindex]
+  - do:
+      indices.create:
+        index: source-index-1
+        body:
+          settings:
+            index:
+              blocks.write: true
+              blocks.read: true
+  - do:
+      indices.create_from:
+        source: "source-index-1"
+        dest: "dest-index-1"
+        body:
+          settings_override:
+            index:
+              blocks.write: false
+              blocks.read: true
+  - do:
+      indices.get_settings:
+        index: dest-index-1
+  - match: { dest-index-1.settings.index.blocks.write: null }
+  - match: { dest-index-1.settings.index.blocks.read: null }
 

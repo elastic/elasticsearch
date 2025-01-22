@@ -17,29 +17,24 @@ import com.sun.tools.attach.VirtualMachine;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collection;
+import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Objects.requireNonNull;
 
 public class EntitlementBootstrap {
 
-    public record BootstrapArgs(Collection<PluginData> pluginData, Function<Class<?>, String> pluginResolver) {
+    public record BootstrapArgs(Map<String, Policy> pluginPolicies, Function<Class<?>, String> pluginResolver) {
         public BootstrapArgs {
-            requireNonNull(pluginData);
+            requireNonNull(pluginPolicies);
             requireNonNull(pluginResolver);
-        }
-    }
-
-    public record PluginData(Path pluginPath, boolean isModular, boolean isExternalPlugin) {
-        public PluginData {
-            requireNonNull(pluginPath);
         }
     }
 
@@ -52,16 +47,16 @@ public class EntitlementBootstrap {
     /**
      * Activates entitlement checking. Once this method returns, calls to methods protected by Entitlements from classes without a valid
      * policy will throw {@link org.elasticsearch.entitlement.runtime.api.NotEntitledException}.
-     * @param pluginData a collection of (plugin path, boolean, boolean), that holds the paths of all the installed Elasticsearch modules
-     *                   and plugins, whether they are Java modular or not, and whether they are Elasticsearch modules or external plugins.
+     *
+     * @param pluginPolicies a map holding policies for plugins (and modules), by plugin (or module) name.
      * @param pluginResolver a functor to map a Java Class to the plugin it belongs to (the plugin name).
      */
-    public static void bootstrap(Collection<PluginData> pluginData, Function<Class<?>, String> pluginResolver) {
+    public static void bootstrap(Map<String, Policy> pluginPolicies, Function<Class<?>, String> pluginResolver) {
         logger.debug("Loading entitlement agent");
         if (EntitlementBootstrap.bootstrapArgs != null) {
             throw new IllegalStateException("plugin data is already set");
         }
-        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(pluginData, pluginResolver);
+        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(pluginPolicies, pluginResolver);
         exportInitializationToAgent();
         loadAgent(findAgentJar());
         selfTest();

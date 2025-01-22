@@ -60,7 +60,6 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
             threadPool,
             actionFilters,
             GetShardSnapshotRequest::new,
-            indexNameExpressionResolver,
             GetShardSnapshotResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

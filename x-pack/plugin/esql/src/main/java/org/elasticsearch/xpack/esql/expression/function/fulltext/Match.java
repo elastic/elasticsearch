@@ -137,7 +137,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
         this.field = field;
     }
 
-    protected static Match readFrom(StreamInput in) throws IOException {
+    private static Match readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);

@@ -71,7 +71,7 @@ dependencies {
 }
 
 configurations.configureEach {
-  exclude group: 'org.yaml', module: "snakeyaml"
+  exclude group: 'org.yaml', module: 'snakeyaml' // Avoid CVE: https://nvd.nist.gov/vuln/detail/cve-2022-1471
 }
 
 tasks.named("dependencyLicenses").configure {

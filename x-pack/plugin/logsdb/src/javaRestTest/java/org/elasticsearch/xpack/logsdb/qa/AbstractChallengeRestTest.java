@@ -233,9 +233,8 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         return false;
     }
 
-    public Map<String, Object> indexContenderDocuments(
-        final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier
-    ) throws IOException {
+    public Map<String, Object> indexContenderDocuments(final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier)
+        throws IOException {
         final StringBuilder sb = new StringBuilder();
         int id = 0;
         for (var document : documentsSupplier.get()) {

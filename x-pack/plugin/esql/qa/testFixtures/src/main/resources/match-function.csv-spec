@@ -694,13 +694,17 @@ testMatchWithOptionsOperator
 required_capability: match_function
 required_capability: match_function_options
 
-from books 
-| where match(title, "Hobbit Back Again", {"operator": "AND"})
-| keep title;
+// tag::match-with-named-function-params[]
+FROM books 
+| WHERE MATCH(title, "Hobbit Back Again", {"operator": "AND"})
+| KEEP title;
+// end::match-with-named-function-params[]
 
+// tag::match-with-named-function-params-result[]
 title:text
 The Hobbit or There and Back Again
 ;
+// end::match-with-named-function-params-result[]
 
 testMatchWithOptionsMinimumShouldMatch
 required_capability: match_function

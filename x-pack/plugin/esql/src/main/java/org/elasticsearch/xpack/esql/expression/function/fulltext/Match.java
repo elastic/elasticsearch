@@ -156,10 +156,15 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
             Match can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>,
             as well as other field types like keyword, boolean, dates, and numeric types.
 
+            Match can use <<esql-function-named-params,function named parameters>> to specify additional options for the match query.
+            All <<match-field-params,match query parameters>> are supported.
+
             For a simplified syntax, you can use the <<esql-search-operators,match operator>> `:` operator instead of `MATCH`.
 
             `MATCH` returns true if the provided query matches the row.""",
-        examples = { @Example(file = "match-function", tag = "match-with-field") }
+        examples = {
+            @Example(file = "match-function", tag = "match-with-field"),
+            @Example(file = "match-function", tag = "match-with-named-function-params") }
     )
     public Match(
         Source source,

@@ -2940,7 +2940,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testInvalidRemoteLookupJoin() {
+    public void testRemoteLookupJoin() {
+        expectError("FROM remote:left | LOOKUP JOIN right ON field", "LOOKUP JOIN does not support remote cluster indices [remote:left]");
+        expectError(
+            "FROM  left | LOOKUP JOIN `remote:right` ON field",
+            "LOOKUP JOIN does not support remote cluster indices [remote:right]"
+        );
         // TODO ES-10559 this should be replaced with a proper error message once grammar allows indexPattern as joinTarget
         expectError("FROM my-index | LOOKUP JOIN remote:languages_lookup ON language_code", "line 1:35: token recognition error at: ':'");
     }

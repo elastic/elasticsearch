@@ -2253,24 +2253,6 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("1:25: invalid [test] resolution in lookup mode to an index in [standard] mode"));
     }
 
-    public void testLookupJoinRemoteClusterUnsupported() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
-
-        var remoteIndexResolution = loadMapping("mapping-default.json", "remote:my-index");
-        var lookupResolution = AnalyzerTestUtils.defaultLookupResolution();
-        VerificationException e = expectThrows(
-            VerificationException.class,
-            () -> analyze(
-                "FROM remote:my-index | LOOKUP JOIN languages_lookup ON language_code",
-                AnalyzerTestUtils.analyzer(remoteIndexResolution, lookupResolution)
-            )
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("1:24: LOOKUP JOIN does not support joining with remote cluster indices [remote:my-index]")
-        );
-    }
-
     public void testImplicitCasting() {
         var e = expectThrows(VerificationException.class, () -> analyze("""
              from test | eval x = concat("2024", "-04", "-01") + 1 day

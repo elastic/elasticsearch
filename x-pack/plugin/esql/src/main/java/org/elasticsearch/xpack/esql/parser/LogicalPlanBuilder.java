@@ -15,6 +15,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -523,9 +524,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         var target = ctx.joinTarget();
+        var rightPattern = visitIdentifier(target.index);
+
+        if (RemoteClusterAware.isRemoteIndexName(rightPattern)) {
+            throw new ParsingException(source(target), "LOOKUP JOIN does not support remote cluster indices [{}]", rightPattern);
+        }
+
         UnresolvedRelation right = new UnresolvedRelation(
             source(target),
-            new TableIdentifier(source(target.index), null, visitIdentifier(target.index)),
+            new TableIdentifier(source(target.index), null, rightPattern),
             false,
             emptyList(),
             IndexMode.LOOKUP,
@@ -552,6 +559,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source, "JOIN ON clause only supports one field at the moment, found [{}]", matchFieldsCount);
         }
 
-        return p -> new LookupJoin(source, p, right, joinFields);
+        return p -> {
+            p.forEachUp(UnresolvedRelation.class, r -> {
+                if (RemoteClusterAware.isRemoteIndexName(r.table().index())) {
+                    throw new ParsingException(
+                        source(target),
+                        "LOOKUP JOIN does not support remote cluster indices [{}]",
+                        r.table().index()
+                    );
+                }
+            });
+
+            return new LookupJoin(source, p, right, joinFields);
+        };
     }
 }

@@ -11,7 +11,6 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -658,28 +657,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // the lookup cannot be resolved, bail out
                 if (Expressions.anyMatch(cols, c -> c instanceof UnresolvedAttribute ua && ua.customMessage())) {
                     return join;
-                }
-
-                // joining with remote cluster is not supported yet
-                if (join.left() instanceof EsRelation esr) {
-                    for (var index : esr.index().concreteIndices()) {
-                        if (index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR) != -1) {
-                            return join.withConfig(
-                                new JoinConfig(
-                                    type,
-                                    List.of(
-                                        new UnresolvedAttribute(
-                                            join.source(),
-                                            "unsupported",
-                                            "LOOKUP JOIN does not support joining with remote cluster indices [" + esr.index().name() + "]"
-                                        )
-                                    ),
-                                    List.of(),
-                                    List.of()
-                                )
-                            );
-                        }
-                    }
                 }
 
                 JoinType coreJoin = using.coreJoin();

@@ -32,8 +32,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -55,7 +53,6 @@ import java.net.spi.URLStreamHandlerProvider;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
-import java.util.Scanner;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -199,7 +196,10 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("runtime_load", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoad)),
         entry("runtime_load_library", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoadLibrary)),
         entry("system_load", forPlugins(LoadNativeLibrariesCheckActions::systemLoad)),
-        entry("system_load_library", forPlugins(LoadNativeLibrariesCheckActions::systemLoadLibrary))
+        entry("system_load_library", forPlugins(LoadNativeLibrariesCheckActions::systemLoadLibrary)),
+        entry("create_scanner", forPlugins(FileCheckActions::createScanner)),
+        entry("create_scanner_with_charset", forPlugins(FileCheckActions::createScannerWithCharset)),
+        entry("create_scanner_with_charset_name", forPlugins(FileCheckActions::createScannerWithCharsetName))
     )
         .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
         .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -442,14 +442,6 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         try (var socket = new DummyImplementations.DummyDatagramSocket()) {
             socket.receive(new DatagramPacket(new byte[1], 1, InetAddress.getLocalHost(), 1234));
         }
-    }
-
-    private static void createScanner1() throws FileNotFoundException {
-        new Scanner(new File(""));
-    }
-
-    private static void createScanner2() throws FileNotFoundException {
-        new Scanner(new File(""));
     }
 
     public static Set<String> getCheckActionsAllowedInPlugins() {

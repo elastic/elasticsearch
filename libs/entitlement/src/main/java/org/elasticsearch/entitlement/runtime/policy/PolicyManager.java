@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -198,6 +199,7 @@ public class PolicyManager {
         neverEntitled(callerClass, "access sensitive network information");
     }
 
+    @SuppressForbidden(reason = "Explicitly checking File apis")
     public void checkFileRead(Class<?> callerClass, File file) {
         var requestingClass = requestingClass(callerClass);
         if (isTriviallyAllowed(requestingClass)) {
@@ -238,6 +240,7 @@ public class PolicyManager {
         }
     }
 
+    @SuppressForbidden(reason = "Explicitly checking File apis")
     public void checkFileWrite(Class<?> callerClass, File file) {
         var requestingClass = requestingClass(callerClass);
         if (isTriviallyAllowed(requestingClass)) {

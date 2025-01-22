@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.api;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
@@ -64,6 +65,7 @@ import javax.net.ssl.SSLSocketFactory;
  * API methods for managing the checks.
  * The trampoline module loads this object via SPI.
  */
+@SuppressForbidden(reason = "Explicitly checking APIs that are forbidden")
 public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     private final PolicyManager policyManager;

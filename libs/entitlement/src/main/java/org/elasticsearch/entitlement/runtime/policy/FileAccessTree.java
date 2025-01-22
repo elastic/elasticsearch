@@ -9,6 +9,8 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -43,6 +45,7 @@ class FileAccessTree {
         return checkPath(normalize(path), readPaths);
     }
 
+    @SuppressForbidden(reason = "Explicitly checking File apis")
     boolean canRead(File file) {
         return checkPath(normalize(file.toPath()), readPaths);
     }
@@ -51,6 +54,7 @@ class FileAccessTree {
         return checkPath(normalize(path), writePaths);
     }
 
+    @SuppressForbidden(reason = "Explicitly checking File apis")
     boolean canWrite(File file) {
         return checkPath(normalize(file.toPath()), writePaths);
     }

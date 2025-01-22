@@ -51,7 +51,6 @@ public class DeletePipelineTransportAction extends AcknowledgedTransportMasterNo
             threadPool,
             actionFilters,
             DeletePipelineRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.ingestService = ingestService;

@@ -53,7 +53,9 @@ import java.util.function.Predicate;
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportClusterStateAction.class);
+
     private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportClusterStateAction(
@@ -72,11 +74,11 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             threadPool,
             actionFilters,
             ClusterStateRequest::new,
-            indexNameExpressionResolver,
             ClusterStateResponse::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override

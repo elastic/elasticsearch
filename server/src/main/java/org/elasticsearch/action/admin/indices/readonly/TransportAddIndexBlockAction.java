@@ -49,6 +49,7 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
 
     private final MetadataIndexStateService indexStateService;
     private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final DestructiveOperations destructiveOperations;
 
     @Inject
@@ -69,12 +70,12 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
             threadPool,
             actionFilters,
             AddIndexBlockRequest::new,
-            indexNameExpressionResolver,
             AddIndexBlockResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexStateService = indexStateService;
         this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destructiveOperations = destructiveOperations;
     }
 

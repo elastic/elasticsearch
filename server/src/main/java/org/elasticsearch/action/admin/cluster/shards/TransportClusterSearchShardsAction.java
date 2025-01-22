@@ -48,6 +48,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
 
     private final IndicesService indicesService;
     private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportClusterSearchShardsAction(
@@ -66,12 +67,12 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
             threadPool,
             actionFilters,
             ClusterSearchShardsRequest::new,
-            indexNameExpressionResolver,
             ClusterSearchShardsResponse::new,
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
         );
         this.indicesService = indicesService;
         this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override

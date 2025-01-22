@@ -3673,7 +3673,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 threadPool,
                 actionFilters,
                 UpdateIndexShardSnapshotStatusRequest::new,
-                indexNameExpressionResolver,
                 in -> ActionResponse.Empty.INSTANCE,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );

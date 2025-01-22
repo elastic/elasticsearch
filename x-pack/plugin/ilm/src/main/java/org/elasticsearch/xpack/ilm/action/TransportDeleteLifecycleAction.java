@@ -61,7 +61,6 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

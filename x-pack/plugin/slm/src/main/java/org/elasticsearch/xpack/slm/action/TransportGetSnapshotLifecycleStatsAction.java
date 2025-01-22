@@ -44,7 +44,6 @@ public class TransportGetSnapshotLifecycleStatsAction extends TransportMasterNod
             threadPool,
             actionFilters,
             AcknowledgedRequest.Plain::new,
-            indexNameExpressionResolver,
             GetSnapshotLifecycleStatsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

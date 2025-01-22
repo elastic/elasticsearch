@@ -35,6 +35,7 @@ import java.util.List;
 public class TransportDeleteDataStreamOptionsAction extends AcknowledgedTransportMasterNodeProjectAction<
     DeleteDataStreamOptionsAction.Request> {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final MetadataDataStreamsService metadataDataStreamsService;
     private final SystemIndices systemIndices;
 
@@ -57,9 +58,9 @@ public class TransportDeleteDataStreamOptionsAction extends AcknowledgedTranspor
             actionFilters,
             DeleteDataStreamOptionsAction.Request::new,
             projectResolver,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.metadataDataStreamsService = metadataDataStreamsService;
         this.systemIndices = systemIndices;
     }

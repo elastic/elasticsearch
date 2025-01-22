@@ -2380,7 +2380,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         threadPool,
                         metadataCreateIndexService,
                         actionFilters,
-                        indexNameExpressionResolver,
                         EmptySystemIndices.INSTANCE,
                         DefaultProjectResolver.INSTANCE
                     )
@@ -2475,7 +2474,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         metadataMappingService,
                         actionFilters,
                         TestProjectResolvers.DEFAULT_PROJECT_ONLY,
-                        indexNameExpressionResolver,
                         EmptySystemIndices.INSTANCE
                     )
                 );

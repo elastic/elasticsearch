@@ -39,14 +39,7 @@ public class MonitoringUsageTransportAction extends XPackUsageFeatureTransportAc
         IndexNameExpressionResolver indexNameExpressionResolver,
         MonitoringUsageServices monitoringServices
     ) {
-        super(
-            XPackUsageFeatureAction.MONITORING.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.MONITORING.name(), transportService, clusterService, threadPool, actionFilters);
         this.monitoringService = monitoringServices.monitoringService;
         this.exporters = monitoringServices.exporters;
     }

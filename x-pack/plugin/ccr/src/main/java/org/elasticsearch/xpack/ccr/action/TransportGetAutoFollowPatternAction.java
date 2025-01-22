@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadProjectAct
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -40,8 +39,7 @@ public class TransportGetAutoFollowPatternAction extends TransportMasterNodeRead
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        ProjectResolver projectResolver,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(
             GetAutoFollowPatternAction.NAME,
@@ -51,7 +49,6 @@ public class TransportGetAutoFollowPatternAction extends TransportMasterNodeRead
             actionFilters,
             GetAutoFollowPatternAction.Request::new,
             projectResolver,
-            indexNameExpressionResolver,
             GetAutoFollowPatternAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

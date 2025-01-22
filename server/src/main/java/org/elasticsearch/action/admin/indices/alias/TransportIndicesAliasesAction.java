@@ -67,6 +67,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
 
     private final MetadataIndexAliasesService indexAliasesService;
     private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final RequestValidators<IndicesAliasesRequest> requestValidators;
     private final SystemIndices systemIndices;
 
@@ -89,12 +90,12 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
             threadPool,
             actionFilters,
             IndicesAliasesRequest::new,
-            indexNameExpressionResolver,
             IndicesAliasesResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexAliasesService = indexAliasesService;
         this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.requestValidators = Objects.requireNonNull(requestValidators);
         this.systemIndices = systemIndices;
     }

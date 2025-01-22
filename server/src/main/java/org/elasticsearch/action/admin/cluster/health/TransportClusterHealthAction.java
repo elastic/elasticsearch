@@ -56,6 +56,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     public static final ActionType<ClusterHealthResponse> TYPE = new ActionType<ClusterHealthResponse>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportClusterHealthAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final AllocationService allocationService;
     private final ProjectResolver projectResolver;
 
@@ -77,11 +78,11 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             threadPool,
             actionFilters,
             ClusterHealthRequest::new,
-            indexNameExpressionResolver,
             ClusterHealthResponse::new,
             // fork to management since the health computation can become expensive for large cluster states.
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.allocationService = allocationService;
         this.projectResolver = projectResolver;
     }

@@ -34,6 +34,8 @@ public class TransportGetWatcherSettingsAction extends TransportMasterNodeAction
     GetWatcherSettingsAction.Request,
     GetWatcherSettingsAction.Response> {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+
     @Inject
     public TransportGetWatcherSettingsAction(
         TransportService transportService,
@@ -49,10 +51,10 @@ public class TransportGetWatcherSettingsAction extends TransportMasterNodeAction
             threadPool,
             actionFilters,
             GetWatcherSettingsAction.Request::readFrom,
-            indexNameExpressionResolver,
             GetWatcherSettingsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override

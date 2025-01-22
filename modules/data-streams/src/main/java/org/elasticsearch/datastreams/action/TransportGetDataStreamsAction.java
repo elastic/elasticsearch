@@ -63,6 +63,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
     GetDataStreamAction.Response> {
 
     private static final Logger LOGGER = LogManager.getLogger(TransportGetDataStreamsAction.class);
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
     private final ClusterSettings clusterSettings;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
@@ -90,10 +91,10 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
             actionFilters,
             GetDataStreamAction.Request::new,
             projectResolver,
-            indexNameExpressionResolver,
             GetDataStreamAction.Response::new,
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
         this.globalRetentionSettings = globalRetentionSettings;
         clusterSettings = clusterService.getClusterSettings();

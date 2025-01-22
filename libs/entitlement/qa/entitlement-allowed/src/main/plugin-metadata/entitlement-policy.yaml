@@ -7,3 +7,4 @@ org.elasticsearch.entitlement.qa.common:
       properties:
         - es.entitlements.checkSetSystemProperty
         - es.entitlements.checkClearSystemProperty
+  - load_native_libraries

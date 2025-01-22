@@ -1,5 +1,11 @@
 [[search-multiple-indices]]
-=== Search multiple data streams and indices
+=== Search multiple data streams and indices using a query
+
+There are two primary ways to search across multiple data streams and indices:
+
+* At the query level: Specify the indices directly in the search request path or use index patterns to target a group of indices.
+
+*	At the index level: Use <<aliases, index aliases>>, which act as pointers to one or more backing indices, allowing you to group and manage indices logically. 
 
 To search multiple data streams and indices, add them as comma-separated values
 in the <<search-search,search API>>'s request path.
@@ -38,6 +44,33 @@ GET /my-index-*/_search
 }
 ----
 // TEST[setup:my_index]
+
+You can also remove a subset of indices from being searched. The request will retun data from all indices that start with `my-index-` while excluding results from `my-index-01`.
+
+[source,console]
+----
+GET /my-index-*/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "user.id": "kimchy"
+          }
+        }
+      ],
+      "must_not": [
+        {
+          "terms": {
+            "_index": ["my-index-01"]
+          }
+        }
+      ]
+    }
+  }
+}
+----
 
 To search all data streams and indices in a cluster, omit the target from the
 request path. Alternatively, you can use `_all` or `*`.

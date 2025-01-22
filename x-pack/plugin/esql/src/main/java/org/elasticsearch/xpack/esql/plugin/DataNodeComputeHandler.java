@@ -108,7 +108,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     profiles,
                     took,
                     dataNodeResult.totalShards(),
-                    dataNodeResult.totalShards() - dataNodeResult.skippedShards(),
+                    dataNodeResult.totalShards(),
                     dataNodeResult.skippedShards(),
                     0
                 );

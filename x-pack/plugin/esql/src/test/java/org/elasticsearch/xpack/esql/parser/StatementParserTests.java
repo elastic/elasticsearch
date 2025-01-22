@@ -485,6 +485,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
             clusterAndIndexAsIndexPattern(command, "cluster*:*");
             clusterAndIndexAsIndexPattern(command, "*:index*");
             clusterAndIndexAsIndexPattern(command, "*:*");
+            if (Build.current().isSnapshot()) {
+                assertStringAsIndexPattern("foo::failures", command + " foo::failures");
+                assertStringAsIndexPattern("cluster:foo::failures", command + " cluster:foo::failures");
+                assertStringAsIndexPattern("*::*", command + " *::*");
+                assertStringAsIndexPattern(
+                    "<logstash-{now/M{yyyy.MM}}>::*,<logstash-{now/d{yyyy.MM.dd|+12:00}}>::failures",
+                    command + " <logstash-{now/M{yyyy.MM}}>::*, \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\"::failures"
+                );
+                clusterAndIndexAsIndexPattern(command, "cluster:index::data");
+                clusterAndIndexAsIndexPattern(command, "*:index*::*");
+                clusterAndIndexAsIndexPattern(command, "*:*::*");
+            }
         }
     }
 

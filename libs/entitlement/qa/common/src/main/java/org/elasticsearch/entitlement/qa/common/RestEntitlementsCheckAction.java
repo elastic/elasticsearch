@@ -124,6 +124,10 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("timeZoneNameProvider", alwaysDenied(RestEntitlementsCheckAction::timeZoneNameProvider$)),
         entry("logManager", alwaysDenied(RestEntitlementsCheckAction::logManager$)),
 
+        entry("system_setProperty", forPlugins(WritePropertiesCheckActions::setSystemProperty)),
+        entry("system_clearProperty", forPlugins(WritePropertiesCheckActions::clearSystemProperty)),
+        entry("system_setSystemProperties", alwaysDenied(WritePropertiesCheckActions::setSystemProperties)),
+
         // This group is a bit nasty: if entitlements don't prevent these, then networking is
         // irreparably borked for the remainder of the test run.
         entry(
@@ -188,7 +192,12 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("datagram_channel_bind", forPlugins(NetworkAccessCheckActions::datagramChannelBind)),
         entry("datagram_channel_connect", forPlugins(NetworkAccessCheckActions::datagramChannelConnect)),
         entry("datagram_channel_send", forPlugins(NetworkAccessCheckActions::datagramChannelSend)),
-        entry("datagram_channel_receive", forPlugins(NetworkAccessCheckActions::datagramChannelReceive))
+        entry("datagram_channel_receive", forPlugins(NetworkAccessCheckActions::datagramChannelReceive)),
+
+        entry("runtime_load", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoad)),
+        entry("runtime_load_library", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoadLibrary)),
+        entry("system_load", forPlugins(LoadNativeLibrariesCheckActions::systemLoad)),
+        entry("system_load_library", forPlugins(LoadNativeLibrariesCheckActions::systemLoadLibrary))
     )
         .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
         .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));

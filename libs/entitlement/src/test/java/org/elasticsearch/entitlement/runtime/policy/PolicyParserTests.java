@@ -15,6 +15,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -82,6 +83,23 @@ public class PolicyParserTests extends ESTestCase {
         assertEquals(expected, parsedPolicy);
     }
 
+    public void testParseWriteSystemProperties() throws IOException {
+        Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - write_system_properties:
+                  properties:
+                    - es.property1
+                    - es.property2
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
+        Policy expected = new Policy(
+            "test-policy.yaml",
+            List.of(
+                new Scope("entitlement-module-name", List.of(new WriteSystemPropertiesEntitlement(Set.of("es.property1", "es.property2"))))
+            )
+        );
+        assertEquals(expected, parsedPolicy);
+    }
+
     public void testParseCreateClassloader() throws IOException {
         Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
@@ -102,6 +120,18 @@ public class PolicyParserTests extends ESTestCase {
         Policy expected = new Policy(
             "test-policy.yaml",
             List.of(new Scope("entitlement-module-name", List.of(new SetHttpsConnectionPropertiesEntitlement())))
+        );
+        assertEquals(expected, parsedPolicy);
+    }
+
+    public void testParseLoadNativeLibraries() throws IOException {
+        Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - load_native_libraries
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", true).parsePolicy();
+        Policy expected = new Policy(
+            "test-policy.yaml",
+            List.of(new Scope("entitlement-module-name", List.of(new LoadNativeLibrariesEntitlement())))
         );
         assertEquals(expected, parsedPolicy);
     }

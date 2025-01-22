@@ -144,6 +144,7 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
 
     public TimeValue getTimeout() {
         return timeout;
+    }
 
     public boolean clusterInfoOnly() {
         return clusterInfoOnly;
@@ -215,6 +216,7 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
         if (this.timeout.getSeconds() > 9) {
             this.timeout = DEFAULT_HANDSHAKE_TIMEOUT;
         }
+    }
 
     @Override
     public String toString() {

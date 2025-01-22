@@ -51,7 +51,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
         hasher = getFastStoredHashAlgoForTests();
     }
 
-    @SuppressForbidden(reason="temporary disabling queryable built-in roles to avoid unavailable shard exception during cluster setup")
+    @SuppressForbidden(reason = "temporary disabling queryable built-in roles to avoid unavailable shard exception during cluster setup")
     @BeforeClass
     public static void disableQueryableBuiltInRoles() {
         AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty("es.queryable_built_in_roles_enabled", "false"));

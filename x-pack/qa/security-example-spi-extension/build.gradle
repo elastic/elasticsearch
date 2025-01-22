@@ -2,9 +2,9 @@ apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.base-internal-es-plugin'
 
 esplugin {
-  name 'spi-extension'
-  description 'An example spi extension plugin for security'
-  classname 'org.elasticsearch.example.SpiExtensionPlugin'
+  name = 'spi-extension'
+  description = 'An example spi extension plugin for security'
+  classname = 'org.elasticsearch.example.SpiExtensionPlugin'
   extendedPlugins = ['x-pack-security']
 }
 

@@ -56,6 +56,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             "cartesian_point",
             "cartesian_shape",
             "date",
+            "date_nanos",
             "double",
             "geo_point",
             "geo_shape",
@@ -63,6 +64,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             "ip",
             "keyword",
             "long",
+            "unsigned_long",
             "version" },
         description = "Concatenates values of two or more multi-value fields."
     )
@@ -75,6 +77,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_nanos",
                 "double",
                 "geo_point",
                 "geo_shape",
@@ -83,6 +86,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
                 "keyword",
                 "long",
                 "text",
+                "unsigned_long",
                 "version" }
         ) Expression field1,
         @Param(
@@ -92,6 +96,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_nanos",
                 "double",
                 "geo_point",
                 "geo_shape",
@@ -100,6 +105,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
                 "keyword",
                 "long",
                 "text",
+                "unsigned_long",
                 "version" }
         ) List<? extends Expression> field2
     ) {

@@ -5,6 +5,12 @@
 <titleabbrev>Update Watcher settings</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-watcher[{watcher} APIs].
+--
+
 This API allows a user to modify the settings for the Watcher internal index (`.watches`). Only a subset of settings are allowed to by modified. This includes:
 
 - `index.auto_expand_replicas`

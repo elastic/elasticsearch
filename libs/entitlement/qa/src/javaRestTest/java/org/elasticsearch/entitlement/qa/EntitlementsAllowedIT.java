@@ -46,7 +46,7 @@ public class EntitlementsAllowedIT extends ESRestTestCase {
     public static Iterable<Object[]> data() {
         return Stream.of("allowed", "allowed_nonmodular")
             .flatMap(
-                path -> RestEntitlementsCheckAction.getServerAndPluginsCheckActions().stream().map(action -> new Object[] { path, action })
+                path -> RestEntitlementsCheckAction.getCheckActionsAllowedInPlugins().stream().map(action -> new Object[] { path, action })
             )
             .toList();
     }

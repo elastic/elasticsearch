@@ -13,7 +13,6 @@ import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -29,8 +28,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
-
-    public static final NodeFeature SYNTHETIC_SOURCE_KEEP_FEATURE = new NodeFeature("mapper.synthetic_source_keep");
 
     public static final String SYNTHETIC_SOURCE_KEEP_PARAM = "synthetic_source_keep";
 
@@ -107,9 +104,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         private String leafName;
 
-        @SuppressWarnings("this-escape")
         protected Builder(String leafName) {
-            setLeafName(leafName);
+            this.leafName = leafName;
         }
 
         public final String leafName() {
@@ -120,7 +116,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         public abstract Mapper build(MapperBuilderContext context);
 
         void setLeafName(String leafName) {
-            this.leafName = internFieldName(leafName);
+            this.leafName = leafName;
         }
     }
 

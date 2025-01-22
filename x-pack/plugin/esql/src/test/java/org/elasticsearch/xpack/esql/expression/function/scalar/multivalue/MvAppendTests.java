@@ -13,9 +13,11 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -23,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
@@ -42,8 +45,7 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
         longs(suppliers);
         doubles(suppliers);
         bytesRefs(suppliers);
-        nulls(suppliers);
-        return parameterSuppliersFromTypedData(suppliers);
+        return parameterSuppliersFromTypedData(anyNullIsNull(true, suppliers));
     }
 
     @Override
@@ -103,7 +105,20 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
                 equalTo(result)
             );
         }));
-
+        suppliers.add(new TestCaseSupplier(List.of(DataType.UNSIGNED_LONG, DataType.UNSIGNED_LONG), () -> {
+            List<Long> field1 = randomList(1, 10, ESTestCase::randomLong);
+            List<Long> field2 = randomList(1, 10, ESTestCase::randomLong);
+            var result = Stream.concat(field1.stream(), field2.stream()).map(NumericUtils::unsignedLongAsBigInteger).toList();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field1, DataType.UNSIGNED_LONG, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.UNSIGNED_LONG, "field2")
+                ),
+                "MvAppendLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                DataType.UNSIGNED_LONG,
+                equalTo(result)
+            );
+        }));
         suppliers.add(new TestCaseSupplier(List.of(DataType.DATETIME, DataType.DATETIME), () -> {
             List<Long> field1 = randomList(1, 10, () -> randomLong());
             List<Long> field2 = randomList(1, 10, () -> randomLong());
@@ -116,6 +131,21 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
                 ),
                 "MvAppendLongEvaluator[field1=Attribute[channel=0], field2=[Attribute[channel=1]]]",
                 DataType.DATETIME,
+                equalTo(result)
+            );
+        }));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.DATE_NANOS, DataType.DATE_NANOS), () -> {
+            List<Long> field1 = randomList(1, 10, () -> randomNonNegativeLong());
+            List<Long> field2 = randomList(1, 10, () -> randomNonNegativeLong());
+            var result = new ArrayList<>(field1);
+            result.addAll(field2);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field1, DataType.DATE_NANOS, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.DATE_NANOS, "field2")
+                ),
+                "MvAppendLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                DataType.DATE_NANOS,
                 equalTo(result)
             );
         }));
@@ -140,6 +170,25 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
     }
 
     private static void bytesRefs(List<TestCaseSupplier> suppliers) {
+        for (DataType lhs : new DataType[] { DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT }) {
+            for (DataType rhs : new DataType[] { DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT }) {
+                suppliers.add(new TestCaseSupplier(List.of(lhs, rhs), () -> {
+                    List<Object> field1 = randomList(1, 10, () -> randomLiteral(lhs).value());
+                    List<Object> field2 = randomList(1, 10, () -> randomLiteral(rhs).value());
+                    var result = new ArrayList<>(field1);
+                    result.addAll(field2);
+                    return new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(field1, lhs, "field1"),
+                            new TestCaseSupplier.TypedData(field2, rhs, "field2")
+                        ),
+                        "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                        DataType.KEYWORD,
+                        equalTo(result)
+                    );
+                }));
+            }
+        }
         suppliers.add(new TestCaseSupplier(List.of(DataType.KEYWORD, DataType.KEYWORD), () -> {
             List<Object> field1 = randomList(1, 10, () -> randomLiteral(DataType.KEYWORD).value());
             List<Object> field2 = randomList(1, 10, () -> randomLiteral(DataType.KEYWORD).value());
@@ -281,33 +330,6 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
                 "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=[Attribute[channel=1]]]",
                 DataType.CARTESIAN_SHAPE,
                 equalTo(result)
-            );
-        }));
-    }
-
-    private static void nulls(List<TestCaseSupplier> suppliers) {
-        suppliers.add(new TestCaseSupplier(List.of(DataType.INTEGER, DataType.INTEGER), () -> {
-            List<Integer> field2 = randomList(2, 10, () -> randomInt());
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(null, DataType.INTEGER, "field1"),
-                    new TestCaseSupplier.TypedData(field2, DataType.INTEGER, "field2")
-                ),
-                "MvAppendIntEvaluator[field1=Attribute[channel=0], field2=[Attribute[channel=1]]]",
-                DataType.INTEGER,
-                equalTo(null)
-            );
-        }));
-        suppliers.add(new TestCaseSupplier(List.of(DataType.INTEGER, DataType.INTEGER), () -> {
-            List<Integer> field1 = randomList(2, 10, () -> randomInt());
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(field1, DataType.INTEGER, "field1"),
-                    new TestCaseSupplier.TypedData(null, DataType.INTEGER, "field2")
-                ),
-                "MvAppendIntEvaluator[field1=Attribute[channel=0], field2=[Attribute[channel=1]]]",
-                DataType.INTEGER,
-                equalTo(null)
             );
         }));
     }

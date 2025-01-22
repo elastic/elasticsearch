@@ -5,8 +5,6 @@ setup:
         - contains
 
   - requires:
-      cluster_features: ['rrf_retriever_composition_supported', 'text_similarity_reranker_retriever_supported']
-      reason: need to have support for rrf and semantic reranking composition
       test_runner_features: "close_to"
 
   - do:

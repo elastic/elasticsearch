@@ -6,8 +6,14 @@
 
 beta::[]
 
-Removes a connector and associated sync jobs.
-This is a destructive action that is not recoverable.
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[Connector APIs].
+--
+
+Deletes a connector and optionally removes associated sync jobs.
 
 Note: this action doesn't delete any API key, ingest pipeline or data index associated with the connector. These need to be removed manually.
 
@@ -30,6 +36,9 @@ To get started with Connector APIs, check out <<es-connectors-tutorial-api, our 
 
 `<connector_id>`::
 (Required, string)
+
+`<hard>`::
+(Optional, boolean) If `true`, the connector doc is deleted. If `false`, connector doc is marked as deleted (soft deletion). Defaults to `false`.
 
 `delete_sync_jobs`::
 (Optional, boolean) A flag indicating if associated sync jobs should be also removed. Defaults to `false`.

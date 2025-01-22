@@ -259,12 +259,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=migrate/30_create_from/Test create_from with remove_index_blocks set to false}
   issue: https://github.com/elastic/elasticsearch/issues/120657
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {lookup-join.MvJoinKeyOnFrom SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/120658
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {lookup-join.MvJoinKeyOnFrom ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/120659
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testMultipleInferencesTriggeringDownloadAndDeploy
+  issue: https://github.com/elastic/elasticsearch/issues/120668
 
 # Examples:
 #

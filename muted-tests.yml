@@ -259,6 +259,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120577
 - class: org.elasticsearch.discovery.ec2.DiscoveryEc2SystemPropertyCredentialsIT
   issue: https://github.com/elastic/elasticsearch/issues/120578
+- class: org.elasticsearch.discovery.ec2.DiscoveryEc2EnvironmentVariableCredentialsIT
+  issue: https://github.com/elastic/elasticsearch/issues/120579
 
 # Examples:
 #

@@ -119,3 +119,39 @@ teardown:
   - match: {dest-index-1.mappings.properties.foo.type: boolean}
   - match: {dest-index-1.mappings.properties.baz.type: integer}
 
+---
+"Test create_from with remove_index_blocks":
+  - requires:
+      reason: "migration reindex is behind a feature flag"
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_migration/reindex
+          capabilities: [migration_reindex]
+  - do:
+      indices.create:
+        index: source-index-1
+        body:
+          settings:
+            index:
+              blocks.write: true
+              blocks.read: true
+              number_of_shards: 1
+              number_of_replicas: 0
+  - do:
+      migrate.create_from:
+        source: "source-index-1"
+        dest: "dest-index-1"
+        body:
+          settings_override:
+            index:
+              blocks.write: false
+              blocks.read: true
+          remove_index_blocks: true
+  - do:
+      indices.get_settings:
+        index: dest-index-1
+  - match: { dest-index-1.settings.index.number_of_shards: "1" }
+  - match: { dest-index-1.settings.index.blocks.write: null }
+  - match: { dest-index-1.settings.index.blocks.read: null }
+

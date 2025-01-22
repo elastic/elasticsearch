@@ -28,6 +28,7 @@ class EntitlementsUtil {
         builder.value("set_https_connection_properties");
         builder.value("inbound_network");
         builder.value("outbound_network");
+        builder.value("load_native_libraries");
         builder.value(
             Map.of(
                 "write_system_properties",

@@ -123,4 +123,16 @@ public class PolicyParserTests extends ESTestCase {
         );
         assertEquals(expected, parsedPolicy);
     }
+
+    public void testParseLoadNativeLibraries() throws IOException {
+        Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - load_native_libraries
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", true).parsePolicy();
+        Policy expected = new Policy(
+            "test-policy.yaml",
+            List.of(new Scope("entitlement-module-name", List.of(new LoadNativeLibrariesEntitlement())))
+        );
+        assertEquals(expected, parsedPolicy);
+    }
 }

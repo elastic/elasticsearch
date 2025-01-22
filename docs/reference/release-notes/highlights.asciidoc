@@ -10,13 +10,15 @@ For detailed information about this release, see the <<es-release-notes>> and
 
 endif::[]
 
-// The notable-highlights tag marks entries that
-// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
-// [discrete]
-// === Heading
-//
-// Description.
+
+[discrete]
+[[add_new_experimental_rank_vectors_mapping_for_late_interaction_second_order_ranking]]
+=== Add new experimental `rank_vectors` mapping for late-interaction second order ranking
+Late-interaction models are powerful rerankers. While their size and overall cost doesn't lend itself for HNSW indexing, utilizing them as second order reranking can provide excellent boosts in relevance. The new `rank_vectors` mapping allows for rescoring over new and novel multi-vector late-interaction models like ColBERT or ColPali.
+
+{es-pull}118804[#118804]
+
 // end::notable-highlights[]
 
 

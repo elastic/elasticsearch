@@ -59,6 +59,7 @@ The create {infer} API enables you to create an {infer} endpoint and configure a
 * Avoid creating multiple endpoints for the same model unless required, as each endpoint consumes significant resources.
 ====
 
+You can create an {infer} endpoint that uses the <<infer-service-elastic>> to perform {infer} tasks as a service without the need of deploying a model in your environment.
 
 The following integrations are available through the {infer} API.
 You can find the available task types next to the integration name.

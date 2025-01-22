@@ -24,10 +24,7 @@ public class DataStreamDeprecationChecks {
     static DeprecationIssue oldIndicesCheck(DataStream dataStream, ClusterState clusterState) {
         List<Index> backingIndices = dataStream.getIndices();
 
-        Set<String> indicesNeedingUpgrade = backingIndices.stream()
-            .filter(DeprecatedIndexPredicate.getReindexRequiredPredicate(clusterState.metadata()))
-            .map(Index::getName)
-            .collect(Collectors.toUnmodifiableSet());
+        Set<String> indicesNeedingUpgrade = getReIndexRequiredIndices(backingIndices, clusterState, false);
 
         if (indicesNeedingUpgrade.isEmpty() == false) {
             return new DeprecationIssue(
@@ -46,5 +43,16 @@ public class DataStreamDeprecationChecks {
         }
 
         return null;
+    }
+
+    private static Set<String> getReIndexRequiredIndices(
+        List<Index> backingIndices,
+        ClusterState clusterState,
+        boolean filterToBlockedStatus
+    ) {
+        return backingIndices.stream()
+            .filter(DeprecatedIndexPredicate.getReindexRequiredPredicate(clusterState.metadata(), filterToBlockedStatus))
+            .map(Index::getName)
+            .collect(Collectors.toUnmodifiableSet());
     }
 }

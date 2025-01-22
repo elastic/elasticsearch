@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class MatchErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(MatchTests.parameters());
+        return paramsToSuppliers(AbstractMatchFullTextFunctionTests.parameters());
     }
 
     @Override

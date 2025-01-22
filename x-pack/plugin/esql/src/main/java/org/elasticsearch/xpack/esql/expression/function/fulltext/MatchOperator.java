@@ -21,8 +21,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * This class exists to generate documentation for the match operator.
- * Unlike other ESQL functions, Match is both a function and an operator. This class provides the documentation for the operator.
+ * This class performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MatchQuery} using an operator.
  */
 public class MatchOperator extends Match {
 
@@ -70,6 +69,16 @@ public class MatchOperator extends Match {
         Expression query = in.readNamedWriteable(Expression.class);
 
         return new MatchOperator(source, field, query);
+    }
+
+    @Override
+    public String functionType() {
+        return "operator";
+    }
+
+    @Override
+    public String functionName() {
+        return ":";
     }
 
     @Override

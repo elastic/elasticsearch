@@ -136,9 +136,8 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
         }
 
         String latestIndex = MlIndexAndAlias.latestIndex(concreteIndices);
-        boolean isCompatibleIndexVersion = false;
-        //isCompatibleIndexVersion(clusterState.metadata().index(latestIndex).getCreationVersion());
-        boolean hasAlias = false; //clusterState.getMetadata().hasAlias(alias);
+        boolean isCompatibleIndexVersion = isCompatibleIndexVersion(clusterState.metadata().index(latestIndex).getCreationVersion());
+        boolean hasAlias = clusterState.getMetadata().hasAlias(alias);
 
         if (isCompatibleIndexVersion && hasAlias) {
             // v8 index with alias, no action required
@@ -146,16 +145,13 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
             return;
         }
 
-
         SubscribableListener.<Boolean>newForked(l -> {
-            assertThread("ml_utility");
             if (hasAlias == false) {
                 MlIndexAndAlias.updateWriteAlias(client, alias, null, latestIndex, l);
             } else {
                 l.onResponse(Boolean.TRUE);
             }
         }).<Boolean>andThen((l, success) -> {
-            assertThread("ml_utility");
             if (isCompatibleIndexVersion == false) {
                 logger.info("rolling over legacy index [{}] with alias [{}]", latestIndex, alias);
                 rollover(alias, l);
@@ -176,12 +172,5 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
      */
     static boolean isCompatibleIndexVersion(IndexVersion version) {
         return version.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE);
-    }
-
-
-    public static boolean assertThread(String expectedName) {
-//        final Thread t = Thread.currentThread();
-//        assert t.getName().contains(expectedName) : "Expected current thread [" + t.getName() + "] to be a [" + expectedName + "] thread";
-        return true;
     }
 }

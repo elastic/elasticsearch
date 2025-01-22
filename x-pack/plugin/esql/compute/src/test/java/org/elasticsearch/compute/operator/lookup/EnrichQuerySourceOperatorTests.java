@@ -112,7 +112,6 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
                 blockFactory,
                 128,
-                false,
                 queryList,
                 directoryData.reader,
                 warnings
@@ -174,7 +173,6 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
                 blockFactory,
                 maxPageSize,
-                false,
                 queryList,
                 directoryData.reader,
                 warnings
@@ -199,7 +197,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         }
     }
 
-    public void testQueries_SkipMultiValue() throws Exception {
+    public void testQueries_OnlySingleValues() throws Exception {
         try (
             var directoryData = makeDirectoryWith(
                 List.of(List.of("a2"), List.of("a1", "c1", "b2"), List.of("a2"), List.of("a3"), List.of("b2", "b1", "a1"))
@@ -223,7 +221,8 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                     .endPositionEntry();
                 inputTerms = termBuilder.build();
             }
-            QueryList queryList = QueryList.rawTermQueryList(directoryData.field, mock(SearchExecutionContext.class), inputTerms);
+            QueryList queryList = QueryList.rawTermQueryList(directoryData.field, mock(SearchExecutionContext.class), inputTerms)
+                .onlySingleValues();
             // pos -> terms -> docs
             // -----------------------------
             // 0 -> [b2] -> [1, 4]
@@ -236,7 +235,6 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
                 blockFactory,
                 128,
-                true,
                 queryList,
                 directoryData.reader,
                 warnings

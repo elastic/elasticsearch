@@ -60,7 +60,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             bigArrays,
             blockFactory,
             false,
-            true,
             TransportRequest::readFrom
         );
     }
@@ -83,7 +82,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     protected QueryList queryList(TransportRequest request, SearchExecutionContext context, Block inputBlock, DataType inputDataType) {
         MappedFieldType fieldType = context.getFieldType(request.matchField);
         validateTypes(request.inputDataType, fieldType);
-        return termQueryList(fieldType, context, inputBlock, inputDataType);
+        return termQueryList(fieldType, context, inputBlock, inputDataType).onlySingleValues();
     }
 
     @Override

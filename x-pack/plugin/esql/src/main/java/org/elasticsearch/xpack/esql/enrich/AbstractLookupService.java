@@ -148,8 +148,6 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
      */
     private final boolean mergePages;
 
-    private final boolean skipMultiValues;
-
     AbstractLookupService(
         String actionName,
         ClusterService clusterService,
@@ -158,7 +156,6 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         BigArrays bigArrays,
         BlockFactory blockFactory,
         boolean mergePages,
-        boolean skipMultiValues,
         CheckedBiFunction<StreamInput, BlockFactory, T, IOException> readRequest
     ) {
         this.actionName = actionName;
@@ -170,7 +167,6 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         this.blockFactory = blockFactory;
         this.localBreakerSettings = new LocalCircuitBreaker.SizeSettings(clusterService.getSettings());
         this.mergePages = mergePages;
-        this.skipMultiValues = skipMultiValues;
         transportService.registerRequestHandler(
             actionName,
             transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
@@ -378,7 +374,6 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
             var queryOperator = new EnrichQuerySourceOperator(
                 driverContext.blockFactory(),
                 EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
-                skipMultiValues,
                 queryList,
                 searchExecutionContext.getIndexReader(),
                 warnings

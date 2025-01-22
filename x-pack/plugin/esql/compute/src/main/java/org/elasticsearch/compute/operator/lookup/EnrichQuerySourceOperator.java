@@ -41,7 +41,6 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
     private final IndexSearcher searcher;
     private final Warnings warnings;
     private final int maxPageSize;
-    private final boolean skipMultiValuesMatching;
 
     // using smaller pages enables quick cancellation and reduces sorting costs
     public static final int DEFAULT_MAX_PAGE_SIZE = 256;
@@ -49,14 +48,12 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
     public EnrichQuerySourceOperator(
         BlockFactory blockFactory,
         int maxPageSize,
-        boolean skipMultiValuesMatching,
         QueryList queryList,
         IndexReader indexReader,
         Warnings warnings
     ) {
         this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
-        this.skipMultiValuesMatching = skipMultiValuesMatching;
         this.queryList = queryList;
         this.indexReader = indexReader;
         this.searcher = new IndexSearcher(indexReader);
@@ -157,11 +154,9 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
     private Query nextQuery() {
         ++queryPosition;
         while (isFinished() == false) {
-            if (skipMultiValuesMatching == false || queryList.block.getValueCount(queryPosition) == 1) {
-                Query query = queryList.getQuery(queryPosition);
-                if (query != null) {
-                    return query;
-                }
+            Query query = queryList.getQuery(queryPosition);
+            if (query != null) {
+                return query;
             }
             ++queryPosition;
         }

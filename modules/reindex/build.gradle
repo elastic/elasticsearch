@@ -44,6 +44,9 @@ dependencies {
   clusterModules project(':modules:lang-painless')
   clusterModules project(':modules:parent-join')
   clusterModules project(":modules:rest-root")
+
+  internalClusterTestImplementation project(':modules:lang-painless')
+  internalClusterTestImplementation project(':modules:lang-painless:spi')
 }
 
 restResources {

@@ -189,6 +189,13 @@ public class PolicyManager {
         neverEntitled(callerClass, "access sensitive network information");
     }
 
+    /**
+     * Check for operations that can access sensitive network information, e.g. secrets, tokens or SSL sessions
+     */
+    public void checkLoadingNativeLibraries(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, LoadNativeLibrariesEntitlement.class);
+    }
+
     private String operationDescription(String methodName) {
         // TODO: Use a more human-readable description. Perhaps share code with InstrumentationServiceImpl.parseCheckerMethodName
         return methodName.substring(methodName.indexOf('$'));
@@ -233,6 +240,34 @@ public class PolicyManager {
                 "Entitled: class [%s], module [%s], entitlements [inbound_network, outbound_network]",
                 requestingClass,
                 requestingClass.getModule().getName()
+            )
+        );
+    }
+
+    public void checkWriteProperty(Class<?> callerClass, String property) {
+        var requestingClass = requestingClass(callerClass);
+        if (isTriviallyAllowed(requestingClass)) {
+            return;
+        }
+
+        ModuleEntitlements entitlements = getEntitlements(requestingClass);
+        if (entitlements.getEntitlements(WriteSystemPropertiesEntitlement.class).anyMatch(e -> e.properties().contains(property))) {
+            logger.debug(
+                () -> Strings.format(
+                    "Entitled: class [%s], module [%s], entitlement [write_system_properties], property [%s]",
+                    requestingClass,
+                    requestingClass.getModule().getName(),
+                    property
+                )
+            );
+            return;
+        }
+        throw new NotEntitledException(
+            Strings.format(
+                "Missing entitlement: class [%s], module [%s], entitlement [write_system_properties], property [%s]",
+                requestingClass,
+                requestingClass.getModule().getName(),
+                property
             )
         );
     }

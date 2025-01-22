@@ -137,13 +137,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
     }
 
     public void testJoinClusterWithReadOnlyCompatibleIndices() {
+        var randomBlock = randomFrom(IndexMetadata.SETTING_BLOCKS_WRITE, IndexMetadata.SETTING_READ_ONLY);
         {
             var indexMetadata = IndexMetadata.builder("searchable-snapshot")
                 .settings(
                     Settings.builder()
                         .put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
                         .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
-                        .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
+                        .put(randomBlock, true)
                 )
                 .numberOfShards(1)
                 .numberOfReplicas(1)
@@ -243,7 +244,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
             var indexMetadata = IndexMetadata.builder("regular")
                 .settings(
                     Settings.builder()
-                        .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
+                        .put(randomBlock, true)
                         .put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true)
                         .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
                         .build()
@@ -265,7 +266,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 settings.put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), randomBoolean());
             }
             if (randomBoolean()) {
-                settings.put(IndexMetadata.SETTING_BLOCKS_WRITE, false);
+                settings.put(randomBlock, false);
             }
             var indexMetadata = IndexMetadata.builder("regular").settings(settings).numberOfShards(1).numberOfReplicas(1).build();
 
@@ -285,7 +286,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 settings.put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), false);
             }
             if (randomBoolean()) {
-                settings.put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean());
+                settings.put(randomBlock, randomBoolean());
             }
 
             var indexMetadata = IndexMetadata.builder("regular-not-read-only-verified")

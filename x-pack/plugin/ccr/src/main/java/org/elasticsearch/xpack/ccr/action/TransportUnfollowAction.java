@@ -78,7 +78,6 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
             threadPool,
             actionFilters,
             UnfollowAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = Objects.requireNonNull(client);

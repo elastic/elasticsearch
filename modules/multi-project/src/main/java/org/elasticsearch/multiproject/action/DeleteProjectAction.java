@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
@@ -67,8 +66,7 @@ public class DeleteProjectAction extends ActionType<AcknowledgedResponse> {
             TransportService transportService,
             ClusterService clusterService,
             ThreadPool threadPool,
-            ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver
+            ActionFilters actionFilters
         ) {
             super(
                 INSTANCE.name(),
@@ -78,7 +76,6 @@ public class DeleteProjectAction extends ActionType<AcknowledgedResponse> {
                 threadPool,
                 actionFilters,
                 Request::new,
-                indexNameExpressionResolver,
                 AcknowledgedResponse::readFrom,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );

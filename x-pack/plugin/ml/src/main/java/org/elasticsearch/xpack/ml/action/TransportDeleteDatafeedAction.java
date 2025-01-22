@@ -58,7 +58,6 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
             threadPool,
             actionFilters,
             DeleteDatafeedAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;

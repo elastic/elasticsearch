@@ -89,7 +89,6 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
             threadPool,
             actionFilters,
             DeleteTrainedModelAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;

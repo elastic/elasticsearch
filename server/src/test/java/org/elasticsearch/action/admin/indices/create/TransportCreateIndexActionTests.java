@@ -147,7 +147,6 @@ public class TransportCreateIndexActionTests extends ESTestCase {
             threadPool,
             metadataCreateIndexService,
             mock(ActionFilters.class),
-            indexNameExpressionResolver,
             SYSTEM_INDICES,
             projectResolver
         );

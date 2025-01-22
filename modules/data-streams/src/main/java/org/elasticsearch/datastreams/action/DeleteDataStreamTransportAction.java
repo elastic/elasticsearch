@@ -53,6 +53,7 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
 
     private static final Logger LOGGER = LogManager.getLogger(DeleteDataStreamTransportAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
     private final ProjectResolver projectResolver;
 
@@ -73,9 +74,9 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
             threadPool,
             actionFilters,
             DeleteDataStreamAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
         this.projectResolver = projectResolver;
     }

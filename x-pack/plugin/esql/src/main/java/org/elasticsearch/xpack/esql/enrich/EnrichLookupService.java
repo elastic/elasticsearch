@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.esql.enrich;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
@@ -24,8 +27,10 @@ import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
@@ -269,6 +274,19 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             if (page != null) {
                 Releasables.closeExpectNoException(page::releaseBlocks);
             }
+        }
+    }
+
+    @Override
+    protected void sendChildRequest(
+        CancellableTask parentTask,
+        ActionListener<List<Page>> delegate,
+        DiscoveryNode targetNode,
+        TransportRequest transportRequest
+    ) {
+        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+        try (ThreadContext.StoredContext unused = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
+            super.sendChildRequest(parentTask, delegate, targetNode, transportRequest);
         }
     }
 }

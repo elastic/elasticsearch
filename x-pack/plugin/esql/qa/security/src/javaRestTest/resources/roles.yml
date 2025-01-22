@@ -93,6 +93,15 @@ fls_user:
       field_security:
         grant: [ value ]
 
+
+dls_user:
+  cluster: []
+  indices:
+    - names: [ 'lookup-user2' ]
+      privileges: [ 'read' ]
+      query: '{"match": {"org": "marketing"}}'
+
+
 logs_foo_all:
   cluster: []
   indices:

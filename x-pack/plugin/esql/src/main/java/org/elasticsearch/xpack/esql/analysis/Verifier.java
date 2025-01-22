@@ -29,9 +29,11 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 
@@ -95,6 +97,7 @@ public class Verifier {
 
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
+            checkLookupJoin(p, failures);
         });
 
         if (failures.hasFailures() == false) {
@@ -107,6 +110,16 @@ public class Verifier {
         }
 
         return failures.failures();
+    }
+
+    private void checkLookupJoin(LogicalPlan p, Failures failures) {
+        p.forEachDown(LookupJoin.class, j -> {
+            if (j.right() instanceof EsRelation esr) {
+                if (esr.concreteIndices().contains(esr.indexPattern()) == false) {
+                    failures.add(fail(p, "Aliases and index patterns are not allowed for LOOKUP JOIN [{}]", esr.indexPattern()));
+                }
+            }
+        });
     }
 
     private static void checkUnresolvedAttributes(LogicalPlan plan, Failures failures) {

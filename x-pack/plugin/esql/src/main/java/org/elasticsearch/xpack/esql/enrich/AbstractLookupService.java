@@ -66,7 +66,6 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
@@ -133,7 +132,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
     private final String actionName;
     private final ClusterService clusterService;
     private final SearchService searchService;
-    private final TransportService transportService;
+    protected final TransportService transportService;
     private final Executor executor;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
@@ -237,21 +236,28 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
             DiscoveryNode targetNode = clusterState.nodes().get(shardRouting.currentNodeId());
             T transportRequest = transportRequest(request, shardId);
             // TODO: handle retry and avoid forking for the local lookup
-            try (ThreadContext.StoredContext unused = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
-                transportService.sendChildRequest(
-                    targetNode,
-                    actionName,
-                    transportRequest,
-                    parentTask,
-                    TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(
-                        delegate.map(LookupResponse::takePages),
-                        in -> readLookupResponse(in, blockFactory),
-                        executor
-                    )
-                );
-            }
+            sendChildRequest(parentTask, delegate, targetNode, transportRequest);
         }));
+    }
+
+    protected void sendChildRequest(
+        CancellableTask parentTask,
+        ActionListener<List<Page>> delegate,
+        DiscoveryNode targetNode,
+        T transportRequest
+    ) {
+        transportService.sendChildRequest(
+            targetNode,
+            actionName,
+            transportRequest,
+            parentTask,
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(
+                delegate.map(LookupResponse::takePages),
+                in -> readLookupResponse(in, blockFactory),
+                executor
+            )
+        );
     }
 
     /**

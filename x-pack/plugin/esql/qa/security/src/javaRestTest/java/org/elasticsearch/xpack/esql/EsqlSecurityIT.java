@@ -57,6 +57,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("user4", "x-pack-test-password", "user4", false)
         .user("user5", "x-pack-test-password", "user5", false)
         .user("fls_user", "x-pack-test-password", "fls_user", false)
+        .user("dls_user", "x-pack-test-password", "dls_user", false)
         .user("metadata1_read2", "x-pack-test-password", "metadata1_read2", false)
         .user("alias_user1", "x-pack-test-password", "alias_user1", false)
         .user("alias_user2", "x-pack-test-password", "alias_user2", false)
@@ -563,25 +564,50 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
         assertThat(respMap.get("values"), equalTo(List.of(List.of(40.0, "sales"))));
 
-        // Alias, should find the index and the row
-        resp = runESQLCommand("alias_user1", "ROW x = 31.0 | EVAL value = x | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x, org");
-        assertOK(resp);
-        respMap = entityAsMap(resp);
-        assertThat(
-            respMap.get("columns"),
-            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        // Aliases are now allowed in LOOKUP JOIN
+        var resp2 = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("alias_user1", "ROW x = 31.0 | EVAL value = x | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x, org")
         );
-        assertThat(respMap.get("values"), equalTo(List.of(List.of(31.0, "sales"))));
 
-        // Alias, for a row that's filtered out
-        resp = runESQLCommand("alias_user1", "ROW x = 123.0 | EVAL value = x | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x, org");
+        assertThat(resp2.getMessage(), containsString("Aliases and index patterns are not allowed for LOOKUP JOIN [lookup-first-alias]"));
+        assertThat(resp2.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        // Aliases are now allowed in LOOKUP JOIN, regardless of alias filters
+        resp2 = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("alias_user1", "ROW x = 123.0 | EVAL value = x | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x, org")
+        );
+        assertThat(resp2.getMessage(), containsString("Aliases and index patterns are not allowed for LOOKUP JOIN [lookup-first-alias]"));
+        assertThat(resp2.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testLookupJoinDocLevelSecurity() throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V11.capabilityName()))
+        );
+
+        Response resp = runESQLCommand("dls_user", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN `lookup-user2` ON value | KEEP x, org");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+
+        assertThat(respMap.get("values"), equalTo(List.of(Arrays.asList(40.0, null))));
+
+        resp = runESQLCommand("dls_user", "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN `lookup-user2` ON value | KEEP x, org");
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
             respMap.get("columns"),
             equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
         );
-        assertThat(respMap.get("values"), equalTo(List.of(Arrays.asList(123.0, null))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(32.0, "marketing"))));
+
     }
 
     public void testLookupJoinIndexForbidden() throws Exception {

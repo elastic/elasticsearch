@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -56,11 +57,18 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
 
+    private static final String PLACEHOLDER_INFERENCE_ID = "placeholder";
+
     private static final ConstructingObjectParser<SemanticQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         false,
         args -> new SemanticQueryBuilder((String) args[0], (String) args[1], (Boolean) args[2])
     );
+
+    private enum InferenceResultsFormat {
+        SINGLE, // A single inference result, the legacy format
+        MAP // A map of inference results
+    }
 
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
@@ -72,6 +80,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private final String fieldName;
     private final String query;
     private final SetOnce<InferenceServiceResults> inferenceResultsSupplier;
+    private final InferenceResultsFormat inferenceResultsFormat;
+    private final Map<String, InferenceResults> inferenceResultsMap;
     private final InferenceResults inferenceResults;
     private final boolean noInferenceResults;
     private final Boolean lenient;
@@ -89,6 +99,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
         this.fieldName = fieldName;
         this.query = query;
+        this.inferenceResultsFormat = null;
+        this.inferenceResultsMap = null;
         this.inferenceResults = null;
         this.inferenceResultsSupplier = null;
         this.noInferenceResults = false;
@@ -99,7 +111,23 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         super(in);
         this.fieldName = in.readString();
         this.query = in.readString();
-        this.inferenceResults = in.readOptionalNamedWriteable(InferenceResults.class);
+        if (in.getTransportVersion().onOrAfter(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS)) {
+            if (in.readBoolean()) {
+                this.inferenceResultsMap = in.readMap(in.getNamedWriteableReader(InferenceResults.class));
+                this.inferenceResultsFormat = InferenceResultsFormat.MAP;
+            } else {
+                this.inferenceResultsMap = null;
+            }
+        } else {
+            InferenceResults inferenceResults = in.readOptionalNamedWriteable(InferenceResults.class);
+            if (inferenceResults != null) {
+                this.inferenceResultsMap = Map.of(PLACEHOLDER_INFERENCE_ID, inferenceResults);
+                this.inferenceResultsFormat = InferenceResultsFormat.SINGLE;
+            } else {
+                this.inferenceResultsMap = null;
+            }
+        }
+        this.inferenceResults = null; // TODO: Remove
         this.noInferenceResults = in.readBoolean();
         this.inferenceResultsSupplier = null;
         if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_QUERY_LENIENT)) {
@@ -116,7 +144,24 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
         out.writeString(fieldName);
         out.writeString(query);
-        out.writeOptionalNamedWriteable(inferenceResults);
+        if (out.getTransportVersion().onOrAfter(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS)) {
+            if (inferenceResultsMap != null) {
+                out.writeBoolean(true);
+                out.writeMap(inferenceResultsMap, StreamOutput::writeNamedWriteable);
+            } else {
+                out.writeBoolean(false);
+            }
+        } else {
+            InferenceResults inferenceResults = null;
+            int inferenceResultsMapSize = inferenceResultsMap.size();
+            if (inferenceResultsMapSize > 1) {
+                throw new IllegalStateException("Cannot query multiple inference IDs in a mixed-version cluster");
+            } else if (inferenceResultsMapSize == 1) {
+                inferenceResults = inferenceResultsMap.values().iterator().next();
+            }
+
+            out.writeOptionalNamedWriteable(inferenceResults);
+        }
         out.writeBoolean(noInferenceResults);
         if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_QUERY_LENIENT)) {
             out.writeOptionalBoolean(lenient);

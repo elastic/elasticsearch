@@ -104,7 +104,7 @@ non-lookup index:
 ---
 alias:
   - skip:
-      awaits_fix: "Lookup indices do not support aliases for now"
+      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
   - do:
       esql.query:
         body:
@@ -120,7 +120,7 @@ alias:
 ---
 alias-repeated-alias:
   - skip:
-      awaits_fix: "Lookup indices do not support aliases for now"
+      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
   - do:
       esql.query:
         body:
@@ -136,7 +136,7 @@ alias-repeated-alias:
 ---
 alias-repeated-index:
   - skip:
-      awaits_fix: "Lookup indices do not support aliases for now"
+      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
   - do:
       esql.query:
         body:
@@ -152,7 +152,7 @@ alias-repeated-index:
 ---
 alias-pattern-multiple:
   - skip:
-      awaits_fix: "Lookup indices do not support aliases for now"
+      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
   - do:
       esql.query:
         body:
@@ -165,7 +165,7 @@ alias-pattern-multiple:
 ---
 alias-pattern-single:
   - skip:
-      awaits_fix: "Lookup indices do not support aliases for now"
+      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
   - do:
       esql.query:
         body:

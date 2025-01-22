@@ -371,8 +371,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             Arrays.asList(".int-mans-old", ".internal-managed-with-script-alias")
         );
 
-        SearchRequestBuilder searchRequestBuilder = prepareSearch(newIndexName)
-            .setQuery(QueryBuilders.termsQuery(FIELD_NAME, "migrated"))
+        SearchRequestBuilder searchRequestBuilder = prepareSearch(newIndexName).setQuery(QueryBuilders.termsQuery(FIELD_NAME, "migrated"))
             .setSize(0);
         assertHitCountAndNoFailures(searchRequestBuilder, INDEX_DOC_COUNT);
     }

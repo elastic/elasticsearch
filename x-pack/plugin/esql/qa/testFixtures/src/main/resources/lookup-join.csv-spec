@@ -320,6 +320,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 
 mvJoinKeyOnFrom
 required_capability: join_lookup_v11
+required_capability: join_lookup_skip_mv
 
 FROM employees
 | WHERE emp_no < 10006

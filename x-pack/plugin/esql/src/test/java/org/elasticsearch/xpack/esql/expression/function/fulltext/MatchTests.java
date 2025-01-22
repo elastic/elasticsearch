@@ -10,7 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -21,9 +25,13 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.stringCases;
+import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("match")
@@ -42,6 +50,7 @@ public class MatchTests extends AbstractFunctionTestCase {
         addNonNumericCases(suppliers);
         addQueryAsStringTestCases(suppliers);
         addStringTestCases(suppliers);
+        addMatchOptions(suppliers);
 
         return parameterSuppliersFromTypedData(suppliers);
     }
@@ -215,7 +224,7 @@ public class MatchTests extends AbstractFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.intCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                TestCaseSupplier.stringCases(KEYWORD),
                 List.of(),
                 false
             )
@@ -229,7 +238,7 @@ public class MatchTests extends AbstractFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.intCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                TestCaseSupplier.stringCases(KEYWORD),
                 List.of(),
                 false
             )
@@ -243,7 +252,7 @@ public class MatchTests extends AbstractFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.longCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                TestCaseSupplier.stringCases(KEYWORD),
                 List.of(),
                 false
             )
@@ -257,7 +266,7 @@ public class MatchTests extends AbstractFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.doubleCases(Double.MIN_VALUE, Double.MAX_VALUE, true),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                TestCaseSupplier.stringCases(KEYWORD),
                 List.of(),
                 false
             )
@@ -274,7 +283,7 @@ public class MatchTests extends AbstractFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                TestCaseSupplier.stringCases(KEYWORD),
                 List.of(),
                 false
             )
@@ -288,7 +297,7 @@ public class MatchTests extends AbstractFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.booleanCases(),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                TestCaseSupplier.stringCases(KEYWORD),
                 List.of(),
                 false
             )
@@ -301,7 +310,7 @@ public class MatchTests extends AbstractFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.ipCases(),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                TestCaseSupplier.stringCases(KEYWORD),
                 List.of(),
                 false
             )
@@ -314,7 +323,7 @@ public class MatchTests extends AbstractFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.versionCases(""),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                TestCaseSupplier.stringCases(KEYWORD),
                 List.of(),
                 false
             )
@@ -328,7 +337,7 @@ public class MatchTests extends AbstractFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.dateCases(),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                TestCaseSupplier.stringCases(KEYWORD),
                 List.of(),
                 false
             )
@@ -342,7 +351,7 @@ public class MatchTests extends AbstractFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.dateNanosCases(),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                TestCaseSupplier.stringCases(KEYWORD),
                 List.of(),
                 false
             )
@@ -358,13 +367,50 @@ public class MatchTests extends AbstractFunctionTestCase {
                 suppliers.add(
                     TestCaseSupplier.testCaseSupplier(
                         queryDataSupplier,
-                        new TestCaseSupplier.TypedDataSupplier(fieldType.typeName(), () -> randomAlphaOfLength(10), DataType.KEYWORD),
+                        new TestCaseSupplier.TypedDataSupplier(fieldType.typeName(), () -> randomAlphaOfLength(10), KEYWORD),
                         (d1, d2) -> equalTo("string"),
                         DataType.BOOLEAN,
                         (o1, o2) -> true
                     )
                 );
             }
+        }
+    }
+
+    private static void addMatchOptions(List<TestCaseSupplier> suppliers) {
+        for (Map.Entry<String, DataType> allowedOptions : Match.ALLOWED_OPTIONS.entrySet()) {
+            String optionName = allowedOptions.getKey();
+            DataType optionType = allowedOptions.getValue();
+
+            suppliers.add(new TestCaseSupplier(List.of(KEYWORD, KEYWORD, UNSUPPORTED), () -> {
+                Object optionValue = switch (optionType) {
+                    case BOOLEAN -> randomBoolean();
+                    case INTEGER -> randomIntBetween(0, 100000);
+                    case LONG -> randomLong();
+                    case FLOAT -> randomFloat();
+                    case DOUBLE -> randomDouble();
+                    case KEYWORD -> randomAlphaOfLength(10);
+                    default -> throw new IllegalArgumentException("Unsupported option type: " + optionType);
+                };
+                List<TestCaseSupplier.TypedData> values = new ArrayList<>();
+                values.add(new TestCaseSupplier.TypedData(randomAlphaOfLength(10), KEYWORD, "field"));
+                values.add(new TestCaseSupplier.TypedData(randomAlphaOfLength(10), KEYWORD, "query"));
+                values.add(
+                    new TestCaseSupplier.TypedData(
+                        new MapExpression(
+                            Source.EMPTY,
+                            List.of(
+                                new Literal(Source.EMPTY, optionName, KEYWORD),
+                                new Literal(Source.EMPTY, optionValue, optionType)
+                            )
+                        ),
+                        UNSUPPORTED,
+                        "options"
+                    ).forceLiteral()
+                );
+
+                return new TestCaseSupplier.TestCase(values, equalTo("MatchEvaluator"), DataType.BOOLEAN, equalTo(true));
+            }));
         }
     }
 
@@ -375,6 +421,13 @@ public class MatchTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Match(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
+        Match match = new Match(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
+        // We need to add the QueryBuilder to the match expression, as it is used to implement equals() and hashCode() and
+        // thus test the serialization methods. But we can only do this if the parameters make sense .
+        if (args.get(0) instanceof FieldAttribute && args.get(1).foldable()) {
+            QueryBuilder queryBuilder = TRANSLATOR_HANDLER.asQuery(match).asBuilder();
+            match.replaceQueryBuilder(queryBuilder);
+        }
+        return match;
     }
 }

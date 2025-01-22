@@ -21,7 +21,6 @@ import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
@@ -45,7 +44,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     public LookupFromIndexService(
         ClusterService clusterService,
-        SearchService searchService,
+        CreateShardContext createShardContext,
         TransportService transportService,
         BigArrays bigArrays,
         BlockFactory blockFactory
@@ -53,7 +52,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         super(
             LOOKUP_ACTION_NAME,
             clusterService,
-            searchService,
+            createShardContext,
             transportService,
             bigArrays,
             blockFactory,

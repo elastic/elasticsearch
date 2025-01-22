@@ -50,7 +50,6 @@ public class TransportDeleteSnapshotAction extends AcknowledgedTransportMasterNo
             threadPool,
             actionFilters,
             DeleteSnapshotRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.snapshotsService = snapshotsService;

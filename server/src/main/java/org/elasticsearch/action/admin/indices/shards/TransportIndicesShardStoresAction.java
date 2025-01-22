@@ -68,6 +68,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
 
     private static final Logger logger = LogManager.getLogger(TransportIndicesShardStoresAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NodeClient client;
 
     @Inject
@@ -86,10 +87,10 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             threadPool,
             actionFilters,
             IndicesShardStoresRequest::new,
-            indexNameExpressionResolver,
             IndicesShardStoresResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
     }
 

@@ -1,2 +1,12 @@
 org.elasticsearch.security:
   - set_https_connection_properties # for CommandLineHttpClient
+io.netty.transport:
+  - inbound_network
+  - outbound_network
+io.netty.common:
+  - inbound_network
+  - outbound_network
+org.opensaml.xmlsec.impl:
+  - write_system_properties:
+      properties:
+        - org.apache.xml.security.ignoreLineBreaks

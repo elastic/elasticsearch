@@ -33,7 +33,7 @@ import static org.mockito.Mockito.spy;
 
 public class RemoteClusterMinimumVersionValidationTests extends ESTestCase {
 
-    private static final TransportVersion MIN_EXPECTED_VERSION = TransportVersions.V_7_11_0;
+    private static final TransportVersion MIN_EXPECTED_VERSION = TransportVersions.V_8_11_X;
     private static final String REASON = "some reason";
 
     private Context context;
@@ -41,9 +41,9 @@ public class RemoteClusterMinimumVersionValidationTests extends ESTestCase {
     @Before
     public void setUpMocks() {
         context = spy(new Context(null, null, null, null, null, null, null, null, null, null));
-        doReturn(TransportVersions.V_7_10_0).when(context).getRemoteClusterVersion("cluster-A");
-        doReturn(TransportVersions.V_7_11_0).when(context).getRemoteClusterVersion("cluster-B");
-        doReturn(TransportVersions.V_7_12_0).when(context).getRemoteClusterVersion("cluster-C");
+        doReturn(TransportVersions.V_8_10_X).when(context).getRemoteClusterVersion("cluster-A");
+        doReturn(TransportVersions.V_8_11_X).when(context).getRemoteClusterVersion("cluster-B");
+        doReturn(TransportVersions.V_8_12_0).when(context).getRemoteClusterVersion("cluster-C");
     }
 
     public void testGetters() {
@@ -82,8 +82,8 @@ public class RemoteClusterMinimumVersionValidationTests extends ESTestCase {
                 ctx -> assertThat(
                     ctx.getValidationException().validationErrors(),
                     contains(
-                        "remote clusters are expected to run at least version [7.11.0] (reason: [some reason]), "
-                            + "but the following clusters were too old: [cluster-A (7.10.0)]"
+                        "remote clusters are expected to run at least version [8.11.0-8.11.4] (reason: [some reason]), "
+                            + "but the following clusters were too old: [cluster-A (8.10.0-8.10.4)]"
                     )
                 )
             )
@@ -93,15 +93,15 @@ public class RemoteClusterMinimumVersionValidationTests extends ESTestCase {
     public void testValidate_TwoRemoteClusterVersionsTooLow() {
         doReturn(new HashSet<>(Arrays.asList("cluster-A", "cluster-B", "cluster-C"))).when(context).getRegisteredRemoteClusterNames();
         doReturn(new TreeSet<>(Arrays.asList("cluster-A:dummy", "cluster-B:dummy", "cluster-C:dummy"))).when(context).resolveRemoteSource();
-        SourceDestValidation validation = new RemoteClusterMinimumVersionValidation(TransportVersions.V_7_12_0, REASON);
+        SourceDestValidation validation = new RemoteClusterMinimumVersionValidation(TransportVersions.V_8_12_0, REASON);
         validation.validate(
             context,
             ActionTestUtils.assertNoFailureListener(
                 ctx -> assertThat(
                     ctx.getValidationException().validationErrors(),
                     contains(
-                        "remote clusters are expected to run at least version [7.12.0] (reason: [some reason]), "
-                            + "but the following clusters were too old: [cluster-A (7.10.0), cluster-B (7.11.0)]"
+                        "remote clusters are expected to run at least version [8.12.0] (reason: [some reason]), "
+                            + "but the following clusters were too old: [cluster-A (8.10.0-8.10.4), cluster-B (8.11.0-8.11.4)]"
                     )
                 )
             )

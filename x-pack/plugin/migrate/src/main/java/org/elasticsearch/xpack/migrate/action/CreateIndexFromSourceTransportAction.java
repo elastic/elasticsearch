@@ -16,14 +16,15 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -35,6 +36,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public class CreateIndexFromSourceTransportAction extends HandledTransportAction<
     CreateIndexFromSourceAction.Request,
@@ -44,6 +46,13 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
     private final ClusterService clusterService;
     private final Client client;
     private final IndexScopedSettings indexScopedSettings;
+    private static final Settings REMOVE_INDEX_BLOCKS_SETTING_OVERRIDE = Settings.builder()
+        .putNull(IndexMetadata.SETTING_READ_ONLY)
+        .putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
+        .putNull(IndexMetadata.SETTING_BLOCKS_WRITE)
+        .putNull(IndexMetadata.SETTING_BLOCKS_METADATA)
+        .putNull(IndexMetadata.SETTING_BLOCKS_READ)
+        .build();
 
     @Inject
     public CreateIndexFromSourceTransportAction(
@@ -78,12 +87,15 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
 
         logger.debug("Creating destination index [{}] for source index [{}]", request.destIndex(), request.sourceIndex());
 
-        Settings settings = Settings.builder()
-            // add source settings
+        Settings.Builder settings = Settings.builder()
+            // first settings from source index
             .put(filterSettings(sourceIndex))
-            // add override settings from request
-            .put(request.settingsOverride())
-            .build();
+            // then override with request settings
+            .put(request.settingsOverride());
+        if (request.removeIndexBlocks()) {
+            // lastly, override with settings to remove index blocks if requested
+            settings.put(REMOVE_INDEX_BLOCKS_SETTING_OVERRIDE);
+        }
 
         Map<String, Object> mergeMappings;
         try {
@@ -122,7 +134,39 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
     // https://github.com/elastic/kibana/blob/8a8363f02cc990732eb9cbb60cd388643a336bed/x-pack
     // /plugins/upgrade_assistant/server/lib/reindexing/index_settings.ts#L155
     private Settings filterSettings(IndexMetadata sourceIndex) {
-        return MetadataCreateIndexService.copySettingsFromSource(false, sourceIndex.getSettings(), indexScopedSettings, Settings.builder())
-            .build();
+        Settings sourceSettings = sourceIndex.getSettings();
+        final Settings.Builder builder = Settings.builder();
+        for (final String key : sourceSettings.keySet()) {
+            final Setting<?> setting = indexScopedSettings.get(key);
+            if (setting == null) {
+                assert indexScopedSettings.isPrivateSetting(key) : key;
+                continue;
+            }
+            if (setting.isPrivateIndex()) {
+                continue;
+            }
+            if (setting.getProperties().contains(Setting.Property.NotCopyableOnResize)) {
+                continue;
+            }
+            if (setting.getProperties().contains(Setting.Property.IndexSettingDeprecatedInV7AndRemovedInV8)) {
+                continue;
+            }
+            if (SPECIFIC_SETTINGS_TO_REMOVE.contains(key)) {
+                continue;
+            }
+            builder.copy(key, sourceSettings);
+        }
+        return builder.build();
     }
+
+    private static final Set<String> SPECIFIC_SETTINGS_TO_REMOVE = Set.of(
+        /**
+         * These 3 settings were removed from indices created by UA in https://github.com/elastic/kibana/pull/93293
+         * That change only removed `index.translog.retention.size` and `index.translog.retention.age` if
+         * soft deletes were enabled. Since soft deletes are always enabled in v8, we can remove all three settings.
+         */
+        IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
+        IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(),
+        IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey()
+    );
 }

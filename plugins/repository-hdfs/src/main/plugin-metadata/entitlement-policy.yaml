@@ -1,0 +1,5 @@
+ALL-UNNAMED:
+  - outbound_network
+  - write_system_properties:
+      properties:
+        - hadoop.home.dir

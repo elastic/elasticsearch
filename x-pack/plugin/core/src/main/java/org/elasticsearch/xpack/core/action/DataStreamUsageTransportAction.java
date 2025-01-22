@@ -36,14 +36,7 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
         IndexNameExpressionResolver indexNameExpressionResolver,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings
     ) {
-        super(
-            XPackUsageFeatureAction.DATA_STREAMS.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.DATA_STREAMS.name(), transportService, clusterService, threadPool, actionFilters);
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
     }
 
@@ -68,8 +61,8 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
                 if (ds.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings)) {
                     failureStoreEffectivelyEnabledCounter++;
                 }
-                if (ds.getFailureIndices().getIndices().isEmpty() == false) {
-                    failureIndicesCounter += ds.getFailureIndices().getIndices().size();
+                if (ds.getFailureIndices().isEmpty() == false) {
+                    failureIndicesCounter += ds.getFailureIndices().size();
                 }
             }
         }

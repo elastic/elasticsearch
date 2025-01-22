@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
-import java.util.Collection;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyMap;
@@ -22,8 +21,6 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.hasSize;
 
 public final class TestUtils {
     private TestUtils() {}
@@ -63,10 +60,5 @@ public final class TestUtils {
     /** Similar to {@link String#strip()}, but removes the WS throughout the entire string. */
     public static String stripThrough(String input) {
         return WS_PATTERN.matcher(input).replaceAll(StringUtils.EMPTY);
-    }
-
-    public static <T> T assertSingleton(Collection<T> collection) {
-        assertThat(collection, hasSize(1));
-        return collection.iterator().next();
     }
 }

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.OptionalInt;
 
 public class Insist extends UnaryPlan {
@@ -69,7 +70,7 @@ public class Insist extends UnaryPlan {
 
     @Override
     public boolean expressionsResolved() {
-        return true;
+        return computeOutput().stream().allMatch(Attribute::resolved);
     }
 
     @Override
@@ -95,7 +96,8 @@ public class Insist extends UnaryPlan {
 
     @Override
     public int hashCode() {
-        return super.hashCode() + 31 * insistIdentifier.hashCode();
+
+        return Objects.hash(super.hashCode(), Objects.hashCode(insistIdentifier));
     }
 
     @Override

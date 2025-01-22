@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.core.util.TestUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -160,6 +159,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
@@ -2602,7 +2602,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testPushdownInsist_fieldExistsSingleIndex_updatesRelationOutputAtIndex() {
-        LogicalPlan plan = optimizedPlan("FROM test | INSIST first_name");
+        LogicalPlan plan = optimizedPlan("FROM test | INSIST_🐔 first_name");
 
         var expectedIndex = CollectionUtils.findIndex(optimizedPlan("FROM test").output(), e -> e.name().equals("first_name")).getAsInt();
         var limit = as(plan, Limit.class);
@@ -2612,7 +2612,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testPushdownInsist_fieldDoesNotExist_updatesRelationWithNewField() {
-        LogicalPlan plan = optimizedPlan("FROM test | INSIST foo");
+        LogicalPlan plan = optimizedPlan("FROM test | INSIST_🐔 foo");
 
         var limit = as(plan, Limit.class);
         var relation = as(limit.child(), EsRelation.class);
@@ -2621,18 +2621,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testPushdownInsist_multiIndexFieldExistsWithSingleTypeButIsNotKeywordAndMissingCast_failsWithInsistMessage() {
-        var msg = assertThrows(VerificationException.class, () -> planMultiIndex("FROM multi_index | INSIST emp_no | SORT emp_no"));
+        var msg = assertThrows(VerificationException.class, () -> planMultiIndex("FROM multi_index | INSIST_🐔 emp_no | SORT emp_no"));
         String substring = "Cannot use field [emp_no] due to ambiguities caused by INSIST. "
             + "Unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to type [INTEGER]";
         assertThat(msg.getMessage(), containsString(substring));
     }
 
     public void testPushdownInsist_multiIndexFieldExistsButIsNotKeywordWithCastToSame_createsTheCorrectUnmappedField() {
-        var plan = planMultiIndex("FROM multi_index | INSIST emp_no | EVAL emp_no = emp_no :: LONG | SORT emp_no");
+        var plan = planMultiIndex("FROM multi_index | INSIST_🐔 emp_no | EVAL emp_no = emp_no :: LONG | SORT emp_no");
         var project = as(plan, Project.class);
         var topN = as(project.child(), TopN.class);
         var relation = as(topN.child(), EsRelation.class);
-        var insistedField = TestUtils.assertSingleton(relation.output().stream().<PotentiallyUnmappedEsField>mapMulti((attr, c) -> {
+        var insistedField = singleValue(relation.output().stream().<PotentiallyUnmappedEsField>mapMulti((attr, c) -> {
             if (attr instanceof FieldAttribute fa
                 && fa.field() instanceof PotentiallyUnmappedEsField uf
                 && uf.getState() instanceof PotentiallyUnmappedEsField.SimpleResolution) {
@@ -2649,13 +2649,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testPushdownInsist_multiIndexFieldExistsWithMultiTypes_createsTheCorrectUnmappedField() {
         var plan = planMultiIndex("""
             FROM multi_index |
-            INSIST multi_type_without_keyword |
+            INSIST_🐔 multi_type_without_keyword |
             EVAL multi_type_without_keyword = multi_type_without_keyword :: DATETIME |
             SORT multi_type_without_keyword""");
         var project = as(plan, Project.class);
         var topN = as(project.child(), TopN.class);
         var relation = as(topN.child(), EsRelation.class);
-        var insistedField = TestUtils.assertSingleton(relation.output().stream().<PotentiallyUnmappedEsField>mapMulti((attr, c) -> {
+        var insistedField = singleValue(relation.output().stream().<PotentiallyUnmappedEsField>mapMulti((attr, c) -> {
             if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedEsField mf) {
                 c.accept(mf);
             }
@@ -2664,13 +2664,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var multiTypeConversion = ((PotentiallyUnmappedEsField.MultiType) insistedField.getState());
         var conversionFromKeyword = multiTypeConversion.conversionFromKeyword();
         assertThat(conversionFromKeyword.dataType(), is(DATETIME));
-        assertThat(TestUtils.assertSingleton(conversionFromKeyword.children()).dataType(), is(KEYWORD));
+        assertThat(singleValue(conversionFromKeyword.children()).dataType(), is(KEYWORD));
     }
 
     public void testPushdownInsist_multiIndexFieldExistsButIsInvalidMappedWithKeyword_failsWithRegularWithRegularMessageButAddsInsist() {
         var msg = assertThrows(
             VerificationException.class,
-            () -> planMultiIndex("FROM multi_index | INSIST multi_type_with_keyword | SORT multi_type_with_keyword")
+            () -> planMultiIndex("FROM multi_index | INSIST_🐔 multi_type_with_keyword | SORT multi_type_with_keyword")
         );
         String substring = "Cannot use field [multi_type_with_keyword] due to ambiguities being mapped as [2] incompatible types: "
             + "[keyword] in [test2, unmapped field], [long] in [test1]";
@@ -2680,7 +2680,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testPushdownInsist_multiIndexFieldExistsButIsInvalidMappedWithoutKeyword_failsWithRegularWithRegularMessageButAddsInsist() {
         var msg = assertThrows(
             VerificationException.class,
-            () -> planMultiIndex("FROM multi_index | INSIST multi_type_without_keyword | SORT multi_type_without_keyword")
+            () -> planMultiIndex("FROM multi_index | INSIST_🐔 multi_type_without_keyword | SORT multi_type_without_keyword")
         );
         String substring = "Cannot use field [multi_type_without_keyword] due to ambiguities being mapped as [3] incompatible types: "
             + "[date] in [test2], [keyword] in [unmapped field], [long] in [test1]";

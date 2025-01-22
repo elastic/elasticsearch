@@ -22,7 +22,7 @@ FROM partial_mapping_sample_data
 fieldIsMappedToNonKeywordButNoCastSingleIndex
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data
-| INSIST client_ip
+| INSIST_🐔 client_ip
 | KEEP @timestamp, client_ip
 | SORT @timestamp DESC
 ;
@@ -40,7 +40,7 @@ FROM partial_mapping_sample_data
 fieldIsMappedToNonKeywordWithCastSingleIndex
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data
-| INSIST client_ip
+| INSIST_🐔 client_ip
 | EVAL client_ip = client_ip :: IP
 | KEEP @timestamp, client_ip
 | SORT @timestamp DESC
@@ -59,7 +59,7 @@ FROM partial_mapping_sample_data
 fieldIsMappedToNonKeywordWithCastToDifferentTypeSingleIndex
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data
-| INSIST @timestamp
+| INSIST_🐔 @timestamp
 | EVAL @timestamp = @timestamp :: LONG
 | KEEP @timestamp
 | SORT @timestamp DESC
@@ -78,7 +78,7 @@ FROM partial_mapping_sample_data
 fieldIsMappedToKeywordSingleIndex
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data
-| INSIST message
+| INSIST_🐔 message
 | KEEP @timestamp, message
 | SORT @timestamp DESC
 ;
@@ -96,7 +96,7 @@ FROM partial_mapping_sample_data
 fieldDoesNotExistSingleIndex
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data
-| INSIST foo
+| INSIST_🐔 foo
 | KEEP @timestamp, foo
 | SORT @timestamp DESC
 ;
@@ -114,7 +114,7 @@ FROM partial_mapping_sample_data
 fieldIsUnmappedSingleIndex
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data
-| INSIST unmapped_message
+| INSIST_🐔 unmapped_message
 | KEEP @timestamp, message, unmapped_message
 | SORT @timestamp DESC
 ;
@@ -132,7 +132,7 @@ FROM partial_mapping_sample_data
 fieldIsUnmappedAndCastSingleIndex
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data
-| INSIST unmapped_event_duration
+| INSIST_🐔 unmapped_event_duration
 | EVAL unmapped_event_duration = unmapped_event_duration :: LONG
 | KEEP @timestamp, event_duration, unmapped_event_duration
 | SORT @timestamp DESC
@@ -152,7 +152,7 @@ fieldIsUnmappedButSourceIsDisabledSingleIndex
 required_capability: source_field_mapping
 required_capability: unmapped_fields
 FROM partial_mapping_no_source_sample_data
-| INSIST message
+| INSIST_🐔 message
 ;
 
 @timestamp:date          | message:keyword
@@ -169,7 +169,7 @@ fieldIsUnmappedButExcludedFromSourceSingleIndex
 required_capability: source_field_mapping
 required_capability: unmapped_fields
 FROM partial_mapping_excluded_source_sample_data
-| INSIST message
+| INSIST_🐔 message
 ;
 
 @timestamp:date          | message:keyword
@@ -189,7 +189,7 @@ FROM partial_mapping_excluded_source_sample_data
 fieldIsDoesNotExistMultiIndex
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data, sample_data
-| INSIST foo
+| INSIST_🐔 foo
 | KEEP @timestamp, foo
 | SORT @timestamp DESC
 ;
@@ -214,7 +214,7 @@ FROM partial_mapping_sample_data, sample_data
 fieldIsUnmappedMultiIndex
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data, sample_data
-| INSIST unmapped_message
+| INSIST_🐔 unmapped_message
 | KEEP @timestamp, message, unmapped_message
 | SORT @timestamp DESC
 ;
@@ -239,7 +239,7 @@ FROM partial_mapping_sample_data, sample_data
 fieldIsUnmappedAndCastMultiIndex
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data, sample_data
-| INSIST unmapped_event_duration
+| INSIST_🐔 unmapped_event_duration
 | EVAL unmapped_event_duration = unmapped_event_duration :: LONG
 | KEEP @timestamp, event_duration, unmapped_event_duration
 | SORT @timestamp DESC
@@ -265,7 +265,7 @@ FROM partial_mapping_sample_data, sample_data
 fieldIsMappedToNonKeywordButNoCastMultiIndex
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data, sample_data
-| INSIST client_ip
+| INSIST_🐔 client_ip
 | KEEP @timestamp, client_ip
 | SORT @timestamp DESC
 ;
@@ -290,7 +290,7 @@ FROM partial_mapping_sample_data, sample_data
 fieldIsMappedToNonKeywordWithCastSingleIndex
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data, sample_data
-| INSIST client_ip
+| INSIST_🐔 client_ip
 | EVAL client_ip = client_ip :: IP
 | KEEP @timestamp, client_ip
 | SORT @timestamp DESC
@@ -316,7 +316,7 @@ FROM partial_mapping_sample_data, sample_data
 fieldIsMappedToDifferentTypesNoCastMultiIndex
 required_capability: unmapped_fields
 FROM sample_data_ts_long, sample_data
-| INSIST @timestamp
+| INSIST_🐔 @timestamp
 | KEEP @timestamp
 ;
 
@@ -340,7 +340,7 @@ null
 fieldIsMappedToDifferentTypesWithCastMultiIndex
 required_capability: unmapped_fields
 FROM sample_data_ts_long, sample_data
-| INSIST @timestamp
+| INSIST_🐔 @timestamp
 | EVAL @timestamp = @timestamp :: DATETIME
 | KEEP @timestamp
 | SORT @timestamp DESC
@@ -366,7 +366,7 @@ FROM sample_data_ts_long, sample_data
 fieldIsUnmappedMultiIndex
 required_capability: unmapped_fields
 FROM sample_data, partial_mapping_sample_data
-| INSIST unmapped_event_duration
+| INSIST_🐔 unmapped_event_duration
 | KEEP @timestamp, unmapped_event_duration
 | SORT @timestamp DESC
 ;
@@ -391,7 +391,7 @@ FROM sample_data, partial_mapping_sample_data
 fieldIsPartiallyUnmappedMultiIndex
 required_capability: unmapped_fields
 FROM sample_data, no_mapping_sample_data
-| INSIST message
+| INSIST_🐔 message
 | KEEP message
 | SORT message DESC
 ;
@@ -416,7 +416,7 @@ Connected to 10.1.0.1
 fieldIsPartiallyUnmappedWithCastToOriginalTypeMultiIndex
 required_capability: unmapped_fields
 FROM sample_data, no_mapping_sample_data
-| INSIST event_duration
+| INSIST_🐔 event_duration
 | EVAL event_duration = event_duration :: LONG
 | KEEP event_duration
 | SORT event_duration DESC
@@ -442,7 +442,7 @@ event_duration:long
 fieldIsPartiallyUnmappedWithCastToDifferentTypeMultiIndex
 required_capability: unmapped_fields
 FROM sample_data, no_mapping_sample_data
-| INSIST event_duration
+| INSIST_🐔 event_duration
 | EVAL event_duration = event_duration :: DOUBLE
 | KEEP event_duration
 | SORT event_duration DESC
@@ -469,7 +469,7 @@ fieldIsPartiallyUnmappedPartiallySourceIsDisabledMultiIndex
 required_capability: source_field_mapping
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data,partial_mapping_no_source_sample_data
-| INSIST message
+| INSIST_🐔 message
 | KEEP @timestamp, message
 | SORT @timestamp, message
 ;
@@ -495,7 +495,7 @@ fieldIsPartiallyUnmappedPartiallySourceIsDisabledMultiIndex
 required_capability: source_field_mapping
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data
-| INSIST message
+| INSIST_🐔 message
 | KEEP @timestamp, message
 | SORT @timestamp, message
 ;

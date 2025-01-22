@@ -85,7 +85,7 @@ WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
 // main section while preserving alphabetical order:
 // MYCOMMAND : 'mycommand' -> ...
 DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
-DEV_INSIST :      {this.isDevVersion()}? 'insist'        -> pushMode(EXPRESSION_MODE);
+DEV_INSIST :      {this.isDevVersion()}? 'insist_🐔'      -> pushMode(EXPRESSION_MODE);
 DEV_LOOKUP :      {this.isDevVersion()}? 'lookup_🐔'      -> pushMode(LOOKUP_MODE);
 DEV_METRICS :     {this.isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
 // list of all JOIN commands
@@ -309,16 +309,6 @@ FROM_MULTILINE_COMMENT
 FROM_WS
     : WS -> channel(HIDDEN)
     ;
-
-//
-// INSIST command
-//
-mode INSIST_MODE;
-INSIST_PIPE : PIPE -> type(PIPE), popMode;
-INSIST_WS : WS -> channel(HIDDEN);
-INSIST_IDENTIFIER: UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIER);
-INSIST_CAST_OP : CAST_OP -> type(CAST_OP);
-INSIST_DATA_TYPE : UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIER);
 
 //
 // DROP, KEEP
@@ -647,3 +637,11 @@ CLOSING_METRICS_BY
 CLOSING_METRICS_PIPE
     : PIPE -> type(PIPE), popMode
     ;
+
+//
+// INSIST command
+//
+mode INSIST_MODE;
+INSIST_PIPE : PIPE -> type(PIPE), popMode;
+INSIST_IDENTIFIER: UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIER);
+INSIST_WS : WS -> channel(HIDDEN);

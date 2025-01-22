@@ -139,7 +139,7 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings.nodeName, name());
         ExecutorService executor;
         executor = EsExecutors.newScaling(
-            settings.nodeName + "/" + name(),
+            new EsExecutors.QualifiedName(settings.nodeName, name()),
             core,
             max,
             keepAlive.millis(),

@@ -41,7 +41,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         ThreadContext context = new ThreadContext(Settings.EMPTY);
 
         TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
-            "test-threadpool",
+            new EsExecutors.QualifiedName("test-threadpool"),
             1,
             1,
             1000,
@@ -94,7 +94,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     public void testExceptionThrowingTask() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
         TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
-            "test-threadpool",
+            new EsExecutors.QualifiedName("test-threadpool"),
             1,
             1,
             1000,
@@ -127,7 +127,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         var testStartTimeNanos = System.nanoTime();
         ThreadContext context = new ThreadContext(Settings.EMPTY);
         var executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
-            "test-threadpool",
+            new EsExecutors.QualifiedName("test-threadpool"),
             1,
             1,
             1000,
@@ -163,7 +163,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final var threadPoolName = randomIdentifier();
         var executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
-            threadPoolName,
+            new EsExecutors.QualifiedName(threadPoolName),
             1,
             1,
             1000,

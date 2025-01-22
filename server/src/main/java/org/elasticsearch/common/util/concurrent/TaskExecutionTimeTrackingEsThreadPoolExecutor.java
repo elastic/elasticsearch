@@ -41,7 +41,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     private final DoubleHistogram queueWaitTimes;
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
-        String name,
+        EsExecutors.QualifiedName name,
         int corePoolSize,
         int maximumPoolSize,
         long keepAliveTime,
@@ -54,27 +54,25 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         TaskTrackingConfig trackingConfig,
         MeterRegistry meterRegistry
     ) {
-        super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder);
+        super(
+            name.toCompositeString(),
+            corePoolSize,
+            maximumPoolSize,
+            keepAliveTime,
+            unit,
+            workQueue,
+            threadFactory,
+            handler,
+            contextHolder
+        );
         this.runnableWrapper = runnableWrapper;
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getEwmaAlpha(), 0);
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
-        final var threadPoolName = stripNodeName(name);
         this.queueWaitTimes = meterRegistry.registerDoubleHistogram(
-            ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_QUEUE_TIME,
-            "Distribution of time spent in " + threadPoolName + " thread pool queue",
+            ThreadPool.THREAD_POOL_METRIC_PREFIX + name.threadPoolName() + THREAD_POOL_METRIC_NAME_QUEUE_TIME,
+            "Distribution of time spent in " + name.threadPoolName() + " thread pool queue",
             "seconds"
         );
-    }
-
-    /**
-     * TODO: Find a way to avoid the need for this
-     */
-    private String stripNodeName(String name) {
-        int indexOfSlash = name.indexOf('/');
-        if (indexOfSlash != -1) {
-            return name.substring(indexOfSlash + 1);
-        }
-        return name;
     }
 
     @Override

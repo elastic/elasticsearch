@@ -677,7 +677,7 @@ public class EsExecutorsTests extends ESTestCase {
 
         {
             ThreadPoolExecutor pool = EsExecutors.newScaling(
-                getClass().getName() + "/" + getTestName(),
+                new EsExecutors.QualifiedName(getClass().getName(), getTestName()),
                 min,
                 max,
                 between(1, 100),

@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -98,7 +99,7 @@ public class EsExecutors {
     }
 
     public static EsThreadPoolExecutor newScaling(
-        String name,
+        QualifiedName name,
         int min,
         int max,
         long keepAliveTime,
@@ -128,7 +129,7 @@ public class EsExecutors {
             );
         } else {
             executor = new EsThreadPoolExecutor(
-                name,
+                name.toCompositeString(),
                 min,
                 max,
                 keepAliveTime,
@@ -154,7 +155,7 @@ public class EsExecutors {
         ThreadContext contextHolder
     ) {
         return newScaling(
-            name,
+            new QualifiedName(name),
             min,
             max,
             keepAliveTime,
@@ -169,6 +170,18 @@ public class EsExecutors {
 
     public static EsThreadPoolExecutor newFixed(
         String name,
+        int size,
+        int queueCapacity,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder,
+        TaskTrackingConfig config,
+        MeterRegistry meterRegistry
+    ) {
+        return newFixed(new QualifiedName(name), size, queueCapacity, threadFactory, contextHolder, config, meterRegistry);
+    }
+
+    public static EsThreadPoolExecutor newFixed(
+        QualifiedName name,
         int size,
         int queueCapacity,
         ThreadFactory threadFactory,
@@ -202,7 +215,7 @@ public class EsExecutors {
             );
         } else {
             return new EsThreadPoolExecutor(
-                name,
+                name.toCompositeString(),
                 size,
                 size,
                 0,
@@ -548,4 +561,14 @@ public class EsExecutors {
         }
     }
 
+    public record QualifiedName(@Nullable String nodeName, String threadPoolName) {
+
+        public QualifiedName(String threadPoolName) {
+            this(null, threadPoolName);
+        }
+
+        public String toCompositeString() {
+            return nodeName == null ? threadPoolName : nodeName + "/" + threadPoolName;
+        }
+    }
 }

@@ -173,13 +173,33 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
             description = "Value to find in the provided field."
         ) Expression matchQuery,
         @MapParam(
-            name="options",
+            name = "options",
             params = {
-                @MapParam.MapParamEntry(name = "analyzer", valueHint = { "standard" }, description = "Analyzer used to convert the text in the query value into token."),
-                @MapParam.MapParamEntry(name = "auto_generate_synonyms_phrase_query", valueHint = { "true", "false" }, description = "If true, match phrase queries are automatically created for multi-term synonyms."),
-                @MapParam.MapParamEntry(name = "fuzziness", valueHint = { "AUTO", "1", "2" }, description = "Maximum edit distance allowed for matching."),
-                @MapParam.MapParamEntry(name = "boost", valueHint = { "2.5" }, description = "Floating point number used to decrease or increase the relevance scores of the query."),
-                @MapParam.MapParamEntry(name = "fuzzy_transpositions", valueHint = { "true", "false" }, description = "If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba)."),
+                @MapParam.MapParamEntry(
+                    name = "analyzer",
+                    valueHint = { "standard" },
+                    description = "Analyzer used to convert the text in the query value into token."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "auto_generate_synonyms_phrase_query",
+                    valueHint = { "true", "false" },
+                    description = "If true, match phrase queries are automatically created for multi-term synonyms."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "fuzziness",
+                    valueHint = { "AUTO", "1", "2" },
+                    description = "Maximum edit distance allowed for matching."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "boost",
+                    valueHint = { "2.5" },
+                    description = "Floating point number used to decrease or increase the relevance scores of the query."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "fuzzy_transpositions",
+                    valueHint = { "true", "false" },
+                    description = "If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba)."
+                ),
                 @MapParam.MapParamEntry(
                     name = "fuzzy_rewrite",
                     valueHint = {
@@ -188,14 +208,35 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
                         "constant_score_boolean",
                         "top_terms_blended_freqs_N",
                         "top_terms_boost_N",
-                        "top_terms_N" }, description = "Method used to rewrite the query. See the rewrite parameter for valid values and more information."
+                        "top_terms_N" },
+                    description = "Method used to rewrite the query. See the rewrite parameter for valid values and more information."
                 ),
-                @MapParam.MapParamEntry(name = "lenient", valueHint = { "true", "false" }, description = "If false, format-based errors, such as providing a text query value for a numeric field, are not ignored."),
-                @MapParam.MapParamEntry(name = "max_expansions", valueHint = { "50" }, description = "Maximum number of terms to which the query will expand."),
-                @MapParam.MapParamEntry(name = "minimum_should_match", valueHint = { "2" }, description = "Minimum number of clauses that must match for a document to be returned."),
-                @MapParam.MapParamEntry(name = "operator", valueHint = { "AND", "OR" }, description = "Boolean logic used to interpret text in the query value"),
+                @MapParam.MapParamEntry(
+                    name = "lenient",
+                    valueHint = { "true", "false" },
+                    description = "If false, format-based errors, such as providing a text query value for a numeric field, are not ignored."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "max_expansions",
+                    valueHint = { "50" },
+                    description = "Maximum number of terms to which the query will expand."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "minimum_should_match",
+                    valueHint = { "2" },
+                    description = "Minimum number of clauses that must match for a document to be returned."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "operator",
+                    valueHint = { "AND", "OR" },
+                    description = "Boolean logic used to interpret text in the query value"
+                ),
                 @MapParam.MapParamEntry(name = "prefix_length", valueHint = { "1" }, description = ""),
-                @MapParam.MapParamEntry(name = "zero_terms_query", valueHint = { "none", "all" }, description = "Number of beginning characters left unchanged for fuzzy matching.")},
+                @MapParam.MapParamEntry(
+                    name = "zero_terms_query",
+                    valueHint = { "none", "all" },
+                    description = "Number of beginning characters left unchanged for fuzzy matching."
+                ) },
             description = "Match additional options. See <<query-dsl-match-query,match query>> for more information.",
             optional = true
         ) Expression options
@@ -456,7 +497,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
     @Override
     public boolean equals(Object o) {
         // Match does not serialize options, as they get included in the query builder. We need to override equals and hashcode to
-        //   ignore options when comparing two Match functions
+        // ignore options when comparing two Match functions
         if (o == null || getClass() != o.getClass()) return false;
         Match match = (Match) o;
         return Objects.equals(field(), match.field())

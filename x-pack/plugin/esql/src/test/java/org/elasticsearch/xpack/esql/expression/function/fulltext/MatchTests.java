@@ -399,10 +399,7 @@ public class MatchTests extends AbstractFunctionTestCase {
                     new TestCaseSupplier.TypedData(
                         new MapExpression(
                             Source.EMPTY,
-                            List.of(
-                                new Literal(Source.EMPTY, optionName, KEYWORD),
-                                new Literal(Source.EMPTY, optionValue, optionType)
-                            )
+                            List.of(new Literal(Source.EMPTY, optionName, KEYWORD), new Literal(Source.EMPTY, optionValue, optionType))
                         ),
                         UNSUPPORTED,
                         "options"

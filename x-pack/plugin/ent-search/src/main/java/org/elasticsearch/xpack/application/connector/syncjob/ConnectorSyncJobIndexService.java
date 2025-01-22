@@ -428,7 +428,7 @@ public class ConnectorSyncJobIndexService {
 
         return new ConnectorSyncJobSearchResult.Builder().setId(searchHit.getId())
             .setResultBytes(searchHit.getSourceRef())
-            .setResultMap(searchHit.getSourceAsMap())
+            .setResultMap(searchHit.getSourceAsMapNoCaching())
             .build();
 
     }

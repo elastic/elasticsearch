@@ -177,7 +177,7 @@ public final class EnrichCache {
             // We do it first so we don't decompress it twice.
             size += hit.getSourceRef() != null ? hit.getSourceRef().ramBytesUsed() : 0;
             // Do we need deep copy here, we are creating a modifiable map already?
-            result.add(deepCopy(hit.getSourceAsMap(), true));
+            result.add(deepCopy(hit.getSourceAsMapNoCaching(), true));
         }
         return new CacheValue(Collections.unmodifiableList(result), size);
     }

@@ -27,7 +27,7 @@ public final class SourceSupplier implements Supplier<Map<String, Object>> {
     @Override
     public Map<String, Object> get() {
         if (sourceMap == null) {
-            sourceMap = searchHit.getSourceAsMap();
+            sourceMap = searchHit.getSourceAsMapNoCaching();
         }
         return sourceMap;
     }

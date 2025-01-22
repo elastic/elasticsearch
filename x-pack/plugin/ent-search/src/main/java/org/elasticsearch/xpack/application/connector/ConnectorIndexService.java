@@ -1250,7 +1250,7 @@ public class ConnectorIndexService {
 
         return new ConnectorSearchResult.Builder().setId(searchHit.getId())
             .setResultBytes(searchHit.getSourceRef())
-            .setResultMap(searchHit.getSourceAsMap())
+            .setResultMap(searchHit.getSourceAsMapNoCaching())
             .build();
     }
 

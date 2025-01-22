@@ -517,7 +517,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                             failureHandler.accept(new ResourceNotFoundException("chunk document with id [" + id + "] not found"));
                             return;
                         }
-                        byte[] data = (byte[]) hits[0].getSourceAsMap().get("data");
+                        byte[] data = (byte[]) hits[0].getSourceAsMapNoCaching().get("data");
                         md.update(data);
                         chunkConsumer.accept(data);
                     } finally {

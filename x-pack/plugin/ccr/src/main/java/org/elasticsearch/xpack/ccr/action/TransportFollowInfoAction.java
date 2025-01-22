@@ -38,6 +38,8 @@ import java.util.Optional;
 
 public class TransportFollowInfoAction extends TransportMasterNodeReadAction<FollowInfoAction.Request, FollowInfoAction.Response> {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+
     @Inject
     public TransportFollowInfoAction(
         TransportService transportService,
@@ -53,10 +55,10 @@ public class TransportFollowInfoAction extends TransportMasterNodeReadAction<Fol
             threadPool,
             actionFilters,
             FollowInfoAction.Request::new,
-            indexNameExpressionResolver,
             FollowInfoAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override

@@ -71,7 +71,6 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             threadPool,
             actionFilters,
             ClusterUpdateSettingsRequest::new,
-            indexNameExpressionResolver,
             ClusterUpdateSettingsResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

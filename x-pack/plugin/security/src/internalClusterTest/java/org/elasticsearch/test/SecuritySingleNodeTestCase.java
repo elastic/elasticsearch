@@ -84,7 +84,6 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
 
     @Override
     public void tearDown() throws Exception {
-        awaitSecurityMigration();
         super.tearDown();
         if (resetNodeAfterTest()) {
             tearDownRestClient();

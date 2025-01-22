@@ -57,7 +57,6 @@ public class TransportDeleteDesiredBalanceAction extends TransportMasterNodeActi
             threadPool,
             actionFilters,
             DesiredBalanceRequest::new,
-            indexNameExpressionResolver,
             in -> ActionResponse.Empty.INSTANCE,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );

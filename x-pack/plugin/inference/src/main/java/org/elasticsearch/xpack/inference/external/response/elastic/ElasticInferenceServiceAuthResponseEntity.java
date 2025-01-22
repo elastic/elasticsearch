@@ -65,8 +65,8 @@ public class ElasticInferenceServiceAuthResponseEntity implements InferenceServi
         );
 
         static {
-            ALLOWED_MODEL_PARSER.declareString(constructorArg(), new ParseField("model-name"));
-            ALLOWED_MODEL_PARSER.declareStringArray(constructorArg(), new ParseField("task-types"));
+            ALLOWED_MODEL_PARSER.declareString(constructorArg(), new ParseField("model_name"));
+            ALLOWED_MODEL_PARSER.declareStringArray(constructorArg(), new ParseField("task_types"));
         }
 
         private static EnumSet<TaskType> toTaskTypes(List<String> stringTaskTypes) {

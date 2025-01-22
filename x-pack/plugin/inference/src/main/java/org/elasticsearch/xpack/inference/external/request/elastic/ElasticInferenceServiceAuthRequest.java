@@ -33,7 +33,7 @@ public class ElasticInferenceServiceAuthRequest implements ElasticInferenceServi
     private URI createUri(String url) throws ElasticsearchStatusException {
         try {
             // TODO, consider transforming the base URL into a URI for better error handling.
-            return new URI(url + "/api/v1/allowed-models");
+            return new URI(url + "/api/v1/authorizations");
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(
                 "Failed to create URI for service [" + ElasticInferenceService.NAME + "]: " + e.getMessage(),

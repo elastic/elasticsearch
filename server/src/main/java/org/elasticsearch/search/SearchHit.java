@@ -104,6 +104,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     private transient String index;
     private transient String clusterAlias;
 
+    private boolean sourceAsMapNoCachingCalled = false;
     private Map<String, Object> sourceAsMap;
 
     private Map<String, SearchHits> innerHits;
@@ -484,7 +485,10 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         if (sourceAsMap != null) {
             return sourceAsMap;
         }
-        sourceAsMap = getSourceAsMapNoCaching();
+        if (source == null) {
+            return null;
+        }
+        sourceAsMap = Source.fromBytes(source).source();
         return sourceAsMap;
     }
 
@@ -493,6 +497,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      */
     public Map<String, Object> getSourceAsMapNoCaching() {
         assert hasReferences();
+        assert sourceAsMapNoCachingCalled == false : "getSourceAsMapNoCaching() called twice";
+        sourceAsMapNoCachingCalled = true;
         if (source == null) {
             return null;
         }

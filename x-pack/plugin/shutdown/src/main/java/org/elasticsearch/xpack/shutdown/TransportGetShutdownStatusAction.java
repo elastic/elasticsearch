@@ -89,7 +89,6 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             threadPool,
             actionFilters,
             GetShutdownStatusAction.Request::readFrom,
-            indexNameExpressionResolver,
             GetShutdownStatusAction.Response::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );

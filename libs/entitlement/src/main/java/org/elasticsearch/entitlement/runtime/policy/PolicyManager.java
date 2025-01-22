@@ -179,17 +179,15 @@ public class PolicyManager {
     }
 
     public void checkChangeJVMGlobalState(Class<?> callerClass) {
-        neverEntitled(callerClass, () -> {
-            // Look up the check$ method to compose an informative error message.
-            // This way, we don't need to painstakingly describe every individual global-state change.
-            Optional<String> checkMethodName = StackWalker.getInstance()
-                .walk(
-                    frames -> frames.map(StackFrame::getMethodName)
-                        .dropWhile(not(methodName -> methodName.startsWith("check$")))
-                        .findFirst()
-                );
-            return checkMethodName.map(this::operationDescription).orElse("change JVM global state");
-        });
+        neverEntitled(callerClass, () -> walkStackForCheckMethodName().orElse("change JVM global state"));
+    }
+
+    private Optional<String> walkStackForCheckMethodName() {
+        // Look up the check$ method to compose an informative error message.
+        // This way, we don't need to painstakingly describe every individual global-state change.
+        return StackWalker.getInstance()
+            .walk(frames -> frames.map(StackFrame::getMethodName).dropWhile(not(methodName -> methodName.startsWith("check$"))).findFirst())
+            .map(this::operationDescription);
     }
 
     /**
@@ -367,6 +365,26 @@ public class PolicyManager {
         );
     }
 
+    public void checkCreateThreadEntitlement(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, CreateThreadEntitlement.class);
+    }
+
+    public void checkInterruptThreadEntitlement(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, InterruptThreadEntitlement.class);
+    }
+
+    public void checkSetThreadContextClassLoader(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, SetThreadContextClassLoaderEntitlement.class);
+    }
+
+    public void checkSetThreadProperty(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, SetThreadPropertyEntitlement.class);
+    }
+
+    public void checkDisruptiveThreadAction(Class<?> callerClass) {
+        neverEntitled(callerClass, () -> walkStackForCheckMethodName().orElse("disruptive thread action"));
+    }
+
     private void checkEntitlementPresent(Class<?> callerClass, Class<? extends Entitlement> entitlementClass) {
         var requestingClass = requestingClass(callerClass);
         if (isTriviallyAllowed(requestingClass)) {
@@ -385,7 +403,7 @@ public class PolicyManager {
             );
             return;
         }
-        throw new NotEntitledException(
+        NotEntitledException exception = new NotEntitledException(
             Strings.format(
                 "Missing entitlement: class [%s], module [%s], entitlement [%s]",
                 requestingClass,
@@ -393,6 +411,8 @@ public class PolicyManager {
                 PolicyParser.getEntitlementTypeName(entitlementClass)
             )
         );
+        logger.debug("Entitlement denied", exception);
+        throw exception;
     }
 
     ModuleEntitlements getEntitlements(Class<?> requestingClass) {
@@ -482,18 +502,24 @@ public class PolicyManager {
      * @return true if permission is granted regardless of the entitlement
      */
     private static boolean isTriviallyAllowed(Class<?> requestingClass) {
-        if (logger.isTraceEnabled()) {
-            logger.trace("Stack trace for upcoming trivially-allowed check", new Exception());
-        }
         if (requestingClass == null) {
-            logger.debug("Entitlement trivially allowed: no caller frames outside the entitlement library");
+            // This is unexpected and unusual; we probably want to log at the info level
+            logger.info("Entitlement trivially allowed: no caller frames outside the entitlement library", new Exception("STACK TRACE"));
             return true;
         }
         if (systemModules.contains(requestingClass.getModule())) {
-            logger.debug("Entitlement trivially allowed from system module [{}]", requestingClass.getModule().getName());
+            if (logger.isTraceEnabled()) {
+                logger.trace(
+                    "Entitlement trivially allowed from system module [{}]",
+                    requestingClass.getModule().getName(),
+                    new Exception("STACK TRACE")
+                );
+            }
             return true;
         }
-        logger.trace("Entitlement not trivially allowed");
+        if (logger.isTraceEnabled()) {
+            logger.trace("Entitlement not trivially allowed", new Exception("STACK TRACE"));
+        }
         return false;
     }
 

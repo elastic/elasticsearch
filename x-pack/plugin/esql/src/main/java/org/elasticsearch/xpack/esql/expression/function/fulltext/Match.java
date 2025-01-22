@@ -173,6 +173,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
             description = "Value to find in the provided field."
         ) Expression matchQuery,
         @MapParam(
+            name="options",
             params = {
                 @MapParam.MapParamEntry(name = "analyzer", valueHint = { "standard" }, description = "Analyzer used to convert the text in the query value into token."),
                 @MapParam.MapParamEntry(name = "auto_generate_synonyms_phrase_query", valueHint = { "true", "false" }, description = "If true, match phrase queries are automatically created for multi-term synonyms."),

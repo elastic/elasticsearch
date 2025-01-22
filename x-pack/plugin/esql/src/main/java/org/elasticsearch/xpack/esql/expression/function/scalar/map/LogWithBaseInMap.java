@@ -69,6 +69,7 @@ public class LogWithBaseInMap extends EsqlScalarFunction implements OptionalArgu
             description = "Numeric expression. If `null`, the function returns `null`."
         ) Expression number,
         @MapParam(
+            name = "options",
             params = { @MapParam.MapParamEntry(name = "base", valueHint = { "2", "2.0" }) },
             description = "Input value. The input is a valid constant map expression.",
             optional = true

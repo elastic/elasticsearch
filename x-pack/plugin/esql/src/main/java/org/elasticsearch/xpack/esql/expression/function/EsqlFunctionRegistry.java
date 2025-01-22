@@ -539,8 +539,8 @@ public class EsqlFunctionRegistry {
     public static class MapArgSignature extends ArgSignature {
         private final Map<String, MapEntryArgSignature> mapParams;
 
-        public MapArgSignature(String description, boolean optional, Map<String, MapEntryArgSignature> mapParams) {
-            super("map", new String[] { "map" }, description, optional);
+        public MapArgSignature(String name, String description, boolean optional, Map<String, MapEntryArgSignature> mapParams) {
+            super(name, new String[] { "map" }, description, optional);
             this.mapParams = mapParams;
         }
 
@@ -666,7 +666,7 @@ public class EsqlFunctionRegistry {
             MapEntryArgSignature mapArg = new MapEntryArgSignature(param.name(), valueHint, type, param.description());
             params.put(param.name(), mapArg);
         }
-        return new EsqlFunctionRegistry.MapArgSignature(desc, mapParam.optional(), params);
+        return new EsqlFunctionRegistry.MapArgSignature(mapParam.name(), desc, mapParam.optional(), params);
     }
 
     public static ArgSignature paramWithoutAnnotation(String name) {

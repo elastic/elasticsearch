@@ -8,5 +8,5 @@ Field that the query will target.
 `query`::
 Value to find in the provided field.
 
-`map`::
+`options`::
 Match additional options. See <<query-dsl-match-query,match query>> for more information.

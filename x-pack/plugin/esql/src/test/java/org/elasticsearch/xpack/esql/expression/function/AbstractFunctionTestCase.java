@@ -1209,7 +1209,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     builder.startObject();
                     builder.field("name", arg.name());
                     if (arg.mapArg()) {
-                        builder.field("type", "map");
+                        builder.field("type", "function named parameters");
                         builder.field(
                             "mapParams",
                             arg.mapParams()

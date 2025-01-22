@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-field | query | map | result
+field | query | options | result
 boolean | boolean | | boolean
 boolean | keyword | | boolean
 date | date | | boolean

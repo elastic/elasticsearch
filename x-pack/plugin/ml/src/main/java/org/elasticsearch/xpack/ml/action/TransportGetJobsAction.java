@@ -55,7 +55,6 @@ public class TransportGetJobsAction extends TransportMasterNodeReadAction<GetJob
             threadPool,
             actionFilters,
             GetJobsAction.Request::new,
-            indexNameExpressionResolver,
             GetJobsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

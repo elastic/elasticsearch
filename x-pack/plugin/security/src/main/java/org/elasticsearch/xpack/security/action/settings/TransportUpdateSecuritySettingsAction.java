@@ -63,7 +63,6 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
             threadPool,
             actionFilters,
             UpdateSecuritySettingsAction.Request::readFrom,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

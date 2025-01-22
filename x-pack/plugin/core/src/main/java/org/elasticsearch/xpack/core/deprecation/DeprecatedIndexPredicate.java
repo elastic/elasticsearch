@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.deprecation;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -33,7 +34,15 @@ public class DeprecatedIndexPredicate {
     }
 
     public static boolean reindexRequired(IndexMetadata indexMetadata) {
-        return creationVersionBeforeMinimumWritableVersion(indexMetadata) && isNotSearchableSnapshot(indexMetadata);
+        return creationVersionBeforeMinimumWritableVersion(indexMetadata)
+            && isNotSearchableSnapshot(indexMetadata)
+            && isNotClosed(indexMetadata)
+            && isNotVerifiedReadOnly(indexMetadata);
+    }
+
+    private static boolean isNotVerifiedReadOnly(IndexMetadata indexMetadata) {
+        // no need to check blocks.
+        return MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexMetadata.getSettings()) == false;
     }
 
     private static boolean isNotSearchableSnapshot(IndexMetadata indexMetadata) {
@@ -42,6 +51,10 @@ public class DeprecatedIndexPredicate {
 
     private static boolean creationVersionBeforeMinimumWritableVersion(IndexMetadata metadata) {
         return metadata.getCreationVersion().before(MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE);
+    }
+
+    private static boolean isNotClosed(IndexMetadata indexMetadata) {
+        return indexMetadata.getState().equals(IndexMetadata.State.CLOSE) == false;
     }
 
 }

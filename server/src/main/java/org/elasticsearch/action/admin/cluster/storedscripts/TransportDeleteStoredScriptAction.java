@@ -45,7 +45,6 @@ public class TransportDeleteStoredScriptAction extends AcknowledgedTransportMast
             threadPool,
             actionFilters,
             DeleteStoredScriptRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }

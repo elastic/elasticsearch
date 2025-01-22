@@ -121,7 +121,6 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             threadPool,
             actionFilters,
             StartTrainedModelDeploymentAction.Request::new,
-            indexNameExpressionResolver,
             CreateTrainedModelAssignmentAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

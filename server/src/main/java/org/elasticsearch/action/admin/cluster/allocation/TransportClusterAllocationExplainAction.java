@@ -82,7 +82,6 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
             threadPool,
             actionFilters,
             ClusterAllocationExplainRequest::new,
-            indexNameExpressionResolver,
             ClusterAllocationExplainResponse::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );

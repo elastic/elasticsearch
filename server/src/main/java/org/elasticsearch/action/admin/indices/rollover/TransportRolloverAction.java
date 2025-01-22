@@ -78,6 +78,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
     private static final Logger logger = LogManager.getLogger(TransportRolloverAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Client client;
     private final MasterServiceTaskQueue<RolloverTask> rolloverTaskQueue;
     private final MetadataDataStreamsService metadataDataStreamsService;
@@ -135,10 +136,10 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             threadPool,
             actionFilters,
             RolloverRequest::new,
-            indexNameExpressionResolver,
             RolloverResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
         this.rolloverTaskQueue = clusterService.createTaskQueue(
             "rollover",

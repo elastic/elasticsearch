@@ -361,7 +361,6 @@ public class ClusterStateChanges {
             threadPool,
             createIndexService,
             actionFilters,
-            indexNameExpressionResolver,
             EmptySystemIndices.INSTANCE,
             DefaultProjectResolver.INSTANCE
         );

@@ -59,16 +59,7 @@ public class TransportDeleteComposableIndexTemplateAction extends AcknowledgedTr
         IndexNameExpressionResolver indexNameExpressionResolver,
         ProjectResolver projectResolver
     ) {
-        super(
-            TYPE.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            Request::new,
-            indexNameExpressionResolver,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(TYPE.name(), transportService, clusterService, threadPool, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.indexTemplateService = indexTemplateService;
         this.projectResolver = projectResolver;
     }

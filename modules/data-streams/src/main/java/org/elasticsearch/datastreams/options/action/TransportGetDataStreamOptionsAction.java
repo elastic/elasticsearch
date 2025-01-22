@@ -39,6 +39,7 @@ public class TransportGetDataStreamOptionsAction extends TransportMasterNodeRead
     GetDataStreamOptionsAction.Request,
     GetDataStreamOptionsAction.Response> {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
 
     @Inject
@@ -59,10 +60,10 @@ public class TransportGetDataStreamOptionsAction extends TransportMasterNodeRead
             actionFilters,
             GetDataStreamOptionsAction.Request::new,
             projectResolver,
-            indexNameExpressionResolver,
             GetDataStreamOptionsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
     }
 

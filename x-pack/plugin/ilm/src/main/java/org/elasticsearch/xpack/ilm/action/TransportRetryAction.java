@@ -65,7 +65,6 @@ public class TransportRetryAction extends TransportMasterNodeAction<TransportRet
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

@@ -42,6 +42,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
 
     private final MetadataIndexStateService indexStateService;
     private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final DestructiveOperations destructiveOperations;
 
     @Inject
@@ -62,12 +63,12 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
             threadPool,
             actionFilters,
             OpenIndexRequest::new,
-            indexNameExpressionResolver,
             OpenIndexResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexStateService = indexStateService;
         this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destructiveOperations = destructiveOperations;
     }
 

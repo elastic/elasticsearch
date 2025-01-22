@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -38,20 +37,9 @@ public abstract class AcknowledgedTransportMasterNodeProjectAction<Request exten
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
         ProjectResolver projectResolver,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Executor executor
     ) {
-        super(
-            actionName,
-            canTripCircuitBreaker,
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            request,
-            indexNameExpressionResolver,
-            executor
-        );
+        super(actionName, canTripCircuitBreaker, transportService, clusterService, threadPool, actionFilters, request, executor);
         this.projectResolver = projectResolver;
     }
 
@@ -63,10 +51,9 @@ public abstract class AcknowledgedTransportMasterNodeProjectAction<Request exten
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
         ProjectResolver projectResolver,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Executor executor
     ) {
-        super(actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver, executor);
+        super(actionName, transportService, clusterService, threadPool, actionFilters, request, executor);
         this.projectResolver = projectResolver;
     }
 

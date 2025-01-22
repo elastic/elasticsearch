@@ -46,6 +46,7 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.test.ESTestCase.randomShort;
 
 public final class ConnectorTestUtils {
@@ -100,9 +101,9 @@ public final class ConnectorTestUtils {
         return new ConnectorSyncInfo.Builder().setLastAccessControlSyncError(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setLastAccessControlSyncScheduledAt(randomFrom(new Instant[] { null, ConnectorTestUtils.randomInstant() }))
             .setLastAccessControlSyncStatus(randomFrom(new ConnectorSyncStatus[] { null, getRandomSyncStatus() }))
-            .setLastDeletedDocumentCount((long) randomInt())
+            .setLastDeletedDocumentCount((long) randomNonNegativeInt())
             .setLastIncrementalSyncScheduledAt(randomFrom(new Instant[] { null, ConnectorTestUtils.randomInstant() }))
-            .setLastIndexedDocumentCount((long) randomInt())
+            .setLastIndexedDocumentCount((long) randomNonNegativeInt())
             .setLastSyncError(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setLastSyncScheduledAt(randomFrom(new Instant[] { null, ConnectorTestUtils.randomInstant() }))
             .setLastSyncStatus(randomFrom(new ConnectorSyncStatus[] { null, getRandomSyncStatus() }))

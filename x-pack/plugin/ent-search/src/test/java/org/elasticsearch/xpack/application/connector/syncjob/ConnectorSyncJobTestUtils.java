@@ -51,11 +51,11 @@ public class ConnectorSyncJobTestUtils {
             .setCompletedAt(randomFrom(new Instant[] { null, randomInstantBetween(lowerBoundInstant, upperBoundInstant) }))
             .setConnector(ConnectorTestUtils.getRandomSyncJobConnectorInfo())
             .setCreatedAt(randomInstantBetween(lowerBoundInstant, upperBoundInstant))
-            .setDeletedDocumentCount(randomInt())
+            .setDeletedDocumentCount(randomNonNegativeInt())
             .setError(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setId(randomAlphaOfLength(10))
-            .setIndexedDocumentCount(randomInt())
-            .setIndexedDocumentVolume(randomInt())
+            .setIndexedDocumentCount(randomNonNegativeInt())
+            .setIndexedDocumentVolume(randomNonNegativeInt())
             .setJobType(getRandomConnectorJobType())
             .setLastSeen(randomFrom(new Instant[] { null, randomInstantBetween(lowerBoundInstant, upperBoundInstant) }))
             .setMetadata(
@@ -67,7 +67,7 @@ public class ConnectorSyncJobTestUtils {
             )
             .setStartedAt(randomFrom(new Instant[] { null, randomInstantBetween(lowerBoundInstant, upperBoundInstant) }))
             .setStatus(ConnectorTestUtils.getRandomSyncStatus())
-            .setTotalDocumentCount(randomInt())
+            .setTotalDocumentCount(randomNonNegativeInt())
             .setTriggerMethod(getRandomConnectorSyncJobTriggerMethod())
             .setWorkerHostname(randomAlphaOfLength(10))
             .build();

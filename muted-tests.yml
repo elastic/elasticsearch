@@ -261,6 +261,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120578
 - class: org.elasticsearch.discovery.ec2.DiscoveryEc2EnvironmentVariableCredentialsIT
   issue: https://github.com/elastic/elasticsearch/issues/120579
+- class: org.elasticsearch.action.search.SearchProgressActionListenerIT
+  method: testSearchProgressWithHitsAndAggs
+  issue: https://github.com/elastic/elasticsearch/issues/120583
 
 # Examples:
 #

@@ -52,13 +52,23 @@ public abstract class MultipleProjectsClientYamlSuiteTestCase extends ESClientYa
     // The active project-id is slightly longer, and has a fixed suffix so that it's easier to pick in error messages etc.
     private final String activeProject = randomAlphaOfLength(8).toLowerCase(Locale.ROOT) + "00active";
     private final Set<String> extraProjects = randomSet(1, 3, () -> randomAlphaOfLength(12).toLowerCase(Locale.ROOT));
+    private boolean projectsConfigured = false;
 
     public MultipleProjectsClientYamlSuiteTestCase(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
+    @Override
+    protected RestClient getCleanupClient() {
+        return client();
+    }
+
     @Before
     public void configureProjects() throws Exception {
+        if (projectsConfigured) {
+            return;
+        }
+        projectsConfigured = true;
         initClient();
         createProject(activeProject);
         for (var project : extraProjects) {
@@ -75,13 +85,11 @@ public abstract class MultipleProjectsClientYamlSuiteTestCase extends ESClientYa
     }
 
     @After
-    public void removeProjects() throws Exception {
+    public final void assertEmptyProjects() throws Exception {
         assertEmptyProject(Metadata.DEFAULT_PROJECT_ID.id());
         for (var project : extraProjects) {
             assertEmptyProject(project);
-            deleteProject(project);
         }
-        deleteProject(activeProject);
     }
 
     private void createProject(String project) throws IOException {
@@ -92,18 +100,6 @@ public abstract class MultipleProjectsClientYamlSuiteTestCase extends ESClientYa
             logger.info("Created project {} : {}", project, response.getStatusLine());
         } catch (ResponseException e) {
             logger.error("Failed to create project: {}", project);
-            throw e;
-        }
-    }
-
-    private void deleteProject(String project) throws IOException {
-        var client = adminClient();
-        final Request request = new Request("DELETE", "/_project/" + project);
-        try {
-            final Response response = client.performRequest(request);
-            logger.info("Deleted project {} : {}", project, response.getStatusLine());
-        } catch (ResponseException e) {
-            logger.error("Failed to delete project: {}", project);
             throw e;
         }
     }

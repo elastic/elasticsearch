@@ -20,7 +20,6 @@ package co.elastic.elasticsearch.stateless.xpack;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -38,17 +37,9 @@ public class DummyVotingOnlyUsageTransportAction extends XPackUsageFeatureTransp
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
-        super(
-            XPackUsageFeatureAction.VOTING_ONLY.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.VOTING_ONLY.name(), transportService, clusterService, threadPool, actionFilters);
     }
 
     @Override

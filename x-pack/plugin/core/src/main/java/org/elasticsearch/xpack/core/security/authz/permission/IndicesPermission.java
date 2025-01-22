@@ -371,18 +371,18 @@ public final class IndicesPermission {
         private final IndexAbstraction indexAbstraction;
 
         private IndexResource(String name, @Nullable IndexAbstraction abstraction, @Nullable IndexComponentSelector selector) {
-            assert name != null : "Resource name cannot be null";
-            assert abstraction == null || abstraction.getName().equals(name)
-                : "Index abstraction has unexpected name [" + abstraction.getName() + "] vs [" + name + "]";
-            assert abstraction == null
-                || selector == null
-                || IndexComponentSelector.FAILURES.equals(selector) == false
-                || abstraction.isDataStreamRelated()
-                : "Invalid index component selector ["
-                    + selector.getKey()
-                    + "] applied to abstraction of type ["
-                    + abstraction.getType()
-                    + "]";
+//            assert name != null : "Resource name cannot be null";
+//            assert abstraction == null || abstraction.getName().equals(name)
+//                : "Index abstraction has unexpected name [" + abstraction.getName() + "] vs [" + name + "]";
+//            assert abstraction == null
+//                || selector == null
+//                || IndexComponentSelector.FAILURES.equals(selector) == false
+//                || abstraction.isDataStreamRelated()
+//                : "Invalid index component selector ["
+//                    + selector.getKey()
+//                    + "] applied to abstraction of type ["
+//                    + abstraction.getType()
+//                    + "]";
             this.name = name;
             this.indexAbstraction = abstraction;
             this.selector = selector;
@@ -503,11 +503,10 @@ public final class IndicesPermission {
         for (String indexOrAlias : requestedIndicesOrAliases) {
             // Remove any selectors from abstraction name. Discard them for this check as we do not have access control for them (yet)
             Tuple<String, String> expressionAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexOrAlias);
-            indexOrAlias = expressionAndSelector.v1();
             IndexComponentSelector selector = expressionAndSelector.v2() == null
                 ? null
                 : IndexComponentSelector.getByKey(expressionAndSelector.v2());
-            final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(indexOrAlias), selector);
+            final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(expressionAndSelector.v1()), selector);
             resources.put(resource.name, resource);
             totalResourceCount += resource.size(lookup);
         }

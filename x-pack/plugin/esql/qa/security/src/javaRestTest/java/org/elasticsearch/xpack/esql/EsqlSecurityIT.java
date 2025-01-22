@@ -599,6 +599,16 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         resp = expectThrows(
             ResponseException.class,
+            () -> runESQLCommand(
+                "metadata1_read2",
+                "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x"
+            )
+        );
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-first-alias]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        resp = expectThrows(
+            ResponseException.class,
             () -> runESQLCommand("metadata1_read2", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
         );
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
@@ -608,6 +618,20 @@ public class EsqlSecurityIT extends ESRestTestCase {
             ResponseException.class,
             () -> runESQLCommand("alias_user1", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
         );
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testFromLookupIndexForbidden() throws Exception {
+        var resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM lookup-user1"));
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM lookup-first-alias"));
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-first-alias]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        resp = expectThrows(ResponseException.class, () -> runESQLCommand("alias_user1", "FROM lookup-user1"));
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
     }

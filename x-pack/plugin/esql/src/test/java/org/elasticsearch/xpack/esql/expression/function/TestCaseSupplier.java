@@ -18,6 +18,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -1522,7 +1523,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         public List<Expression> getDataAsLiterals() {
-            return data.stream().map(TypedData::asLiteral).collect(Collectors.toList());
+            return data.stream().map(e -> e.mapExpression ? e.asMapExpression() : e.asLiteral()).collect(Collectors.toList());
         }
 
         public List<Object> getDataValues() {
@@ -1743,6 +1744,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         private final String name;
         private final boolean forceLiteral;
         private final boolean multiRow;
+        private final boolean mapExpression;
 
         /**
          * @param data value to test against
@@ -1764,6 +1766,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.name = name;
             this.forceLiteral = forceLiteral;
             this.multiRow = multiRow;
+            this.mapExpression = data instanceof MapExpression;
         }
 
         /**
@@ -1839,7 +1842,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public Expression asField() {
             if (forceLiteral) {
-                return asLiteral();
+                return mapExpression ? asMapExpression() : asLiteral();
             }
             return AbstractFunctionTestCase.field(name, type);
         }
@@ -1849,7 +1852,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public Expression asDeepCopyOfField() {
             if (forceLiteral) {
-                return asLiteral();
+                return mapExpression ? asMapExpression() : asLiteral();
             }
             return AbstractFunctionTestCase.deepCopyOfField(name, type);
         }
@@ -1883,6 +1886,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         @SuppressWarnings("unchecked")
         public List<Object> multiRowData() {
             return (List<Object>) data;
+        }
+
+        /**
+         * If the data is a MapExpression, return it as it is.
+         */
+        public MapExpression asMapExpression() {
+            return mapExpression ? (MapExpression) data : null;
         }
 
         /**

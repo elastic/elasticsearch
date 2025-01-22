@@ -22,7 +22,8 @@ import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker
 import org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.ExitVMEntitlement;
-import org.elasticsearch.entitlement.runtime.policy.NetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.InboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
@@ -45,9 +46,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.entitlement.runtime.policy.NetworkEntitlement.ACCEPT_ACTION;
-import static org.elasticsearch.entitlement.runtime.policy.NetworkEntitlement.CONNECT_ACTION;
-import static org.elasticsearch.entitlement.runtime.policy.NetworkEntitlement.LISTEN_ACTION;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
 
 /**
@@ -106,10 +104,12 @@ public class EntitlementInitialization {
                     List.of(
                         new ExitVMEntitlement(),
                         new CreateClassLoaderEntitlement(),
-                        new NetworkEntitlement(LISTEN_ACTION | CONNECT_ACTION | ACCEPT_ACTION)
+                        new InboundNetworkEntitlement(),
+                        new OutboundNetworkEntitlement()
                     )
                 ),
-                new Scope("org.apache.httpcomponents.httpclient", List.of(new NetworkEntitlement(CONNECT_ACTION)))
+                new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
+                new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement()))
             )
         );
         // agents run without a module, so this is a special hack for the apm agent

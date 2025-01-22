@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.compute.test.RandomBlock;
 
 import java.util.Arrays;
 import java.util.List;
@@ -24,7 +25,7 @@ public class CompositeBlockTests extends ComputeTestCase {
         Block[] blocks = new Block[numBlocks];
         for (int b = 0; b < numBlocks; b++) {
             ElementType elementType = randomFrom(supportedSubElementTypes);
-            blocks[b] = BasicBlockTests.randomBlock(
+            blocks[b] = RandomBlock.randomBlock(
                 blockFactory,
                 elementType,
                 positionCount,

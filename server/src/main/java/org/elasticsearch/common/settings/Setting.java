@@ -153,6 +153,7 @@ public class Setting<T> implements ToXContentObject {
          * forbidden in indices created from {@link Version#V_8_0_0} onwards.
          */
         @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)  // remove constant if indices created in V7 couldn't be read by v10 anymore
+        // note we still need v7 settings in v9 because we support reading from N-2 indices now
         IndexSettingDeprecatedInV7AndRemovedInV8,
 
         /**

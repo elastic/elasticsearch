@@ -251,7 +251,7 @@ public class ElasticInferenceService extends SenderService {
                 eisServiceComponents,
                 context
             );
-            case COMPLETION -> new ElasticInferenceServiceCompletionModel(
+            case CHAT_COMPLETION -> new ElasticInferenceServiceCompletionModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
@@ -379,7 +379,9 @@ public class ElasticInferenceService extends SenderService {
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder().setDescription("The name of the model to use for the inference task.")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES_FOR_SERVICES_API).setDescription(
+                        "The name of the model to use for the inference task."
+                    )
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -390,7 +392,9 @@ public class ElasticInferenceService extends SenderService {
 
                 configurationMap.put(
                     MAX_INPUT_TOKENS,
-                    new SettingsConfiguration.Builder().setDescription("Allows you to specify the maximum number of tokens per input.")
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING)).setDescription(
+                        "Allows you to specify the maximum number of tokens per input."
+                    )
                         .setLabel("Maximum Input Tokens")
                         .setRequired(false)
                         .setSensitive(false)
@@ -399,7 +403,7 @@ public class ElasticInferenceService extends SenderService {
                         .build()
                 );
 
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration());
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES_FOR_SERVICES_API));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)

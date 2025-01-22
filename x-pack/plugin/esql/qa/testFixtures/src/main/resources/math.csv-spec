@@ -771,6 +771,28 @@ ul:ul
 18446744073709551615
 ;
 
+roundMaxULWithBigNegativeDecimals
+required_capability: fn_round_ul_fixes
+row
+  ul1 = round(18446744073709551615, -6144415263046370459::long),
+  ul2 = round(18446744073709551615, -20::long),
+  ul3 = round(12446744073709551615, -19::long);
+
+ul1:ul | ul2:ul | ul3:ul
+0      | 0      | 10000000000000000000
+;
+
+roundBigULWithRoundULOverflow
+required_capability: fn_round_ul_fixes
+row ul = round(18446744073709551615, -19::long);
+
+warning:Line 1:10: evaluation of [round(18446744073709551615, -19::long)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:10: java.lang.ArithmeticException: unsigned_long overflow
+
+ul:ul
+null
+;
+
 mvAvg
 from employees | where emp_no > 10008 | eval salary_change = mv_avg(salary_change) | sort emp_no | keep emp_no, salary_change.int, salary_change | limit 7;
 

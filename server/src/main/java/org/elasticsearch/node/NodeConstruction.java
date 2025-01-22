@@ -1352,7 +1352,7 @@ class NodeConstruction {
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
             new RepositoryIntegrityHealthIndicatorService(clusterService),
             new DiskHealthIndicatorService(clusterService, featureService),
-            new ShardsCapacityHealthIndicatorService(clusterService, featureService),
+            new ShardsCapacityHealthIndicatorService(clusterService),
             fileSettingsHealthIndicatorService
         );
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)

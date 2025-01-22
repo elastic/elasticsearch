@@ -42,7 +42,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.compute.data.BlockTestUtils.append;
+import static org.elasticsearch.compute.test.BlockTestUtils.append;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;

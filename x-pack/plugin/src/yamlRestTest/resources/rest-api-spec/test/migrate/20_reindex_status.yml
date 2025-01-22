@@ -47,7 +47,7 @@ setup:
   - is_true: acknowledged
 
   - do:
-      migrate.reindex:
+      indices.migrate_reindex:
         body: |
           {
             "mode": "upgrade",
@@ -69,13 +69,13 @@ setup:
   - match: { errors: [] }
 
   - do:
-      migrate.cancel_reindex:
+      indices.cancel_migrate_reindex:
         index: "my-data-stream"
   - match: { acknowledged: true }
 
   - do:
       catch: /resource_not_found_exception/
-      migrate.cancel_reindex:
+      indices.cancel_migrate_reindex:
         index: "my-data-stream"
 
   - do:

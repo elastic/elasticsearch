@@ -39,14 +39,7 @@ public class ArchiveUsageTransportAction extends XPackUsageFeatureTransportActio
         IndexNameExpressionResolver indexNameExpressionResolver,
         XPackLicenseState licenseState
     ) {
-        super(
-            XPackUsageFeatureAction.ARCHIVE.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.ARCHIVE.name(), transportService, clusterService, threadPool, actionFilters);
         this.licenseState = licenseState;
     }
 

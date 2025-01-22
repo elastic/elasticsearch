@@ -73,7 +73,6 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
             threadPool,
             actionFilters,
             MlMemoryAction.Request::new,
-            indexNameExpressionResolver,
             MlMemoryAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

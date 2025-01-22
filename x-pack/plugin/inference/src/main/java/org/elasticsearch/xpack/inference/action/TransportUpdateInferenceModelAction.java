@@ -96,7 +96,6 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             threadPool,
             actionFilters,
             UpdateInferenceModelAction.Request::new,
-            indexNameExpressionResolver,
             UpdateInferenceModelAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

@@ -64,7 +64,6 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             DeleteInferenceEndpointAction.Request::new,
-            indexNameExpressionResolver,
             DeleteInferenceEndpointAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

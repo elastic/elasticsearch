@@ -135,7 +135,6 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
                 threadPool,
                 actionFilters,
                 Request::new,
-                indexNameExpressionResolver,
                 PersistentTaskResponse::new,
                 threadPool.executor(ThreadPool.Names.GENERIC)
             );

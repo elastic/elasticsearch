@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,7 +22,8 @@ public final class ConvertStringToByteRef extends OptimizerRules.OptimizerExpres
     }
 
     @Override
-    protected Expression rule(Literal lit) {
+    protected Expression rule(Literal lit, LogicalOptimizerContext ctx) {
+        // TODO we shouldn't be emitting String into Literals at all
         Object value = lit.value();
 
         if (value == null) {

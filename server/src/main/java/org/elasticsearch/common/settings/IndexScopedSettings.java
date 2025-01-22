@@ -36,7 +36,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
@@ -164,6 +163,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING,
+        MapperService.INDEX_MAPPER_DYNAMIC_SETTING,
         BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
         IndexModule.INDEX_STORE_TYPE_SETTING,
         IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
@@ -175,6 +175,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.DEFAULT_PIPELINE,
         IndexSettings.FINAL_PIPELINE,
         MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
+        MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING,
         ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING,
         DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS,
         ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP,
@@ -191,7 +192,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         FieldMapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING,
         IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING,
         IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING,
-        SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING,
+        IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING,
         IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING,
         InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT,
 

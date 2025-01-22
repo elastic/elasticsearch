@@ -70,8 +70,8 @@ public class SettingTests extends ESTestCase {
     public void testByteSizeSettingMinValue() {
         final Setting<ByteSizeValue> byteSizeValueSetting = Setting.byteSizeSetting(
             "a.byte.size",
-            new ByteSizeValue(100, ByteSizeUnit.MB),
-            new ByteSizeValue(20_000_000, ByteSizeUnit.BYTES),
+            ByteSizeValue.of(100, ByteSizeUnit.MB),
+            ByteSizeValue.of(20_000_000, ByteSizeUnit.BYTES),
             ByteSizeValue.ofBytes(Integer.MAX_VALUE)
         );
         final long value = 20_000_000 - randomIntBetween(1, 1024);
@@ -84,8 +84,8 @@ public class SettingTests extends ESTestCase {
     public void testByteSizeSettingMaxValue() {
         final Setting<ByteSizeValue> byteSizeValueSetting = Setting.byteSizeSetting(
             "a.byte.size",
-            new ByteSizeValue(100, ByteSizeUnit.MB),
-            new ByteSizeValue(16, ByteSizeUnit.MB),
+            ByteSizeValue.of(100, ByteSizeUnit.MB),
+            ByteSizeValue.of(16, ByteSizeUnit.MB),
             ByteSizeValue.ofBytes(Integer.MAX_VALUE)
         );
         final long value = (1L << 31) - 1 + randomIntBetween(1, 1024);

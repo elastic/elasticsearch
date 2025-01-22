@@ -1,5 +1,5 @@
 [[infer-service-mistral]]
-=== Mistral {infer} service
+=== Mistral {infer} integration
 
 .New API reference
 [sidebar]

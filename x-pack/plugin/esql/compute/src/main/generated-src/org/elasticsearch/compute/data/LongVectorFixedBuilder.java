@@ -15,7 +15,7 @@ import org.apache.lucene.util.RamUsageEstimator;
  * it's faster.
  * This class is generated. Do not edit it.
  */
-final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
+public final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
     private final BlockFactory blockFactory;
     private final long[] values;
     private final long preAdjustedBytes;
@@ -84,7 +84,7 @@ final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
         }
     }
 
-    boolean isReleased() {
+    public boolean isReleased() {
         return closed;
     }
 }

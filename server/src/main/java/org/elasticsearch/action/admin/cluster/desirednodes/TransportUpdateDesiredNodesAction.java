@@ -64,7 +64,6 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             threadPool,
             actionFilters,
             UpdateDesiredNodesRequest::new,
-            indexNameExpressionResolver,
             UpdateDesiredNodesResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

@@ -11,8 +11,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
@@ -120,8 +120,7 @@ public class MetadataIndexStateService {
         false,
         Setting.Property.IndexScope,
         Setting.Property.NotCopyableOnResize,
-        // Allow the setting to be updated in snapshot builds
-        Build.current().isSnapshot() ? Setting.Property.OperatorDynamic : Setting.Property.PrivateIndex
+        Setting.Property.PrivateIndex
     );
 
     private final ClusterService clusterService;
@@ -387,11 +386,18 @@ public class MetadataIndexStateService {
     ) {
         final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
 
+        final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
         final Set<Index> indicesToAddBlock = new HashSet<>();
         for (Index index : indices) {
-            metadata.getSafe(index); // to check if index exists
+            IndexMetadata indexMetadata = metadata.getSafe(index);// to check if index exists
             if (currentState.blocks().hasIndexBlock(index.getName(), block.block)) {
-                logger.debug("index {} already has block {}, ignoring", index, block.block);
+                if (block.block.contains(ClusterBlockLevel.WRITE) && isIndexWriteBlockVerified(indexMetadata)) {
+                    logger.debug("index {} already has block {}, ignoring", index, block.block);
+                } else {
+                    // remove the block, we'll add a uuid based block below instead, never leaving it unblocked.
+                    blocks.removeIndexBlock(index.getName(), block.block);
+                    indicesToAddBlock.add(index);
+                }
             } else {
                 indicesToAddBlock.add(index);
             }
@@ -401,7 +407,6 @@ public class MetadataIndexStateService {
             return Tuple.tuple(currentState, Map.of());
         }
 
-        final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
         final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
 
         for (Index index : indicesToAddBlock) {
@@ -409,7 +414,7 @@ public class MetadataIndexStateService {
             final Set<ClusterBlock> clusterBlocks = currentState.blocks().indices().get(index.getName());
             if (clusterBlocks != null) {
                 for (ClusterBlock clusterBlock : clusterBlocks) {
-                    if (clusterBlock.id() == block.block.id()) {
+                    if (clusterBlock.id() == block.block.id() && clusterBlock.uuid() != null) {
                         // Reuse the existing UUID-based block
                         indexBlock = clusterBlock;
                         break;
@@ -442,6 +447,10 @@ public class MetadataIndexStateService {
         return Tuple.tuple(ClusterState.builder(currentState).blocks(blocks).metadata(metadata).build(), blockedIndices);
     }
 
+    private static boolean isIndexWriteBlockVerified(IndexMetadata indexMetadata) {
+        return VERIFIED_READ_ONLY_SETTING.get(indexMetadata.getSettings());
+    }
+
     /**
      * Adds an index block based on the given request, and notifies the listener upon completion.
      * Adding blocks is done in three steps:
@@ -450,7 +459,7 @@ public class MetadataIndexStateService {
      * - Second, shards are checked to have properly applied the UUID-based block.
      *   (see {@link WaitForBlocksApplied}).
      * - Third, the temporary UUID-based block is turned into a full block
-     *   (see {@link #finalizeBlock(ClusterState, Map, Map, APIBlock)}.
+     *   (see {@link #finalizeBlock(ClusterState, Map, Map, APIBlock, boolean)}.
      * Using this three-step process ensures non-interference by other operations in case where
      * we notify successful completion here.
      */
@@ -511,7 +520,16 @@ public class MetadataIndexStateService {
                                             + "]-["
                                             + blockedIndices.keySet().stream().map(Index::getName).collect(Collectors.joining(", "))
                                             + "]",
-                                        new FinalizeBlocksTask(task.request, blockedIndices, verifyResults, delegate2),
+                                        new FinalizeBlocksTask(
+                                            task.request,
+                                            blockedIndices,
+                                            verifyResults,
+                                            task.request().markVerified()
+                                                && clusterService.state()
+                                                    .getMinTransportVersion()
+                                                    .onOrAfter(TransportVersions.ADD_INDEX_BLOCK_TWO_PHASE),
+                                            delegate2
+                                        ),
                                         null
                                     )
                                 )
@@ -539,7 +557,8 @@ public class MetadataIndexStateService {
                 clusterState,
                 task.blockedIndices,
                 task.verifyResults,
-                task.request.block()
+                task.request.block(),
+                task.markVerified()
             );
             assert finalizeResult.v2().size() == task.verifyResults.size();
             return finalizeResult;
@@ -556,6 +575,7 @@ public class MetadataIndexStateService {
         AddIndexBlockClusterStateUpdateRequest request,
         Map<Index, ClusterBlock> blockedIndices,
         Map<Index, AddBlockResult> verifyResults,
+        boolean markVerified,
         ActionListener<AddIndexBlockResponse> listener
     ) implements ClusterStateTaskListener {
         @Override
@@ -805,10 +825,21 @@ public class MetadataIndexStateService {
             final TransportVerifyShardIndexBlockAction.ShardRequest shardRequest = new TransportVerifyShardIndexBlockAction.ShardRequest(
                 shardId,
                 block,
+                true,
                 parentTaskId
             );
             shardRequest.timeout(request.ackTimeout());
-            client.executeLocally(TransportVerifyShardIndexBlockAction.TYPE, shardRequest, listener);
+            client.executeLocally(
+                TransportVerifyShardIndexBlockAction.TYPE,
+                shardRequest,
+                listener.delegateFailure((delegate, replicationResponse) -> {
+                    final var phase2 = new TransportVerifyShardIndexBlockAction.ShardRequest(shardId, block, false, parentTaskId);
+                    if (request.ackTimeout() != null) {
+                        phase2.timeout(request.ackTimeout());
+                    }
+                    client.executeLocally(TransportVerifyShardIndexBlockAction.TYPE, phase2, delegate);
+                })
+            );
         }
     }
 
@@ -959,15 +990,18 @@ public class MetadataIndexStateService {
      * @param blockedIndices the indices and their temporary UUID-based blocks to convert
      * @param verifyResult the index-level results for adding the block
      * @param block the full block to convert to
+     * @param markVerified if the index should be marked verified in case of a write-level block.
      * @return the updated cluster state, as well as the (failed and successful) index-level results for adding the block
      */
     private static Tuple<ClusterState, List<AddBlockResult>> finalizeBlock(
         final ClusterState currentState,
         final Map<Index, ClusterBlock> blockedIndices,
         final Map<Index, AddBlockResult> verifyResult,
-        final APIBlock block
+        final APIBlock block,
+        final boolean markVerified
     ) {
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
+        final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
 
         final Set<String> effectivelyBlockedIndices = new HashSet<>();
         Map<Index, AddBlockResult> blockingResults = new HashMap<>(verifyResult);
@@ -1015,12 +1049,25 @@ public class MetadataIndexStateService {
 
                 logger.debug("add block {} to index {} succeeded", block.block, index);
                 effectivelyBlockedIndices.add(index.getName());
+
+                if (block.getBlock().contains(ClusterBlockLevel.WRITE) && markVerified) {
+                    final IndexMetadata indexMetadata = metadata.getSafe(index);
+                    if (VERIFIED_READ_ONLY_SETTING.get(indexMetadata.getSettings()) == false) {
+                        final IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(indexMetadata)
+                            .settings(Settings.builder().put(indexMetadata.getSettings()).put(VERIFIED_READ_ONLY_SETTING.getKey(), true))
+                            .settingsVersion(indexMetadata.getSettingsVersion() + 1);
+                        metadata.put(updatedMetadata);
+                    }
+                }
             } catch (final IndexNotFoundException e) {
                 logger.debug("index {} has been deleted since blocking it started, ignoring", index);
             }
         }
         logger.info("completed adding [index.blocks.{}] block to indices {}", block.name, effectivelyBlockedIndices);
-        return Tuple.tuple(ClusterState.builder(currentState).blocks(blocks).build(), List.copyOf(blockingResults.values()));
+        return Tuple.tuple(
+            ClusterState.builder(currentState).metadata(metadata).blocks(blocks).build(),
+            List.copyOf(blockingResults.values())
+        );
     }
 
     /**

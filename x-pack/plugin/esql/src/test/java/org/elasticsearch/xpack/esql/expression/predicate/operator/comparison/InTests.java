@@ -19,7 +19,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests;
+import org.junit.AfterClass;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -332,5 +335,15 @@ public class InTests extends AbstractFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new In(source, args.get(args.size() - 1), args.subList(0, args.size() - 1));
+    }
+
+    @AfterClass
+    public static void renderNotIn() throws IOException {
+        WildcardLikeTests.renderNot(
+            constructorWithFunctionInfo(In.class),
+            "IN",
+            d -> "The `NOT IN` operator allows testing whether a field or expression does *not* equal any element "
+                + "in a list of literals, fields or expressions."
+        );
     }
 }

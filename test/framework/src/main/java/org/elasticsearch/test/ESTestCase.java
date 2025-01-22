@@ -204,10 +204,20 @@ public abstract class ESTestCase extends LuceneTestCase {
                 "Eire",
                 "Europe/Dublin", // dublin timezone in joda does not account for DST
                 "Asia/Qostanay", // part of tzdata2018h
-                "America/Godthab", // part of tzdata2020a (maps to America/Nuuk)
-                "America/Nuuk", // part of tzdata2020a
+                "America/Bahia_Banderas",   // tzdata2024b
+                "America/Cancun",   // tzdata2024b
+                "America/Chihuahua",   // tzdata2024b
                 "America/Ciudad_Juarez", // part of tzdata2022g
+                "America/Godthab", // part of tzdata2020a (maps to America/Nuuk)
+                "America/Hermosillo",   // tzdata2024b
+                "America/Mazatlan",   // tzdata2024b
+                "America/Merida",   // tzdata2024b
+                "America/Mexico_City",   // tzdata2024b
+                "America/Monterrey",   // tzdata2024b
+                "America/Nuuk", // part of tzdata2020a
                 "America/Pangnirtung", // part of tzdata2022g
+                "America/Ojinaga",   // tzdata2024b
+                "America/Tijuana",   // tzdata2024b
                 "Europe/Kyiv", // part of tzdata2022c,
                 "Pacific/Kanton", // part of tzdata2021b
                 "Pacific/Niue",

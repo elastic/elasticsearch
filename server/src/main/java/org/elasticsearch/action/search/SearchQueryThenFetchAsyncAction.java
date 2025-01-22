@@ -92,7 +92,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.AbstractSearchAsyncAction.DEFAULT_INDEX_BOOST;
 import static org.elasticsearch.action.search.AsyncSearchContext.buildShardFailures;
-import static org.elasticsearch.action.search.SearchPhase.doCheckNoMissingShards;
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 import static org.elasticsearch.core.Strings.format;
 
@@ -604,7 +603,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
         }
         final boolean supportsBatchedQuery = minNodeVersion.onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION);
         final Map<String, NodeQueryRequest> perNodeQueries = new HashMap<>();
-        doCheckNoMissingShards(NAME, request, shardsIts, SearchPhase::makeMissingShardsError);
+        AbstractSearchAsyncAction.doCheckNoMissingShards(NAME, request, shardsIts, AbstractSearchAsyncAction::makeMissingShardsError);
         final String localNodeId = searchTransportService.transportService().getLocalNode().getId();
         final String localClusterAlias = request.getLocalClusterAlias();
         for (int i = 0; i < shardsIts.size(); i++) {

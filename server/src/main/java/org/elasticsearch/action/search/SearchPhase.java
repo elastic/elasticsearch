@@ -10,14 +10,12 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
 import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * Base class for all individual search phases like collecting distributed frequencies, fetching documents, querying shards.
@@ -38,47 +36,6 @@ abstract class SearchPhase {
      */
     public String getName() {
         return name;
-    }
-
-    protected String missingShardsErrorMessage(StringBuilder missingShards) {
-        return makeMissingShardsError(missingShards);
-    }
-
-    protected static String makeMissingShardsError(StringBuilder missingShards) {
-        return "Search rejected due to missing shards ["
-            + missingShards
-            + "]. Consider using `allow_partial_search_results` setting to bypass this error.";
-    }
-
-    protected void doCheckNoMissingShards(String phaseName, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts) {
-        doCheckNoMissingShards(phaseName, request, shardsIts, this::missingShardsErrorMessage);
-    }
-
-    protected static void doCheckNoMissingShards(
-        String phaseName,
-        SearchRequest request,
-        GroupShardsIterator<SearchShardIterator> shardsIts,
-        Function<StringBuilder, String> makeErrorMessage
-    ) {
-        assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
-        if (request.allowPartialSearchResults() == false) {
-            final StringBuilder missingShards = new StringBuilder();
-            // Fail-fast verification of all shards being available
-            for (int index = 0; index < shardsIts.size(); index++) {
-                final SearchShardIterator shardRoutings = shardsIts.get(index);
-                if (shardRoutings.size() == 0) {
-                    if (missingShards.isEmpty() == false) {
-                        missingShards.append(", ");
-                    }
-                    missingShards.append(shardRoutings.shardId());
-                }
-            }
-            if (missingShards.isEmpty() == false) {
-                // Status red - shard is missing all copies and would produce partial results for an index search
-                final String msg = makeErrorMessage.apply(missingShards);
-                throw new SearchPhaseExecutionException(phaseName, msg, null, ShardSearchFailure.EMPTY_ARRAY);
-            }
-        }
     }
 
     /**

@@ -208,7 +208,12 @@ final class CanMatchPreFilterSearchPhase {
         } else {
             GroupShardsIterator<SearchShardIterator> matchingShards = new GroupShardsIterator<>(matchedShardLevelRequests);
             // verify missing shards only for the shards that we hit for the query
-            SearchPhase.doCheckNoMissingShards("can_match", request, matchingShards, SearchPhase::makeMissingShardsError);
+            AbstractSearchAsyncAction.doCheckNoMissingShards(
+                "can_match",
+                request,
+                matchingShards,
+                AbstractSearchAsyncAction::makeMissingShardsError
+            );
             new Round(matchingShards).run();
         }
     }

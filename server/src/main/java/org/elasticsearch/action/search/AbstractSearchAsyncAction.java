@@ -54,6 +54,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -186,6 +187,47 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             sourceBuilder == null || sourceBuilder.size() > 0,
             timeProvider
         );
+    }
+
+    protected String missingShardsErrorMessage(StringBuilder missingShards) {
+        return makeMissingShardsError(missingShards);
+    }
+
+    protected static String makeMissingShardsError(StringBuilder missingShards) {
+        return "Search rejected due to missing shards ["
+            + missingShards
+            + "]. Consider using `allow_partial_search_results` setting to bypass this error.";
+    }
+
+    protected void doCheckNoMissingShards(String phaseName, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts) {
+        doCheckNoMissingShards(phaseName, request, shardsIts, this::missingShardsErrorMessage);
+    }
+
+    protected static void doCheckNoMissingShards(
+        String phaseName,
+        SearchRequest request,
+        GroupShardsIterator<SearchShardIterator> shardsIts,
+        Function<StringBuilder, String> makeErrorMessage
+    ) {
+        assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
+        if (request.allowPartialSearchResults() == false) {
+            final StringBuilder missingShards = new StringBuilder();
+            // Fail-fast verification of all shards being available
+            for (int index = 0; index < shardsIts.size(); index++) {
+                final SearchShardIterator shardRoutings = shardsIts.get(index);
+                if (shardRoutings.size() == 0) {
+                    if (missingShards.isEmpty() == false) {
+                        missingShards.append(", ");
+                    }
+                    missingShards.append(shardRoutings.shardId());
+                }
+            }
+            if (missingShards.isEmpty() == false) {
+                // Status red - shard is missing all copies and would produce partial results for an index search
+                final String msg = makeErrorMessage.apply(missingShards);
+                throw new SearchPhaseExecutionException(phaseName, msg, null, ShardSearchFailure.EMPTY_ARRAY);
+            }
+        }
     }
 
     /**

@@ -10,4 +10,7 @@ keyword | date | date_nanos | integer
 keyword | date_nanos | date | integer
 keyword | date_nanos | date_nanos | integer
 text | date | date | integer
+text | date | date_nanos | integer
+text | date_nanos | date | integer
+text | date_nanos | date_nanos | integer
 |===

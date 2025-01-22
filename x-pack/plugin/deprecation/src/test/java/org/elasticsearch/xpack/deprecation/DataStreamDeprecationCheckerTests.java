@@ -92,12 +92,14 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             expectedIndices
         );
 
-        Metadata metadata = Metadata.builder().indices(nameToIndexMetadata).build();
+        Metadata metadata = Metadata.builder()
+            .indices(nameToIndexMetadata)
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(DATA_STREAM_CHECKS, c -> c.apply(dataStream, clusterState));
-
-        assertThat(issues.size(), equalTo(0));
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState, null);
+        assertThat(issuesByDataStream.size(), equalTo(0));
     }
 
     public void testOldIndicesCheckWithClosedAndOpenIndices() {
@@ -122,7 +124,10 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             expectedIndices
         );
 
-        Metadata metadata = Metadata.builder().indices(nameToIndexMetadata).build();
+        Metadata metadata = Metadata.builder()
+            .indices(nameToIndexMetadata)
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
         DeprecationIssue expected = new DeprecationIssue(
@@ -139,9 +144,9 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             )
         );
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(DATA_STREAM_CHECKS, c -> c.apply(dataStream, clusterState));
-
-        assertThat(issues, equalTo(singletonList(expected)));
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState, null);
+        assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
+        assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
     }
 
     /*

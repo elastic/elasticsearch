@@ -139,8 +139,11 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder().put(indexMetadata, true))
             .build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, clusterState));
-        assertThat(issues, empty());
+        Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
+            clusterState,
+            new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS)
+        );
+        assertThat(issuesByIndex.size(), equalTo(0));
     }
 
     public void testTranslogRetentionSettings() {

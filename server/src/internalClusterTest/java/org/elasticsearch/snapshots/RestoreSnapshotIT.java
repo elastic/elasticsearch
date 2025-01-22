@@ -340,14 +340,14 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .addAlias("test-idx-1", "alias-1")
         );
 
-        assertFalse(indicesAdmin().prepareGetAliases("alias-123").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias-123").get().getAliases().isEmpty());
 
         createSnapshot("test-repo", "test-snap", Collections.emptyList());
 
         logger.info("-->  delete all indices");
         cluster().wipeIndices("test-idx-1", "test-idx-2", "test-idx-3");
-        assertTrue(indicesAdmin().prepareGetAliases("alias-123").get().getAliases().isEmpty());
-        assertTrue(indicesAdmin().prepareGetAliases("alias-1").get().getAliases().isEmpty());
+        assertTrue(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias-123").get().getAliases().isEmpty());
+        assertTrue(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias-1").get().getAliases().isEmpty());
 
         logger.info("--> restore snapshot with aliases");
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
@@ -362,8 +362,8 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
 
         logger.info("--> check that aliases are restored");
-        assertFalse(indicesAdmin().prepareGetAliases("alias-123").get().getAliases().isEmpty());
-        assertFalse(indicesAdmin().prepareGetAliases("alias-1").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias-123").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias-1").get().getAliases().isEmpty());
 
         logger.info("-->  update aliases");
         assertAcked(indicesAdmin().prepareAliases().removeAlias("test-idx-3", "alias-123"));
@@ -372,8 +372,8 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         logger.info("-->  delete and close indices");
         cluster().wipeIndices("test-idx-1", "test-idx-2");
         assertAcked(indicesAdmin().prepareClose("test-idx-3"));
-        assertTrue(indicesAdmin().prepareGetAliases("alias-123").get().getAliases().isEmpty());
-        assertTrue(indicesAdmin().prepareGetAliases("alias-1").get().getAliases().isEmpty());
+        assertTrue(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias-123").get().getAliases().isEmpty());
+        assertTrue(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias-1").get().getAliases().isEmpty());
 
         logger.info("--> restore snapshot without aliases");
         restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
@@ -388,9 +388,9 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
 
         logger.info("--> check that aliases are not restored and existing aliases still exist");
-        assertTrue(indicesAdmin().prepareGetAliases("alias-123").get().getAliases().isEmpty());
-        assertTrue(indicesAdmin().prepareGetAliases("alias-1").get().getAliases().isEmpty());
-        assertFalse(indicesAdmin().prepareGetAliases("alias-3").get().getAliases().isEmpty());
+        assertTrue(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias-123").get().getAliases().isEmpty());
+        assertTrue(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias-1").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias-3").get().getAliases().isEmpty());
     }
 
     public void testRestoreTemplates() throws Exception {
@@ -424,7 +424,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("-->  delete test template");
         assertThat(indicesAdmin().prepareDeleteTemplate("test-template").get().isAcknowledged(), equalTo(true));
-        GetIndexTemplatesResponse getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates().get();
+        GetIndexTemplatesResponse getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
 
         logger.info("--> restore cluster state");
@@ -437,7 +437,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(0));
 
         logger.info("--> check that template is restored");
-        getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates().get();
+        getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
         assertIndexTemplateExists(getIndexTemplatesResponse, "test-template");
     }
 

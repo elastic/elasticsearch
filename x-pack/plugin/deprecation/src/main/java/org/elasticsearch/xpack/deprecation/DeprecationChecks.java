@@ -87,7 +87,9 @@ public class DeprecationChecks {
                 NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
                 NodeDeprecationChecks::checkEqlEnabledSetting,
                 NodeDeprecationChecks::checkNodeAttrData,
-                NodeDeprecationChecks::checkWatcherBulkConcurrentRequestsSetting
+                NodeDeprecationChecks::checkWatcherBulkConcurrentRequestsSetting,
+                NodeDeprecationChecks::checkTracingApmSettings,
+                NodeDeprecationChecks::checkSourceModeInComponentTemplates
             );
 
     static List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(
@@ -96,8 +98,7 @@ public class DeprecationChecks {
         IndexDeprecationChecks::checkIndexDataPath,
         IndexDeprecationChecks::storeTypeSettingCheck,
         IndexDeprecationChecks::frozenIndexSettingCheck,
-        IndexDeprecationChecks::deprecatedCamelCasePattern,
-        IndexDeprecationChecks::checkSourceModeInMapping
+        IndexDeprecationChecks::deprecatedCamelCasePattern
     );
 
     static List<BiFunction<DataStream, ClusterState, DeprecationIssue>> DATA_STREAM_CHECKS = List.of(

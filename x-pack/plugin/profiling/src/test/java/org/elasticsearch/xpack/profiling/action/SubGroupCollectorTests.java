@@ -21,7 +21,7 @@ public class SubGroupCollectorTests extends ESTestCase {
         TermsAggregationBuilder stackTraces = new TermsAggregationBuilder("stacktraces").field("stacktrace.id");
         TraceEvent traceEvent = new TraceEvent("1");
 
-        SubGroupCollector collector = SubGroupCollector.attach(stackTraces, new String[0], false);
+        SubGroupCollector collector = SubGroupCollector.attach(stackTraces, new String[0]);
         assertTrue("Sub aggregations attached", stackTraces.getSubAggregations().isEmpty());
 
         SubGroupCollector.Bucket currentStackTrace = bucket("1", 5);
@@ -34,7 +34,7 @@ public class SubGroupCollectorTests extends ESTestCase {
         TermsAggregationBuilder stackTraces = new TermsAggregationBuilder("stacktraces").field("stacktrace.id");
         TraceEvent traceEvent = new TraceEvent("1");
 
-        SubGroupCollector collector = SubGroupCollector.attach(stackTraces, new String[] { "service.name", "transaction.name" }, false);
+        SubGroupCollector collector = SubGroupCollector.attach(stackTraces, new String[] { "service.name", "transaction.name" });
         assertFalse("No sub aggregations attached", stackTraces.getSubAggregations().isEmpty());
 
         StaticAgg services = new StaticAgg();
@@ -73,7 +73,7 @@ public class SubGroupCollectorTests extends ESTestCase {
         TermsAggregationBuilder stackTraces = new TermsAggregationBuilder("stacktraces").field("stacktrace.id");
         TraceEvent traceEvent = new TraceEvent("1");
 
-        SubGroupCollector collector = SubGroupCollector.attach(stackTraces, new String[] { "service.name" }, false);
+        SubGroupCollector collector = SubGroupCollector.attach(stackTraces, new String[] { "service.name" });
         assertFalse("No sub aggregations attached", stackTraces.getSubAggregations().isEmpty());
 
         StaticAgg services1 = new StaticAgg();

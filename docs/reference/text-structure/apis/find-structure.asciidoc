@@ -2,6 +2,12 @@
 [[find-structure]]
 = Find text structure API
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-text_structure[Text structure APIs].
+--
+
 Finds the structure of text. The text must
 contain data that is suitable to be ingested into the
 {stack}.

@@ -206,6 +206,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return clusterInfo.get(clusterAlias);
     }
 
+    public Map<String, Cluster> getClusters() {
+        return clusterInfo;
+    }
+
     /**
      * Utility to swap a Cluster object. Guidelines for the remapping function:
      * <ul>
@@ -243,7 +247,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             ChunkedToXContentHelper.field(PARTIAL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.PARTIAL)),
             ChunkedToXContentHelper.field(FAILED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.FAILED)),
             // each Cluster object defines its own field object name
-            ChunkedToXContentHelper.xContentFragmentValuesMapCreateOwnName("details", clusterInfo),
+            ChunkedToXContentHelper.object("details", clusterInfo.values().iterator()),
             ChunkedToXContentHelper.endObject()
         );
     }

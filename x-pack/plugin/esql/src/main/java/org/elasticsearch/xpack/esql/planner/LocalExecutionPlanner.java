@@ -22,7 +22,6 @@ import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
@@ -55,6 +54,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -161,13 +161,14 @@ public class LocalExecutionPlanner {
     /**
      * turn the given plan into a list of drivers to execute
      */
-    public LocalExecutionPlan plan(PhysicalPlan localPhysicalPlan) {
+    public LocalExecutionPlan plan(FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
         var context = new LocalExecutionPlannerContext(
             new ArrayList<>(),
             new Holder<>(DriverParallelism.SINGLE),
             configuration.pragmas(),
             bigArrays,
             blockFactory,
+            foldCtx,
             settings
         );
 
@@ -345,6 +346,8 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
+        final Integer rowSize = topNExec.estimatedRowSize();
+        assert rowSize != null && rowSize > 0 : "estimated row size [" + rowSize + "] wasn't set";
         PhysicalOperation source = plan(topNExec.child(), context);
 
         ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
@@ -385,24 +388,8 @@ public class LocalExecutionPlanner {
         } else {
             throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }
-
-        // TODO Replace page size with passing estimatedRowSize down
-        /*
-         * The 2000 below is a hack to account for incoming size and to make
-         * sure the estimated row size is never 0 which'd cause a divide by 0.
-         * But we should replace this with passing the estimate into the real
-         * topn and letting it actually measure the size of rows it produces.
-         * That'll be more accurate. And we don't have a path for estimating
-         * incoming rows. And we don't need one because we can estimate.
-         */
         return source.with(
-            new TopNOperatorFactory(
-                limit,
-                asList(elementTypes),
-                asList(encoders),
-                orders,
-                context.pageSize(2000 + topNExec.estimatedRowSize())
-            ),
+            new TopNOperatorFactory(limit, asList(elementTypes), asList(encoders), orders, context.pageSize(rowSize)),
             source.layout
         );
     }
@@ -411,7 +398,7 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(eval.child(), context);
 
         for (Alias field : eval.fields()) {
-            var evaluatorSupplier = EvalMapper.toEvaluator(field.child(), source.layout);
+            var evaluatorSupplier = EvalMapper.toEvaluator(context.foldCtx(), field.child(), source.layout);
             Layout.Builder layout = source.layout.builder();
             layout.append(field.toAttribute());
             source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
@@ -432,7 +419,7 @@ public class LocalExecutionPlanner {
         source = source.with(
             new StringExtractOperator.StringExtractOperatorFactory(
                 patternNames,
-                EvalMapper.toEvaluator(expr, layout),
+                EvalMapper.toEvaluator(context.foldCtx(), expr, layout),
                 () -> (input) -> dissect.parser().parser().parse(input)
             ),
             layout
@@ -464,7 +451,7 @@ public class LocalExecutionPlanner {
         source = source.with(
             new ColumnExtractOperator.Factory(
                 types,
-                EvalMapper.toEvaluator(grok.inputExpression(), layout),
+                EvalMapper.toEvaluator(context.foldCtx(), grok.inputExpression(), layout),
                 () -> new GrokEvaluatorExtracter(grok.pattern().grok(), grok.pattern().pattern(), fieldToPos, fieldToType)
             ),
             layout
@@ -575,7 +562,7 @@ public class LocalExecutionPlanner {
         if (localSourceExec.indexMode() != IndexMode.LOOKUP) {
             throw new IllegalArgumentException("can't plan [" + join + "]");
         }
-        Map<String, IndexMode> indicesWithModes = localSourceExec.index().indexNameWithModes();
+        Map<String, IndexMode> indicesWithModes = localSourceExec.indexNameWithModes();
         if (indicesWithModes.size() != 1) {
             throw new IllegalArgumentException("can't plan [" + join + "], found more than 1 index");
         }
@@ -602,7 +589,7 @@ public class LocalExecutionPlanner {
                 parentTask,
                 context.queryPragmas().enrichMaxWorkers(),
                 matchFields.getFirst().channel(),
-                lookupFromIndexService,
+                ctx -> lookupFromIndexService,
                 matchFields.getFirst().type(),
                 indexName,
                 join.leftFields().getFirst().name(),
@@ -611,10 +598,6 @@ public class LocalExecutionPlanner {
             ),
             layout
         );
-    }
-
-    private ExpressionEvaluator.Factory toEvaluator(Expression exp, Layout layout) {
-        return EvalMapper.toEvaluator(exp, layout);
     }
 
     private PhysicalOperation planLocal(LocalSourceExec localSourceExec, LocalExecutionPlannerContext context) {
@@ -671,12 +654,15 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planFilter(FilterExec filter, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(filter.child(), context);
         // TODO: should this be extracted into a separate eval block?
-        return source.with(new FilterOperatorFactory(toEvaluator(filter.condition(), source.layout)), source.layout);
+        return source.with(
+            new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout)),
+            source.layout
+        );
     }
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limit.child(), context);
-        return source.with(new Factory((Integer) limit.limit().fold()), source.layout);
+        return source.with(new Factory((Integer) limit.limit().fold(context.foldCtx)), source.layout);
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {
@@ -797,6 +783,7 @@ public class LocalExecutionPlanner {
         QueryPragmas queryPragmas,
         BigArrays bigArrays,
         BlockFactory blockFactory,
+        FoldContext foldCtx,
         Settings settings
     ) {
         void addDriverFactory(DriverFactory driverFactory) {

@@ -241,9 +241,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class SnapshotResiliencyTests extends ESTestCase {
 
@@ -2111,8 +2109,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     }
                 );
                 recoverySettings = new RecoverySettings(settings, clusterSettings);
-                FeatureService mockFeatureService = mock(FeatureService.class);
-                when(mockFeatureService.clusterHasFeature(any(), any())).thenReturn(true);
                 mockTransport = new DisruptableMockTransport(node, deterministicTaskQueue) {
                     @Override
                     protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {
@@ -2403,7 +2399,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             null,
                             FailureStoreMetrics.NOOP
                         ),
-                        mockFeatureService,
                         client,
                         actionFilters,
                         indexNameExpressionResolver,
@@ -2469,7 +2464,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         threadPool,
                         metadataMappingService,
                         actionFilters,
-                        indexNameExpressionResolver,
                         EmptySystemIndices.INSTANCE
                     )
                 );

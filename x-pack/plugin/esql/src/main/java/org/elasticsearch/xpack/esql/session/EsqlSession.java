@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
@@ -308,11 +309,16 @@ public class EsqlSession {
 
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         var unresolvedPolicies = preAnalysis.enriches.stream()
-            .map(e -> new EnrichPolicyResolver.UnresolvedPolicy((String) e.policyName().fold(), e.mode()))
+            .map(
+                e -> new EnrichPolicyResolver.UnresolvedPolicy(
+                    (String) e.policyName().fold(FoldContext.small() /* TODO remove me*/),
+                    e.mode()
+                )
+            )
             .collect(Collectors.toSet());
         final List<TableInfo> indices = preAnalysis.indices;
 
-        EsqlSessionCCSUtils.checkForCcsLicense(indices, indicesExpressionGrouper, verifier.licenseState());
+        EsqlSessionCCSUtils.checkForCcsLicense(executionInfo, indices, indicesExpressionGrouper, verifier.licenseState());
 
         final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
             indices.stream().flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().index()))).toArray(String[]::new)

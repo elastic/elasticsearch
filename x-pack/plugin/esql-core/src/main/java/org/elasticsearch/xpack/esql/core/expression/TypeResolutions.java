@@ -133,6 +133,14 @@ public final class TypeResolutions {
         return TypeResolution.TYPE_RESOLVED;
     }
 
+    /**
+     * Is this {@link Expression#foldable()} and not {@code null}.
+     *
+     * @deprecated instead of calling this, check for a {@link Literal} containing
+     *             {@code null}. Foldable expressions will be folded by other rules,
+     *             eventually, to a {@link Literal}.
+     */
+    @Deprecated
     public static TypeResolution isNotNullAndFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
         TypeResolution resolution = isFoldable(e, operationName, paramOrd);
 
@@ -140,7 +148,7 @@ public final class TypeResolutions {
             return resolution;
         }
 
-        if (e.dataType() == DataType.NULL || e.fold() == null) {
+        if (e.dataType() == DataType.NULL || e.fold(FoldContext.small()) == null) {
             resolution = new TypeResolution(
                 format(
                     null,
@@ -244,5 +252,20 @@ public final class TypeResolutions {
         } else {
             return acceptedTypes[0];
         }
+    }
+
+    public static TypeResolution isMapExpression(Expression e, String operationName, ParamOrdinal paramOrd) {
+        if (e instanceof MapExpression == false) {
+            return new TypeResolution(
+                format(
+                    null,
+                    "{}argument of [{}] must be a map expression, received [{}]",
+                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
+                    operationName,
+                    Expressions.name(e)
+                )
+            );
+        }
+        return TypeResolution.TYPE_RESOLVED;
     }
 }

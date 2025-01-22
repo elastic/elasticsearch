@@ -548,7 +548,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     public void testLookupJoinIndexAllowed() throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
-            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V9.capabilityName()))
+            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V11.capabilityName()))
         );
 
         Response resp = runESQLCommand(
@@ -587,7 +587,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     public void testLookupJoinIndexForbidden() throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
-            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V9.capabilityName()))
+            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V11.capabilityName()))
         );
 
         var resp = expectThrows(
@@ -595,6 +595,16 @@ public class EsqlSecurityIT extends ESRestTestCase {
             () -> runESQLCommand("metadata1_read2", "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
         );
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand(
+                "metadata1_read2",
+                "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x"
+            )
+        );
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-first-alias]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
 
         resp = expectThrows(
@@ -608,6 +618,20 @@ public class EsqlSecurityIT extends ESRestTestCase {
             ResponseException.class,
             () -> runESQLCommand("alias_user1", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
         );
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testFromLookupIndexForbidden() throws Exception {
+        var resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM lookup-user1"));
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM lookup-first-alias"));
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-first-alias]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        resp = expectThrows(ResponseException.class, () -> runESQLCommand("alias_user1", "FROM lookup-user1"));
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
     }

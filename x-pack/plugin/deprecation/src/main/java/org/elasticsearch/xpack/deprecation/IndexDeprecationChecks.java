@@ -15,7 +15,6 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -201,31 +200,6 @@ public class IndexDeprecationChecks {
         }
 
         return issues;
-    }
-
-    static DeprecationIssue checkSourceModeInMapping(IndexMetadata indexMetadata, ClusterState clusterState) {
-        if (SourceFieldMapper.onOrAfterDeprecateModeVersion(indexMetadata.getCreationVersion())) {
-            boolean[] useSourceMode = { false };
-            fieldLevelMappingIssue(indexMetadata, ((mappingMetadata, sourceAsMap) -> {
-                Object source = sourceAsMap.get("_source");
-                if (source instanceof Map<?, ?> sourceMap) {
-                    if (sourceMap.containsKey("mode")) {
-                        useSourceMode[0] = true;
-                    }
-                }
-            }));
-            if (useSourceMode[0]) {
-                return new DeprecationIssue(
-                    DeprecationIssue.Level.CRITICAL,
-                    SourceFieldMapper.DEPRECATION_WARNING,
-                    "https://github.com/elastic/elasticsearch/pull/117172",
-                    SourceFieldMapper.DEPRECATION_WARNING,
-                    false,
-                    null
-                );
-            }
-        }
-        return null;
     }
 
     static DeprecationIssue deprecatedCamelCasePattern(IndexMetadata indexMetadata, ClusterState clusterState) {

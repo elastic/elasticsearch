@@ -1,2 +1,0 @@
-org.elasticsearch.entitlement.qa.common:
-  - create_class_loader

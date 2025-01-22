@@ -1,0 +1,5 @@
+pr: 120567
+summary: Run `TransportExplainDataStreamLifecycleAction` on local node
+area: Data streams
+type: enhancement
+issues: []

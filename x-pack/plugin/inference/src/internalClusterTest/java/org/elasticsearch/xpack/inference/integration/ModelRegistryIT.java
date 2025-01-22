@@ -309,7 +309,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var defaultIds = new ArrayList<InferenceService.DefaultConfigId>();
         for (int i = 0; i < defaultModelCount; i++) {
             var id = "default-" + i;
-            var modelSettings = ModelRegistryTests.randomMinimalModelSettings();
+            var modelSettings = ModelRegistryTests.randomMinimalServiceSettings();
             defaultConfigs.add(createModel(id, modelSettings.taskType(), serviceName));
             defaultIds.add(new InferenceService.DefaultConfigId(id, modelSettings, service));
         }
@@ -375,7 +375,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var defaultIds = new ArrayList<InferenceService.DefaultConfigId>();
         for (int i = 0; i < defaultModelCount; i++) {
             var id = "default-" + i;
-            var modelSettings = ModelRegistryTests.randomMinimalModelSettings();
+            var modelSettings = ModelRegistryTests.randomMinimalServiceSettings();
             defaultConfigs.add(createModel(id, modelSettings.taskType(), serviceName));
             defaultIds.add(new InferenceService.DefaultConfigId(id, modelSettings, service));
         }
@@ -418,7 +418,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var defaultIds = new ArrayList<InferenceService.DefaultConfigId>();
         for (int i = 0; i < defaultModelCount; i++) {
             var id = "default-" + i;
-            var modelSettings = ModelRegistryTests.randomMinimalModelSettings();
+            var modelSettings = ModelRegistryTests.randomMinimalServiceSettings();
             defaultConfigs.add(createModel(id, modelSettings.taskType(), serviceName));
             defaultIds.add(new InferenceService.DefaultConfigId(id, modelSettings, service));
         }

@@ -346,10 +346,10 @@ public class ModelRegistryTests extends ESTestCase {
         var mockServiceB = mock(InferenceService.class);
         when(mockServiceB.name()).thenReturn("service-b");
 
-        registry.addDefaultIds(new InferenceService.DefaultConfigId(id, randomMinimalModelSettings(), mockServiceA));
+        registry.addDefaultIds(new InferenceService.DefaultConfigId(id, randomMinimalServiceSettings(), mockServiceA));
         var ise = expectThrows(
             IllegalStateException.class,
-            () -> registry.addDefaultIds(new InferenceService.DefaultConfigId(id, randomMinimalModelSettings(), mockServiceB))
+            () -> registry.addDefaultIds(new InferenceService.DefaultConfigId(id, randomMinimalServiceSettings(), mockServiceB))
         );
         assertThat(
             ise.getMessage(),
@@ -404,7 +404,7 @@ public class ModelRegistryTests extends ESTestCase {
         return searchResponse;
     }
 
-    public static MinimalServiceSettings randomMinimalModelSettings() {
+    public static MinimalServiceSettings randomMinimalServiceSettings() {
         TaskType type = randomFrom(TaskType.values());
         if (type == TaskType.TEXT_EMBEDDING) {
             return MinimalServiceSettings.textEmbedding(

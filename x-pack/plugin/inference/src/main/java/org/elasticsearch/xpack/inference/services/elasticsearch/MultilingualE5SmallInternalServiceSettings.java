@@ -25,7 +25,7 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
     static final int DIMENSIONS = 384;
     static final SimilarityMeasure SIMILARITY = SimilarityMeasure.COSINE;
 
-    public static MinimalServiceSettings minimalModelSettings() {
+    public static MinimalServiceSettings minimalServiceSettings() {
         return MinimalServiceSettings.textEmbedding(DIMENSIONS, SIMILARITY, DenseVectorFieldMapper.ElementType.FLOAT);
     }
 

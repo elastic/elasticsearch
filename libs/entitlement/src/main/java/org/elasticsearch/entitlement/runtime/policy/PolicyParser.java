@@ -40,7 +40,8 @@ public class PolicyParser {
         CreateClassLoaderEntitlement.class,
         SetHttpsConnectionPropertiesEntitlement.class,
         OutboundNetworkEntitlement.class,
-        InboundNetworkEntitlement.class
+        InboundNetworkEntitlement.class,
+        WriteSystemPropertiesEntitlement.class
     ).collect(Collectors.toUnmodifiableMap(PolicyParser::getEntitlementTypeName, Function.identity()));
 
     protected final XContentParser policyParser;

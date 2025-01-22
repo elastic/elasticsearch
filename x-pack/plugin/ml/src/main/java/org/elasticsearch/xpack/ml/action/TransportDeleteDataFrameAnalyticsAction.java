@@ -74,7 +74,6 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
             threadPool,
             actionFilters,
             DeleteDataFrameAnalyticsAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;

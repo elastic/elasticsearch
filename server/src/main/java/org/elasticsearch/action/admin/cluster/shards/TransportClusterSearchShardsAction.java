@@ -44,6 +44,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
     public static final ActionType<ClusterSearchShardsResponse> TYPE = new ActionType<>("indices:admin/shards/search_shards");
 
     private final IndicesService indicesService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportClusterSearchShardsAction(
@@ -61,11 +62,11 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
             threadPool,
             actionFilters,
             ClusterSearchShardsRequest::new,
-            indexNameExpressionResolver,
             ClusterSearchShardsResponse::new,
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
         );
         this.indicesService = indicesService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override

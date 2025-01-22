@@ -323,6 +323,14 @@ public class XPackSettings {
         Property.NodeScope
     );
 
+    /** Setting to indicate if the serverless project is in trial mode. */
+    public static final Setting<Boolean> PROJECT_IN_TRIAL_MODE = Setting.boolSetting(
+        "xpack.project_in_trial_mode",
+        false,
+        Property.NodeScope,
+        Property.OperatorDynamic
+    );
+
     /** Returns all settings created in {@link XPackSettings}. */
     public static List<Setting<?>> getAllSettings() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
@@ -353,6 +361,7 @@ public class XPackSettings {
         settings.add(DOMAIN_TO_REALM_ASSOC_SETTING);
         settings.add(DOMAIN_UID_LITERAL_USERNAME_SETTING);
         settings.add(DOMAIN_UID_SUFFIX_SETTING);
+        settings.add(PROJECT_IN_TRIAL_MODE);
         return Collections.unmodifiableList(settings);
     }
 

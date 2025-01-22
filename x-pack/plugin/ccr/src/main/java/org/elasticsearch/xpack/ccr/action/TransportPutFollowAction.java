@@ -89,7 +89,6 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             threadPool,
             actionFilters,
             PutFollowAction.Request::new,
-            indexNameExpressionResolver,
             PutFollowAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

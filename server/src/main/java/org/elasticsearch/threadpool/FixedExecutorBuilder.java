@@ -152,7 +152,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
         int queueSize = settings.queueSize;
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings.nodeName, name(), isSystemThread());
         final ExecutorService executor = EsExecutors.newFixed(
-            settings.nodeName + "/" + name(),
+            new EsExecutors.QualifiedName(settings.nodeName, name()),
             size,
             queueSize,
             threadFactory,

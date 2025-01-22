@@ -36,7 +36,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
@@ -139,14 +138,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
         var s = source();
         var field = field();
         if (field.dataType() == AGGREGATE_METRIC_DOUBLE) {
-            return new Sum(
-                s,
-                new FromAggregateDoubleMetric(
-                    source(),
-                    field,
-                    new Literal(s, AggregateDoubleMetricBlockBuilder.Metric.SUM.ordinal(), INTEGER)
-                )
-            );
+            return new Sum(s, new FromAggregateDoubleMetric(source(), field, AggregateDoubleMetricBlockBuilder.Metric.SUM));
         }
 
         // SUM(const) is equivalent to MV_SUM(const)*COUNT(*).

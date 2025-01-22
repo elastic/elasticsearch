@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -61,6 +62,10 @@ public class FromAggregateDoubleMetric extends EsqlScalarFunction {
         this.subfieldIndex = subfieldIndex;
     }
 
+    public FromAggregateDoubleMetric(Source source, Expression field, AggregateDoubleMetricBlockBuilder.Metric metric) {
+        this(source, field, new Literal(source, metric.getIndex(), INTEGER));
+    }
+
     private FromAggregateDoubleMetric(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
@@ -84,7 +89,7 @@ public class FromAggregateDoubleMetric extends EsqlScalarFunction {
         }
 
         var subfield = ((Number) subfieldIndex.fold(FoldContext.small())).intValue();
-        if (subfield == AggregateDoubleMetricBlockBuilder.Metric.COUNT.ordinal()) {
+        if (subfield == AggregateDoubleMetricBlockBuilder.Metric.COUNT.getIndex()) {
             return INTEGER;
         }
         return DOUBLE;
@@ -121,13 +126,10 @@ public class FromAggregateDoubleMetric extends EsqlScalarFunction {
             return new EvalOperator.ExpressionEvaluator() {
                 @Override
                 public Block eval(Page page) {
-                    CompositeBlock compositeBlock = (CompositeBlock) eval.eval(page);
-                    try {
+                    try (CompositeBlock compositeBlock = (CompositeBlock) eval.eval(page)) {
                         Block block = compositeBlock.getBlock(((Number) subfieldIndex.fold(FoldContext.small())).intValue());
                         block.incRef();
                         return block;
-                    } finally {
-                        compositeBlock.close();
                     }
                 }
 

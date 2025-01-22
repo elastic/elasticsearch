@@ -309,7 +309,7 @@ public enum DataType {
      */
     SEMANTIC_TEXT(builder().esType("semantic_text").unknownSize()),
 
-    AGGREGATE_METRIC_DOUBLE(builder().esType("aggregate_metric_double").unknownSize());
+    AGGREGATE_METRIC_DOUBLE(builder().esType("aggregate_metric_double").estimatedSize(Double.BYTES * 3 + Integer.BYTES));
 
     /**
      * Types that are actively being built. These types are not returned

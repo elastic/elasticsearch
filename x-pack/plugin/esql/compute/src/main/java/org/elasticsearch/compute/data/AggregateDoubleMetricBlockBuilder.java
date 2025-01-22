@@ -7,21 +7,36 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 public class AggregateDoubleMetricBlockBuilder extends AbstractBlockBuilder implements BlockLoader.AggregateDoubleMetricBuilder {
 
-    private final DoubleBlockBuilder minBuilder;
-    private final DoubleBlockBuilder maxBuilder;
-    private final DoubleBlockBuilder sumBuilder;
-    private final IntBlockBuilder countBuilder;
+    private DoubleBlockBuilder minBuilder;
+    private DoubleBlockBuilder maxBuilder;
+    private DoubleBlockBuilder sumBuilder;
+    private IntBlockBuilder countBuilder;
 
     public AggregateDoubleMetricBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
-        minBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory);
-        maxBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory);
-        sumBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory);
-        countBuilder = new IntBlockBuilder(estimatedSize, blockFactory);
+        minBuilder = null;
+        maxBuilder = null;
+        sumBuilder = null;
+        countBuilder = null;
+        try {
+            minBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory);
+            maxBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory);
+            sumBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory);
+            countBuilder = new IntBlockBuilder(estimatedSize, blockFactory);
+        } finally {
+            if (countBuilder == null) {
+                Releasables.closeWhileHandlingException(minBuilder);
+                Releasables.closeWhileHandlingException(maxBuilder);
+                Releasables.closeWhileHandlingException(sumBuilder);
+                Releasables.closeWhileHandlingException(countBuilder);
+            }
+        }
     }
 
     @Override
@@ -45,10 +60,10 @@ public class AggregateDoubleMetricBlockBuilder extends AbstractBlockBuilder impl
     @Override
     public Block.Builder copyFrom(Block block, int beginInclusive, int endExclusive) {
         CompositeBlock composite = (CompositeBlock) block;
-        minBuilder.copyFrom(composite.getBlock(Metric.MIN.ordinal()), beginInclusive, endExclusive);
-        maxBuilder.copyFrom(composite.getBlock(Metric.MAX.ordinal()), beginInclusive, endExclusive);
-        sumBuilder.copyFrom(composite.getBlock(Metric.SUM.ordinal()), beginInclusive, endExclusive);
-        countBuilder.copyFrom(composite.getBlock(Metric.COUNT.ordinal()), beginInclusive, endExclusive);
+        minBuilder.copyFrom(composite.getBlock(Metric.MIN.getIndex()), beginInclusive, endExclusive);
+        maxBuilder.copyFrom(composite.getBlock(Metric.MAX.getIndex()), beginInclusive, endExclusive);
+        sumBuilder.copyFrom(composite.getBlock(Metric.SUM.getIndex()), beginInclusive, endExclusive);
+        countBuilder.copyFrom(composite.getBlock(Metric.COUNT.getIndex()), beginInclusive, endExclusive);
         return this;
     }
 
@@ -64,11 +79,19 @@ public class AggregateDoubleMetricBlockBuilder extends AbstractBlockBuilder impl
     @Override
     public Block build() {
         Block[] blocks = new Block[4];
-        blocks[Metric.MIN.ordinal()] = minBuilder.build();
-        blocks[Metric.MAX.ordinal()] = maxBuilder.build();
-        blocks[Metric.SUM.ordinal()] = sumBuilder.build();
-        blocks[Metric.COUNT.ordinal()] = countBuilder.build();
-        return new CompositeBlock(blocks);
+        try {
+            finish();
+            blocks[Metric.MIN.getIndex()] = minBuilder.build();
+            blocks[Metric.MAX.getIndex()] = maxBuilder.build();
+            blocks[Metric.SUM.getIndex()] = sumBuilder.build();
+            blocks[Metric.COUNT.getIndex()] = countBuilder.build();
+            return new CompositeBlock(blocks);
+        } catch (CircuitBreakingException e) {
+            for (Block block : blocks) {
+                block.close();
+            }
+            throw e;
+        }
     }
 
     @Override
@@ -81,9 +104,19 @@ public class AggregateDoubleMetricBlockBuilder extends AbstractBlockBuilder impl
     }
 
     public enum Metric {
-        MIN,
-        MAX,
-        SUM,
-        COUNT;
+        MIN(0),
+        MAX(1),
+        SUM(2),
+        COUNT(3);
+
+        private final int index;
+
+        Metric(int index) {
+            this.index = index;
+        }
+
+        public int getIndex() {
+            return index;
+        }
     }
 }

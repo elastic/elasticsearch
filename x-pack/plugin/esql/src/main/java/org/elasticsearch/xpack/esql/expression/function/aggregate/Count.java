@@ -35,7 +35,6 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 
 public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
@@ -146,14 +145,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         var s = source();
         var field = field();
         if (field.dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
-            return new Sum(
-                s,
-                new FromAggregateDoubleMetric(
-                    source(),
-                    field,
-                    new Literal(s, AggregateDoubleMetricBlockBuilder.Metric.COUNT.ordinal(), INTEGER)
-                )
-            );
+            return new Sum(s, new FromAggregateDoubleMetric(source(), field, AggregateDoubleMetricBlockBuilder.Metric.COUNT));
         }
 
         if (field.foldable()) {

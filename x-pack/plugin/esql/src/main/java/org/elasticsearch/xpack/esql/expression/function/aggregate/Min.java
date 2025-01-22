@@ -153,14 +153,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
     @Override
     public Expression surrogate() {
         if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
-            return new Min(
-                source(),
-                new FromAggregateDoubleMetric(
-                    source(),
-                    field(),
-                    new Literal(source(), AggregateDoubleMetricBlockBuilder.Metric.MIN.ordinal(), DataType.INTEGER)
-                )
-            );
+            return new Min(source(), new FromAggregateDoubleMetric(source(), field(), AggregateDoubleMetricBlockBuilder.Metric.MIN));
         }
         return field().foldable() ? new MvMin(source(), field()) : null;
     }

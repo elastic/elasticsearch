@@ -566,21 +566,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                                 if (doc < lastDoc) {
                                     throw new IllegalStateException("docs within same block must be in order");
                                 }
-                                if (minValues.advanceExact(doc)) {
-                                    boolean found = maxValues.advanceExact(doc);
-                                    assert found;
-                                    found = sumValues.advanceExact(doc);
-                                    assert found;
-                                    found = valueCountValues.advanceExact(doc);
-                                    assert found;
-                                    double min = NumericUtils.sortableLongToDouble(minValues.longValue());
-                                    double max = NumericUtils.sortableLongToDouble(maxValues.longValue());
-                                    double sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
-                                    int count = Math.toIntExact(valueCountValues.longValue());
-                                    builder.append(min, max, sum, count);
-                                } else {
-                                    builder.appendNull();
-                                }
+                                read(doc, builder);
                                 lastDoc = doc;
                                 this.docID = doc;
                             }
@@ -590,22 +576,26 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
                     @Override
                     public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-                        this.docID = docId;
                         var blockBuilder = (BlockLoader.AggregateDoubleMetricBuilder) builder;
-                        if (minValues.advanceExact(this.docID)) {
-                            boolean found = maxValues.advanceExact(this.docID);
+                        this.docID = docId;
+                        read(docId, blockBuilder);
+                    }
+
+                    private void read(int docId, BlockLoader.AggregateDoubleMetricBuilder builder) throws IOException {
+                        if (minValues.advanceExact(docId)) {
+                            boolean found = maxValues.advanceExact(docId);
                             assert found;
-                            found = sumValues.advanceExact(this.docID);
+                            found = sumValues.advanceExact(docId);
                             assert found;
-                            found = valueCountValues.advanceExact(this.docID);
+                            found = valueCountValues.advanceExact(docId);
                             assert found;
                             double min = NumericUtils.sortableLongToDouble(minValues.longValue());
                             double max = NumericUtils.sortableLongToDouble(maxValues.longValue());
                             double sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
                             int count = Math.toIntExact(valueCountValues.longValue());
-                            blockBuilder.append(min, max, sum, count);
+                            builder.append(min, max, sum, count);
                         } else {
-                            blockBuilder.appendNull();
+                            builder.appendNull();
                         }
                     }
                 };

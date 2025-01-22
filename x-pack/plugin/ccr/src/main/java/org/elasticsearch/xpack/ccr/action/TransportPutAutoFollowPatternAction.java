@@ -71,7 +71,6 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             threadPool,
             actionFilters,
             PutAutoFollowPatternAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;

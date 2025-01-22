@@ -48,7 +48,6 @@ public class TransportActivateAutoFollowPatternAction extends AcknowledgedTransp
             threadPool,
             actionFilters,
             Request::new,
-            resolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }

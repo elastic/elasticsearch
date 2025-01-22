@@ -7,7 +7,7 @@
   },
   "mappings": {
     "_doc": {
-      "dynamic": "false",
+      "dynamic": "strict",
       "_meta": {
         "version": "${elastic-connectors.version}",
         "managed_index_mappings_version": ${elastic-connectors.managed.index.version}

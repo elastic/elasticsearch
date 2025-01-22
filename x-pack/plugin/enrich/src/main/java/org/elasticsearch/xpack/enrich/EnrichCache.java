@@ -43,12 +43,16 @@ import java.util.function.ToLongBiFunction;
 public final class EnrichCache {
 
     private static final CacheValue EMPTY_CACHE_VALUE = new CacheValue(List.of(), CacheKey.CACHE_KEY_SIZE);
+    /**
+     * This field defines the size that the enrich cache takes up on the heap without any entries in it.
+     */
+    private static final int BASE_ENRICH_CACHE_SIZE = Cache.NUMBER_OF_SEGMENTS * 152;
 
     private final Cache<CacheKey, CacheValue> cache;
     private final LongSupplier relativeNanoTimeProvider;
     private final AtomicLong hitsTimeInNanos = new AtomicLong(0);
     private final AtomicLong missesTimeInNanos = new AtomicLong(0);
-    private final AtomicLong sizeInBytes = new AtomicLong(0);
+    private final AtomicLong sizeInBytes = new AtomicLong(BASE_ENRICH_CACHE_SIZE);
 
     EnrichCache(long maxSize) {
         this(maxSize, System::nanoTime);

@@ -243,6 +243,9 @@ tests:
 - class: org.elasticsearch.index.reindex.BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests
   method: testReindex
   issue: https://github.com/elastic/elasticsearch/issues/120605
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testMultipleInferencesTriggeringDownloadAndDeploy
+  issue: https://github.com/elastic/elasticsearch/issues/120668
 
 # Examples:
 #

@@ -19,7 +19,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -66,11 +65,8 @@ import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordRequestBuilder;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -102,12 +98,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ProfileIntegTests extends AbstractProfileIntegTestCase {
-
-    @SuppressForbidden(reason = "temporary disabling queryable built-in roles to avoid unavailable shard exception during cluster setup")
-    @BeforeClass
-    public static void disableQueryableBuiltInRoles() {
-        AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty("es.queryable_built_in_roles_enabled", "false"));
-    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

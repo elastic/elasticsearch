@@ -21,7 +21,9 @@ import org.elasticsearch.xpack.core.template.JsonIngestPipelineConfig;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.KIBANA_ORIGIN;
 
 public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
 
@@ -47,7 +49,7 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.application.connector.template.version";
 
     // Sources allowed to access system indices using X-elastic-product-origin header
-    public static final List<String> CONNECTORS_ALLOWED_PRODUCT_ORIGINS = List.of("kibana", "connectors");
+    public static final List<String> CONNECTORS_ALLOWED_PRODUCT_ORIGINS = List.of(KIBANA_ORIGIN, CONNECTORS_ORIGIN);
 
     @Override
     protected List<IngestPipelineConfig> getIngestPipelines() {

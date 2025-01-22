@@ -27,6 +27,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -68,6 +69,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -75,6 +77,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -92,8 +95,14 @@ public class ConnectorIndexService {
     // The client to interact with the system index (internal user).
     private final Client clientWithOrigin;
 
-    public static final String CONNECTOR_INDEX_NAME = ".elastic-connectors";
     private static final int CONNECTORS_INDEX_VERSION = 1;
+    public static final String CONNECTOR_INDEX_NAME = ".elastic-connectors";
+    public static final String CONNECTOR_INDEX_PREFIX = ".elastic-connectors-v";
+    public static final String CONNECTOR_CONCRETE_INDEX_NAME = CONNECTOR_INDEX_PREFIX + CONNECTORS_INDEX_VERSION;
+    // The index pattern needs a stricter regex to prevent conflicts with .elastic-connectors-sync-jobs
+
+    public static final String CONNECTOR_INDEX_NAME_PATTERN = CONNECTOR_INDEX_PREFIX + "*";
+
     private static final String CONNECTORS_MAPPING_VERSION_VARIABLE = "elastic-connectors.version";
     private static final String CONNECTORS_MAPPING_MANAGED_VERSION_VARIABLE = "elastic-connectors.managed.index.version";
 
@@ -121,8 +130,8 @@ public class ConnectorIndexService {
 
         // The index pattern needs a stricter regex to prevent conflicts with .elastic-connectors-sync-jobs
         return SystemIndexDescriptor.builder()
-            .setIndexPattern(CONNECTOR_INDEX_NAME + "-v*")
-            .setPrimaryIndex(CONNECTOR_INDEX_NAME + "-v" + CONNECTORS_INDEX_VERSION)
+            .setIndexPattern(CONNECTOR_INDEX_NAME_PATTERN)
+            .setPrimaryIndex(CONNECTOR_CONCRETE_INDEX_NAME)
             .setAliasName(CONNECTOR_INDEX_NAME)
             .setDescription("Search connectors")
             .setMappings(request.mappings())

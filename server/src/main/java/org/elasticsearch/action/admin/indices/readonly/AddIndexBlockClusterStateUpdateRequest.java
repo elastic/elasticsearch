@@ -23,6 +23,7 @@ public record AddIndexBlockClusterStateUpdateRequest(
     TimeValue ackTimeout,
     ProjectId projectId,
     APIBlock block,
+    boolean markVerified,
     long taskId,
     Index[] indices
 ) {

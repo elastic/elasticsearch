@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 
 import java.io.IOException;
@@ -51,7 +52,7 @@ public class TransportHandshakerTests extends ESTestCase {
             .address("host", "host_address", buildNewFakeTransportAddress())
             .roles(Collections.emptySet())
             .build();
-        threadPool = new TestThreadPool("thread-poll");
+        threadPool = new TestThreadPool(getTestName());
         handshaker = new TransportHandshaker(TransportVersion.current(), threadPool, requestSender, false);
     }
 
@@ -83,6 +84,37 @@ public class TransportHandshakerTests extends ESTestCase {
 
         assertTrue(versionFuture.isDone());
         assertEquals(TransportVersion.current(), versionFuture.actionGet());
+    }
+
+    public void testHandshakeResponseFromOlderNode() throws Exception {
+        final PlainActionFuture<TransportVersion> versionFuture = new PlainActionFuture<>();
+        final long reqId = randomNonNegativeLong();
+        handshaker.sendHandshake(reqId, node, channel, SAFE_AWAIT_TIMEOUT, versionFuture);
+        TransportResponseHandler<TransportHandshaker.HandshakeResponse> handler = handshaker.removeHandlerForHandshake(reqId);
+
+        assertFalse(versionFuture.isDone());
+
+        final var remoteVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        handler.handleResponse(new TransportHandshaker.HandshakeResponse(remoteVersion));
+
+        assertTrue(versionFuture.isDone());
+        assertEquals(remoteVersion, versionFuture.result());
+    }
+
+    public void testHandshakeResponseFromNewerNode() throws Exception {
+        final PlainActionFuture<TransportVersion> versionFuture = new PlainActionFuture<>();
+        final long reqId = randomNonNegativeLong();
+        handshaker.sendHandshake(reqId, node, channel, SAFE_AWAIT_TIMEOUT, versionFuture);
+        TransportResponseHandler<TransportHandshaker.HandshakeResponse> handler = handshaker.removeHandlerForHandshake(reqId);
+
+        assertFalse(versionFuture.isDone());
+
+        handler.handleResponse(
+            new TransportHandshaker.HandshakeResponse(TransportVersion.fromId(TransportVersion.current().id() + between(0, 10)))
+        );
+
+        assertTrue(versionFuture.isDone());
+        assertEquals(TransportVersion.current(), versionFuture.result());
     }
 
     public void testHandshakeRequestFutureVersionsCompatibility() throws IOException {

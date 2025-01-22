@@ -42,6 +42,7 @@ public class TransportGetDataStreamLifecycleAction extends TransportMasterNodeRe
     GetDataStreamLifecycleAction.Request,
     GetDataStreamLifecycleAction.Response> {
     private final ClusterSettings clusterSettings;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
 
     @Inject
@@ -62,11 +63,11 @@ public class TransportGetDataStreamLifecycleAction extends TransportMasterNodeRe
             actionFilters,
             GetDataStreamLifecycleAction.Request::new,
             projectResolver,
-            indexNameExpressionResolver,
             GetDataStreamLifecycleAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         clusterSettings = clusterService.getClusterSettings();
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.globalRetentionSettings = globalRetentionSettings;
     }
 

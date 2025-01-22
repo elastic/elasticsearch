@@ -46,6 +46,13 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
     private final ClusterService clusterService;
     private final Client client;
     private final IndexScopedSettings indexScopedSettings;
+    private static final Settings REMOVE_INDEX_BLOCKS_SETTING_OVERRIDE = Settings.builder()
+        .putNull(IndexMetadata.SETTING_READ_ONLY)
+        .putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
+        .putNull(IndexMetadata.SETTING_BLOCKS_WRITE)
+        .putNull(IndexMetadata.SETTING_BLOCKS_METADATA)
+        .putNull(IndexMetadata.SETTING_BLOCKS_READ)
+        .build();
 
     @Inject
     public CreateIndexFromSourceTransportAction(
@@ -80,12 +87,15 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
 
         logger.debug("Creating destination index [{}] for source index [{}]", request.destIndex(), request.sourceIndex());
 
-        Settings settings = Settings.builder()
-            // add source settings
+        Settings.Builder settings = Settings.builder()
+            // first settings from source index
             .put(filterSettings(sourceIndex))
-            // add override settings from request
-            .put(request.settingsOverride())
-            .build();
+            // then override with request settings
+            .put(request.settingsOverride());
+        if (request.removeIndexBlocks()) {
+            // lastly, override with settings to remove index blocks if requested
+            settings.put(REMOVE_INDEX_BLOCKS_SETTING_OVERRIDE);
+        }
 
         Map<String, Object> mergeMappings;
         try {

@@ -21,7 +21,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.IngestService;
@@ -47,7 +46,6 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
         TransportService transportService,
         ActionFilters actionFilters,
         ProjectResolver projectResolver,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         IngestService ingestService,
         NodeClient client
     ) {
@@ -58,7 +56,6 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
             threadPool,
             actionFilters,
             PutPipelineRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         // This client is only used to perform an internal implementation detail,

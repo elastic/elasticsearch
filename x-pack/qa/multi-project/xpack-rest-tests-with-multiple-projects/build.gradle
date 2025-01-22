@@ -63,6 +63,7 @@ tasks.named("yamlRestTest").configure {
     '^migrate/30_create_from/Test create from with nonexistent source index',
     '^migrate/30_create_from/Test create_from with existing source index',
     '^migrate/30_create_from/Test create_from with existing source index and overrides',
+    '^migrate/30_create_from/Test create_from with remove_index_blocks',
     '^ml/3rd_party_deployment/*',
     '^ml/bucket_correlation_agg/*',
     '^ml/bucket_count_ks_test_agg/*',

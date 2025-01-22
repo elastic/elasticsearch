@@ -45,6 +45,7 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
 
     private final MetadataDeleteIndexService deleteIndexService;
     private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final DestructiveOperations destructiveOperations;
 
     @Inject
@@ -65,11 +66,11 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
             threadPool,
             actionFilters,
             DeleteIndexRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.deleteIndexService = deleteIndexService;
         this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destructiveOperations = destructiveOperations;
     }
 

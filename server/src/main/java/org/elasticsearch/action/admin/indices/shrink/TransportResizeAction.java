@@ -94,7 +94,6 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
             threadPool,
             actionFilters,
             ResizeRequest::new,
-            indexNameExpressionResolver,
             CreateIndexResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

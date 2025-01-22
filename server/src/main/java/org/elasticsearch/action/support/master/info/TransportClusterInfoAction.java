@@ -29,6 +29,7 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
     TransportMasterNodeReadAction<Request, Response> {
 
     protected final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     public TransportClusterInfoAction(
         String actionName,
@@ -48,11 +49,11 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
             threadPool,
             actionFilters,
             request,
-            indexNameExpressionResolver,
             response,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override

@@ -12,6 +12,8 @@ package org.elasticsearch.lucene;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -42,6 +44,7 @@ import static org.elasticsearch.test.cluster.util.Version.CURRENT;
 import static org.elasticsearch.test.cluster.util.Version.fromString;
 import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -272,9 +275,27 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
         assertAcknowledged(client().performRequest(request));
     }
 
-    protected void assertThatIndexBlock(String indexName, IndexMetadata.APIBlock apiBlock) throws Exception {
+    protected void assertIndexBlockExists(String indexName, IndexMetadata.APIBlock apiBlock) throws Exception {
         var indexSettings = getIndexSettingsAsMap(indexName);
         assertThat(indexSettings.get(VERIFIED_READ_ONLY_SETTING.getKey()), equalTo(Boolean.TRUE.toString()));
         assertThat(indexSettings.get(apiBlock.settingName()), equalTo(Boolean.TRUE.toString()));
+    }
+
+    protected void assertIndexBlockNotUpdateable(String indexName, IndexMetadata.APIBlock apiBlock) {
+        var settings = Settings.builder();
+        if (apiBlock.getBlock().contains(ClusterBlockLevel.METADATA_WRITE) || randomBoolean()) {
+            settings.putNull(apiBlock.settingName());
+        } else {
+            settings.put(apiBlock.settingName(), false);
+        }
+        var exception = expectThrows(ResponseException.class, () -> updateIndexSettings(indexName, settings));
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(
+            exception.getMessage(),
+            allOf(
+                containsString("Can't update setting [" + apiBlock.settingName() + "] for read-only compatible"),
+                containsString(indexName)
+            )
+        );
     }
 }

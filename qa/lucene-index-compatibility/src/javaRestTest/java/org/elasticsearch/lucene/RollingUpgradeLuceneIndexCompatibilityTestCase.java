@@ -19,6 +19,7 @@ import org.elasticsearch.test.cluster.util.Version;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RollingUpgradeLuceneIndexCompatibilityTestCase extends RollingUpgradeIndexCompatibilityTestCase {
@@ -66,7 +67,8 @@ public class RollingUpgradeLuceneIndexCompatibilityTestCase extends RollingUpgra
         }
 
         if (nodesVersions().values().stream().anyMatch(v -> v.onOrAfter(VERSION_CURRENT))) {
-            assertThatIndexBlock(index, IndexMetadata.APIBlock.WRITE);
+            assertIndexBlockExists(index, IndexMetadata.APIBlock.WRITE);
+            assertIndexBlockNotUpdateable(index, IndexMetadata.APIBlock.WRITE);
 
             if (isIndexClosed(index)) {
                 logger.debug("--> re-opening index [{}] after upgrade", index);
@@ -123,7 +125,8 @@ public class RollingUpgradeLuceneIndexCompatibilityTestCase extends RollingUpgra
         }
 
         if (nodesVersions().values().stream().anyMatch(v -> v.onOrAfter(VERSION_CURRENT))) {
-            assertThatIndexBlock(index, IndexMetadata.APIBlock.READ_ONLY);
+            assertIndexBlockExists(index, IndexMetadata.APIBlock.READ_ONLY);
+            assertIndexBlockNotUpdateable(index, IndexMetadata.APIBlock.READ_ONLY);
 
             assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), index, numDocs);
@@ -174,16 +177,17 @@ public class RollingUpgradeLuceneIndexCompatibilityTestCase extends RollingUpgra
             deleteIndex(index);
             return;
         }
+
         if (nodesVersions().values().stream().anyMatch(v -> v.onOrAfter(VERSION_CURRENT))) {
             var restoredIndex = suffix("index-restored-rolling");
             boolean success = false;
             try {
-
                 logger.debug("--> restoring index [{}] as [{}]", index, restoredIndex);
                 restoreIndex(repository, snapshot, index, restoredIndex);
                 ensureGreen(restoredIndex);
 
-                assertThatIndexBlock(restoredIndex, IndexMetadata.APIBlock.WRITE);
+                assertIndexBlockExists(restoredIndex, IndexMetadata.APIBlock.WRITE);
+                assertIndexBlockNotUpdateable(restoredIndex, IndexMetadata.APIBlock.WRITE);
                 assertThat(indexVersion(restoredIndex), equalTo(VERSION_MINUS_2));
                 assertDocCount(client(), restoredIndex, numDocs);
 
@@ -193,6 +197,8 @@ public class RollingUpgradeLuceneIndexCompatibilityTestCase extends RollingUpgra
                 logger.debug("--> closing restored index [{}]", restoredIndex);
                 closeIndex(restoredIndex);
                 ensureGreen(restoredIndex);
+
+                assertIndexBlockNotUpdateable(restoredIndex, IndexMetadata.APIBlock.WRITE); // test again on closed index
 
                 logger.debug("--> re-opening restored index [{}]", restoredIndex);
                 openIndex(restoredIndex);
@@ -213,6 +219,21 @@ public class RollingUpgradeLuceneIndexCompatibilityTestCase extends RollingUpgra
                     }
                 }
             }
+        }
+
+        if (isFullyUpgradedTo(VERSION_CURRENT)) {
+            var exception = expectThrows(
+                ResponseException.class,
+                () -> restoreIndex(
+                    repository,
+                    snapshot,
+                    index,
+                    suffix("unrestorable"),
+                    Settings.builder().put(IndexMetadata.APIBlock.WRITE.settingName(), false).build()
+                )
+            );
+            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(500));
+            assertThat(exception.getMessage(), containsString("must be marked as read-only using the setting"));
         }
     }
 }

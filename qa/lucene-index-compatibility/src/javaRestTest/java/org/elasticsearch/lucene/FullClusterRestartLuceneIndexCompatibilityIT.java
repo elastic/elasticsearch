@@ -67,7 +67,8 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), index, numDocs);
 
-            assertThatIndexBlock(index, IndexMetadata.APIBlock.WRITE);
+            assertIndexBlockExists(index, IndexMetadata.APIBlock.WRITE);
+            assertIndexBlockNotUpdateable(index, IndexMetadata.APIBlock.WRITE);
 
             var numberOfReplicas = getNumberOfReplicas(index);
             if (0 < numberOfReplicas) {
@@ -85,6 +86,8 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             logger.debug("--> closing restored index [{}]", index);
             closeIndex(index);
             ensureGreen(index);
+
+            assertIndexBlockNotUpdateable(index, IndexMetadata.APIBlock.WRITE); // test again on closed index
 
             logger.debug("--> adding replica to test peer-recovery for closed shards");
             updateIndexSettings(index, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2));
@@ -141,7 +144,8 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), index, numDocs);
 
-            assertThatIndexBlock(index, IndexMetadata.APIBlock.READ_ONLY);
+            assertIndexBlockExists(index, IndexMetadata.APIBlock.READ_ONLY);
+            assertIndexBlockNotUpdateable(index, IndexMetadata.APIBlock.READ_ONLY);
         }
     }
 
@@ -196,7 +200,7 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             restoreIndex(repository, snapshot, index, restoredIndex);
             ensureGreen(restoredIndex);
 
-            assertThatIndexBlock(restoredIndex, IndexMetadata.APIBlock.WRITE);
+            assertIndexBlockExists(restoredIndex, IndexMetadata.APIBlock.WRITE);
             assertThat(indexVersion(restoredIndex), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), restoredIndex, numDocs);
 
@@ -277,7 +281,7 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
 
         if (isFullyUpgradedTo(VERSION_CURRENT)) {
             assertThat(isIndexClosed(index), equalTo(true));
-            assertThatIndexBlock(index, IndexMetadata.APIBlock.WRITE);
+            assertIndexBlockExists(index, IndexMetadata.APIBlock.WRITE);
 
             logger.debug("--> restoring index [{}] over existing closed index", index);
             restoreIndex(repository, snapshot, index, index);

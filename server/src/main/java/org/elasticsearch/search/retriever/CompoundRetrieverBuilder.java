@@ -192,7 +192,13 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                 }
             });
         });
-        return new RankDocsRetrieverBuilder(rankWindowSize, newRetrievers.stream().map(s -> s.retriever).toList(), results::get);
+        RankDocsRetrieverBuilder rankDocsRetrieverBuilder = new RankDocsRetrieverBuilder(
+            rankWindowSize,
+            newRetrievers.stream().map(s -> s.retriever).toList(),
+            results::get
+        );
+        rankDocsRetrieverBuilder.retrieverName(retrieverName());
+        return rankDocsRetrieverBuilder;
     }
 
     @Override

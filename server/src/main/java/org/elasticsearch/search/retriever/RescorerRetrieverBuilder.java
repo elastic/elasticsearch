@@ -144,6 +144,7 @@ public final class RescorerRetrieverBuilder extends CompoundRetrieverBuilder<Res
     protected RescorerRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
         var newInstance = new RescorerRetrieverBuilder(newChildRetrievers.get(0), rescorers);
         newInstance.preFilterQueryBuilders = newPreFilterQueryBuilders;
+        newInstance.retrieverName = retrieverName;
         return newInstance;
     }
 

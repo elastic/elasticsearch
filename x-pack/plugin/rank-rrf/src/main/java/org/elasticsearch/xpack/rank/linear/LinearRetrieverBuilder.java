@@ -12,7 +12,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.search.rank.LinearRankDoc;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
@@ -92,10 +91,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         return PARSER.apply(parser, context);
     }
 
-    LinearRetrieverBuilder(
-        List<RetrieverSource> innerRetrievers,
-        int rankWindowSize
-    ) {
+    LinearRetrieverBuilder(List<RetrieverSource> innerRetrievers, int rankWindowSize) {
         this(innerRetrievers, rankWindowSize, null, null);
     }
 
@@ -106,6 +102,12 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         ScoreNormalizer[] normalizers
     ) {
         super(innerRetrievers, rankWindowSize);
+        if (weights != null && weights.length != innerRetrievers.size()) {
+            throw new IllegalArgumentException("The number of weights must match the number of inner retrievers");
+        }
+        if (normalizers != null && normalizers.length != innerRetrievers.size()) {
+            throw new IllegalArgumentException("The number of normalizers must match the number of inner retrievers");
+        }
         if (weights == null) {
             this.weights = new float[innerRetrievers.size()];
             Arrays.fill(this.weights, DEFAULT_WEIGHT);
@@ -124,6 +126,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     protected LinearRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
         LinearRetrieverBuilder clone = new LinearRetrieverBuilder(newChildRetrievers, rankWindowSize, weights, normalizers);
         clone.preFilterQueryBuilders = newPreFilterQueryBuilders;
+        clone.retrieverName = retrieverName;
         return clone;
     }
 

@@ -224,7 +224,6 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.rank.LinearRankDoc;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
@@ -835,7 +834,6 @@ public class SearchModule {
     private void registerRankers() {
         namedWriteables.add(new NamedWriteableRegistry.Entry(RankDoc.class, RankDoc.NAME, RankDoc::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(RankDoc.class, RankFeatureDoc.NAME, RankFeatureDoc::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RankDoc.class, LinearRankDoc.NAME, LinearRankDoc::new));
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(RankShardResult.class, RankFeatureShardResult.NAME, RankFeatureShardResult::new)
         );

@@ -26,7 +26,9 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
+import org.elasticsearch.search.retriever.IdentityScoreNormalizer;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
+import org.elasticsearch.search.retriever.ScoreNormalizer;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -50,6 +52,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -84,7 +87,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                   "similarity": "l2_norm",
                   "index": true,
                   "index_options": {
-                    "type": "hnsw"
+                    "type": "flat"
                   }
                 },
                 "text": {
@@ -123,9 +126,9 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             TEXT_FIELD,
             "search term term",
             VECTOR_FIELD,
-            new float[]{2.0f}
+            new float[] { 2.0f }
         );
-        indexDoc(INDEX, "doc_3", DOC_FIELD, "doc_3", TOPIC_FIELD, "technology", VECTOR_FIELD, new float[]{3.0f});
+        indexDoc(INDEX, "doc_3", DOC_FIELD, "doc_3", TOPIC_FIELD, "technology", VECTOR_FIELD, new float[] { 3.0f });
         indexDoc(INDEX, "doc_4", DOC_FIELD, "doc_4", TOPIC_FIELD, "technology", TEXT_FIELD, "term term term term");
         indexDoc(INDEX, "doc_5", DOC_FIELD, "doc_5", TOPIC_FIELD, "science", TEXT_FIELD, "irrelevant stuff");
         indexDoc(
@@ -136,7 +139,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             TEXT_FIELD,
             "search term term term term term term",
             VECTOR_FIELD,
-            new float[]{6.0f}
+            new float[] { 6.0f }
         );
         indexDoc(
             INDEX,
@@ -148,11 +151,10 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             TEXT_FIELD,
             "term term term term term term term",
             VECTOR_FIELD,
-            new float[]{7.0f}
+            new float[] { 7.0f }
         );
         refresh(INDEX);
     }
-
 
     public void testLinearRetrieverWithAggs() {
         final int rankWindowSize = 100;
@@ -175,7 +177,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[]{2.0f}, null, 10, 100, null, null);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
 
         // all requests would have an equal weight and use the identity normalizer
         source.retriever(
@@ -211,9 +213,9 @@ public class LinearRetrieverIT extends ESIntegTestCase {
 
     public void testLinearWithCollapse() {
         final int rankWindowSize = 100;
-        final int rankConstant = 10;
         SearchSourceBuilder source = new SearchSourceBuilder();
         // this one retrieves docs 1, 2, 4, 6, and 7
+        // with scores 10, 9, 8, 7, 6
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
             QueryBuilders.boolQuery()
                 .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
@@ -223,6 +225,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                 .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_7")).boost(6L))
         );
         // this one retrieves docs 2 and 6 due to prefilter
+        // with scores 20, 5
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
             QueryBuilders.boolQuery()
                 .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20L))
@@ -231,7 +234,15 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[]{2.0f}, null, 10, 100, null, null);
+        // with scores 1, 0.5, 0.05882353, 0.03846154
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
+        // final ranking with no-normalizer would be: doc 2, 6, 1, 4, 7, 3
+        // doc 1: 10
+        // doc 2: 9 + 20 + 1 = 30
+        // doc 3: 0.5
+        // doc 4: 8
+        // doc 6: 7 + 5 + 0.05882353 = 12.05882353
+        // doc 7: 6 + 0.03846154 = 6.03846154
         source.retriever(
             new LinearRetrieverBuilder(
                 Arrays.asList(
@@ -256,20 +267,24 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getHits().length, equalTo(4));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
+            assertThat(resp.getHits().getAt(0).getScore(), equalTo(30f));
             assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_6"));
-            assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_7"));
-            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_1"));
-            assertThat(resp.getHits().getAt(3).getInnerHits().get("a").getAt(0).getId(), equalTo("doc_4"));
-            assertThat(resp.getHits().getAt(3).getInnerHits().get("a").getAt(1).getId(), equalTo("doc_3"));
-            assertThat(resp.getHits().getAt(3).getInnerHits().get("a").getAt(2).getId(), equalTo("doc_1"));
+            assertThat((double) resp.getHits().getAt(1).getScore(), closeTo(12.0588f, 0.0001f));
+            assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_1"));
+            assertThat(resp.getHits().getAt(2).getScore(), equalTo(10f));
+            assertThat(resp.getHits().getAt(2).getInnerHits().get("a").getAt(0).getId(), equalTo("doc_4"));
+            assertThat(resp.getHits().getAt(2).getInnerHits().get("a").getAt(1).getId(), equalTo("doc_3"));
+            assertThat(resp.getHits().getAt(2).getInnerHits().get("a").getAt(2).getId(), equalTo("doc_1"));
+            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_7"));
+            assertThat((double) resp.getHits().getAt(3).getScore(), closeTo(6.0384f, 0.0001f));
         });
     }
 
-    public void testRRFRetrieverWithCollapseAndAggs() {
+    public void testLinearRetrieverWithCollapseAndAggs() {
         final int rankWindowSize = 100;
-        final int rankConstant = 10;
         SearchSourceBuilder source = new SearchSourceBuilder();
         // this one retrieves docs 1, 2, 4, 6, and 7
+        // with scores 10, 9, 8, 7, 6
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
             QueryBuilders.boolQuery()
                 .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
@@ -279,6 +294,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                 .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_7")).boost(6L))
         );
         // this one retrieves docs 2 and 6 due to prefilter
+        // with scores 20, 5
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
             QueryBuilders.boolQuery()
                 .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20L))
@@ -287,7 +303,15 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[]{2.0f}, null, 10, 100, null, null);
+        // with scores 1, 0.5, 0.05882353, 0.03846154
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
+        // final ranking with no-normalizer would be: doc 2, 6, 1, 4, 7, 3
+        // doc 1: 10
+        // doc 2: 9 + 20 + 1 = 30
+        // doc 3: 0.5
+        // doc 4: 8
+        // doc 6: 7 + 5 + 0.05882353 = 12.05882353
+        // doc 7: 6 + 0.03846154 = 6.03846154
         source.retriever(
             new LinearRetrieverBuilder(
                 Arrays.asList(
@@ -314,11 +338,11 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             assertThat(resp.getHits().getHits().length, equalTo(4));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
             assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_6"));
-            assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_7"));
-            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_1"));
-            assertThat(resp.getHits().getAt(3).getInnerHits().get("a").getAt(0).getId(), equalTo("doc_4"));
-            assertThat(resp.getHits().getAt(3).getInnerHits().get("a").getAt(1).getId(), equalTo("doc_3"));
-            assertThat(resp.getHits().getAt(3).getInnerHits().get("a").getAt(2).getId(), equalTo("doc_1"));
+            assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_1"));
+            assertThat(resp.getHits().getAt(2).getInnerHits().get("a").getAt(0).getId(), equalTo("doc_4"));
+            assertThat(resp.getHits().getAt(2).getInnerHits().get("a").getAt(1).getId(), equalTo("doc_3"));
+            assertThat(resp.getHits().getAt(2).getInnerHits().get("a").getAt(2).getId(), equalTo("doc_1"));
+            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_7"));
 
             assertNotNull(resp.getAggregations());
             assertNotNull(resp.getAggregations().get("topic_agg"));
@@ -330,11 +354,11 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         });
     }
 
-    public void testMultipleRRFRetrievers() {
+    public void testMultipleLinearRetrievers() {
         final int rankWindowSize = 100;
-        final int rankConstant = 10;
         SearchSourceBuilder source = new SearchSourceBuilder();
         // this one retrieves docs 1, 2, 4, 6, and 7
+        // with scores 10, 9, 8, 7, 6
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
             QueryBuilders.boolQuery()
                 .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
@@ -344,6 +368,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                 .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_7")).boost(6L))
         );
         // this one retrieves docs 2 and 6 due to prefilter
+        // with scores 20, 5
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
             QueryBuilders.boolQuery()
                 .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20L))
@@ -351,30 +376,32 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                 .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(5L))
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
-        // this one retrieves docs 2, 3, 6, and 7
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[]{2.0f}, null, 10, 100, null, null);
         source.retriever(
             new LinearRetrieverBuilder(
                 Arrays.asList(
                     new CompoundRetrieverBuilder.RetrieverSource(
-                        // this one returns docs 6, 7, 1, 3, and 4
+                        // this one returns docs doc 2, 1, 6, 4, 7
+                        // with scores 38, 20, 19, 16, 12
                         new LinearRetrieverBuilder(
                             Arrays.asList(
                                 new CompoundRetrieverBuilder.RetrieverSource(standard0, null),
-                                new CompoundRetrieverBuilder.RetrieverSource(standard1, null),
-                                new CompoundRetrieverBuilder.RetrieverSource(knnRetrieverBuilder, null)
+                                new CompoundRetrieverBuilder.RetrieverSource(standard1, null)
                             ),
-                            rankWindowSize
+                            rankWindowSize,
+                            new float[] { 2.0f, 1.0f },
+                            null
                         ),
                         null
                     ),
-                    // this one bring just doc 7 which should be ranked first eventually
+                    // this one bring just doc 7 which should be ranked first eventually with a score of 100
                     new CompoundRetrieverBuilder.RetrieverSource(
-                        new KnnRetrieverBuilder(VECTOR_FIELD, new float[]{7.0f}, null, 1, 100, null, null),
+                        new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 7.0f }, null, 1, 100, null, null),
                         null
                     )
                 ),
-                rankWindowSize
+                rankWindowSize,
+                new float[] { 1.0f, 100.0f },
+                new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE }
             )
         );
 
@@ -382,22 +409,26 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
             assertNotNull(resp.getHits().getTotalHits());
-            assertThat(resp.getHits().getTotalHits().value(), equalTo(6L));
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(5L));
             assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_7"));
+            assertThat(resp.getHits().getAt(0).getScore(), equalTo(112f));
             assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_2"));
-            assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_6"));
-            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_1"));
-            assertThat(resp.getHits().getAt(4).getId(), equalTo("doc_3"));
-            assertThat(resp.getHits().getAt(5).getId(), equalTo("doc_4"));
+            assertThat(resp.getHits().getAt(1).getScore(), equalTo(38f));
+            assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_1"));
+            assertThat(resp.getHits().getAt(2).getScore(), equalTo(20f));
+            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_6"));
+            assertThat(resp.getHits().getAt(3).getScore(), equalTo(19f));
+            assertThat(resp.getHits().getAt(4).getId(), equalTo("doc_4"));
+            assertThat(resp.getHits().getAt(4).getScore(), equalTo(16f));
         });
     }
 
-    public void testRRFExplainWithNamedRetrievers() {
+    public void testLinearExplainWithNamedRetrievers() {
         final int rankWindowSize = 100;
-        final int rankConstant = 10;
         SearchSourceBuilder source = new SearchSourceBuilder();
         // this one retrieves docs 1, 2, 4, 6, and 7
+        // with scores 10, 9, 8, 7, 6
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
             QueryBuilders.boolQuery()
                 .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
@@ -408,6 +439,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         );
         standard0.retrieverName("my_custom_retriever");
         // this one retrieves docs 2 and 6 due to prefilter
+        // with scores 20, 5
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
             QueryBuilders.boolQuery()
                 .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20L))
@@ -416,7 +448,15 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[]{2.0f}, null, 10, 100, null, null);
+        // with scores 1, 0.5, 0.05882353, 0.03846154
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
+        // final ranking with no-normalizer would be: doc 2, 6, 1, 4, 7, 3
+        // doc 1: 10
+        // doc 2: 9 + 20 + 1 = 30
+        // doc 3: 0.5
+        // doc 4: 8
+        // doc 6: 7 + 5 + 0.05882353 = 12.05882353
+        // doc 7: 6 + 0.03846154 = 6.03846154
         source.retriever(
             new LinearRetrieverBuilder(
                 Arrays.asList(
@@ -442,20 +482,39 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             assertThat(resp.getHits().getAt(0).getExplanation().getDetails().length, equalTo(2));
             var rrfDetails = resp.getHits().getAt(0).getExplanation().getDetails()[0];
             assertThat(rrfDetails.getDetails().length, equalTo(3));
-            assertThat(rrfDetails.getDescription(), containsString("computed for initial ranks [2, 1, 1]"));
+            assertThat(
+                rrfDetails.getDescription(),
+                equalTo(
+                    "weighted linear combination score: [30.0] computed for normalized scores [9.0, 20.0, 1.0] and weights [1.0, 1.0, 1.0] as sum of (weight[i] * score[i]) for each query."
+                )
+            );
 
-            assertThat(rrfDetails.getDetails()[0].getDescription(), containsString("for rank [2] in query at index [0]"));
-            assertThat(rrfDetails.getDetails()[0].getDescription(), containsString("[my_custom_retriever]"));
-            assertThat(rrfDetails.getDetails()[1].getDescription(), containsString("for rank [1] in query at index [1]"));
-            assertThat(rrfDetails.getDetails()[2].getDescription(), containsString("for rank [1] in query at index [2]"));
+            assertThat(
+                rrfDetails.getDetails()[0].getDescription(),
+                containsString(
+                    "weighted score: [9.0] in query at index [0] [my_custom_retriever] computed as [1.0 * 9.0] using score normalizer [none] for original matching query with score"
+                )
+            );
+            assertThat(
+                rrfDetails.getDetails()[1].getDescription(),
+                containsString(
+                    "weighted score: [20.0] in query at index [1] computed as [1.0 * 20.0] using score normalizer [none] for original matching query with score:"
+                )
+            );
+            assertThat(
+                rrfDetails.getDetails()[2].getDescription(),
+                containsString(
+                    "weighted score: [1.0] in query at index [2] computed as [1.0 * 1.0] using score normalizer [none] for original matching query with score"
+                )
+            );
         });
     }
 
-    public void testRRFExplainWithAnotherNestedRRF() {
+    public void testLinearExplainWithAnotherNestedLinear() {
         final int rankWindowSize = 100;
-        final int rankConstant = 10;
         SearchSourceBuilder source = new SearchSourceBuilder();
         // this one retrieves docs 1, 2, 4, 6, and 7
+        // with scores 10, 9, 8, 7, 6
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
             QueryBuilders.boolQuery()
                 .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
@@ -466,6 +525,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         );
         standard0.retrieverName("my_custom_retriever");
         // this one retrieves docs 2 and 6 due to prefilter
+        // with scores 20, 5
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
             QueryBuilders.boolQuery()
                 .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20L))
@@ -474,9 +534,16 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[]{2.0f}, null, 10, 100, null, null);
-
-        LinearRetrieverBuilder nestedRRF = new LinearRetrieverBuilder(
+        // with scores 1, 0.5, 0.05882353, 0.03846154
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
+        // final ranking with no-normalizer would be: doc 2, 6, 1, 4, 7, 3
+        // doc 1: 10
+        // doc 2: 9 + 20 + 1 = 30
+        // doc 3: 0.5
+        // doc 4: 8
+        // doc 6: 7 + 5 + 0.05882353 = 12.05882353
+        // doc 7: 6 + 0.03846154 = 6.03846154
+        LinearRetrieverBuilder nestedLinear = new LinearRetrieverBuilder(
             Arrays.asList(
                 new CompoundRetrieverBuilder.RetrieverSource(standard0, null),
                 new CompoundRetrieverBuilder.RetrieverSource(standard1, null),
@@ -484,16 +551,20 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             ),
             rankWindowSize
         );
+        nestedLinear.retrieverName("nested_linear");
+        // this one retrieves docs 6 with a score of 100
         StandardRetrieverBuilder standard2 = new StandardRetrieverBuilder(
             QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(20L)
         );
         source.retriever(
             new LinearRetrieverBuilder(
                 Arrays.asList(
-                    new CompoundRetrieverBuilder.RetrieverSource(nestedRRF, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(nestedLinear, null),
                     new CompoundRetrieverBuilder.RetrieverSource(standard2, null)
                 ),
-                rankWindowSize
+                rankWindowSize,
+                new float[] { 1, 5f },
+                new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE }
             )
         );
         source.explain(true);
@@ -509,27 +580,31 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             assertThat(resp.getHits().getAt(0).getExplanation().isMatch(), equalTo(true));
             assertThat(resp.getHits().getAt(0).getExplanation().getDescription(), containsString("sum of:"));
             assertThat(resp.getHits().getAt(0).getExplanation().getDetails().length, equalTo(2));
-            var rrfTopLevel = resp.getHits().getAt(0).getExplanation().getDetails()[0];
-            assertThat(rrfTopLevel.getDetails().length, equalTo(2));
-            assertThat(rrfTopLevel.getDescription(), containsString("computed for initial ranks [2, 1]"));
-            assertThat(rrfTopLevel.getDetails()[0].getDetails()[0].getDescription(), containsString("rrf score"));
-            assertThat(rrfTopLevel.getDetails()[1].getDetails()[0].getDescription(), containsString("ConstantScore"));
+            var linearTopLevel = resp.getHits().getAt(0).getExplanation().getDetails()[0];
+            assertThat(linearTopLevel.getDetails().length, equalTo(2));
+            assertThat(
+                linearTopLevel.getDescription(),
+                containsString(
+                    "weighted linear combination score: [112.05882] computed for normalized scores [12.058824, 20.0] and weights [1.0, 5.0] as sum of (weight[i] * score[i]) for each query."
+                )
+            );
+            assertThat(linearTopLevel.getDetails()[0].getDescription(), containsString("weighted score: [12.058824]"));
+            assertThat(linearTopLevel.getDetails()[0].getDescription(), containsString("nested_linear"));
+            assertThat(linearTopLevel.getDetails()[1].getDescription(), containsString("weighted score: [100.0]"));
 
-            var rrfDetails = rrfTopLevel.getDetails()[0].getDetails()[0];
-            assertThat(rrfDetails.getDetails().length, equalTo(3));
-            assertThat(rrfDetails.getDescription(), containsString("computed for initial ranks [4, 2, 3]"));
+            var linearNested = linearTopLevel.getDetails()[0];
+            assertThat(linearNested.getDetails()[0].getDetails().length, equalTo(3));
+            assertThat(linearNested.getDetails()[0].getDetails()[0].getDescription(), containsString("weighted score: [7.0]"));
+            assertThat(linearNested.getDetails()[0].getDetails()[1].getDescription(), containsString("weighted score: [5.0]"));
+            assertThat(linearNested.getDetails()[0].getDetails()[2].getDescription(), containsString("weighted score: [0.05882353]"));
 
-            assertThat(rrfDetails.getDetails()[0].getDescription(), containsString("for rank [4] in query at index [0]"));
-            assertThat(rrfDetails.getDetails()[0].getDescription(), containsString("for rank [4] in query at index [0]"));
-            assertThat(rrfDetails.getDetails()[0].getDescription(), containsString("[my_custom_retriever]"));
-            assertThat(rrfDetails.getDetails()[1].getDescription(), containsString("for rank [2] in query at index [1]"));
-            assertThat(rrfDetails.getDetails()[2].getDescription(), containsString("for rank [3] in query at index [2]"));
+            var standard0Details = linearTopLevel.getDetails()[1];
+            assertThat(standard0Details.getDetails()[0].getDescription(), containsString("ConstantScore"));
         });
     }
 
-    public void testRRFInnerRetrieverAll4xxSearchErrors() {
+    public void testLinearInnerRetrieverAll4xxSearchErrors() {
         final int rankWindowSize = 100;
-        final int rankConstant = 10;
         SearchSourceBuilder source = new SearchSourceBuilder();
         // this will throw a 4xx error during evaluation
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
@@ -557,7 +632,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         assertThat(
             ex.getMessage(),
             containsString(
-                "[rrf] search failed - retrievers '[standard]' returned errors. All failures are attached as suppressed exceptions."
+                "[linear] search failed - retrievers '[standard]' returned errors. All failures are attached as suppressed exceptions."
             )
         );
         assertThat(ExceptionsHelper.status(ex), equalTo(RestStatus.BAD_REQUEST));
@@ -565,9 +640,8 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         assertThat(ex.getSuppressed()[0].getCause().getCause(), instanceOf(IllegalArgumentException.class));
     }
 
-    public void testRRFInnerRetrieverMultipleErrorsOne5xx() {
+    public void testLinearInnerRetrieverMultipleErrorsOne5xx() {
         final int rankWindowSize = 100;
-        final int rankConstant = 10;
         SearchSourceBuilder source = new SearchSourceBuilder();
         // this will throw a 4xx error during evaluation
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
@@ -595,7 +669,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         assertThat(
             ex.getMessage(),
             containsString(
-                "[rrf] search failed - retrievers '[standard, test]' returned errors. All failures are attached as suppressed exceptions."
+                "[linear] search failed - retrievers '[standard, test]' returned errors. All failures are attached as suppressed exceptions."
             )
         );
         assertThat(ExceptionsHelper.status(ex), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
@@ -604,9 +678,8 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         assertThat(ex.getSuppressed()[1].getCause().getCause(), instanceOf(IllegalStateException.class));
     }
 
-    public void testRRFInnerRetrieverErrorWhenExtractingToSource() {
+    public void testLinearInnerRetrieverErrorWhenExtractingToSource() {
         final int rankWindowSize = 100;
-        final int rankConstant = 10;
         SearchSourceBuilder source = new SearchSourceBuilder();
         TestRetrieverBuilder failingRetriever = new TestRetrieverBuilder("some value") {
             @Override
@@ -639,9 +712,8 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         expectThrows(UnsupportedOperationException.class, () -> client().prepareSearch(INDEX).setSource(source).get());
     }
 
-    public void testRRFInnerRetrieverErrorOnTopDocs() {
+    public void testLinearInnerRetrieverErrorOnTopDocs() {
         final int rankWindowSize = 100;
-        final int rankConstant = 10;
         SearchSourceBuilder source = new SearchSourceBuilder();
         TestRetrieverBuilder failingRetriever = new TestRetrieverBuilder("some value") {
             @Override
@@ -675,9 +747,8 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         expectThrows(UnsupportedOperationException.class, () -> client().prepareSearch(INDEX).setSource(source).get());
     }
 
-    public void testRRFFiltersPropagatedToKnnQueryVectorBuilder() {
+    public void testLinearFiltersPropagatedToKnnQueryVectorBuilder() {
         final int rankWindowSize = 100;
-        final int rankConstant = 10;
         SearchSourceBuilder source = new SearchSourceBuilder();
         // this will retriever all but 7 only due to top-level filter
         StandardRetrieverBuilder standardRetriever = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
@@ -685,7 +756,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         KnnRetrieverBuilder knnRetriever = new KnnRetrieverBuilder(
             "vector",
             null,
-            new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(new float[]{3}),
+            new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(new float[] { 3 }),
             10,
             10,
             null,
@@ -712,7 +783,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
     }
 
     public void testRewriteOnce() {
-        final float[] vector = new float[]{1};
+        final float[] vector = new float[] { 1 };
         AtomicInteger numAsyncCalls = new AtomicInteger();
         QueryVectorBuilder vectorBuilder = new QueryVectorBuilder() {
             @Override

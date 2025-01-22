@@ -174,7 +174,6 @@ emp_no:integer | language_code:integer | language_name:keyword | country:text
 
 nonUniqueRightKeyOnTheCoordinator
 required_capability: join_lookup_v11
-ignoreOrder:true
 
 FROM employees
 | SORT emp_no
@@ -184,6 +183,7 @@ FROM employees
 | KEEP emp_no, language_code, language_name, country
 ;
 
+ignoreOrder:true
 emp_no:integer | language_code:integer | language_name:keyword | country:text
 10001          | 1                     | English               | Canada
 10001          | 1                     | English               | null
@@ -224,13 +224,13 @@ emp_no:integer | language_code:integer
 
 nonUniqueRightKeyFromRow
 required_capability: join_lookup_v11
-ignoreOrder:true
 
 ROW language_code = 2
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
 | DROP country.keyword
 ;
 
+ignoreOrder:true
 language_code:integer | country:text       | language_name:keyword
 2                     | [Germany, Austria] | German
 2                     | Switzerland        | German

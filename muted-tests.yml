@@ -255,6 +255,9 @@ tests:
 - class: org.elasticsearch.index.reindex.BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests
   method: testReindex
   issue: https://github.com/elastic/elasticsearch/issues/120605
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=migrate/30_create_from/Test create_from with remove_index_blocks set to false}
+  issue: https://github.com/elastic/elasticsearch/issues/120657
 
 # Examples:
 #

@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -21,39 +20,42 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 
-import static org.elasticsearch.entitlement.qa.EntitlementsUtil.ALLOWED_ENTITLEMENTS;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
 
-public class EntitlementsAllowedIT extends ESRestTestCase {
+public class EntitlementsDeniedNonModularIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("test-plugin", spec -> EntitlementsUtil.setupEntitlements(spec, true, ALLOWED_ENTITLEMENTS))
+        .module("test-plugin", spec -> EntitlementsUtil.setupEntitlements(spec, false, null))
         .systemProperty("es.entitlements.enabled", "true")
         .setting("xpack.security.enabled", "false")
+        // Logs in libs/entitlement/qa/build/test-results/javaRestTest/TEST-org.elasticsearch.entitlement.qa.EntitlementsDeniedIT.xml
+        // .setting("logger.org.elasticsearch.entitlement", "DEBUG")
         .build();
-
-    private final String actionName;
-
-    public EntitlementsAllowedIT(@Name("actionName") String actionName) {
-        this.actionName = actionName;
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> data() {
-        return RestEntitlementsCheckAction.getCheckActionsAllowedInPlugins().stream().map(action -> new Object[] { action }).toList();
-    }
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
 
-    public void testCheckActionWithPolicyPass() throws IOException {
+    private final String actionName;
+
+    public EntitlementsDeniedNonModularIT(@Name("actionName") String actionName) {
+        this.actionName = actionName;
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> data() {
+        return RestEntitlementsCheckAction.getAllCheckActions().stream().map(action -> new Object[] { action }).toList();
+    }
+
+    public void testCheckThrows() {
         logger.info("Executing Entitlement test for [{}]", actionName);
-        var request = new Request("GET", "/_entitlement_check");
-        request.addParameter("action", actionName);
-        Response result = client().performRequest(request);
-        assertThat(result.getStatusLine().getStatusCode(), equalTo(200));
+        var exception = expectThrows(IOException.class, () -> {
+            var request = new Request("GET", "/_entitlement_check");
+            request.addParameter("action", actionName);
+            client().performRequest(request);
+        });
+        assertThat(exception.getMessage(), containsString("not_entitled_exception"));
     }
 }

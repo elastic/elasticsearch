@@ -24,18 +24,18 @@ import java.io.IOException;
 import static org.elasticsearch.entitlement.qa.EntitlementsUtil.ALLOWED_ENTITLEMENTS;
 import static org.hamcrest.Matchers.equalTo;
 
-public class EntitlementsAllowedIT extends ESRestTestCase {
+public class EntitlementsAllowedNonModularIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("test-plugin", spec -> EntitlementsUtil.setupEntitlements(spec, true, ALLOWED_ENTITLEMENTS))
+        .module("test-plugin", spec -> EntitlementsUtil.setupEntitlements(spec, false, ALLOWED_ENTITLEMENTS))
         .systemProperty("es.entitlements.enabled", "true")
         .setting("xpack.security.enabled", "false")
         .build();
 
     private final String actionName;
 
-    public EntitlementsAllowedIT(@Name("actionName") String actionName) {
+    public EntitlementsAllowedNonModularIT(@Name("actionName") String actionName) {
         this.actionName = actionName;
     }
 

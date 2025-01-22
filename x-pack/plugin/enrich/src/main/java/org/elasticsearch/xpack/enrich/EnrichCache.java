@@ -31,18 +31,13 @@ import java.util.function.ToLongBiFunction;
  * A simple cache for enrich that uses {@link Cache}. There is one instance of this cache and
  * multiple enrich processors with different policies will use this cache.
  * <p>
- * The key of the cache is based on the search request and the enrich index that will be used.
- * Search requests that enrich generates target the alias for an enrich policy, this class
- * resolves the alias to the actual enrich index and uses that for the cache key. This way
- * no stale entries will be returned if a policy execution happens and a new enrich index is created.
- * <p>
  * There is no cleanup mechanism of stale entries in case a new enrich index is created
  * as part of a policy execution. This shouldn't be needed as cache entries for prior enrich
  * indices will be eventually evicted, because these entries will not end up being used. The
  * latest enrich index name will be used as cache key after an enrich policy execution.
- * (Also a cleanup mechanism also wouldn't be straightforward to implement,
+ * (Also a cleanup mechanism wouldn't be straightforward to implement,
  * since there is no easy check to see that an enrich index used as cache key no longer is the
- * current enrich index the enrich alias of an policy refers to. It would require checking
+ * current enrich index that the enrich alias of a policy refers to. It would require checking
  * all cached entries on each cluster state update)
  */
 public final class EnrichCache {
@@ -193,6 +188,16 @@ public final class EnrichCache {
         }
     }
 
+    /**
+     * The cache key consists of the (variable) parameters that are used to construct a search request for the enrich lookup. We define a
+     * custom record to group these fields to avoid constructing and storing the much larger
+     * {@link org.elasticsearch.action.search.SearchRequest}.
+     *
+     * @param enrichIndex The enrich <i>index</i> (i.e. not the alias, but the concrete index that the alias points to)
+     * @param value The value that is used to find matches in the enrich index
+     * @param maxMatches The max number of matches that the enrich lookup should return. This changes the size of the search response and
+     * should thus be included in the cache key
+     */
     // Visibility for testing
     record CacheKey(String enrichIndex, Object value, int maxMatches) {
         /**

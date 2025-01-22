@@ -244,6 +244,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120597
 - class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
   issue: https://github.com/elastic/elasticsearch/issues/120598
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.NonUniqueRightKeyOnTheCoordinator ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/120600
 
 # Examples:
 #

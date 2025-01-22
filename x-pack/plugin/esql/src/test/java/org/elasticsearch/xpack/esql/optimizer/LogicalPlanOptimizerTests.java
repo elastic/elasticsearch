@@ -6285,14 +6285,16 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     /**
      * When dropping lookup fields, the lookup relation shouldn't include them.
      * At least until we can implement InsertFieldExtract there.
+     *
      * Expects
-     * EsqlProject[[languages{f}#10]]
-     * \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
-     *   |_Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
-     * uages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12, languages{f}#10 AS language_code]]
-     *   | \_Limit[1000[INTEGER]]
-     *   |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18]
+     * EsqlProject[[languages{f}#21]]
+     * \_Limit[1000[INTEGER],false]
+     *   \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#29]]
+     *     |_Project[[_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, gender{f}#20, hire_date{f}#25, job{f}#26, job.raw{f}#27, l
+     * anguages{f}#21, last_name{f}#22, long_noidx{f}#28, salary{f}#23, languages{f}#21 AS language_code]]
+     *     | \_Limit[1000[INTEGER],true]
+     *     |   \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#29]
      */
     public void testLookupJoinKeepNoLookupFields() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
@@ -6314,7 +6316,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(project.projections().size(), equalTo(1));
         assertThat(project.projections().get(0).name(), equalTo("languages"));
 
-        var join = as(project.child(), Join.class);
+        var limit = as(project.child(), Limit.class);
+
+        var join = as(limit.child(), Join.class);
         var joinRightRelation = as(join.right(), EsRelation.class);
 
         assertThat(joinRightRelation.output().size(), equalTo(1));
@@ -6325,13 +6329,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * Ensure a JOIN shadowed by another JOIN doesn't request the shadowed fields.
      *
      * Expected
-     * Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#20]]
-     * |_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
-     * | |_Eval[[languages{f}#10 AS language_code]]
-     * | | \_Limit[1000[INTEGER]]
-     * | |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     * | \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18]
-     * \_EsRelation[languages_lookup][LOOKUP][language_code{f}#20, language_name{f}#21]
+     * Limit[1000[INTEGER],false]
+     * \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#20]]
+     *   |_Limit[1000[INTEGER],false]
+     *   | \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
+     *   |   |_Eval[[languages{f}#10 AS language_code]]
+     *   |   | \_Limit[1000[INTEGER],true]
+     *   |   |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *   |   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#20, language_name{f}#21]
      */
     public void testMultipleLookupShadowing() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
@@ -6345,14 +6351,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var plan = optimizedPlan(query);
 
-        var finalJoin = as(plan, Join.class);
+        var limit1 = as(plan, Limit.class);
+
+        var finalJoin = as(limit1.child(), Join.class);
         var finalJoinRightRelation = as(finalJoin.right(), EsRelation.class);
 
         assertThat(finalJoinRightRelation.output().size(), equalTo(2));
         assertThat(finalJoinRightRelation.output().get(0).name(), equalTo("language_code"));
         assertThat(finalJoinRightRelation.output().get(1).name(), equalTo("language_name"));
 
-        var initialJoin = as(finalJoin.left(), Join.class);
+        var limit2 = as(finalJoin.left(), Limit.class);
+
+        var initialJoin = as(limit2.child(), Join.class);
         var initialJoinRightRelation = as(initialJoin.right(), EsRelation.class);
 
         assertThat(initialJoinRightRelation.output().size(), equalTo(1));

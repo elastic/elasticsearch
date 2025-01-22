@@ -228,7 +228,6 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnectorSyncJob(NON_EXISTING_SYNC_JOB_ID));
     }
 
-    // TODO Here! Doesn't work
     public void testDeleteAllSyncJobsByConnectorId() throws Exception {
 
         PostConnectorSyncJobAction.Request syncJobRequest = new PostConnectorSyncJobAction.Request(

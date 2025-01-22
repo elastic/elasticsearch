@@ -49,7 +49,6 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
             threadPool,
             actionFilters,
             CreateSnapshotRequest::new,
-            indexNameExpressionResolver,
             CreateSnapshotResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

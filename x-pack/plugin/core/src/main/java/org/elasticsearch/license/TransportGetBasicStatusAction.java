@@ -37,7 +37,6 @@ public class TransportGetBasicStatusAction extends TransportMasterNodeReadAction
             threadPool,
             actionFilters,
             GetBasicStatusRequest::new,
-            indexNameExpressionResolver,
             GetBasicStatusResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

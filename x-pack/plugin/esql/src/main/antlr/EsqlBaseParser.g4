@@ -139,9 +139,14 @@ fromCommand
 
 indexPattern
     : (clusterString COLON)? indexString
+    | {this.isDevVersion()}? (clusterString COLON)? indexString (CAST_OP selectorString)?
     ;
 
 clusterString
+    : UNQUOTED_SOURCE
+    ;
+
+selectorString
     : UNQUOTED_SOURCE
     ;
 

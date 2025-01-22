@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IndexStringContext;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR;
 import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
 import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.EXCLUSION;
@@ -63,15 +64,34 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         ctx.forEach(c -> {
             String indexPattern = visitIndexString(c.indexString());
             String clusterString = c.clusterString() != null ? c.clusterString().getText() : null;
+            String selectorString = c.selectorString() != null ? c.selectorString().getText() : null;
             // skip validating index on remote cluster, because the behavior of remote cluster is not consistent with local cluster
             // For example, invalid#index is an invalid index name, however FROM *:invalid#index does not return an error
             if (clusterString == null) {
                 hasSeenStar.set(indexPattern.contains(WILDCARD) || hasSeenStar.get());
                 validateIndexPattern(indexPattern, c, hasSeenStar.get());
             }
-            patterns.add(clusterString != null ? clusterString + REMOTE_CLUSTER_INDEX_SEPARATOR + indexPattern : indexPattern);
+            if (selectorString != null) {
+                IndexNameExpressionResolver.SelectorResolver.validateIndexSelectorString(indexPattern, selectorString);
+            }
+            patterns.add(recombineExpression(clusterString, indexPattern, selectorString));
         });
         return Strings.collectionToDelimitedString(patterns, ",");
+    }
+
+    private static String recombineExpression(String clusterString, String indexPattern, String selectorString) {
+        if (clusterString == null && selectorString == null) {
+            return indexPattern;
+        }
+        StringBuilder expression = new StringBuilder();
+        if (clusterString != null) {
+            expression.append(clusterString).append(REMOTE_CLUSTER_INDEX_SEPARATOR);
+        }
+        expression.append(indexPattern);
+        if (selectorString != null) {
+            expression.append(SELECTOR_SEPARATOR).append(selectorString);
+        }
+        return expression.toString();
     }
 
     private static void validateIndexPattern(String indexPattern, EsqlBaseParser.IndexPatternContext ctx, boolean hasSeenStar) {

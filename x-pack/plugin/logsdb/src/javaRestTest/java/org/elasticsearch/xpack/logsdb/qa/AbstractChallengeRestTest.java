@@ -233,9 +233,8 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         return false;
     }
 
-    public Map<String, Object> indexContenderDocuments(
-        final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier
-    ) throws IOException {
+    public Map<String, Object> indexContenderDocuments(final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier)
+        throws IOException {
         final StringBuilder sb = new StringBuilder();
         int id = 0;
         for (var document : documentsSupplier.get()) {
@@ -264,9 +263,11 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
     ) throws IOException {
         final StringBuilder sb = new StringBuilder();
         int id = 0;
-        final List<Map<String, Object>> items = (List<Map<String, Object>>) contenderResponseEntity.get("items");
+        final List<Map<String, Object>> items = contenderResponseEntity != null
+            ? (List<Map<String, Object>>) contenderResponseEntity.get("items")
+            : List.of();
         for (var document : documentsSupplier.get()) {
-            if (autoGenerateId()) {
+            if (autoGenerateId() && items.isEmpty() == false) {
                 var contenderId = ((Map<String, Object>) items.get(id).get("create")).get("_id");
                 sb.append(Strings.format("{ \"create\": { \"_id\" : \"%s\" } }\n", contenderId));
             } else {

@@ -110,7 +110,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
     }
 
     public void testStartMigrationAndImmediatelyCheckStatus() throws Exception {
-        createSystemIndexForDescriptor(INTERNAL_MANAGED_WITH_SCRIPT);
+        createSystemIndexForDescriptor(INTERNAL_MANAGED);
         createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
         createSystemIndexForDescriptor(EXTERNAL_MANAGED);
         createSystemIndexForDescriptor(EXTERNAL_UNMANAGED);
@@ -130,7 +130,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             .stream()
             .map(PostFeatureUpgradeResponse.Feature::getFeatureName)
             .collect(Collectors.toSet());
-        assertThat(migratingFeatures, hasItem(SCRIPTED_INDEX_FEATURE_NAME));
+        assertThat(migratingFeatures, hasItem(FEATURE_NAME));
 
         // We should see that the migration is in progress even though we just started the migration.
         assertThat(statusResponse.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.IN_PROGRESS));
@@ -275,7 +275,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
     }
 
     public void testMigrationWillRunAfterError() throws Exception {
-        createSystemIndexForDescriptor(INTERNAL_MANAGED_WITH_SCRIPT);
+        createSystemIndexForDescriptor(INTERNAL_MANAGED);
 
         ensureGreen();
 
@@ -287,7 +287,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     FeatureMigrationResults newResults = new FeatureMigrationResults(
                         Collections.singletonMap(
-                            SCRIPTED_INDEX_FEATURE_NAME,
+                            FEATURE_NAME,
                             SingleFeatureMigrationResult.failure(INTERNAL_MANAGED_INDEX_NAME, new RuntimeException("it failed :("))
                         )
                     );
@@ -319,8 +319,8 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         PostFeatureUpgradeResponse migrationResponse = client().execute(PostFeatureUpgradeAction.INSTANCE, migrationRequest).get();
         // Make sure we actually started the migration
         assertTrue(
-            "could not find [" + SCRIPTED_INDEX_FEATURE_NAME + "] in response: " + Strings.toString(migrationResponse),
-            migrationResponse.getFeatures().stream().anyMatch(feature -> feature.getFeatureName().equals(SCRIPTED_INDEX_FEATURE_NAME))
+            "could not find [" + FEATURE_NAME + "] in response: " + Strings.toString(migrationResponse),
+            migrationResponse.getFeatures().stream().anyMatch(feature -> feature.getFeatureName().equals(FEATURE_NAME))
         );
 
         // Now wait for the migration to finish (otherwise the test infra explodes)

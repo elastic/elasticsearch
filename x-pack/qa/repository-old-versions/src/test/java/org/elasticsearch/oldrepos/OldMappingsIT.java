@@ -34,9 +34,9 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -116,7 +116,7 @@ public class OldMappingsIT extends ESRestTestCase {
                         Settings.builder()
                             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                             .put("index.similarity.custom_dfr.type", "DFR")
-                            .put("index.similarity.custom_dfr.basic_model", getRandom(new String[] { "be", "d", "p" }))
+                            .put("index.similarity.custom_dfr.basic_model", randomFrom(Arrays.asList("be", "d", "p")))
                             .put("index.similarity.custom_dfr.after_effect", "no")
                             .put("index.similarity.custom_dfr.normalization", "h2")
                             .put("index.similarity.custom_dfr.normalization.h2.c", "3.0")
@@ -215,12 +215,6 @@ public class OldMappingsIT extends ESRestTestCase {
         // check deprecation warning for "_field_name" disabling
         assertTrue(response.getWarnings().stream().filter(s -> s.contains("Disabling _field_names is not necessary")).count() > 0);
         assertOK(response);
-    }
-
-    private String getRandom(String[] strings) {
-        Random random = new Random();
-        int randomIndex = random.nextInt(strings.length);
-        return strings[randomIndex];
     }
 
     private Request createIndex(String indexName, String file) throws IOException {

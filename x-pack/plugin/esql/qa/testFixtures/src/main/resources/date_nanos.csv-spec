@@ -748,6 +748,7 @@ ct:long | mo:date_nanos
 Bucket Date nanos by 10 minutes
 required_capability: date_trunc_date_nanos
 required_capability: date_nanos_bucket
+required_capability: string_literal_auto_casting
 
 FROM date_nanos 
 | WHERE millis > "2020-01-01" 

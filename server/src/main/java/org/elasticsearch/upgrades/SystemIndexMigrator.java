@@ -174,14 +174,14 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 assert nextMigrationInfo.getFeatureName().equals(stateFeatureName)
                     && nextMigrationInfo.getCurrentIndexName().equals(stateIndexName)
                     : "index name ["
-                    + stateIndexName
-                    + "] or feature name ["
-                    + stateFeatureName
-                    + "] from task state did not match first index ["
-                    + nextMigrationInfo.getCurrentIndexName()
-                    + "] and feature ["
-                    + nextMigrationInfo.getFeatureName()
-                    + "] of locally computed queue, see logs";
+                        + stateIndexName
+                        + "] or feature name ["
+                        + stateFeatureName
+                        + "] from task state did not match first index ["
+                        + nextMigrationInfo.getCurrentIndexName()
+                        + "] and feature ["
+                        + nextMigrationInfo.getFeatureName()
+                        + "] of locally computed queue, see logs";
                 if (nextMigrationInfo.getCurrentIndexName().equals(stateIndexName) == false) {
                     if (clusterState.metadata().hasIndex(stateIndexName) == false) {
                         // If we don't have that index at all, and also don't have the next one
@@ -442,7 +442,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                             if ((bulkByScrollResponse.getBulkFailures() != null
                                 && bulkByScrollResponse.getBulkFailures().isEmpty() == false)
                                 || (bulkByScrollResponse.getSearchFailures() != null
-                                && bulkByScrollResponse.getSearchFailures().isEmpty() == false)) {
+                                    && bulkByScrollResponse.getSearchFailures().isEmpty() == false)) {
                                 removeReadOnlyBlockOnReindexFailure(
                                     oldIndex,
                                     delegate2,
@@ -524,10 +524,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         metadataCreateIndexService.createIndex(TimeValue.MINUS_ONE, TimeValue.ZERO, null, createRequest, listener);
     }
 
-    private void setAliasAndRemoveOldIndex(
-        SystemIndexMigrationInfo migrationInfo,
-        ActionListener<IndicesAliasesResponse> listener
-    ) {
+    private void setAliasAndRemoveOldIndex(SystemIndexMigrationInfo migrationInfo, ActionListener<IndicesAliasesResponse> listener) {
         final IndicesAliasesRequestBuilder aliasesRequest = migrationInfo.createClient(baseClient).admin().indices().prepareAliases();
         aliasesRequest.removeIndex(migrationInfo.getCurrentIndexName());
         aliasesRequest.addAlias(migrationInfo.getNextIndexName(), migrationInfo.getCurrentIndexName());

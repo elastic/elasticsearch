@@ -1452,6 +1452,7 @@ cnt:long
 ;
 
 implicit casting strings to dates for IN operator
+required_capability: string_literal_auto_casting
 FROM employees
 | WHERE birth_date IN ("1953-04-20", "1958-10-31")
 | KEEP emp_no, first_name;
@@ -1462,7 +1463,7 @@ emp_no:integer | first_name:keyword
 10025          | Prasadram 
 ;
 
-IN operator with null in list, finds match
+IN operator with null in list, finds match#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
 
 FROM employees
 | EVAL x = NULL
@@ -1473,7 +1474,7 @@ birth_date:datetime      | first_name:keyword
 1958-02-19T00:00:00.000Z | Saniya     
 ;
 
-IN operator with null in list, doesn't find match
+IN operator with null in list, doesn't find match#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
 
 FROM employees
 | EVAL x = NULL
@@ -1483,7 +1484,7 @@ FROM employees
 birth_date:datetime      | first_name:keyword
 ;
 
-IN operator with null in list, doesn't find match, EVAL to check value
+IN operator with null in list, doesn't find match, EVAL to check value#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
 
 FROM employees
 | EVAL x = NULL

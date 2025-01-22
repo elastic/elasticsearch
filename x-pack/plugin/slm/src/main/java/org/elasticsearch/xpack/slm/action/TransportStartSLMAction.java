@@ -44,7 +44,6 @@ public class TransportStartSLMAction extends AcknowledgedTransportMasterNodeActi
             threadPool,
             actionFilters,
             StartSLMAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }

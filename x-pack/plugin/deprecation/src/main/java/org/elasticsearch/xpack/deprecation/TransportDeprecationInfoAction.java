@@ -80,9 +80,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         this.resourceDeprecationCheckers = List.of(
             new IndexDeprecationChecker(indexNameExpressionResolver),
             new DataStreamDeprecationChecker(indexNameExpressionResolver),
-            new ComponentTemplateDeprecationChecker(),
-            new ComposableIndexTemplateDeprecationChecker(),
-            new LegacyIndexTemplateDeprecationChecker(),
+            new TemplateDeprecationChecker(),
             new IlmPolicyDeprecationChecker()
         );
         skipTheseDeprecations = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);

@@ -106,7 +106,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
     private URI createUri() throws ElasticsearchStatusException {
         try {
             // TODO, consider transforming the base URL into a URI for better error handling.
-            return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/chat/completions");
+            return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/chat");
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(
                 "Failed to create URI for service ["

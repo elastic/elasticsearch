@@ -624,7 +624,7 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     public void testLookupExplosion() throws IOException {
-        int sensorDataCount = 7500;
+        int sensorDataCount = 500;
         int lookupEntries = 10000;
         Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
@@ -632,16 +632,71 @@ public class HeapAttackIT extends ESRestTestCase {
 
     public void testLookupExplosionManyMatches() throws IOException {
         assertCircuitBreaks(() -> {
-            Map<?, ?> result = lookupExplosion(8500, 10000);
+            Map<?, ?> result = lookupExplosion(900, 10000);
+            logger.error("should have failed but got {}", result);
+        });
+    }
+
+    public void testLookupExplosionNoFetch() throws IOException {
+        int sensorDataCount = 7500;
+        int lookupEntries = 10000;
+        Map<?, ?> map = lookupExplosionNoFetch(sensorDataCount, lookupEntries);
+        assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
+    }
+
+    public void testLookupExplosionNoFetchManyMatches() throws IOException {
+        assertCircuitBreaks(() -> {
+            Map<?, ?> result = lookupExplosionNoFetch(8500, 10000);
+            logger.error("should have failed but got {}", result);
+        });
+    }
+
+    public void testLookupExplosionBigString() throws IOException {
+        int sensorDataCount = 250;
+        int lookupEntries = 1;
+        Map<?, ?> map = lookupExplosionBigString(sensorDataCount, lookupEntries);
+        assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
+    }
+
+    public void testLookupExplosionBigStringManyMatches() throws IOException {
+        assertCircuitBreaks(() -> {
+            Map<?, ?> result = lookupExplosionBigString(500, 1);
             logger.error("should have failed but got {}", result);
         });
     }
 
     private Map<?, ?> lookupExplosion(int sensorDataCount, int lookupEntries) throws IOException {
-        initSensorData(sensorDataCount, 1);
-        initSensorLookup(lookupEntries, 1, i -> "73.9857 40.7484");
+        lookupExplosionData(sensorDataCount, lookupEntries);
+        StringBuilder query = startQuery();
+        query.append("FROM sensor_data | LOOKUP JOIN sensor_lookup ON id | STATS COUNT(location)\"}");
+        return responseAsMap(query(query.toString(), null));
+    }
+
+    private Map<?, ?> lookupExplosionNoFetch(int sensorDataCount, int lookupEntries) throws IOException {
+        lookupExplosionData(sensorDataCount, lookupEntries);
         StringBuilder query = startQuery();
         query.append("FROM sensor_data | LOOKUP JOIN sensor_lookup ON id | STATS COUNT(*)\"}");
+        return responseAsMap(query(query.toString(), null));
+    }
+
+    private void lookupExplosionData(int sensorDataCount, int lookupEntries) throws IOException {
+        initSensorData(sensorDataCount, 1);
+        initSensorLookup(lookupEntries, 1, i -> "73.9857 40.7484");
+    }
+
+    private Map<?, ?> lookupExplosionBigString(int sensorDataCount, int lookupEntries) throws IOException {
+        initSensorData(sensorDataCount, 1);
+        initSensorLookupString(lookupEntries, 1, i -> {
+            int target = Math.toIntExact(ByteSizeValue.ofMb(1).getBytes());
+            StringBuilder str = new StringBuilder(Math.toIntExact(ByteSizeValue.ofMb(2).getBytes()));
+            while (str.length() < target) {
+                str.append("Lorem ipsum dolor sit amet, consectetur adipiscing elit.");
+            }
+            logger.info("big string is {} characters", str.length());
+            return str.toString();
+        });
+        StringBuilder query = startQuery();
+        query.append("FROM sensor_data | LOOKUP JOIN sensor_lookup ON id | STATS COUNT(string)\"}");
         return responseAsMap(query(query.toString(), null));
     }
 
@@ -822,6 +877,31 @@ public class HeapAttackIT extends ESRestTestCase {
                 {"create":{}}
                 {"id": %d, "location": "POINT(%s)"}
                 """, sensor, location.apply(sensor)));
+            if (i % docsPerBulk == docsPerBulk - 1) {
+                bulk("sensor_lookup", data.toString());
+                data.setLength(0);
+            }
+        }
+        initIndex("sensor_lookup", data.toString());
+    }
+
+    private void initSensorLookupString(int lookupEntries, int sensorCount, IntFunction<String> string) throws IOException {
+        logger.info("loading sensor lookup with huge strings");
+        createIndex("sensor_lookup", Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()).build(), """
+            {
+                "properties": {
+                    "id": { "type": "long" },
+                    "string": { "type": "text" }
+                }
+            }""");
+        int docsPerBulk = 10;
+        StringBuilder data = new StringBuilder();
+        for (int i = 0; i < lookupEntries; i++) {
+            int sensor = i % sensorCount;
+            data.append(String.format(Locale.ROOT, """
+                {"create":{}}
+                {"id": %d, "string": "%s"}
+                """, sensor, string.apply(sensor)));
             if (i % docsPerBulk == docsPerBulk - 1) {
                 bulk("sensor_lookup", data.toString());
                 data.setLength(0);

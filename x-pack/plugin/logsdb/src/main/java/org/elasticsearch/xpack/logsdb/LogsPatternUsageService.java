@@ -75,6 +75,7 @@ final class LogsPatternUsageService implements LocalNodeMasterListener {
         isMaster = false;
         if (cancellable != null && cancellable.isCancelled() == false) {
             cancellable.cancel();
+            cancellable = null;
         }
     }
 
@@ -136,6 +137,7 @@ final class LogsPatternUsageService implements LocalNodeMasterListener {
         client.execute(ClusterUpdateSettingsAction.INSTANCE, request, ActionListener.wrap(resp -> {
             if (resp.isAcknowledged() && LOGSDB_PRIOR_LOGS_USAGE.exists(resp.getPersistentSettings())) {
                 hasPriorLogsUsage = true;
+                cancellable = null;
             } else {
                 scheduleNext(TimeValue.ONE_MINUTE);
             }

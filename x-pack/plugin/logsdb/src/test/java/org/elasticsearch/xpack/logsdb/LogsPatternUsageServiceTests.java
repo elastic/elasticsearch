@@ -31,18 +31,35 @@ import static org.mockito.Mockito.when;
 
 public class LogsPatternUsageServiceTests extends ESTestCase {
 
-    public void testHistoricLogsUsage() throws Exception {
-        var nodeSettings = Settings.EMPTY;
+    public void testOnMaster() throws Exception {
+        var nodeSettings = Settings.builder().put("logsdb.usage_check.period", "1s").build();
         var client = mock(Client.class);
-        var threadPool = new TestThreadPool(getTestName());
-        var clusterState = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>("logs-app1-prod", 1)), List.of());
-        Supplier<Metadata> metadataSupplier = clusterState::metadata;
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<ClusterUpdateSettingsResponse> listener = (ActionListener<ClusterUpdateSettingsResponse>) invocationOnMock
+                .getArguments()[2];
+            var persistentSettings = Settings.builder().put("logsdb.prior_logs_usage", true).build();
+            listener.onResponse(new ClusterUpdateSettingsResponse(true, Settings.EMPTY, persistentSettings));
+            return null;
+        }).when(client).execute(same(ClusterUpdateSettingsAction.INSTANCE), any(), any());
 
-        LogsPatternUsageService service = new LogsPatternUsageService(client, nodeSettings, threadPool, metadataSupplier);
-        assertTrue(service.hasPriorLogsUsage);
-        service.onMaster();
-        assertBusy(() -> { assertTrue(service.hasPriorLogsUsage); });
-        threadPool.close();
+        try (var threadPool = new TestThreadPool(getTestName())) {
+            var clusterState = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>("logs-app1-prod", 1)), List.of());
+            Supplier<Metadata> metadataSupplier = clusterState::metadata;
+
+            var service = new LogsPatternUsageService(client, nodeSettings, threadPool, metadataSupplier);
+            // pre-check:
+            assertFalse(service.isMaster);
+            assertFalse(service.hasPriorLogsUsage);
+            assertNull(service.cancellable);
+            // Trigger service:
+            service.onMaster();
+            assertBusy(() -> {
+                assertTrue(service.isMaster);
+                assertTrue(service.hasPriorLogsUsage);
+                assertNull(service.cancellable);
+            });
+        }
     }
 
     public void testCheckHasUsage() {
@@ -63,7 +80,7 @@ public class LogsPatternUsageServiceTests extends ESTestCase {
 
         LogsPatternUsageService service = new LogsPatternUsageService(client, nodeSettings, threadPool, metadataSupplier);
         service.isMaster = true;
-        assertTrue(service.hasPriorLogsUsage);
+        assertFalse(service.hasPriorLogsUsage);
         assertNull(service.cancellable);
         service.check();
         assertTrue(service.hasPriorLogsUsage);

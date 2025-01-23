@@ -503,7 +503,10 @@ public class EsqlCapabilities {
          * Support running date format function on nanosecond dates
          */
         DATE_NANOS_DATE_FORMAT(),
-
+        /**
+         * support date diff function on date nanos type, and mixed nanos/millis
+         */
+        DATE_NANOS_DATE_DIFF(),
         /**
          * DATE_PARSE supports reading timezones
          */
@@ -689,6 +692,11 @@ public class EsqlCapabilities {
          * LOOKUP JOIN
          */
         JOIN_LOOKUP_V11(Build.current().isSnapshot()),
+
+        /**
+         * LOOKUP JOIN with TEXT fields on the right (right side of the join) (#119473)
+         */
+        LOOKUP_JOIN_TEXT(Build.current().isSnapshot()),
 
         /**
          * LOOKUP JOIN without MV matching (https://github.com/elastic/elasticsearch/issues/118780)

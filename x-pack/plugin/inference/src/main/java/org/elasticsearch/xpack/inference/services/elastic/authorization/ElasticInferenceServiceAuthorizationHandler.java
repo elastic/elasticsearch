@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Request.DEFAULT_TIMEOUT;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
@@ -48,6 +51,7 @@ public class ElasticInferenceServiceAuthorizationHandler {
     private final String baseUrl;
     private final ThreadPool threadPool;
     private final Logger logger;
+    private final CountDownLatch requestCompleteLatch = new CountDownLatch(1);
 
     public ElasticInferenceServiceAuthorizationHandler(@Nullable String baseUrl, ThreadPool threadPool) {
         this.baseUrl = baseUrl;
@@ -92,6 +96,7 @@ public class ElasticInferenceServiceAuthorizationHandler {
                     );
                     listener.onResponse(ElasticInferenceServiceAuthorization.newDisabledService());
                 }
+                requestCompleteLatch.countDown();
             }, e -> {
                 Throwable exception = e;
                 if (e instanceof ElasticsearchWrapperException wrapperException) {
@@ -100,6 +105,7 @@ public class ElasticInferenceServiceAuthorizationHandler {
 
                 logger.warn(Strings.format(FAILED_TO_RETRIEVE_MESSAGE + " Encountered an exception: %s", exception));
                 listener.onResponse(ElasticInferenceServiceAuthorization.newDisabledService());
+                requestCompleteLatch.countDown();
             });
 
             var request = new ElasticInferenceServiceAuthorizationRequest(baseUrl, getCurrentTraceInfo());
@@ -116,5 +122,15 @@ public class ElasticInferenceServiceAuthorizationHandler {
         var traceState = threadPool.getThreadContext().getHeader(Task.TRACE_STATE);
 
         return new TraceContext(traceParent, traceState);
+    }
+
+    void waitForAuthRequestCompletion(TimeValue timeValue) throws IllegalStateException {
+        try {
+            if (requestCompleteLatch.await(timeValue.getMillis(), TimeUnit.MILLISECONDS) == false) {
+                throw new IllegalStateException("The authorization request did not complete.");
+            }
+        } catch (IllegalStateException | InterruptedException e) {
+            logger.warn("Interrupted while waiting for the authorization request to complete", e);
+        }
     }
 }

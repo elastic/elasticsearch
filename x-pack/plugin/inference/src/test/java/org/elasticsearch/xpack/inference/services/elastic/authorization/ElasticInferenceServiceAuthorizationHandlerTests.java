@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -32,6 +33,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender.MAX_RETIES;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -183,4 +185,75 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
             verifyNoMoreInteractions(logger);
         }
     }
+    @SuppressWarnings("unchecked")
+    public void testGetAuthorization_OnResponseCalledOnce() throws IllegalStateException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var eisGatewayUrl = getUrl(webServer);
+        var logger = mock(Logger.class);
+        var authHandler = new ElasticInferenceServiceAuthorizationHandler(eisGatewayUrl, threadPool, logger);
+
+        ActionListener<ElasticInferenceServiceAuthorization> listener = mock(ActionListener.class);
+
+        String responseJson = """
+            {
+                "models": [
+                    {
+                      "model_name": "model-a",
+                      "task_types": ["embedding/text/sparse", "chat/completion"]
+                    }
+                ]
+            }
+        """;
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        authHandler.getAuthorization(listener, senderFactory.createSender());
+        authHandler.waitForAuthRequestCompletion(TimeValue.timeValueSeconds(1));
+
+        verify(listener, times(1)).onResponse(any());
+        verifyNoMoreInteractions(logger);
+    }
+
+public void testGetAuthorization_InvalidResponse() throws IOException {
+    var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+    var eisGatewayUrl = getUrl(webServer);
+    var logger = mock(Logger.class);
+    var authHandler = new ElasticInferenceServiceAuthorizationHandler(eisGatewayUrl, threadPool, logger);
+
+    try (var sender = senderFactory.createSender()) {
+        String responseJson = """
+                {
+                    "completion": [
+                        {
+                            "result": "some result 1"
+                        },
+                        {
+                            "result": "some result 2"
+                        }
+                    ]
+                }
+            """;
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        PlainActionFuture<ElasticInferenceServiceAuthorization> listener = new PlainActionFuture<>();
+        authHandler.getAuthorization(listener, sender);
+
+        var authResponse = listener.actionGet(TIMEOUT);
+        assertTrue(authResponse.enabledTaskTypes().isEmpty());
+        assertFalse(authResponse.isEnabled());
+
+        var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
+        verify(logger).warn(loggerArgsCaptor.capture());
+        var message = loggerArgsCaptor.getValue();
+        assertThat(
+            message,
+            is(
+                "Failed to retrieve the authorization information from the Elastic Inference Service."
+                    + " Received an invalid response type: InferenceServiceResults"
+            ));
+    }
+
+    }
+
 }

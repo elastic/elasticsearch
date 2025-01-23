@@ -163,4 +163,17 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
     public Map<String, Object> asMap() {
         throw new UnsupportedOperationException("Not implemented");
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ElasticInferenceServiceAuthorizationResponseEntity that = (ElasticInferenceServiceAuthorizationResponseEntity) o;
+        return Objects.equals(authorizedModels, that.authorizedModels);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(authorizedModels);
+    }
 }

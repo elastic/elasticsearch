@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestLegacyFeatures;
@@ -53,8 +52,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
-import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.upgrades.FullClusterRestartIT.assertNumHits;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;

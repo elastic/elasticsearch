@@ -50,7 +50,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                             new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataType.KEYWORD, "chrono"),
                             new TestCaseSupplier.TypedData(1687944333000L, DataType.DATETIME, "date")
                         ),
-                        "DateExtractEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
+                        "DateExtractMillisEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
                         DataType.LONG,
                         equalTo(2023L)
                     )
@@ -62,7 +62,31 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                             new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataType.TEXT, "chrono"),
                             new TestCaseSupplier.TypedData(1687944333000L, DataType.DATETIME, "date")
                         ),
-                        "DateExtractEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
+                        "DateExtractMillisEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
+                        DataType.LONG,
+                        equalTo(2023L)
+                    )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.KEYWORD, DataType.DATE_NANOS),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataType.KEYWORD, "chrono"),
+                            new TestCaseSupplier.TypedData(1687944333000000000L, DataType.DATE_NANOS, "date")
+                        ),
+                        "DateExtractNanosEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
+                        DataType.LONG,
+                        equalTo(2023L)
+                    )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.TEXT, DataType.DATE_NANOS),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataType.TEXT, "chrono"),
+                            new TestCaseSupplier.TypedData(1687944333000000000L, DataType.DATE_NANOS, "date")
+                        ),
+                        "DateExtractNanosEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
                         DataType.LONG,
                         equalTo(2023L)
                     )
@@ -75,7 +99,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                             new TestCaseSupplier.TypedData(0L, DataType.DATETIME, "date")
 
                         ),
-                        "DateExtractEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
+                        "DateExtractMillisEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
                         DataType.LONG,
                         is(nullValue())
                     ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
@@ -102,7 +126,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
 
             assertThat(instance.fold(FoldContext.small()), is(date.getLong(value)));
             assertThat(
-                DateExtract.process(epochMilli, new BytesRef(value.name()), EsqlTestUtils.TEST_CFG.zoneId()),
+                DateExtract.processMillis(epochMilli, new BytesRef(value.name()), EsqlTestUtils.TEST_CFG.zoneId()),
                 is(date.getLong(value))
             );
         }

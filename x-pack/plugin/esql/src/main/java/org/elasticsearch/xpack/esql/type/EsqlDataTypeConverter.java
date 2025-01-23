@@ -472,6 +472,30 @@ public class EsqlDataTypeConverter {
     }
 
     /**
+     * Extract the given {@link ChronoField} value from a date specified as a long number of nanoseconds since epoch
+     * @param dateNanos - long nanoseconds since epoch
+     * @param chronoField - The field to extract
+     * @param zone - Timezone for the given date
+     * @return - long representing the given ChronoField value
+     */
+    public static long chronoToLongNanos(long dateNanos, BytesRef chronoField, ZoneId zone) {
+        ChronoField chrono = ChronoField.valueOf(chronoField.utf8ToString().toUpperCase(Locale.ROOT));
+        return DateUtils.toInstant(dateNanos).atZone(zone).getLong(chrono);
+    }
+
+    /**
+     * Extract the given {@link ChronoField} value from a date specified as a long number of nanoseconds since epoch
+     * @param dateNanos - long nanoseconds since epoch
+     * @param chronoField - The field to extract
+     * @param zone - Timezone for the given date
+     * @return - long representing the given ChronoField value
+     */
+    public static long chronoToLongNanos(long dateNanos, ChronoField chronoField, ZoneId zone) {
+        return DateUtils.toInstant(dateNanos).atZone(zone).getLong(chronoField);
+    }
+
+
+    /**
      * The following conversions are between String and other data types.
      */
     public static BytesRef stringToIP(BytesRef field) {

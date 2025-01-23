@@ -398,4 +398,16 @@ public interface EntitlementChecker {
     void check$sun_nio_ch_DatagramChannelImpl$send(Class<?> callerClass, DatagramChannel that, ByteBuffer src, SocketAddress target);
 
     void check$sun_nio_ch_DatagramChannelImpl$receive(Class<?> callerClass, DatagramChannel that, ByteBuffer dst);
+
+    ////////////////////
+    //
+    // Load native libraries
+    //
+    void check$java_lang_Runtime$load(Class<?> callerClass, Runtime that, String filename);
+
+    void check$java_lang_Runtime$loadLibrary(Class<?> callerClass, Runtime that, String libname);
+
+    void check$java_lang_System$$load(Class<?> callerClass, String filename);
+
+    void check$java_lang_System$$loadLibrary(Class<?> callerClass, String libname);
 }

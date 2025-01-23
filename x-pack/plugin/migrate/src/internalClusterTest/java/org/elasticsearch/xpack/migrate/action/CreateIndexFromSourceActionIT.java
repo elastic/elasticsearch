@@ -222,7 +222,7 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         assertNull(destSettings.get(IndexMetadata.SETTING_BLOCKS_WRITE));
     }
 
-    public void testRemoveIndexBlocks() throws Exception {
+    public void testRemoveIndexBlocksByDefault() throws Exception {
         assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
 
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
@@ -241,12 +241,10 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
 
         // create from source
         var destIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        assertAcked(
-            client().execute(
-                CreateIndexFromSourceAction.INSTANCE,
-                new CreateIndexFromSourceAction.Request(sourceIndex, destIndex, settingsOverride, Map.of(), true)
-            )
-        );
+
+        CreateIndexFromSourceAction.Request request = new CreateIndexFromSourceAction.Request(sourceIndex, destIndex);
+        request.settingsOverride(settingsOverride);
+        assertAcked(client().execute(CreateIndexFromSourceAction.INSTANCE, request));
 
         // assert settings overridden
         var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();

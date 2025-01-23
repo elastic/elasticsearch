@@ -875,7 +875,7 @@ end::search-q[]
 
 tag::query[]
 `query`::
-(Optional, <<query-dsl,query object>>) Defines the search definition using the
+(Optional, <<query-dsl,query object>>) Defines the search query using
 <<query-dsl,Query DSL>>.
 end::query[]
 

@@ -501,11 +501,15 @@ public final class IndicesPermission {
         int totalResourceCount = 0;
         Map<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
         for (String indexOrAlias : requestedIndicesOrAliases) {
-            // Remove any selectors from abstraction name. Discard them for this check as we do not have access control for them (yet)
             Tuple<String, String> expressionAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexOrAlias);
             IndexComponentSelector selector = expressionAndSelector.v2() == null
                 ? null
                 : IndexComponentSelector.getByKey(expressionAndSelector.v2());
+            //If you requested name::data upstream code will remove ::data from the name
+            //If you requested name::* upstream code will convert to name::failures and name (without ::data)
+            assert selector != IndexComponentSelector.DATA : "Data selector is not allowed in this context";
+            assert selector != IndexComponentSelector.ALL_APPLICABLE : "All selector is not allowed in this context";
+            //look up the IndexAbstraction by the name without the selector, but leave the (::failures) selector for authorization
             final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(expressionAndSelector.v1()), selector);
             resources.put(resource.name, resource);
             totalResourceCount += resource.size(lookup);
@@ -818,6 +822,7 @@ public final class IndicesPermission {
             this.indices = resolveSelectors(roleIndices);
             this.allowRestrictedIndices = allowRestrictedIndices;
             ConcurrentHashMap<String[], Automaton> indexNameAutomatonMemo = new ConcurrentHashMap<>(1);
+            //TODO: need to add NOT name::failures to the indexNameAutomaton
             if (allowRestrictedIndices) {
                 this.indexNameMatcher = StringMatcher.of(indices);
                 this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(indices, k -> Automatons.patterns(indices));

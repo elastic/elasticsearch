@@ -2337,9 +2337,11 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Ensures the engine is in a state that it can be closed by a call to {@link IndexShard#resetEngine()}.
+     * Ensures the engine is in a state that it can be closed by a call to {@link IndexShard#resetEngine(ActionListener)}.
+     *
+     * @param listener the listener to be called when the engine is ready to be reset
      */
-    public void prepareForEngineReset() throws IOException {
-        throw new UnsupportedOperationException("does not support engine reset");
+    public void prepareForEngineReset(ActionListener<Void> listener) throws IOException {
+        listener.onFailure(new UnsupportedOperationException("does not support engine reset"));
     }
 }

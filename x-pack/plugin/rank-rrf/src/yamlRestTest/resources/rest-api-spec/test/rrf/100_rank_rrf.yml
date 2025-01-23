@@ -109,7 +109,7 @@ setup:
           path: /_search
           capabilities: [ rrf_window_size_support_deprecated ]
       test_runner_features: capabilities
-      reason: "add deprecated field [window_size] in 8.18 to support upgrade"
+      reason: "add deprecated field [window_size] back to support upgrade"
   - do:
       warnings:
         - "Deprecated field [rank] used, replaced by [retriever]"

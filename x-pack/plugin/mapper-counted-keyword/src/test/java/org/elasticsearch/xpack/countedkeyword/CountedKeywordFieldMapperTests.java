@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.countedkeyword;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -20,6 +22,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -112,6 +115,62 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
         assertThat(syntheticSource(mapper, buildInput), equalTo(expected));
         assertThat(syntheticSource(mapper, new SourceFilter(new String[] { "field" }, null), buildInput), equalTo(expected));
         assertThat(syntheticSource(mapper, new SourceFilter(null, new String[] { "field" }), buildInput), equalTo("{}"));
+    }
+
+    public void testSyntheticSourceIndexLevelKeepArrays() throws IOException {
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
+        XContentBuilder mappings = mapping(b -> {
+            b.startObject("field");
+            example.mapping().accept(b);
+            b.endObject();
+        });
+
+        var settings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.mapping.synthetic_source_keep", "arrays")
+            .build();
+        DocumentMapper mapperAll = createMapperService(getVersion(), settings, () -> true, mappings).documentMapper();
+
+        int elementCount = randomIntBetween(2, 5);
+        CheckedConsumer<XContentBuilder, IOException> buildInput = (XContentBuilder builder) -> {
+            example.buildInputArray(builder, elementCount);
+        };
+
+        var builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        buildInput.accept(builder);
+        builder.endObject();
+        String expected = Strings.toString(builder);
+        String actual = syntheticSource(mapperAll, buildInput);
+        assertThat(actual, equalTo(expected));
+    }
+
+    public void testSyntheticSourceInheritsKeepAll() throws IOException {
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
+        DocumentMapper mapperAll = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("wrapper");
+            b.field("type", "object");
+            b.field("synthetic_source_keep", "all");
+            b.startObject("properties");
+            b.startObject("field");
+            example.mapping().accept(b);
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        })).documentMapper();
+
+        CheckedConsumer<XContentBuilder, IOException> buildInput = (XContentBuilder builder) -> {
+            builder.startObject("wrapper");
+            example.buildInput(builder);
+            builder.endObject();
+        };
+
+        var builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        buildInput.accept(builder);
+        builder.endObject();
+        String expected = Strings.toString(builder);
+        assertThat(syntheticSource(mapperAll, buildInput), equalTo(expected));
     }
 
     @Override

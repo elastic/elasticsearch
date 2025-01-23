@@ -966,7 +966,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
                     searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
                     try (
-                        SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext, true, System.nanoTime())
+                        SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(
+                            searchContext,
+                            true,
+                            System.nanoTime()
+                        )
                     ) {
                         fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks());
                         if (readerContext.singleSession()) {

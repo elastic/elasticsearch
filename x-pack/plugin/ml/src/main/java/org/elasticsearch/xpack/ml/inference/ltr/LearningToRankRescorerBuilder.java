@@ -293,8 +293,8 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
 
     @Override
     protected LearningToRankRescorerContext innerBuildContext(int windowSize, SearchExecutionContext context) {
-         assert learningToRankConfig != null;
-         assert localModel != null;
+        assert learningToRankConfig != null;
+        assert localModel != null;
 
         rescoreOccurred = true;
         return new LearningToRankRescorerContext(windowSize, LearningToRankRescorer.INSTANCE, learningToRankConfig, localModel, context);

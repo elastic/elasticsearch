@@ -79,10 +79,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.WILDCARD_PATTERN;
-import static org.elasticsearch.xpack.esql.IdentifierGenerator.not;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPattern;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPatterns;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.unquoteIndexPattern;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.without;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -2949,7 +2949,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testValidJoinPattern() {
         var basePattern = randomIndexPatterns();
-        var joinPattern = randomIndexPattern(not(WILDCARD_PATTERN));
+        var joinPattern = randomIndexPattern(without(WILDCARD_PATTERN));
         var onField = randomIdentifier();
         var type = randomFrom("", "LOOKUP ");
 

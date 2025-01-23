@@ -79,7 +79,7 @@ public class IdentifierGenerator {
 
     private record ExcludedFeature(Feature feature) implements Feature {}
 
-    public static Feature not(Feature feature) {
+    public static Feature without(Feature feature) {
         return new ExcludedFeature(feature);
     }
 
@@ -88,7 +88,7 @@ public class IdentifierGenerator {
             if (f.equals(feature)) {
                 return true;
             }
-            if (f.equals(not(feature))) {
+            if (f.equals(without(feature))) {
                 return false;
             }
         }

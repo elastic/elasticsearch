@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Strings;
@@ -51,47 +54,33 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
 
     @Override
     protected DeprecationInfoAction.Response createTestInstance() {
-        List<DeprecationIssue> clusterIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
-            .limit(randomIntBetween(0, 10))
-            .collect(Collectors.toList());
-        List<DeprecationIssue> nodeIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
-            .limit(randomIntBetween(0, 10))
-            .collect(Collectors.toList());
-        Map<String, List<DeprecationIssue>> indexIssues = new HashMap<>();
-        for (int i = 0; i < randomIntBetween(0, 10); i++) {
-            List<DeprecationIssue> perIndexIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
-                .limit(randomIntBetween(0, 10))
-                .collect(Collectors.toList());
-            indexIssues.put(randomAlphaOfLength(10), perIndexIssues);
-        }
-        Map<String, List<DeprecationIssue>> dataStreamIssues = new HashMap<>();
-        for (int i = 0; i < randomIntBetween(0, 10); i++) {
-            List<DeprecationIssue> singleResourceIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
-                .limit(randomIntBetween(0, 10))
-                .collect(Collectors.toList());
-            dataStreamIssues.put(randomAlphaOfLength(10), singleResourceIssues);
-        }
-        Map<String, List<DeprecationIssue>> templateIssues = new HashMap<>();
-        for (int i = 0; i < randomIntBetween(0, 10); i++) {
-            List<DeprecationIssue> singleResourceIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
-                .limit(randomIntBetween(0, 10))
-                .collect(Collectors.toList());
-            templateIssues.put(randomAlphaOfLength(10), singleResourceIssues);
-        }
-        Map<String, List<DeprecationIssue>> ilmPolicyIssues = new HashMap<>();
-        for (int i = 0; i < randomIntBetween(0, 10); i++) {
-            List<DeprecationIssue> singleResourceIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
-                .limit(randomIntBetween(0, 10))
-                .collect(Collectors.toList());
-            ilmPolicyIssues.put(randomAlphaOfLength(10), singleResourceIssues);
-        }
-        Map<String, List<DeprecationIssue>> pluginIssues = new HashMap<>();
-        for (int i = 0; i < randomIntBetween(0, 10); i++) {
-            List<DeprecationIssue> perPluginIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
-                .limit(randomIntBetween(0, 10))
-                .collect(Collectors.toList());
-            pluginIssues.put(randomAlphaOfLength(10), perPluginIssues);
-        }
+        List<DeprecationIssue> clusterIssues = randomDeprecationIssues();
+        List<DeprecationIssue> nodeIssues = randomDeprecationIssues();
+        Map<String, List<DeprecationIssue>> indexIssues = randomMap(
+            0,
+            10,
+            () -> Tuple.tuple(randomAlphaOfLength(10), randomDeprecationIssues())
+        );
+        Map<String, List<DeprecationIssue>> dataStreamIssues = randomMap(
+            0,
+            10,
+            () -> Tuple.tuple(randomAlphaOfLength(10), randomDeprecationIssues())
+        );
+        Map<String, List<DeprecationIssue>> templateIssues = randomMap(
+            0,
+            10,
+            () -> Tuple.tuple(randomAlphaOfLength(10), randomDeprecationIssues())
+        );
+        Map<String, List<DeprecationIssue>> ilmPolicyIssues = randomMap(
+            0,
+            10,
+            () -> Tuple.tuple(randomAlphaOfLength(10), randomDeprecationIssues())
+        );
+        Map<String, List<DeprecationIssue>> pluginIssues = randomMap(
+            0,
+            10,
+            () -> Tuple.tuple(randomAlphaOfLength(10), randomDeprecationIssues())
+        );
         return new DeprecationInfoAction.Response(
             clusterIssues,
             nodeIssues,
@@ -111,7 +100,52 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
 
     @Override
     protected DeprecationInfoAction.Response mutateInstance(DeprecationInfoAction.Response instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        List<DeprecationIssue> clusterIssues = instance.getClusterSettingsIssues();
+        List<DeprecationIssue> nodeIssues = instance.getNodeSettingsIssues();
+        Map<String, List<DeprecationIssue>> indexIssues = instance.getIndexSettingsIssues();
+        Map<String, List<DeprecationIssue>> dataStreamIssues = instance.getDataStreamDeprecationIssues();
+        Map<String, List<DeprecationIssue>> templateIssues = instance.getTemplateDeprecationIssues();
+        Map<String, List<DeprecationIssue>> ilmPolicyIssues = instance.getIlmPolicyDeprecationIssues();
+        Map<String, List<DeprecationIssue>> pluginIssues = instance.getPluginSettingsIssues();
+        switch (randomIntBetween(1, 7)) {
+            case 1 -> clusterIssues = randomValueOtherThan(clusterIssues, DeprecationInfoActionResponseTests::randomDeprecationIssues);
+            case 2 -> nodeIssues = randomValueOtherThan(nodeIssues, DeprecationInfoActionResponseTests::randomDeprecationIssues);
+            case 3 -> indexIssues = randomValueOtherThan(
+                indexIssues,
+                () -> randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLength(10), randomDeprecationIssues()))
+            );
+            case 4 -> dataStreamIssues = randomValueOtherThan(
+                dataStreamIssues,
+                () -> randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLength(10), randomDeprecationIssues()))
+            );
+            case 5 -> templateIssues = randomValueOtherThan(
+                templateIssues,
+                () -> randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLength(10), randomDeprecationIssues()))
+            );
+            case 6 -> ilmPolicyIssues = randomValueOtherThan(
+                ilmPolicyIssues,
+                () -> randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLength(10), randomDeprecationIssues()))
+            );
+            case 7 -> pluginIssues = randomValueOtherThan(
+                pluginIssues,
+                () -> randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLength(10), randomDeprecationIssues()))
+            );
+        }
+        return new DeprecationInfoAction.Response(
+            clusterIssues,
+            nodeIssues,
+            Map.of(
+                "data_streams",
+                dataStreamIssues,
+                "index_settings",
+                indexIssues,
+                "templates",
+                templateIssues,
+                "ilm_policies",
+                ilmPolicyIssues
+            ),
+            pluginIssues
+        );
     }
 
     @Override
@@ -273,12 +307,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         DeprecationIssue foundIssue1 = createTestDeprecationIssue(metaMap1);
         DeprecationIssue foundIssue2 = createTestDeprecationIssue(foundIssue1, metaMap2);
         List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks = List.of();
-        List<ResourceDeprecationChecker> resourceCheckers = List.of(
-            createResourceChecker("index_settings", (cs, r) -> Map.of()),
-            createResourceChecker("data_streams", (cs, r) -> Map.of()),
-            createResourceChecker("templates", (cs, r) -> Map.of()),
-            createResourceChecker("ilm_policies", (cs, r) -> Map.of())
-        );
+        List<ResourceDeprecationChecker> resourceCheckers = List.of();
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
             new ClusterName(randomAlphaOfLength(5)),
@@ -314,7 +343,6 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
     }
 
     public void testRemoveSkippedSettings() {
-
         Settings.Builder settingsBuilder = settings(IndexVersion.current());
         settingsBuilder.put("some.deprecated.property", "someValue1");
         settingsBuilder.put("some.other.bad.deprecated.property", "someValue2");
@@ -326,10 +354,16 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
+        ComponentTemplate componentTemplate = new ComponentTemplate(Template.builder().settings(inputSettings).build(), null, null);
+        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+            .template(Template.builder().settings(inputSettings))
+            .build();
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(inputSettings).numberOfShards(1).numberOfReplicas(0))
             .put(dataStreamIndexMetadata, true)
             .put(DataStream.builder("ds-test", List.of(dataStreamIndexMetadata.getIndex())).build())
+            .indexTemplates(Map.of("my-index-template", indexTemplate))
+            .componentTemplates(Map.of("my-component-template", componentTemplate))
             .persistentSettings(inputSettings)
             .build();
 
@@ -341,6 +375,8 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             return null;
         });
         AtomicReference<Settings> visibleIndexSettings = new AtomicReference<>();
+        AtomicReference<Settings> visibleComponentTemplateSettings = new AtomicReference<>();
+        AtomicReference<Settings> visibleIndexTemplateSettings = new AtomicReference<>();
         AtomicInteger backingIndicesCount = new AtomicInteger(0);
         List<ResourceDeprecationChecker> resourceCheckers = List.of(createResourceChecker("index_settings", (cs, req) -> {
             for (String indexName : resolver.concreteIndexNames(cs, req)) {
@@ -350,7 +386,14 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         }), createResourceChecker("data_streams", (cs, req) -> {
             cs.metadata().dataStreams().values().forEach(ds -> backingIndicesCount.set(ds.getIndices().size()));
             return Map.of();
-        }), createResourceChecker("templates", (cs, req) -> Map.of()), createResourceChecker("ilm_policies", (cs, req) -> Map.of()));
+        }), createResourceChecker("templates", (cs, req) -> {
+            cs.metadata()
+                .componentTemplates()
+                .values()
+                .forEach(template -> visibleComponentTemplateSettings.set(template.template().settings()));
+            cs.metadata().templatesV2().values().forEach(template -> visibleIndexTemplateSettings.set(template.template().settings()));
+            return Map.of();
+        }));
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
             new ClusterName(randomAlphaOfLength(5)),
@@ -373,10 +416,12 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         settingsBuilder = settings(IndexVersion.current());
         settingsBuilder.put("some.undeprecated.property", "someValue3");
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
+
         Settings expectedSettings = settingsBuilder.build();
         Settings resultClusterSettings = visibleClusterSettings.get();
         Assert.assertNotNull(resultClusterSettings);
         Assert.assertEquals(expectedSettings, visibleClusterSettings.get());
+
         Settings resultIndexSettings = visibleIndexSettings.get();
         Assert.assertNotNull(resultIndexSettings);
         Assert.assertEquals("someValue3", resultIndexSettings.get("some.undeprecated.property"));
@@ -385,6 +430,11 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         Assert.assertFalse(resultIndexSettings.hasValue("some.other.bad.deprecated.property"));
 
         assertThat(backingIndicesCount.get(), equalTo(1));
+
+        Assert.assertNotNull(visibleComponentTemplateSettings.get());
+        Assert.assertEquals(expectedSettings, visibleComponentTemplateSettings.get());
+        Assert.assertNotNull(visibleIndexTemplateSettings.get());
+        Assert.assertEquals(expectedSettings, visibleIndexTemplateSettings.get());
     }
 
     public void testCtorFailure() {
@@ -435,6 +485,12 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             seedIssue.isResolveDuringRollingUpgrade(),
             metaMap
         );
+    }
+
+    private static List<DeprecationIssue> randomDeprecationIssues() {
+        return Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
+            .limit(randomIntBetween(0, 10))
+            .collect(Collectors.toList());
     }
 
     private static ResourceDeprecationChecker createResourceChecker(

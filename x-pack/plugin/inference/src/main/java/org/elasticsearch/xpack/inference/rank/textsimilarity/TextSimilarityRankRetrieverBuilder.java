@@ -153,7 +153,6 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             } else {
                 textSimilarityRankDocs[i] = new TextSimilarityRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex);
             }
-            textSimilarityRankDocs[i] = new TextSimilarityRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex, inferenceId, field);
         }
         return textSimilarityRankDocs;
     }

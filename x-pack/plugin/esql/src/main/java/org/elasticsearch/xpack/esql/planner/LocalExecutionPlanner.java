@@ -54,10 +54,12 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -571,33 +573,47 @@ public class LocalExecutionPlanner {
             throw new IllegalArgumentException("can't plan [" + join + "], found index with mode [" + entry.getValue() + "]");
         }
         String indexName = entry.getKey();
-        List<Layout.ChannelAndType> matchFields = new ArrayList<>(join.leftFields().size());
-        for (Attribute m : join.leftFields()) {
-            Layout.ChannelAndType t = source.layout.get(m.id());
-            if (t == null) {
-                throw new IllegalArgumentException("can't plan [" + join + "][" + m + "]");
+        if (join.leftFields().size() != join.rightFields().size()) {
+            throw new IllegalArgumentException("can't plan [" + join + "]: mismatching left and right field count");
+        }
+        List<MatchConfig> matchFields = new ArrayList<>(join.leftFields().size());
+        for (int i = 0; i < join.leftFields().size(); i++) {
+            TypedAttribute left = (TypedAttribute) join.leftFields().get(i);
+            FieldAttribute right = (FieldAttribute) join.rightFields().get(i);
+            Layout.ChannelAndType input = source.layout.get(left.id());
+            if (input == null) {
+                throw new IllegalArgumentException("can't plan [" + join + "][" + left + "]");
             }
-            matchFields.add(t);
+            matchFields.add(new MatchConfig(right, input));
         }
         if (matchFields.size() != 1) {
-            throw new IllegalArgumentException("can't plan [" + join + "]");
+            throw new IllegalArgumentException("can't plan [" + join + "]: multiple join predicates are not supported");
         }
+        // TODO support multiple match fields, and support more than equality predicates
+        MatchConfig matchConfig = matchFields.get(0);
 
         return source.with(
             new LookupFromIndexOperator.Factory(
                 sessionId,
                 parentTask,
                 context.queryPragmas().enrichMaxWorkers(),
-                matchFields.get(0).channel(),
+                matchConfig.channel(),
                 ctx -> lookupFromIndexService,
-                matchFields.get(0).type(),
+                matchConfig.type(),
                 indexName,
-                join.leftFields().get(0).name(),
+                matchConfig.fieldName(),
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source()
             ),
             layout
         );
+    }
+
+    private record MatchConfig(String fieldName, int channel, DataType type) {
+        private MatchConfig(FieldAttribute match, Layout.ChannelAndType input) {
+            // Note, this handles TEXT fields with KEYWORD subfields
+            this(match.exactAttribute().name(), input.channel(), input.type());
+        }
     }
 
     private PhysicalOperation planLocal(LocalSourceExec localSourceExec, LocalExecutionPlannerContext context) {

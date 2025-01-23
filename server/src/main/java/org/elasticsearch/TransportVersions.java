@@ -162,6 +162,7 @@ public class TransportVersions {
     public static final TransportVersion ADD_INDEX_BLOCK_TWO_PHASE = def(8_828_00_0);
     public static final TransportVersion RESOLVE_CLUSTER_NO_INDEX_EXPRESSION = def(8_829_00_0);
     public static final TransportVersion ML_ROLLOVER_LEGACY_INDICES = def(8_830_00_0);
+    public static final TransportVersion ADD_INCLUDE_FAILURE_INDICES_OPTION = def(8_831_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

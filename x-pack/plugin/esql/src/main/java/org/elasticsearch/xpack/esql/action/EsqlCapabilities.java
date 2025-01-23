@@ -691,6 +691,11 @@ public class EsqlCapabilities {
         JOIN_LOOKUP_V12(Build.current().isSnapshot()),
 
         /**
+         * LOOKUP JOIN with TEXT fields on the right (right side of the join) (#119473)
+         */
+        LOOKUP_JOIN_TEXT(Build.current().isSnapshot()),
+
+        /**
          * LOOKUP JOIN without MV matching (https://github.com/elastic/elasticsearch/issues/118780)
          */
         JOIN_LOOKUP_SKIP_MV(JOIN_LOOKUP_V12.isEnabled()),

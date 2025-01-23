@@ -372,18 +372,18 @@ public final class IndicesPermission {
         private final IndexAbstraction indexAbstraction;
 
         private IndexResource(String name, @Nullable IndexAbstraction abstraction, @Nullable IndexComponentSelector selector) {
-//            assert name != null : "Resource name cannot be null";
-//            assert abstraction == null || abstraction.getName().equals(name)
-//                : "Index abstraction has unexpected name [" + abstraction.getName() + "] vs [" + name + "]";
-//            assert abstraction == null
-//                || selector == null
-//                || IndexComponentSelector.FAILURES.equals(selector) == false
-//                || abstraction.isDataStreamRelated()
-//                : "Invalid index component selector ["
-//                    + selector.getKey()
-//                    + "] applied to abstraction of type ["
-//                    + abstraction.getType()
-//                    + "]";
+            // assert name != null : "Resource name cannot be null";
+            // assert abstraction == null || abstraction.getName().equals(name)
+            // : "Index abstraction has unexpected name [" + abstraction.getName() + "] vs [" + name + "]";
+            // assert abstraction == null
+            // || selector == null
+            // || IndexComponentSelector.FAILURES.equals(selector) == false
+            // || abstraction.isDataStreamRelated()
+            // : "Invalid index component selector ["
+            // + selector.getKey()
+            // + "] applied to abstraction of type ["
+            // + abstraction.getType()
+            // + "]";
             this.name = name;
             this.indexAbstraction = abstraction;
             this.selector = selector;
@@ -506,11 +506,11 @@ public final class IndicesPermission {
             IndexComponentSelector selector = expressionAndSelector.v2() == null
                 ? null
                 : IndexComponentSelector.getByKey(expressionAndSelector.v2());
-            //If you requested name::data upstream code will remove ::data from the name
-            //If you requested name::* upstream code will convert to name::failures and name (without ::data)
+            // If you requested name::data upstream code will remove ::data from the name
+            // If you requested name::* upstream code will convert to name::failures and name (without ::data)
             assert selector != IndexComponentSelector.DATA : "Data selector is not allowed in this context";
             assert selector != IndexComponentSelector.ALL_APPLICABLE : "All selector is not allowed in this context";
-            //look up the IndexAbstraction by the name without the selector, but leave the (::failures) selector for authorization
+            // look up the IndexAbstraction by the name without the selector, but leave the (::failures) selector for authorization
             final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(expressionAndSelector.v1()), selector);
             resources.put(resource.name, resource);
             totalResourceCount += resource.size(lookup);
@@ -820,11 +820,11 @@ public final class IndicesPermission {
             assert roleIndices.length != 0;
             this.privilege = privilege;
             this.actionMatcher = privilege.predicate();
-            //this.indices = roleIndices;
+            // this.indices = roleIndices;
             this.indices = addFailureExclusions(resolveSelectors(roleIndices));
             this.allowRestrictedIndices = allowRestrictedIndices;
             ConcurrentHashMap<String[], Automaton> indexNameAutomatonMemo = new ConcurrentHashMap<>(1);
-            //TODO: need to add NOT name::failures to the indexNameAutomaton
+            // TODO: need to add NOT name::failures to the indexNameAutomaton
             if (allowRestrictedIndices) {
                 this.indexNameMatcher = StringMatcher.of(indices);
                 this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(indices, k -> Automatons.patterns(indices));
@@ -839,71 +839,71 @@ public final class IndicesPermission {
             this.query = query;
         }
 
+        // test* becomes /(test.*)&~(test.*::failures)/" ... only need to do this if there is a wildcard in the pattern in the role
+        private String[] addFailureExclusions(String[] indices) {
 
-
-        //test* becomes /(test.*)&~(test.*::failures)/" ... only need to do this if there is a wildcard in the pattern in the role
-              private String[] addFailureExclusions(String[] indices) {
-
-           //deny any pattern that does not have a ::failure selector explicilty requested
+            // deny any pattern that does not have a ::failure selector explicilty requested
             Map<String, Set<Optional<String>>> hasFailures = new HashMap<>();
             boolean needsFailureExclusion = false;
-            //collect all the indices, keyed by name with a value of all the selectors.
+            // collect all the indices, keyed by name with a value of all the selectors.
             // Only the ::failures selector should be present since ::* is expanded to ::failures,::data and ::data has been removed.
-            for(String indexPattern : indices ){
-                if(indexPattern.startsWith("/")){
-                    //TODO: [Jake] figure out regular expression support
+            for (String indexPattern : indices) {
+                if (indexPattern.startsWith("/")) {
+                    // TODO: [Jake] figure out regular expression support
                     hasFailures.computeIfAbsent(indexPattern, k -> new HashSet<>()).add(Optional.empty());
                     continue;
                 }
 
-                if(needsFailureExclusion == false && indexPattern.contains("*") ){
+                if (needsFailureExclusion == false && indexPattern.contains("*")) {
                     needsFailureExclusion = true;
                 }
-                if(IndexNameExpressionResolver.hasSelectorSuffix(indexPattern)) {
+                if (IndexNameExpressionResolver.hasSelectorSuffix(indexPattern)) {
                     Tuple<String, String> parts = IndexNameExpressionResolver.splitSelectorExpression(indexPattern);
                     assert parts.v2() != null && parts.v2().toLowerCase(Locale.ROOT).equals(IndexComponentSelector.FAILURES.getKey())
                         : "Only the ::failures selector should be present.";
                     hasFailures.computeIfAbsent(parts.v1(), k -> new HashSet<>()).add(Optional.of(parts.v2()));
                 } else {
-                    hasFailures.computeIfAbsent(indexPattern, k -> new HashSet<>()).add(Optional.empty()); //no selector == ::data
+                    hasFailures.computeIfAbsent(indexPattern, k -> new HashSet<>()).add(Optional.empty()); // no selector == ::data
                 }
             }
-            //there are no wildcard patterns in the group's index patterns, so no need to add the exclusions
-            if(needsFailureExclusion == false){
+            // there are no wildcard patterns in the group's index patterns, so no need to add the exclusions
+            if (needsFailureExclusion == false) {
                 return indices;
             }
 
-            //find all the patterns that have a wildcard and do not also already have a ::failures selector
-            for(Map.Entry<String, Set<Optional<String>>> entry : hasFailures.entrySet()){
-                if(entry.getKey().contains("*") && entry.getKey().startsWith("/") == false){
-                    //index pattern has a wildcard and is not a regular expression
-                    if(entry.getValue().stream().noneMatch(Optional::isPresent)){
+            // find all the patterns that have a wildcard and do not also already have a ::failures selector
+            for (Map.Entry<String, Set<Optional<String>>> entry : hasFailures.entrySet()) {
+                if (entry.getKey().contains("*") && entry.getKey().startsWith("/") == false) {
+                    // index pattern has a wildcard and is not a regular expression
+                    if (entry.getValue().stream().noneMatch(Optional::isPresent)) {
                         entry.getValue().add(Optional.of("ADD_FAILURES_EXCLUSION"));
                     }
                 }
             }
 
             List<String> indicesWithExclusions = new ArrayList<>();
-            for(Map.Entry<String, Set<Optional<String>>> entry : hasFailures.entrySet()){
+            for (Map.Entry<String, Set<Optional<String>>> entry : hasFailures.entrySet()) {
                 boolean addExclusion = entry.getValue().stream().anyMatch(s -> s.isPresent() && s.get().equals("ADD_FAILURES_EXCLUSION"));
-                for(Optional<String> selector : entry.getValue()){
-                    if(selector.isEmpty()){ // the ::data selector
-                        if(addExclusion){ //needs the exclusion
+                for (Optional<String> selector : entry.getValue()) {
+                    if (selector.isEmpty()) { // the ::data selector
+                        if (addExclusion) { // needs the exclusion
                             String asRegex = "(" + entry.getKey().replaceAll("\\*", ".*") + ")";
                             indicesWithExclusions.add("/" + asRegex + "&~(" + asRegex + "::failures)/");
                         } else {
 
-                            indicesWithExclusions.add(entry.getKey()); //no exclusion needed
+                            indicesWithExclusions.add(entry.getKey()); // no exclusion needed
                         }
-                    }else if(selector.get().equals(IndexComponentSelector.FAILURES.getKey())){
-                        indicesWithExclusions.add(IndexNameExpressionResolver.combineSelector(entry.getKey(),
-                            IndexComponentSelector.FAILURES));
+                    } else if (selector.get().equals(IndexComponentSelector.FAILURES.getKey())) {
+                        indicesWithExclusions.add(
+                            IndexNameExpressionResolver.combineSelector(entry.getKey(), IndexComponentSelector.FAILURES)
+                        );
                     }
                 }
             }
 
-          return indicesWithExclusions.toArray(String[]::new);
+            return indicesWithExclusions.toArray(String[]::new);
         }
+
         /**
          * This method will transform the indices as defined for the group to resolve the selectors.
          * The full expression (for index/datastream/alias named `name`) can be expressed as one of the following patterns:
@@ -918,16 +918,16 @@ public final class IndicesPermission {
          * @param indices - The indices as defined for the group.
          * @return a String[] that contains the resolved selectors.
          */
-        private String[] resolveSelectors(String [] indices){
-            System.out.println("[resolveSelectors] Before: " + Arrays.toString(indices)); //TODO: [Jake] remove
+        private String[] resolveSelectors(String[] indices) {
+            // System.out.println("[resolveSelectors] Before: " + Arrays.toString(indices)); // TODO: [Jake] remove
             assert indices.length > 0 : "indices must not be empty";
-            //TODO: [Jake] ensure that selectors added to the role are validated at time of role create/update,
+            // TODO: [Jake] ensure that selectors added to the role are validated at time of role create/update,
             // for example test::failure (instead of ::failures) should eager fail at time of role create/update
-            //TODO: [Jake] ensure that remote_indices can not have selectors via similar role validation
+            // TODO: [Jake] ensure that remote_indices can not have selectors via similar role validation
             List<String> indicesResolvedBySelector = new ArrayList<>(indices.length);
-            for(String index: indices){
-                //TODO: [Jake] What about regular expression patterns that have selectors ...maybe just deny them for now ?
-                if(IndexNameExpressionResolver.hasSelectorSuffix(index)) {
+            for (String index : indices) {
+                // TODO: [Jake] What about regular expression patterns that have selectors ...maybe just deny them for now ?
+                if (IndexNameExpressionResolver.hasSelectorSuffix(index)) {
                     Tuple<String, String> parts = IndexNameExpressionResolver.splitSelectorExpression(index);
                     String name = parts.v1();
                     String selectorString = parts.v2();
@@ -936,35 +936,36 @@ public final class IndicesPermission {
                         assert selector != null;
                         switch (selector) {
                             case DATA:
-                                //remove `::data` from `name::data`
+                                // remove `::data` from `name::data`
                                 indicesResolvedBySelector.add(name);
                                 break;
                             case ALL_APPLICABLE:
-                                //expand `name::*` into `name`, `name::failures`
-                                indicesResolvedBySelector.add(name); //::data intentionally omitted
+                                // expand `name::*` into `name`, `name::failures`
+                                indicesResolvedBySelector.add(name); // ::data intentionally omitted
                                 indicesResolvedBySelector.add(
                                     IndexNameExpressionResolver.combineSelector(name, IndexComponentSelector.FAILURES)
                                 );
                                 break;
                             case FAILURES:
-                                //`name::failures`, add as-is
+                                // `name::failures`, add as-is
                                 indicesResolvedBySelector.add(index);
                                 break;
                             default:
-                                //other validation should prevent this from happening
+                                // other validation should prevent this from happening
                                 throw new IllegalArgumentException("Unexpected selector: " + selector + " for index: " + index);
                         }
                     }
-                }else {
-                    indicesResolvedBySelector.add(index); //no selectors, add as-is
+                } else {
+                    indicesResolvedBySelector.add(index); // no selectors, add as-is
                 }
             }
-            //TODO: [Jake] remove
-            System.out.println("[resolveSelectors] After: " + Arrays.toString(indicesResolvedBySelector.toArray(String[]::new)));
-            //TODO: [Jake] ensure that the resolved indices are not persisted to the role and is a runtime concern only.
+            // TODO: [Jake] remove
+            // System.out.println("[resolveSelectors] After: " + Arrays.toString(indicesResolvedBySelector.toArray(String[]::new)));
+            // TODO: [Jake] ensure that the resolved indices are not persisted to the role and is a runtime concern only.
             return indicesResolvedBySelector.toArray(String[]::new);
 
         }
+
         public IndexPrivilege privilege() {
             return privilege;
         }

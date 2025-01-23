@@ -842,10 +842,7 @@ public final class IndicesPermission {
 
 
         //test* becomes /(test.*)&~(test.*::failures)/" ... only need to do this if there is a wildcard in the pattern in the role
-        //
-
-        //this works the same as if the user expliclity said name:*, /~name::failures/
-        private String[] addFailureExclusions(String[] indices) {
+              private String[] addFailureExclusions(String[] indices) {
 
            //deny any pattern that does not have a ::failure selector explicilty requested
             Map<String, Set<Optional<String>>> hasFailures = new HashMap<>();
@@ -876,38 +873,33 @@ public final class IndicesPermission {
                 return indices;
             }
 
-            //find all the patterns that have a wildcard and do not have a ::failures selector
+            //find all the patterns that have a wildcard and do not also already have a ::failures selector
             for(Map.Entry<String, Set<Optional<String>>> entry : hasFailures.entrySet()){
                 if(entry.getKey().contains("*") && entry.getKey().startsWith("/") == false){
                     //index pattern has a wildcard and is not a regular expression
-                    boolean addFailureExclusion = false;
-                    for(Optional<String> selector : entry.getValue()){
-                        if(selector.isPresent()){
-                            assert selector.get().equals(IndexComponentSelector.FAILURES.getKey());
-                            //already has a failure selector for the pattern, so we should not exclude ::failures
-                        } else {
-                            addFailureExclusion = true;
-                        }
-                    };
-                    if(addFailureExclusion){
-                        //mark the object exclusion for the ::failures selector
+                    if(entry.getValue().stream().noneMatch(Optional::isPresent)){
                         entry.getValue().add(Optional.of("ADD_FAILURES_EXCLUSION"));
                     }
                 }
             }
 
             List<String> indicesWithExclusions = new ArrayList<>();
-
             for(Map.Entry<String, Set<Optional<String>>> entry : hasFailures.entrySet()){
-                //the selector can have at most 2 of the values: (empty + ::failures) or (empty + FAILURES_EXCLUSION)
-                // but never (::failures + FAILURES_EXCLUSION)
-                //when we see (empty + FAILURES_EXCLUSION) we will update the index pattern to be regular expression that excludes failures
-               if(entry.getValue().stream().anyMatch(s -> s.isPresent() && s.get().equals("ADD_FAILURES_EXCLUSION"))){
-                   String asRegex = "(" + entry.getKey().replaceAll("\\*", ".*") + ")";
-                   indicesWithExclusions.add("/" + asRegex + "&~(" + asRegex + "::failures)/");
-                } else {
-                   indicesWithExclusions.add(IndexNameExpressionResolver.combineSelector(entry.getKey(), IndexComponentSelector.FAILURES));
-               }
+                boolean addExclusion = entry.getValue().stream().anyMatch(s -> s.isPresent() && s.get().equals("ADD_FAILURES_EXCLUSION"));
+                for(Optional<String> selector : entry.getValue()){
+                    if(selector.isEmpty()){ // the ::data selector
+                        if(addExclusion){ //needs the exclusion
+                            String asRegex = "(" + entry.getKey().replaceAll("\\*", ".*") + ")";
+                            indicesWithExclusions.add("/" + asRegex + "&~(" + asRegex + "::failures)/");
+                        } else {
+
+                            indicesWithExclusions.add(entry.getKey()); //no exclusion needed
+                        }
+                    }else if(selector.get().equals(IndexComponentSelector.FAILURES.getKey())){
+                        indicesWithExclusions.add(IndexNameExpressionResolver.combineSelector(entry.getKey(),
+                            IndexComponentSelector.FAILURES));
+                    }
+                }
             }
 
           return indicesWithExclusions.toArray(String[]::new);

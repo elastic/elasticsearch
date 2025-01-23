@@ -57,6 +57,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
@@ -87,6 +89,7 @@ public class ElasticInferenceService extends SenderService {
     private EnumSet<TaskType> enabledTaskTypes;
     private final ModelRegistry modelRegistry;
     private final ElasticInferenceServiceAuthorizationHandler authorizationHandler;
+    private final CountDownLatch authorizationCompletedLatch = new CountDownLatch(1);
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
@@ -108,8 +111,12 @@ public class ElasticInferenceService extends SenderService {
 
     private void getAuthorization() {
         try {
-            ActionListener<ElasticInferenceServiceAuthorization> listener = ActionListener.wrap(this::setEnabledTaskTypes, e -> {
+            ActionListener<ElasticInferenceServiceAuthorization> listener = ActionListener.wrap(result -> {
+                setEnabledTaskTypes(result);
+                authorizationCompletedLatch.countDown();
+            }, e -> {
                 // we don't need to do anything if there was a failure, everything is disabled by default
+                authorizationCompletedLatch.countDown();
             });
 
             authorizationHandler.getAuthorization(listener, getSender());
@@ -129,6 +136,17 @@ public class ElasticInferenceService extends SenderService {
         var implementedTaskTypes = EnumSet.copyOf(IMPLEMENTED_TASK_TYPES);
         implementedTaskTypes.retainAll(auth.enabledTaskTypes());
         return implementedTaskTypes;
+    }
+
+    // Default for testing
+    void waitForAuthorizationToComplete(TimeValue waitTime) {
+        try {
+            if (authorizationCompletedLatch.await(waitTime.getSeconds(), TimeUnit.SECONDS) == false) {
+                throw new IllegalStateException("The wait time has expired for authorization to complete.");
+            }
+        } catch (InterruptedException e) {
+            throw new IllegalStateException("Waiting for authorization to complete was interrupted");
+        }
     }
 
     @Override

@@ -739,6 +739,50 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         }
     }
 
+    public void testSupportedStreamingTasks_ReturnsChatCompletion_WhenAuthRespondsWithAValidModel() throws Exception {
+        String responseJson = """
+            {
+                "models": [
+                    {
+                      "model_name": "model-a",
+                      "task_types": ["embed/text/sparse", "chat"]
+                    }
+                ]
+            }
+            """;
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
+            service.waitForAuthorizationToComplete(TIMEOUT);
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY)));
+            assertTrue(service.defaultConfigIds().isEmpty());
+        }
+    }
+
+    public void testSupportedStreamingTasks_ReturnsEmpty_WhenAuthRespondsWithoutChatCompletion() throws Exception {
+        String responseJson = """
+            {
+                "models": [
+                    {
+                      "model_name": "model-a",
+                      "task_types": ["embed/text/sparse"]
+                    }
+                ]
+            }
+            """;
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
+            service.waitForAuthorizationToComplete(TIMEOUT);
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
+            assertTrue(service.defaultConfigIds().isEmpty());
+        }
+    }
+
     private ElasticInferenceService createServiceWithMockSender() {
         return createServiceWithMockSender(ElasticInferenceServiceAuthorizationTests.createEnabledAuth());
     }
@@ -786,6 +830,16 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             new ElasticInferenceServiceComponents(gatewayUrl),
             mockModelRegistry(),
             mockAuthHandler
+        );
+    }
+
+    private ElasticInferenceService createServiceWithAuthHandler(HttpRequestSender.Factory senderFactory, String eisGatewayUrl) {
+        return new ElasticInferenceService(
+            senderFactory,
+            createWithEmptySettings(threadPool),
+            new ElasticInferenceServiceComponents(eisGatewayUrl),
+            mockModelRegistry(),
+            new ElasticInferenceServiceAuthorizationHandler(eisGatewayUrl, threadPool)
         );
     }
 }

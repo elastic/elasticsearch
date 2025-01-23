@@ -20,13 +20,13 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Provides a way to retry a failed test. To use this functionality add something like the following to your test class:
- * </br>
+ * <p>
  * <code>
  * {@literal @}Rule
- * </br>
+ * <p>
  * public RetryRule retry = new RetryRule(3, TimeValue.timeValueSeconds(1));
  * </code>
- * </p>
+ * <p>
  * See {@link InferenceGetServicesIT#retry} for an example.
  */
 public class RetryRule implements TestRule {

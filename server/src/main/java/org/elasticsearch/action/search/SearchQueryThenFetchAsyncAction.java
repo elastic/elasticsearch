@@ -111,7 +111,6 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
     private final Map<String, Float> concreteIndexBoosts;
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
     private final Object shardFailuresMutex = new Object();
-    private final AtomicBoolean hasShardResponse = new AtomicBoolean(false);
     private final AtomicInteger successfulOps;
     private final TransportSearchAction.SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
@@ -229,11 +228,6 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
             }
             onPhaseFailure(NAME, "", e);
         }
-    }
-
-    @Override
-    public SearchRequest getRequest() {
-        return request;
     }
 
     /**
@@ -527,7 +521,9 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
         }
         assert result.getShardIndex() != -1 : "shard index is not set";
         assert result.getSearchShardTarget() != null : "search shard target must not be null";
-        hasShardResponse.set(true);
+        if (hasShardResponse == false) {
+            hasShardResponse = true;
+        }
         if (logger.isTraceEnabled()) {
             logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);
         }
@@ -750,7 +746,7 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
                     request,
                     results.getNumShards(),
                     timeProvider.absoluteStartMillis(),
-                    hasShardResponse.get()
+                    hasShardResponse
                 )
             ),
             task,

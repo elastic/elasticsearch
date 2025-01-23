@@ -83,7 +83,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Map<String, Float> concreteIndexBoosts;
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
     private final Object shardFailuresMutex = new Object();
-    private final AtomicBoolean hasShardResponse = new AtomicBoolean(false);
     private final AtomicInteger successfulOps = new AtomicInteger();
     private final AtomicInteger skippedOps = new AtomicInteger();
     private final SearchTimeProvider timeProvider;
@@ -521,7 +520,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected void onShardResult(Result result, SearchShardIterator shardIt) {
         assert result.getShardIndex() != -1 : "shard index is not set";
         assert result.getSearchShardTarget() != null : "search shard target must not be null";
-        hasShardResponse.set(true);
+        if (hasShardResponse == false) {
+            hasShardResponse = true;
+        }
         if (logger.isTraceEnabled()) {
             logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);
         }
@@ -572,13 +573,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     */
     public final SearchTask getTask() {
         return task;
-    }
-
-    /**
-      * Returns the currently executing search request
-      */
-    public final SearchRequest getRequest() {
-        return request;
     }
 
     /**
@@ -729,7 +723,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // can return a null response if the request rewrites to match none rather
         // than creating an empty response in the search thread pool.
         // Note that, we have to disable this shortcut for queries that create a context (scroll and search context).
-        shardRequest.canReturnNullResponseIfMatchNoDocs(hasShardResponse.get() && shardRequest.scroll() == null);
+        shardRequest.canReturnNullResponseIfMatchNoDocs(hasShardResponse && shardRequest.scroll() == null);
         return shardRequest;
     }
 

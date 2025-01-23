@@ -40,6 +40,8 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
 
     protected final ActionListener<SearchResponse> listener;
 
+    protected volatile boolean hasShardResponse = false;
+
     // protected for tests
     protected final List<Releasable> releasables = new ArrayList<>();
 
@@ -81,7 +83,12 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
         }
     }
 
-    abstract SearchRequest getRequest();
+    /**
+     * Returns the currently executing search request
+     */
+    public final SearchRequest getRequest() {
+        return request;
+    }
 
     abstract void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<? extends SearchPhaseResult> queryResults);
 

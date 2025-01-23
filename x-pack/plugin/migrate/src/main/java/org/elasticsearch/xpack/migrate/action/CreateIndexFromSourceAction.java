@@ -65,7 +65,7 @@ public class CreateIndexFromSourceAction extends ActionType<AcknowledgedResponse
         }
 
         public Request(String sourceIndex, String destIndex) {
-            this(sourceIndex, destIndex, Settings.EMPTY, Map.of(), false);
+            this(sourceIndex, destIndex, Settings.EMPTY, Map.of(), true);
         }
 
         public Request(

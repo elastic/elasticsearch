@@ -11,7 +11,7 @@ import java.util.Locale;
 
 /**
  * Specifies the usage context for a request to the Elastic Inference Service.
- * This helps to determine the type of resources that are allocated for the particular request.
+ * This helps to determine the type of resources that are allocated in the Elastic Inference Service for the particular request.
  */
 public enum ElasticInferenceServiceUsageContext {
 

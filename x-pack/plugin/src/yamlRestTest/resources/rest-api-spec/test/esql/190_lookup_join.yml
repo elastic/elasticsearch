@@ -102,7 +102,7 @@ non-lookup index:
   - contains: { error.reason: "Found 1 problem\nline 1:45: invalid [test] resolution in lookup mode to an index in [standard] mode" }
 
 ---
-alias:
+"Alias as lookup index":
   - do:
       esql.query:
         body:

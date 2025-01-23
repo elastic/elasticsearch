@@ -88,3 +88,4 @@ elastic.apm.agent:
   - write_system_properties:
       properties:
         - AsyncProfiler.safemode
+  - load_native_libraries

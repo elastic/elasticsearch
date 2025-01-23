@@ -589,7 +589,7 @@ public class LocalExecutionPlanner {
                 parentTask,
                 context.queryPragmas().enrichMaxWorkers(),
                 matchFields.getFirst().channel(),
-                lookupFromIndexService,
+                ctx -> lookupFromIndexService,
                 matchFields.getFirst().type(),
                 indexName,
                 join.leftFields().getFirst().name(),

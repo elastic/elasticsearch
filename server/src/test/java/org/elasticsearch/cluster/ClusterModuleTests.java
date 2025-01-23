@@ -190,7 +190,7 @@ public class ClusterModuleTests extends ModuleTestCase {
         assertEquals(FakeShardsAllocator.class, module.shardsAllocator.getClass());
         assertCriticalWarnings(
             "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -221,7 +221,7 @@ public class ClusterModuleTests extends ModuleTestCase {
         assertEquals("Unknown ShardsAllocator [dne]", e.getMessage());
         assertCriticalWarnings(
             "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -230,7 +230,7 @@ public class ClusterModuleTests extends ModuleTestCase {
         expectThrows(NullPointerException.class, () -> newClusterModuleWithShardsAllocator(settings, "bad", () -> null));
         assertCriticalWarnings(
             "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the breaking changes documentation for the next major version."
         );
     }
 

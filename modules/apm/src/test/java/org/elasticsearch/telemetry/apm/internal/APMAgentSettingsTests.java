@@ -77,7 +77,7 @@ public class APMAgentSettingsTests extends ESTestCase {
         verify(apmAgentSettings).setAgentSetting("recording", "true");
         assertWarnings(
             "[tracing.apm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -131,7 +131,7 @@ public class APMAgentSettingsTests extends ESTestCase {
         verify(apmAgentSettings).setAgentSetting("recording", "false");
         assertWarnings(
             "[tracing.apm.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -198,7 +198,7 @@ public class APMAgentSettingsTests extends ESTestCase {
         verify(apmAgentSettings).setAgentSetting("span_compression_enabled", "true");
         assertWarnings(
             "[tracing.apm.agent.span_compression_enabled] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -220,7 +220,7 @@ public class APMAgentSettingsTests extends ESTestCase {
             if (prefix.startsWith("tracing.apm.agent.")) {
                 assertWarnings(
                     "[tracing.apm.agent.global_labels.abc] setting was deprecated in Elasticsearch and will be removed in a future release."
-                        + " See the deprecation changes documentation for the next major version."
+                        + " See the breaking changes documentation for the next major version."
                 );
             }
         }
@@ -234,7 +234,7 @@ public class APMAgentSettingsTests extends ESTestCase {
         assertThat(included, containsInAnyOrder("abc", "xyz"));
         assertWarnings(
             "[tracing.apm.names.include] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -246,7 +246,7 @@ public class APMAgentSettingsTests extends ESTestCase {
         assertThat(included, containsInAnyOrder("abc", "xyz"));
         assertWarnings(
             "[tracing.apm.names.exclude] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -258,7 +258,7 @@ public class APMAgentSettingsTests extends ESTestCase {
         assertThat(included, containsInAnyOrder("abc", "xyz"));
         assertWarnings(
             "[tracing.apm.sanitize_field_names] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -277,7 +277,7 @@ public class APMAgentSettingsTests extends ESTestCase {
         }
         assertWarnings(
             "[tracing.apm.secret_token] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -291,7 +291,7 @@ public class APMAgentSettingsTests extends ESTestCase {
         }
         assertWarnings(
             "[tracing.apm.api_key] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the breaking changes documentation for the next major version."
         );
     }
 

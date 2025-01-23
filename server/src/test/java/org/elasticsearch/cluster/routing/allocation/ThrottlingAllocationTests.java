@@ -201,7 +201,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         );
         assertCriticalWarnings(
             "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the breaking changes documentation for the next major version."
         );
         logger.info("Building initial routing table");
 

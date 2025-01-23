@@ -172,7 +172,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
         }
         assertWarnings(
             "[transport.enable_stack_protection] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -279,7 +279,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
         );
         assertWarnings(
             "[transport.enable_stack_protection] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the breaking changes documentation for the next major version."
         );
     }
 

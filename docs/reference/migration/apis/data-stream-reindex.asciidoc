@@ -89,15 +89,15 @@ cause there to be no throttling. Consult the reindex documentation for more info
 [[reindex-data-stream-api-example]]
 ==== {api-examples-title}
 
-Assume we have a data stream `my-data-stream` with the following backing indices, all of which have index major version 7.
+Assume we have a data stream `my-data-stream` with the following backing indices, all of which have index major version 7.x.
 
 * .ds-my-data-stream-2024.01.07-000001
 * .ds-my-data-stream-2024.02.07-000002
 * .ds-my-data-stream-2024.03.07-000003
 
 Let's also assume that `.ds-my-data-stream-2024.03.07-000003` is the write index.
-If the {es} is version 8 and we wish to upgrade to major version 9, the version 7 indices must be upgraded in preparation.
-We can use this API to reindex a data stream with version 7 backing indices and make them version 8 backing indices.
+If the {es} is version 8.x and we wish to upgrade to major version 9.x, the version 7.x indices must be upgraded in preparation.
+We can use this API to reindex a data stream with version 7.x backing indices and make them version 8 backing indices.
 
 We start with a call the the API:
 
@@ -111,8 +111,6 @@ POST _migration/reindex
     "mode": "upgrade"
 }
 ----
-// TEST[setup:my_data_stream]
-// TEST[teardown:data_stream_cleanup]
 
 As this task runs in the background this API will return immediately.
 The task will do the following:
@@ -123,8 +121,8 @@ stream. This will produce a new write index `.ds-my-data-stream-2025.01.17-00000
 and thus does not need to be upgraded.
 
 Once the data stream has a write index with an update-to-date major version we can proceed with reindexing the old indices.
-
 For each of the version 7 indices, we now do the following:
+
 * Set the index to read-only to guarantee that no writes are lost
 * Delete the target index if one exists. This is done so that if the per-index processing needs to be retried, we start with a new target index.
 * Create the target index using <create-from>. This copies the settings and mappings from the old backing index to the new backing index.
@@ -179,7 +177,7 @@ POST _migration/reindex
     },
     "mode": "upgrade"
 }
----
+----
 
 And now checking the status we get the following:
 [source,console-result]
@@ -257,7 +255,7 @@ POST _migration/reindex
     },
     "mode": "upgrade"
 }
----
+----
 
 Checking the status again shortly will show the following:
 
@@ -308,6 +306,44 @@ We can now check the data stream to verify that indices were upgraded.
 
 [source,console-result]
 ----
-GET /_data_stream
+GET /_data_stream/my-data-stream?filter-path=datastreams.indices.index_name
+----
+
+We now get these results:
+[source,console-result]
+----
+{
+  "data_streams": [
+    {
+      "indices": [
+        {
+          "index_name": ".ds-my-data-stream-2099.03.07-000001",
+        },
+        {
+          "index_name": ".ds-my-data-stream-2099.03.08-000002",
+        }
+      ]
+    }
+  ]
+}
+----
+
+Index `` is the write index and didn't need to be upgraded because it was created with version 8.
+The other three backing indices are now prefixed with `.migrated` because they have been upgraded.
++
+We can now check the index versions and verify they are also version 8.
+[source,console-result]
+----
+GET /.migrated .../
+----
+
+Which returns the results:
+[source,console-result]
+----
+{
+    "version" : {
+        "created_string" : "8.18.0",
+    }
+}
 ----
 

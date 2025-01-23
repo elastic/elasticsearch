@@ -106,10 +106,6 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
     private final TransportSearchAction.SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
 
-    protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
-    protected final GroupShardsIterator<SearchShardIterator> shardsIts;
-    private final SearchShardIterator[] shardIterators;
-
     private static final VarHandle OUTSTANDING_SHARDS;
 
     static {
@@ -148,33 +144,22 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
         SearchResponse.Clusters clusters,
         Client client
     ) {
-        super(request, resultConsumer, namedWriteableRegistry, listener, task, searchTransportService, executor, nodeIdToConnection);
-        final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
-        final List<SearchShardIterator> iterators = new ArrayList<>();
-        for (final SearchShardIterator iterator : shardsIts) {
-            if (iterator.skip()) {
-                toSkipIterators.add(iterator);
-            } else {
-                iterators.add(iterator);
-            }
-        }
-        this.toSkipShardsIts = new GroupShardsIterator<>(toSkipIterators);
-        this.successfulOps.setRelease(toSkipIterators.size());
-        this.shardsIts = new GroupShardsIterator<>(iterators);
-
-        this.shardIterators = iterators.toArray(new SearchShardIterator[0]);
+        super(
+            request,
+            resultConsumer,
+            namedWriteableRegistry,
+            listener,
+            task,
+            searchTransportService,
+            executor,
+            nodeIdToConnection,
+            shardsIts
+        );
         outstandingShards = shardIterators.length;
-        // we compute the shard index based on the natural order of the shards
-        // that participate in the search request. This means that this number is
-        // consistent between two requests that target the same shards.
-        Arrays.sort(shardIterators);
         this.timeProvider = timeProvider;
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.minNodeVersion = clusterState.getMinTransportVersion();
         this.aliasFilter = aliasFilter;
-        // register the release of the query consumer to free up the circuit breaker memory
-        // at the end of the search
-        releasables.add(resultConsumer);
         this.clusters = clusters;
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
@@ -856,31 +841,7 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
             Boolean allowPartialResults = request.allowPartialSearchResults();
             assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
             if (allowPartialResults == false && successfulOps.get() != numShards) {
-                // check if there are actual failures in the atomic array since
-                // successful retries can reset the failures to null
-                if (shardSearchFailures.length > 0) {
-                    if (logger.isDebugEnabled()) {
-                        int numShardFailures = shardSearchFailures.length;
-                        shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
-                        Throwable cause = ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
-                        logger.debug(() -> format("%s shards failed for phase: [%s]", numShardFailures, currentPhase), cause);
-                    }
-                    onPhaseFailure(currentPhase, "Partial shards failure", null);
-                } else {
-                    int discrepancy = numShards - successfulOps.get();
-                    assert discrepancy > 0 : "discrepancy: " + discrepancy;
-                    if (logger.isDebugEnabled()) {
-                        logger.debug(
-                            "Partial shards failure (unavailable: {}, successful: {}, skipped: {}, num-shards: {}, phase: {})",
-                            discrepancy,
-                            successfulOps.get(),
-                            toSkipShardsIts.size(),
-                            numShards,
-                            currentPhase
-                        );
-                    }
-                    onPhaseFailure(currentPhase, "Partial shards failure (" + discrepancy + " shards unavailable)", null);
-                }
+                handleNotAllSucceeded(currentPhase, shardSearchFailures, numShards);
                 return;
             }
             var nextPhase = nextPhaseSupplier.get();

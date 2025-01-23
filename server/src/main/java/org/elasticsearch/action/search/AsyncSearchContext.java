@@ -12,8 +12,12 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
@@ -25,6 +29,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -60,6 +65,10 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
     protected final SearchTransportService searchTransportService;
     protected final Executor executor;
 
+    protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
+    protected final GroupShardsIterator<SearchShardIterator> shardsIts;
+    protected final SearchShardIterator[] shardIterators;
+
     /**
      * Used by subclasses to resolve node ids to DiscoveryNodes.
      **/
@@ -73,8 +82,27 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
         SearchTask task,
         SearchTransportService searchTransportService,
         Executor executor,
-        BiFunction<String, String, Transport.Connection> nodeIdToConnection
+        BiFunction<String, String, Transport.Connection> nodeIdToConnection,
+        GroupShardsIterator<SearchShardIterator> shardsIts
     ) {
+        final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
+        final List<SearchShardIterator> iterators = new ArrayList<>();
+        for (final SearchShardIterator iterator : shardsIts) {
+            if (iterator.skip()) {
+                toSkipIterators.add(iterator);
+            } else {
+                iterators.add(iterator);
+            }
+        }
+        this.toSkipShardsIts = new GroupShardsIterator<>(toSkipIterators);
+        this.successfulOps.setRelease(toSkipIterators.size());
+        this.shardsIts = new GroupShardsIterator<>(iterators);
+
+        this.shardIterators = iterators.toArray(new SearchShardIterator[0]);
+        // we later compute the shard index based on the natural order of the shards
+        // that participate in the search request. This means that this number is
+        // consistent between two requests that target the same shards.
+        Arrays.sort(shardIterators);
         this.request = request;
         this.results = results;
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -83,7 +111,6 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
         this.searchTransportService = searchTransportService;
         this.executor = executor;
         this.nodeIdToConnection = nodeIdToConnection;
-        ;
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
         addReleasable(results);
@@ -194,6 +221,34 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
                 logger.debug(() -> format("Failed to execute [%s] while moving to [%s] phase", request, phase.getName()), e);
             }
             onPhaseFailure(phase.getName(), "", e);
+        }
+    }
+
+    protected final void handleNotAllSucceeded(String currentPhase, ShardOperationFailedException[] shardSearchFailures, int numShards) {
+        // check if there are actual failures in the atomic array since
+        // successful retries can reset the failures to null
+        if (shardSearchFailures.length > 0) {
+            if (logger.isDebugEnabled()) {
+                int numShardFailures = shardSearchFailures.length;
+                shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
+                Throwable cause = ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
+                logger.debug(() -> format("%s shards failed for phase: [%s]", numShardFailures, currentPhase), cause);
+            }
+            onPhaseFailure(currentPhase, "Partial shards failure", null);
+        } else {
+            int discrepancy = numShards - successfulOps.get();
+            assert discrepancy > 0 : "discrepancy: " + discrepancy;
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    "Partial shards failure (unavailable: {}, successful: {}, skipped: {}, num-shards: {}, phase: {})",
+                    discrepancy,
+                    successfulOps.get(),
+                    toSkipShardsIts.size(),
+                    numShards,
+                    currentPhase
+                );
+            }
+            onPhaseFailure(currentPhase, "Partial shards failure (" + discrepancy + " shards unavailable)", null);
         }
     }
 

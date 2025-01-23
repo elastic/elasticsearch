@@ -42,9 +42,6 @@ import org.elasticsearch.transport.Transport;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -78,10 +75,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Object shardFailuresMutex = new Object();
     private final SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
-
-    protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
-    protected final GroupShardsIterator<SearchShardIterator> shardsIts;
-    private final SearchShardIterator[] shardIterators;
 
     private static final VarHandle OUTSTANDING_SHARDS;
 
@@ -121,25 +114,19 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         int maxConcurrentRequestsPerNode,
         SearchResponse.Clusters clusters
     ) {
-        super(request, resultConsumer, namedWriteableRegistry, listener, task, searchTransportService, executor, nodeIdToConnection);
+        super(
+            request,
+            resultConsumer,
+            namedWriteableRegistry,
+            listener,
+            task,
+            searchTransportService,
+            executor,
+            nodeIdToConnection,
+            shardsIts
+        );
         this.name = name;
-        final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
-        final List<SearchShardIterator> iterators = new ArrayList<>();
-        for (final SearchShardIterator iterator : shardsIts) {
-            if (iterator.skip()) {
-                toSkipIterators.add(iterator);
-            } else {
-                iterators.add(iterator);
-            }
-        }
-        this.toSkipShardsIts = new GroupShardsIterator<>(toSkipIterators);
-        this.shardsIts = new GroupShardsIterator<>(iterators);
-        OUTSTANDING_SHARDS.setRelease(this, shardsIts.size());
-        this.shardIterators = iterators.toArray(new SearchShardIterator[0]);
-        // we later compute the shard index based on the natural order of the shards
-        // that participate in the search request. This means that this number is
-        // consistent between two requests that target the same shards.
-        Arrays.sort(shardIterators);
+        OUTSTANDING_SHARDS.setRelease(this, shardIterators.length);
         this.maxConcurrentRequestsPerNode = maxConcurrentRequestsPerNode;
         // in the case were we have less shards than maxConcurrentRequestsPerNode we don't need to throttle
         this.throttleConcurrentRequests = maxConcurrentRequestsPerNode < shardsIts.size();
@@ -243,9 +230,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private void run() {
-        for (final SearchShardIterator iterator : toSkipShardsIts) {
-            assert iterator.skip();
-            skipShard(iterator);
+        if ((int) OUTSTANDING_SHARDS.getAcquire(this) == 0) {
+            onPhaseDone();
+            return;
         }
         final Map<SearchShardIterator, Integer> shardIndexMap = Maps.newHashMapWithExpectedSize(shardIterators.length);
         for (int i = 0; i < shardIterators.length; i++) {
@@ -266,12 +253,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
             }
         }
-    }
-
-    void skipShard(SearchShardIterator iterator) {
-        successfulOps.incrementAndGet();
-        assert iterator.skip();
-        successfulShardExecution();
     }
 
     private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
@@ -354,31 +335,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             Boolean allowPartialResults = request.allowPartialSearchResults();
             assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
             if (allowPartialResults == false && successfulOps.get() != numShards) {
-                // check if there are actual failures in the atomic array since
-                // successful retries can reset the failures to null
-                if (shardSearchFailures.length > 0) {
-                    if (logger.isDebugEnabled()) {
-                        int numShardFailures = shardSearchFailures.length;
-                        shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
-                        Throwable cause = ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
-                        logger.debug(() -> format("%s shards failed for phase: [%s]", numShardFailures, currentPhase), cause);
-                    }
-                    onPhaseFailure(currentPhase, "Partial shards failure", null);
-                } else {
-                    int discrepancy = numShards - successfulOps.get();
-                    assert discrepancy > 0 : "discrepancy: " + discrepancy;
-                    if (logger.isDebugEnabled()) {
-                        logger.debug(
-                            "Partial shards failure (unavailable: {}, successful: {}, skipped: {}, num-shards: {}, phase: {})",
-                            discrepancy,
-                            successfulOps.get(),
-                            toSkipShardsIts.size(),
-                            numShards,
-                            currentPhase
-                        );
-                    }
-                    onPhaseFailure(currentPhase, "Partial shards failure (" + discrepancy + " shards unavailable)", null);
-                }
+                handleNotAllSucceeded(currentPhase, shardSearchFailures, numShards);
                 return;
             }
             var nextPhase = nextPhaseSupplier.get();

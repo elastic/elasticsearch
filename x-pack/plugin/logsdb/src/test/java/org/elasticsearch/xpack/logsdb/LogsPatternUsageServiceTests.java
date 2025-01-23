@@ -41,9 +41,7 @@ public class LogsPatternUsageServiceTests extends ESTestCase {
         LogsPatternUsageService service = new LogsPatternUsageService(client, nodeSettings, threadPool, metadataSupplier);
         assertTrue(service.hasPriorLogsUsage);
         service.onMaster();
-        assertBusy(() -> {
-            assertTrue(service.hasPriorLogsUsage);
-        });
+        assertBusy(() -> { assertTrue(service.hasPriorLogsUsage); });
         threadPool.close();
     }
 
@@ -55,9 +53,7 @@ public class LogsPatternUsageServiceTests extends ESTestCase {
             ActionListener<ClusterUpdateSettingsResponse> listener = (ActionListener<ClusterUpdateSettingsResponse>) invocationOnMock
                 .getArguments()[2];
             var persistentSettings = Settings.builder().put("logsdb.prior_logs_usage", true).build();
-            listener.onResponse(
-                new ClusterUpdateSettingsResponse(true, Settings.EMPTY, persistentSettings)
-            );
+            listener.onResponse(new ClusterUpdateSettingsResponse(true, Settings.EMPTY, persistentSettings));
             return null;
         }).when(client).execute(same(ClusterUpdateSettingsAction.INSTANCE), any(), any());
 
@@ -82,9 +78,7 @@ public class LogsPatternUsageServiceTests extends ESTestCase {
             ActionListener<ClusterUpdateSettingsResponse> listener = (ActionListener<ClusterUpdateSettingsResponse>) invocationOnMock
                 .getArguments()[2];
             var persistentSettings = Settings.builder().put("logsdb.prior_logs_usage", true).build();
-            listener.onResponse(
-                new ClusterUpdateSettingsResponse(true, Settings.EMPTY, persistentSettings)
-            );
+            listener.onResponse(new ClusterUpdateSettingsResponse(true, Settings.EMPTY, persistentSettings));
             return null;
         }).when(client).execute(same(ClusterUpdateSettingsAction.INSTANCE), any(), any());
 

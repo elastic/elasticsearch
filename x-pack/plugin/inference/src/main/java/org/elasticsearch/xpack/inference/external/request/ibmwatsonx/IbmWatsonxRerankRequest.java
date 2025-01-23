@@ -45,13 +45,10 @@ public class IbmWatsonxRerankRequest implements IbmWatsonxRequest {
 
     @Override
     public HttpRequest createHttpRequest() {
-//        HttpPost httpPost = new HttpPost(model.uri());
-
-
         URI uri;
 
         try {
-            uri = new URI("https://us-south.ml.cloud.ibm.com/ml/v1/text/reranks?version=2024-05-02");
+            uri = new URI(model.uri().toString());
         } catch (URISyntaxException ex) {
             throw new IllegalArgumentException("cannot parse URI patter");
         }

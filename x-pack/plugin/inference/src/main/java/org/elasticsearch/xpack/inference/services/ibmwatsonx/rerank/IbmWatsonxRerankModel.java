@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank;
 
+import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -19,7 +20,13 @@ import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.ML;
+import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.RERANKS;
+import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.TEXT;
+import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.V1;
 
 
 public class IbmWatsonxRerankModel extends IbmWatsonxModel {
@@ -67,10 +74,6 @@ public class IbmWatsonxRerankModel extends IbmWatsonxModel {
         super(model, taskSettings);
     }
 
-    public IbmWatsonxRerankModel(IbmWatsonxRerankModel model, IbmWatsonxRerankServiceSettings serviceSettings) {
-        super(model, serviceSettings);
-    }
-
     @Override
     public IbmWatsonxRerankServiceSettings getServiceSettings() {
         return (IbmWatsonxRerankServiceSettings) super.getServiceSettings();
@@ -86,6 +89,16 @@ public class IbmWatsonxRerankModel extends IbmWatsonxModel {
         return (DefaultSecretSettings) super.getSecretSettings();
     }
 
+    public URI uri() {
+        URI uri;
+        try {
+            uri = buildUri(this.getServiceSettings().uri().toString(),this.getServiceSettings().apiVersion());
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+
+        return uri;
+    }
     /**
      * Accepts a visitor to create an executable action. The returned action will not return documents in the response.
      * @param visitor _
@@ -98,7 +111,13 @@ public class IbmWatsonxRerankModel extends IbmWatsonxModel {
         return visitor.create(this, taskSettings);
     }
 
-    public URI uri() {
-        return getServiceSettings().uri();
+
+
+    public static URI buildUri(String uri, String apiVersion) throws URISyntaxException {
+        return new URIBuilder().setScheme("https")
+            .setHost(uri)
+            .setPathSegments(ML, V1, TEXT, RERANKS)
+            .setParameter("version", apiVersion)
+            .build();
     }
 }

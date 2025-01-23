@@ -219,8 +219,8 @@ public class APMAgentSettingsTests extends ESTestCase {
 
             if (prefix.startsWith("tracing.apm.agent.")) {
                 assertWarnings(
-                    "[tracing.apm.agent.global_labels.abc] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                        + "See the deprecation changes documentation for the next major version."
+                    "[tracing.apm.agent.global_labels.abc] setting was deprecated in Elasticsearch and will be removed in a future release."
+                        + " See the deprecation changes documentation for the next major version."
                 );
             }
         }

@@ -712,8 +712,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertWarnings(
             "[script.context.interval.cache_expire] setting was deprecated in Elasticsearch and will be removed in a future release. "
                 + "See the deprecation changes documentation for the next major version.",
-            "[script.context.moving-function.cache_expire] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+            "[script.context.moving-function.cache_expire] setting was deprecated in Elasticsearch and will be removed in a future release."
+                + " See the deprecation changes documentation for the next major version."
         );
     }
 

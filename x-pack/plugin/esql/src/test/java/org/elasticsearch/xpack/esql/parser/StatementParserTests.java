@@ -11,7 +11,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -79,6 +78,11 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.WILDCARD_PATTERN;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.not;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPattern;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPatterns;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.unquoteIndexPattern;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -86,11 +90,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
-import static org.elasticsearch.xpack.esql.parser.IdentifierGenerator.Features.CROSS_CLUSTER;
-import static org.elasticsearch.xpack.esql.parser.IdentifierGenerator.Features.WILDCARD_PATTERN;
-import static org.elasticsearch.xpack.esql.parser.IdentifierGenerator.not;
-import static org.elasticsearch.xpack.esql.parser.IdentifierGenerator.randomIndexPatterns;
-import static org.elasticsearch.xpack.esql.parser.IdentifierGenerator.unquoteIndexPattern;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -2949,16 +2948,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testValidJoinPattern() {
-        var basePattern = randomIndexPatterns(true, true);
-        var joinPattern = randomIndexPattern(true, false);
+        var basePattern = randomIndexPatterns();
+        var joinPattern = randomIndexPattern(not(WILDCARD_PATTERN));
         var onField = randomIdentifier();
         var type = randomFrom("", "LOOKUP ");
 
         var plan = statement("FROM " + basePattern + " | " + type + " JOIN " + joinPattern + " ON " + onField);
 
         var join = as(plan, LookupJoin.class);
-        assertThat(as(join.left(), UnresolvedRelation.class).table().index(), equalTo(unquote(basePattern)));
-        assertThat(as(join.right(), UnresolvedRelation.class).table().index(), equalTo(unquote(joinPattern)));
+        assertThat(as(join.left(), UnresolvedRelation.class).table().index(), equalTo(unquoteIndexPattern(basePattern)));
+        assertThat(as(join.right(), UnresolvedRelation.class).table().index(), equalTo(unquoteIndexPattern(joinPattern)));
 
         var joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
         assertThat(joinType.columns(), hasSize(1));
@@ -2968,55 +2967,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testInvalidJoinPatterns() {
         expectError(
-            "FROM " + randomIndexPatterns(true, true) + " | JOIN my-index-pattern* ON " + randomIdentifier(),
+            "FROM " + randomIndexPatterns() + " | JOIN my-index-pattern* ON " + randomIdentifier(),
             "invalid index pattern [my-index-pattern*], * is not allowed in LOOKUP JOIN"
         );
-    }
-
-    private static String randomIndexPatterns(boolean includeRemotes, boolean includePatterns) {
-        return maybeQuote(String.join(",", randomList(1, 5, () -> randomIndexPattern(includeRemotes, includePatterns))));
-    }
-
-    private static String randomIndexPattern(boolean includeRemotes, boolean includePatterns) {
-        String pattern = maybeQuote(randomIndexIdentifier(includePatterns));
-        if (includeRemotes && randomBoolean()) {
-            var cluster = randomIdentifier();
-            pattern = maybeQuote(cluster + ":" + pattern);
-        }
-        return pattern;
-    }
-
-    /**
-     * This generates random valid index, alias or pattern
-     */
-    private static String randomIndexIdentifier(boolean includePatterns) {
-        // https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params
-        var validFirstCharacters = "abcdefghijklmnopqrstuvwxyz0123456789!'$^&";
-        var validCharacters = validFirstCharacters + "+-_.";
-
-        var index = new StringBuilder();
-        if (randomInt(9) == 0) {// hidden index
-            index.append('.');
-        }
-        index.append(randomCharacterFrom(validFirstCharacters));
-        for (int i = 0; i < randomIntBetween(1, 100); i++) {
-            index.append(randomCharacterFrom(validCharacters));
-        }
-        if (includePatterns && randomBoolean()) {// pattern
-            index.append('*');
-        }
-        return index.toString();
-    }
-
-    private static char randomCharacterFrom(String str) {
-        return str.charAt(randomInt(str.length() - 1));
-    }
-
-    private static String maybeQuote(String term) {
-        return randomBoolean() && term.contains("\"") == false ? "\"" + term + "\"" : term;
-    }
-
-    private static String unquote(String term) {
-        return term.replace("\"", "");
     }
 }

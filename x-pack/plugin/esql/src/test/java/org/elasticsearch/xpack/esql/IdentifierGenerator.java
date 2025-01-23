@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.parser;
+package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.test.ESTestCase;
 

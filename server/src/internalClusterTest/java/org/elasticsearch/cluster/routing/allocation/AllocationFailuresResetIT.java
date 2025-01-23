@@ -9,9 +9,12 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -20,6 +23,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.MockIndexEventListener;
+import org.elasticsearch.test.MockLog;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -86,8 +90,20 @@ public class AllocationFailuresResetIT extends ESIntegTestCase {
         prepareCreate(INDEX, indexSettings(1, 0)).execute();
         awaitShardAllocMaxRetries();
         removeAllocationFailuresInjection(node1);
-        internalCluster().startNode();
-        awaitShardAllocSucceed();
+        try (var mockLog = MockLog.capture(RoutingNodes.class)) {
+            var shardId = internalCluster().clusterService().state().routingTable().index(INDEX).shard(SHARD).shardId();
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "log resetting failed allocations",
+                    RoutingNodes.class.getName(),
+                    Level.INFO,
+                    Strings.format(RoutingNodes.RESET_FAILED_ALLOCATION_COUNTER_LOG_MSG, 1, List.of(shardId))
+                )
+            );
+            internalCluster().startNode();
+            awaitShardAllocSucceed();
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testResetRelocationFailuresOnNodeJoin() throws Exception {
@@ -122,12 +138,23 @@ public class AllocationFailuresResetIT extends ESIntegTestCase {
         assertThat(state.nodes().get(shard.currentNodeId()).getName(), equalTo(node1));
         failRelocation.set(false);
         // A new node joining should reset the counter and allow more relocation retries
-        internalCluster().startNode();
-        assertBusy(() -> {
-            var stateAfterNodeJoin = internalCluster().clusterService().state();
-            var relocatedShard = stateAfterNodeJoin.routingTable().index(INDEX).shard(SHARD).primaryShard();
-            assertThat(relocatedShard, notNullValue());
-            assertThat(stateAfterNodeJoin.nodes().get(relocatedShard.currentNodeId()).getName(), not(equalTo(node1)));
-        });
+        try (var mockLog = MockLog.capture(RoutingNodes.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "log resetting failed relocations",
+                    RoutingNodes.class.getName(),
+                    Level.INFO,
+                    Strings.format(RoutingNodes.RESET_FAILED_RELOCATION_COUNTER_LOG_MSG, 1, List.of(shard.shardId()))
+                )
+            );
+            internalCluster().startNode();
+            assertBusy(() -> {
+                var stateAfterNodeJoin = internalCluster().clusterService().state();
+                var relocatedShard = stateAfterNodeJoin.routingTable().index(INDEX).shard(SHARD).primaryShard();
+                assertThat(relocatedShard, notNullValue());
+                assertThat(stateAfterNodeJoin.nodes().get(relocatedShard.currentNodeId()).getName(), not(equalTo(node1)));
+            });
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 }

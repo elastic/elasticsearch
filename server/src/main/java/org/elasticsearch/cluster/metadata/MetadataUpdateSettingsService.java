@@ -36,10 +36,10 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -182,11 +182,14 @@ public class MetadataUpdateSettingsService {
 
             RoutingTable.Builder routingTableBuilder = null;
             Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
+            final var minSupportedIndexVersion = currentState.nodes().getMinSupportedIndexVersion();
 
             // allow to change any settings to a closed index, and only allow dynamic settings to be changed
             // on an open index
             Set<Index> openIndices = new HashSet<>();
             Set<Index> closedIndices = new HashSet<>();
+            Set<Index> readOnlyIndices = null;
+
             final String[] actualIndices = new String[request.indices().length];
             for (int i = 0; i < request.indices().length; i++) {
                 Index index = request.indices()[i];
@@ -197,6 +200,12 @@ public class MetadataUpdateSettingsService {
                     openIndices.add(index);
                 } else {
                     closedIndices.add(index);
+                }
+                if (metadata.getCompatibilityVersion().before(minSupportedIndexVersion)) {
+                    if (readOnlyIndices == null) {
+                        readOnlyIndices = new HashSet<>();
+                    }
+                    readOnlyIndices.add(index);
                 }
             }
 
@@ -331,15 +340,7 @@ public class MetadataUpdateSettingsService {
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
             boolean changedBlocks = false;
             for (IndexMetadata.APIBlock block : IndexMetadata.APIBlock.values()) {
-                changedBlocks |= maybeUpdateClusterBlock(
-                    actualIndices,
-                    blocks,
-                    block.block,
-                    block.setting,
-                    openSettings,
-                    metadataBuilder,
-                    currentState.nodes().getMinSupportedIndexVersion()
-                );
+                changedBlocks |= maybeUpdateClusterBlock(actualIndices, blocks, block.block, block.setting, openSettings, metadataBuilder);
             }
             changed |= changedBlocks;
 
@@ -368,6 +369,7 @@ public class MetadataUpdateSettingsService {
                     // This step is mandatory since we allow to update non-dynamic settings on closed indices.
                     indicesService.verifyIndexMetadata(updatedMetadata, updatedMetadata);
                 }
+                verifyReadOnlyIndices(readOnlyIndices, updatedState.blocks());
             } catch (IOException ex) {
                 throw ExceptionsHelper.convertToElastic(ex);
             }
@@ -426,6 +428,18 @@ public class MetadataUpdateSettingsService {
         }
     }
 
+    private static void verifyReadOnlyIndices(@Nullable Set<Index> readOnlyIndices, ClusterBlocks blocks) {
+        if (readOnlyIndices != null) {
+            for (Index readOnlyIndex : readOnlyIndices) {
+                if (blocks.indexBlocked(ClusterBlockLevel.WRITE, readOnlyIndex.getName())) {
+                    throw new IllegalArgumentException(
+                        String.format(Locale.ROOT, "Can't remove the `write` level block for read-only compatible index %s", readOnlyIndex)
+                    );
+                }
+            }
+        }
+    }
+
     /**
      * Updates the cluster block only iff the setting exists in the given settings
      */
@@ -435,8 +449,7 @@ public class MetadataUpdateSettingsService {
         ClusterBlock block,
         Setting<Boolean> setting,
         Settings openSettings,
-        Metadata.Builder metadataBuilder,
-        IndexVersion minSupportedIndexVersion
+        Metadata.Builder metadataBuilder
     ) {
         boolean changed = false;
         if (setting.exists(openSettings)) {
@@ -453,17 +466,6 @@ public class MetadataUpdateSettingsService {
                         changed = true;
                         if (block.contains(ClusterBlockLevel.WRITE)) {
                             IndexMetadata indexMetadata = metadataBuilder.get(index);
-                            if (indexMetadata.getCompatibilityVersion().before(minSupportedIndexVersion)) {
-                                // Forbid the removal of the block if the index cannot be written by one or more nodes of the cluster
-                                throw new IllegalArgumentException(
-                                    String.format(
-                                        Locale.ROOT,
-                                        "Can't update setting [%s] for read-only compatible index %s",
-                                        setting.getKey(),
-                                        indexMetadata.getIndex()
-                                    )
-                                );
-                            }
                             Settings.Builder indexSettings = Settings.builder().put(indexMetadata.getSettings());
                             indexSettings.remove(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey());
                             metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(indexSettings));

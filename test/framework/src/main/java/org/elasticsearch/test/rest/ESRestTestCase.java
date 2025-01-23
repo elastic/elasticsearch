@@ -1904,8 +1904,15 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {
+        return getIndexSettings(index, false);
+    }
+
+    protected static Map<String, Object> getIndexSettings(String index, boolean includeDefaults) throws IOException {
         Request request = new Request("GET", "/" + index + "/_settings");
         request.addParameter("flat_settings", "true");
+        if (includeDefaults) {
+            request.addParameter("include_defaults", "true");
+        }
         Response response = client().performRequest(request);
         try (InputStream is = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(

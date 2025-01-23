@@ -61,14 +61,7 @@ public class LogsdbWithBasicRestIT extends ESRestTestCase {
                 var settings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "field1").build();
                 createIndex("test-index", settings, mapping);
             } else {
-                String mapping = """
-                    {
-                        "_source": {
-                            "mode": "synthetic"
-                        }
-                    }
-                    """;
-                createIndex("test-index", Settings.EMPTY, mapping);
+                createIndex("test-index", Settings.builder().put("index.mapping.source.mode", "synthetic").build());
             }
             var response = getAsMap("/_license/feature_usage");
             @SuppressWarnings("unchecked")

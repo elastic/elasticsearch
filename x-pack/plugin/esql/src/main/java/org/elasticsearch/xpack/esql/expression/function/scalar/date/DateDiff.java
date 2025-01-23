@@ -245,7 +245,8 @@ public class DateDiff extends EsqlScalarFunction {
     }
 
     @Evaluator(extraName = "ConstantNanosMillis", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
-    static int processNanosMillis(@Fixed Part datePartFieldUnit, long startTimestampNanos, long endTimestampMillis) throws IllegalArgumentException {
+    static int processNanosMillis(@Fixed Part datePartFieldUnit, long startTimestampNanos, long endTimestampMillis)
+        throws IllegalArgumentException {
         ZonedDateTime zdtStart = ZonedDateTime.ofInstant(DateUtils.toInstant(startTimestampNanos), UTC);
         ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(Instant.ofEpochMilli(endTimestampMillis), UTC);
         return datePartFieldUnit.diff(zdtStart, zdtEnd);
@@ -257,7 +258,8 @@ public class DateDiff extends EsqlScalarFunction {
     }
 
     @Evaluator(extraName = "ConstantMillisNanos", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
-    static int processMillisNanos(@Fixed Part datePartFieldUnit, long startTimestampMillis, long endTimestampNanos) throws IllegalArgumentException {
+    static int processMillisNanos(@Fixed Part datePartFieldUnit, long startTimestampMillis, long endTimestampNanos)
+        throws IllegalArgumentException {
         ZonedDateTime zdtStart = ZonedDateTime.ofInstant(Instant.ofEpochMilli(startTimestampMillis), UTC);
         ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(DateUtils.toInstant(endTimestampNanos), UTC);
         return datePartFieldUnit.diff(zdtStart, zdtEnd);
@@ -299,8 +301,14 @@ public class DateDiff extends EsqlScalarFunction {
         } else if (startTimestamp.dataType() == DATETIME && endTimestamp.dataType() == DATE_NANOS) {
             return toEvaluator(toEvaluator, DateDiffConstantMillisNanosEvaluator.Factory::new, DateDiffMillisNanosEvaluator.Factory::new);
         }
-        throw new UnsupportedOperationException("Invalid types [" + startTimestamp.dataType() + ", " + endTimestamp.dataType() + "] " +
-            "If you see this error, there is a bug in DateDiff.resolveType()");
+        throw new UnsupportedOperationException(
+            "Invalid types ["
+                + startTimestamp.dataType()
+                + ", "
+                + endTimestamp.dataType()
+                + "] "
+                + "If you see this error, there is a bug in DateDiff.resolveType()"
+        );
     }
 
     private ExpressionEvaluator.Factory toEvaluator(

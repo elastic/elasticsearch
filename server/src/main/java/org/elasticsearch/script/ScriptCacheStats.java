@@ -74,12 +74,12 @@ public record ScriptCacheStats(Map<String, ScriptStats> context, ScriptStats gen
         builder.startObject(Fields.SCRIPT_CACHE_STATS);
         builder.startObject(Fields.SUM);
         if (general != null) {
-            statsFields.apply(general);
+            statsFields.apply(general).toXContent(builder, params);
             builder.endObject().endObject();
             return builder;
         }
 
-        statsFields.apply(sum());
+        statsFields.apply(sum()).toXContent(builder, params);
         builder.endObject();
 
         builder.startArray(Fields.CONTEXTS);
@@ -88,7 +88,7 @@ public record ScriptCacheStats(Map<String, ScriptStats> context, ScriptStats gen
 
             builder.startObject();
             builder.field(Fields.CONTEXT, name);
-            statsFields.apply(context.get(name));
+            statsFields.apply(context.get(name)).toXContent(builder, params);
             builder.endObject();
         }
         builder.endArray();

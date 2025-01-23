@@ -64,6 +64,11 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
     }
 
     @Override
+    public void baselineMappings(XContentBuilder builder) throws IOException {
+        dataGenerationHelper.standardMapping(builder);
+    }
+
+    @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
         dataGenerationHelper.logsDbMapping(builder);
     }

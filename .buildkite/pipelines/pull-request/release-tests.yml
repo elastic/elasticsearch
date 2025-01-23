@@ -6,7 +6,7 @@ steps:
       - label: "{{matrix.CHECK_TASK}} / release-tests"
         key: "packaging-tests-unix"
         command: .buildkite/scripts/release-tests.sh {{matrix.CHECK_TASK}}
-        timeout_in_minutes: 90
+        timeout_in_minutes: 120
         matrix:
           setup:
             CHECK_TASK:

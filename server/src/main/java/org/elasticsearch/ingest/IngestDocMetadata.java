@@ -51,7 +51,9 @@ class IngestDocMetadata extends Metadata {
 
     private static Map<String, FieldProperty<?>> validateLeadingUnderscores(final Map<String, FieldProperty<?>> properties) {
         for (String key : properties.keySet()) {
-            assert key.charAt(0) == UNDERSCORE;
+            if (key.charAt(0) != UNDERSCORE) {
+                throw new IllegalArgumentException("IngestDocMetadata keys must begin with an underscore, but found [" + key + "]");
+            }
         }
         return properties;
     }

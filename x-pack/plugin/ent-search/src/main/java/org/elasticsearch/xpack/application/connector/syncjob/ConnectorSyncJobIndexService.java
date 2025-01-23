@@ -85,6 +85,8 @@ public class ConnectorSyncJobIndexService {
     // The client to interact with the system index (internal user).
     private final Client clientWithOrigin;
 
+    // TODO use proper version IDs (see org/elasticsearch/xpack/application/rules/QueryRulesIndexService.java)
+    // TODO if this version is updated, a test should be added to javaRestTest/java/org/elasticsearch/xpack/application/FullClusterRestartIT.java
     private static final int CONNECTOR_SYNC_JOB_INDEX_VERSION = 1;
     public static final String CONNECTOR_SYNC_JOB_INDEX_NAME = ".elastic-connectors-sync-jobs";
     public static final String CONNECTOR_SYNC_JOB_INDEX_PREFIX = ".elastic-connectors-sync-jobs-v";

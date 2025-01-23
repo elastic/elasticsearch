@@ -29,66 +29,45 @@ import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.PriorityQueue;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class ThreadPoolMergeScheduler extends MergeScheduler implements ElasticsearchMergeScheduler {
-    /**
-     * Floor for IO write rate limit (we will never go any lower than this)
-     */
-    private static final double MIN_MERGE_MB_PER_SEC = 5.0;
-    /**
-     * Ceiling for IO write rate limit (we will never go any higher than this)
-     */
-    private static final double MAX_MERGE_MB_PER_SEC = 10240.0;
-    /**
-     * Initial value for IO write rate limit when doAutoIOThrottle is true
-     */
-    private static final double START_MB_PER_SEC = 20.0;
-    /**
-     * Current IO write throttle rate, for all merge, across all merge schedulers (shards) on the node
-     */
-    private static volatile double targetMBPerSec = START_MB_PER_SEC;
-    /**
-     * The set of all active merges, across all merge schedulers (i.e. across all shards), on the local node.
-     * This is used to implement auto IO throttling that's the same across all merge schedulers.
-     */
-    private static final Set<MergeTask> activeThrottledMergeTasksAcrossSchedulersSet = new HashSet<>();
-
+    private final ShardId shardId;
     private final MergeSchedulerConfig config;
     private final Logger logger;
     // per-scheduler merge stats
     private final MergeTracking mergeTracking;
-    private final ExecutorService executorService;
-    // the size of the per-node
-    private final int maxThreadPoolSize;
-    // used to communicate the IO rate limit to the {@IndexOutput} that's actually writing the merge result
+    private final ThreadPoolMergeExecutor threadPoolMergeExecutor;
     private final ThreadLocal<MergeRateLimiter> onGoingMergeRateLimiter = new ThreadLocal<>();
-    private final PriorityQueue<MergeTask> activeMergeTasksLocalSchedulerQueue = new PriorityQueue<>();
-    private final List<MergeTask> activeMergeTasksExecutingOnLocalSchedulerList = new ArrayList<>();
+    private final PriorityQueue<MergeTask> queuedMergeTasks = new PriorityQueue<>();
+    private final List<MergeTask> currentlyRunningMergeTasks = new ArrayList<>();
     // set when incoming merges should be throttled
-    private final AtomicBoolean isThrottling = new AtomicBoolean();
+    private final AtomicBoolean shouldThrottleIncomingMerges = new AtomicBoolean();
     // how many {@link MergeTask}s have kicked off (this is used to name them).
     private final AtomicLong mergeTaskCount = new AtomicLong();
 
-    public ThreadPoolMergeScheduler(ShardId shardId, IndexSettings indexSettings, ThreadPool threadPool) {
+    public ThreadPoolMergeScheduler(ShardId shardId, IndexSettings indexSettings, ThreadPoolMergeExecutor threadPoolMergeExecutor) {
+        this.shardId = shardId;
         this.config = indexSettings.getMergeSchedulerConfig();
         this.logger = Loggers.getLogger(getClass(), shardId);
-        this.mergeTracking = new MergeTracking(logger, () -> this.config.isAutoThrottle() ? targetMBPerSec : Double.POSITIVE_INFINITY);
-        // all merge schedulers must use the same executor of the same thread pool
-        this.executorService = threadPool.executor(ThreadPool.Names.MERGE);
-        this.maxThreadPoolSize = threadPool.info(ThreadPool.Names.MERGE).getMax();
+        this.mergeTracking = new MergeTracking(
+            logger,
+            () -> this.config.isAutoThrottle() ? threadPoolMergeExecutor.getTargetMBPerSec() : Double.POSITIVE_INFINITY
+        );
+        this.threadPoolMergeExecutor = threadPoolMergeExecutor;
+    }
+
+    public List<MergeTask> getCurrentlyRunningMergeTasks() {
+        return currentlyRunningMergeTasks;
     }
 
     @Override
@@ -109,10 +88,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     @Override
     public void refreshConfig() {
         // in case max merge count changed
-        maybeActivateThrottling();
-        maybeDeactivateThrottling();
-        // in case max thread count changed (and more merges can be running simultaneously)
-        while (maybeExecuteNextMerge()) {}
+//        maybeActivateThrottling();
+//        maybeDeactivateThrottling();
+//        // in case max thread count changed (and more merges can be running simultaneously)
+//        while (maybeExecuteNextMerge()) {}
         // the IO auto-throttled setting change is only honoured for new merges
         // (existing ones continue with the value of the setting when the merge created (queued))
     }
@@ -152,97 +131,87 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     private void submitNewMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
         MergeTask mergeTask = newMergeTask(mergeSource, merge, mergeTrigger);
-        if (mergeTask.isAutoThrottle) {
-            trackNewActiveThrottledMergeTask(mergeTask, maxThreadPoolSize);
-        }
-        synchronized (this) {
-            activeMergeTasksLocalSchedulerQueue.add(mergeTask);
-        }
-        maybeExecuteNextMerge();
+        enqueMergeTask(mergeTask);
         maybeActivateThrottling();
     }
 
-    private void mergeDone(MergeTask mergeTask) {
-        synchronized (this) {
-            activeMergeTasksExecutingOnLocalSchedulerList.remove(mergeTask);
+    public MergeTask peekMergeTaskToExecute() {
+        if (currentlyRunningMergeTasks.size() >= config.getMaxThreadCount()) {
+            // there are already enough concurrent merges per scheduler (per shard) that are currently running
+            return null;
         }
-        maybeExecuteNextMerge();
+        MergeTask mergeTask = queuedMergeTasks.peek();
+        if (mergeTask == null) {
+            // no more merges to execute
+            return null;
+        }
+        assert mergeTask.isRunning() == false;
+        return mergeTask;
+    }
+
+    public synchronized MergeTask executeNextMergeTask() {
+        if (currentlyRunningMergeTasks.size() >= config.getMaxThreadCount()) {
+            // there are already enough concurrent merges per scheduler (per shard) that are currently running
+            return null;
+        }
+        MergeTask mergeTask = queuedMergeTasks.poll();
+        if (mergeTask == null) {
+            // no more merges to execute
+            return null;
+        }
+        assert mergeTask.isRunning() == false;
+        currentlyRunningMergeTasks.add(mergeTask);
+        return mergeTask;
+    }
+
+    private void mergeDone(MergeTask mergeTask) {
+        assert mergeTask.isRunning();
+        update(() -> this.currentlyRunningMergeTasks.remove(mergeTask));
         maybeDeactivateThrottling();
     }
 
-    private boolean maybeExecuteNextMerge() {
-        MergeTask mergeTask;
-        synchronized (this) {
-            if (activeMergeTasksExecutingOnLocalSchedulerList.size() >= config.getMaxThreadCount()) {
-                // enough concurrent merges per scheduler (per shard) are already running
-                return false;
-            }
-            mergeTask = activeMergeTasksLocalSchedulerQueue.poll();
-            if (mergeTask == null) {
-                // no more merges to execute
-                return false;
-            }
-            activeMergeTasksExecutingOnLocalSchedulerList.add(mergeTask);
-        }
-        executorService.execute(mergeTask);
-        return true;
-    }
-
     private void maybeActivateThrottling() {
-        int numRunningMerges = activeMergeTasksExecutingOnLocalSchedulerList.size();
-        int numQueuedMerges = activeMergeTasksLocalSchedulerQueue.size();
+        int numRunningMerges = currentlyRunningMergeTasks.size();
+        int numQueuedMerges = queuedMergeTasks.size();
         int configuredMaxMergeCount = config.getMaxMergeCount();
         // both currently running and enqueued count as "active" for throttling purposes
-        if (numRunningMerges + numQueuedMerges > configuredMaxMergeCount && isThrottling.getAndSet(true) == false) {
+        if (numRunningMerges + numQueuedMerges > configuredMaxMergeCount && shouldThrottleIncomingMerges.getAndSet(true) == false) {
             activateThrottling(numRunningMerges, numQueuedMerges, configuredMaxMergeCount);
         }
     }
 
     private void maybeDeactivateThrottling() {
-        int numRunningMerges = activeMergeTasksExecutingOnLocalSchedulerList.size();
-        int numQueuedMerges = activeMergeTasksLocalSchedulerQueue.size();
+        int numRunningMerges = currentlyRunningMergeTasks.size();
+        int numQueuedMerges = queuedMergeTasks.size();
         int configuredMaxMergeCount = config.getMaxMergeCount();
         // both currently running and enqueued count as "active" for throttling purposes
-        if (numRunningMerges + numQueuedMerges <= configuredMaxMergeCount && isThrottling.getAndSet(false)) {
+        if (numRunningMerges + numQueuedMerges <= configuredMaxMergeCount && shouldThrottleIncomingMerges.getAndSet(false)) {
             deactivateThrottling(numRunningMerges, numQueuedMerges, configuredMaxMergeCount);
         }
     }
 
-    private static double maybeUpdateTargetMBPerSec(int poolSize) {
-        if (activeThrottledMergeTasksAcrossSchedulersSet.size() < poolSize * 2 && targetMBPerSec > MIN_MERGE_MB_PER_SEC) {
-            return Math.max(MIN_MERGE_MB_PER_SEC, targetMBPerSec / 1.1);
-        } else if (activeThrottledMergeTasksAcrossSchedulersSet.size() > poolSize * 4 && targetMBPerSec < MAX_MERGE_MB_PER_SEC) {
-            return Math.min(MAX_MERGE_MB_PER_SEC, targetMBPerSec * 1.1);
-        }
-        return targetMBPerSec;
-    }
-
-    private static synchronized boolean trackNewActiveThrottledMergeTask(MergeTask newMergeTask, int poolSize) {
-        assert newMergeTask.isAutoThrottle : "only tracking throttled merge tasks";
-        if (activeThrottledMergeTasksAcrossSchedulersSet.add(newMergeTask)) {
-            double newTargetMBPerSec = maybeUpdateTargetMBPerSec(poolSize);
-            if (newTargetMBPerSec != targetMBPerSec) {
-                targetMBPerSec = newTargetMBPerSec;
-                for (MergeTask mergeTask : activeThrottledMergeTasksAcrossSchedulersSet) {
-                    assert mergeTask.isAutoThrottle;
-                    mergeTask.rateLimiter.setMBPerSec(targetMBPerSec);
-                }
-            }
-            return true;
-        }
-        return false;
-    }
-
-    private static synchronized boolean removeFromActiveThrottledMergeTasks(MergeTask doneMergeTask) {
-        assert doneMergeTask.isAutoThrottle : "only tracking throttled merge tasks";
-        return activeThrottledMergeTasksAcrossSchedulersSet.remove(doneMergeTask);
-    }
-
     private MergeTask newMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
-        boolean isAutoThrottle = config.isAutoThrottle()
-            && mergeTrigger != MergeTrigger.CLOSING
-            && merge.getStoreMergeInfo().mergeMaxNumSegments() == -1; // i.e. is NOT a force merge
-        return new MergeTask(mergeSource, merge, isAutoThrottle, "Lucene Merge #" + mergeTaskCount.incrementAndGet());
+        // forced merges, and merges triggered when closing shard, always run un-throttled
+        boolean isAutoThrottle = mergeTrigger != MergeTrigger.CLOSING && merge.getStoreMergeInfo().mergeMaxNumSegments() == -1;
+        return new MergeTask(
+            mergeSource,
+            merge,
+            isAutoThrottle,
+            "Lucene Merge Task #" + mergeTaskCount.incrementAndGet() + " for shard " + shardId
+        );
+    }
+
+    private void enqueMergeTask(MergeTask mergeTask) {
+        assert mergeTask.isRunning() == false;
+        update(() -> this.queuedMergeTasks.add(mergeTask));
+    }
+
+    private void update(Runnable updater) {
+        threadPoolMergeExecutor.updateMergeScheduler(this, (ignored) -> {
+            synchronized (this) {
+                updater.run();
+            }
+        });
     }
 
     /**
@@ -289,23 +258,20 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             this.onGoingMerge = new OnGoingMerge(merge);
             this.rateLimiter = new MergeRateLimiter(merge.getMergeProgress());
             this.isAutoThrottle = isAutoThrottle;
-            if (isAutoThrottle) {
-                this.rateLimiter.setMBPerSec(targetMBPerSec);
-            } else {
-                this.rateLimiter.setMBPerSec(Double.POSITIVE_INFINITY);
-            }
         }
 
         @Override
         public int compareTo(MergeTask other) {
-            // sort smaller merges (per shard) first, so they are completed before larger ones
+            // sort smaller merges first, so they are executed before larger ones
             return Long.compare(onGoingMerge.getMerge().estimatedMergeBytes, other.onGoingMerge.getMerge().estimatedMergeBytes);
+        }
+
+        public boolean isRunning() {
+            return mergeStartTimeNS.get() != null;
         }
 
         @Override
         public void doRun() throws Exception {
-            assert isAutoThrottle == false || activeThrottledMergeTasksAcrossSchedulersSet.contains(this)
-                : "a running throttled merge should already count as an 'active' merge";
             mergeStartTimeNS.set(System.nanoTime());
             try {
                 onGoingMergeRateLimiter.set(this.rateLimiter);
@@ -346,10 +312,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         @Override
         public void onAfter() {
-            assert onGoingMerge.getMerge().isAborted()
-                || isAutoThrottle == false
-                || activeThrottledMergeTasksAcrossSchedulersSet.contains(this)
-                : "onAfter should always be invoked on aborted or active (and run) merges";
             assert this.mergeStartTimeNS.get() != null : "onAfter should always be invoked after doRun";
             try {
                 if (verbose()) {
@@ -362,9 +324,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 try {
                     mergeTracking.mergeFinished(onGoingMerge.getMerge(), onGoingMerge, tookMS);
                 } finally {
-                    if (isAutoThrottle) {
-                        removeFromActiveThrottledMergeTasks(this);
-                    }
                     mergeDone(this);
                     // kick-off next merge, if any
                     MergePolicy.OneMerge nextMerge = null;
@@ -385,9 +344,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         @Override
         public void onFailure(Exception e) {
-            if (isAutoThrottle) {
-                removeFromActiveThrottledMergeTasks(this);
-            }
             // most commonly the merge should've already be aborted by now,
             // plus the engine is probably going to be failed when any merge fails,
             // but keep this in case something believes calling `MergeTask#onFailure` is a sane way to abort a merge
@@ -398,11 +354,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         @Override
         public void onRejection(Exception e) {
-            assert isAutoThrottle == false || activeThrottledMergeTasksAcrossSchedulersSet.contains(this)
-                : "only an 'active' merge can be rejected by the thread pool";
-            if (isAutoThrottle) {
-                removeFromActiveThrottledMergeTasks(this);
-            }
             if (verbose()) {
                 message(String.format(Locale.ROOT, "merge task [%s] rejected by thread pool, aborting", onGoingMerge.getId()));
             }

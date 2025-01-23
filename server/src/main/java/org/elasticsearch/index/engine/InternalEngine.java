@@ -253,7 +253,7 @@ public class InternalEngine extends Engine {
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
-            mergeScheduler = createMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
+            mergeScheduler = createMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), engineConfig.getThreadPoolMergeExecutor());
             scheduler = mergeScheduler.getMergeScheduler();
             throttle = new IndexThrottle();
             try {
@@ -2823,9 +2823,13 @@ public class InternalEngine extends Engine {
         return indexWriter.getConfig();
     }
 
-    protected ElasticsearchMergeScheduler createMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
+    protected ElasticsearchMergeScheduler createMergeScheduler(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        ThreadPoolMergeExecutor threadPoolMergeExecutor
+    ) {
         // return new EngineMergeScheduler(shardId, indexSettings);
-        return new ThreadPoolMergeScheduler(shardId, indexSettings, engineConfig.getThreadPool()) {
+        return new ThreadPoolMergeScheduler(shardId, indexSettings, threadPoolMergeExecutor) {
 
             @Override
             protected synchronized void activateThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {

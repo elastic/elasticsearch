@@ -134,7 +134,9 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             ? null
             : Arrays.stream(normalizers).map(ScoreNormalizer::getName).toArray(String[]::new);
         for (int result = 0; result < rankResults.size(); result++) {
-            final ScoreNormalizer normalizer = normalizers == null || normalizers[result] == null ? IdentityScoreNormalizer.INSTANCE : normalizers[result];
+            final ScoreNormalizer normalizer = normalizers == null || normalizers[result] == null
+                ? IdentityScoreNormalizer.INSTANCE
+                : normalizers[result];
             ScoreDoc[] originalScoreDocs = rankResults.get(result);
             ScoreDoc[] normalizedScoreDocs = normalizer.normalizeScores(originalScoreDocs);
             for (int scoreDocIndex = 0; scoreDocIndex < normalizedScoreDocs.length; scoreDocIndex++) {

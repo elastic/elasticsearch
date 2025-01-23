@@ -235,8 +235,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120668
 - class: org.elasticsearch.xpack.security.authc.ldap.ADLdapUserSearchSessionFactoryTests
   issue: https://github.com/elastic/elasticsearch/issues/119882
-- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedNonModularIT
-  issue: https://github.com/elastic/elasticsearch/issues/120691
 
 # Examples:
 #

@@ -144,8 +144,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             DeprecationIssue.Level.WARNING,
             "Old index with a compatibility version < 9.0 Has Been Ignored",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-            "This index has version: " + createdWith.toReleaseVersion() + " and has been marked as OK to become read-only after upgrade",
-            false,
+            "This read-only index has version: "
+                + createdWith.toReleaseVersion()
+                + " and will be supported as read-only in 9.0",            false,
             singletonMap("reindex_required", true)
         );
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, clusterState));

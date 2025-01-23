@@ -174,6 +174,10 @@ public class IngestCtxMapTests extends ESTestCase {
         err = expectThrows(IllegalArgumentException.class, () -> map.clear());
         assertEquals(msg, err.getMessage());
 
+        // depending on iteration order, this may have been removed, so put it back before checking the size
+        map.put(canRemove, "value");
+        assertEquals("value", map.get(canRemove));
+
         assertEquals(2, map.size());
 
         map.entrySet().remove(new TestEntry(canRemove, "value"));

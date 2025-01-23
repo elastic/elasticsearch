@@ -19,6 +19,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder.DEFAULT_SCORE;
+import static org.elasticsearch.xpack.rank.linear.LinearRetrieverComponent.DEFAULT_NORMALIZER;
+import static org.elasticsearch.xpack.rank.linear.LinearRetrieverComponent.DEFAULT_WEIGHT;
+
 public class LinearRankDoc extends RankDoc {
 
     public static final String NAME = "linear_rank_doc";
@@ -31,36 +35,41 @@ public class LinearRankDoc extends RankDoc {
         super(doc, score, shardIndex);
         this.weights = weights;
         this.normalizers = normalizers;
-        this.normalizedScores = new float[normalizers.length];
     }
 
     public LinearRankDoc(StreamInput in) throws IOException {
         super(in);
-        weights = in.readFloatArray();
-        normalizedScores = in.readFloatArray();
-        normalizers = in.readStringArray();
+        weights = in.readOptionalFloatArray();
+        normalizedScores = in.readOptionalFloatArray();
+        normalizers = in.readOptionalStringArray();
     }
 
     @Override
     public Explanation explain(Explanation[] sources, String[] queryNames) {
+        assert normalizedScores != null;
+        assert normalizedScores.length == sources.length;
+
         Explanation[] details = new Explanation[sources.length];
         for (int i = 0; i < sources.length; i++) {
             final String queryAlias = queryNames[i] == null ? "" : " [" + queryNames[i] + "]";
             final String queryIdentifier = "at index [" + i + "]" + queryAlias;
-            if (normalizedScores[i] > 0) {
+            final float weight = weights == null ? DEFAULT_WEIGHT : weights[i];
+            final float normalizedScore = normalizedScores == null ? DEFAULT_SCORE : normalizedScores[i];
+            final String normalizer = normalizers == null ? DEFAULT_NORMALIZER.getName() : normalizers[i];
+            if (normalizedScore > 0) {
                 details[i] = Explanation.match(
-                    weights[i] * normalizedScores[i],
+                    weight * normalizedScore,
                     "weighted score: ["
-                        + weights[i] * normalizedScores[i]
+                        + weight * normalizedScore
                         + "] in query "
                         + queryIdentifier
                         + " computed as ["
-                        + weights[i]
+                        + weight
                         + " * "
-                        + normalizedScores[i]
+                        + normalizedScore
                         + "]"
                         + " using score normalizer ["
-                        + normalizers[i]
+                        + normalizer
                         + "]"
                         + " for original matching query with score:",
                     sources[i]
@@ -77,7 +86,7 @@ public class LinearRankDoc extends RankDoc {
                 + "] computed for normalized scores "
                 + Arrays.toString(normalizedScores)
                 + " and weights "
-                + Arrays.toString(weights)
+                + Arrays.toString(weights == null ? new float[sources.length] : weights)
                 + " as sum of (weight[i] * score[i]) for each query.",
             details
         );
@@ -85,16 +94,22 @@ public class LinearRankDoc extends RankDoc {
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeFloatArray(weights);
-        out.writeFloatArray(normalizedScores);
-        out.writeStringArray(normalizers);
+        out.writeOptionalFloatArray(weights);
+        out.writeOptionalFloatArray(normalizedScores);
+        out.writeOptionalStringArray(normalizers);
     }
 
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("weights", weights);
-        builder.field("normalizedScores", normalizedScores);
-        builder.field("normalizers", normalizers);
+        if (weights != null) {
+            builder.field("weights", weights);
+        }
+        if (normalizedScores != null) {
+            builder.field("normalizedScores", normalizedScores);
+        }
+        if (normalizers != null) {
+            builder.field("normalizers", normalizers);
+        }
     }
 
     @Override

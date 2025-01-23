@@ -115,6 +115,9 @@ setup:
 
 ---
 "linear retriever invalid license":
+  - requires:
+      cluster_features: [ "linear_retriever_supported" ]
+      reason: "Support for linear retriever"
 
   - do:
       catch: forbidden

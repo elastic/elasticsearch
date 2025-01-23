@@ -8,10 +8,8 @@
 package org.elasticsearch.xpack.rank.linear;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.search.retriever.IdentityScoreNormalizer;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
-import org.elasticsearch.search.retriever.ScoreNormalizer;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.rank.linear;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.rank.AbstractRankDocWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.rank.rrf.RRFRankPlugin;
 
 import java.io.IOException;
@@ -59,16 +60,16 @@ public class LinearRankDocTests extends AbstractRankDocWireSerializingTestCase<L
         mutated.normalizedScores = instance.normalizedScores;
         mutated.rank = instance.rank;
         if (frequently()) {
-            mutated.doc = randomNonNegativeInt();
+            mutated.doc = randomValueOtherThan(instance.doc, ESTestCase::randomNonNegativeInt);
         }
         if (frequently()) {
-            mutated.score = randomFloat();
+            mutated.score = randomValueOtherThan(instance.score, ESTestCase::randomFloat);
         }
         if (frequently()) {
-            mutated.shardIndex = randomNonNegativeInt();
+            mutated.shardIndex = randomValueOtherThan(instance.shardIndex, ESTestCase::randomNonNegativeInt);
         }
         if (frequently()) {
-            mutated.rank = randomNonNegativeInt();
+            mutated.rank = randomValueOtherThan(instance.rank, ESTestCase::randomNonNegativeInt);
         }
         if (frequently()) {
             for (int i = 0; i < mutated.normalizedScores.length; i++) {
@@ -87,7 +88,7 @@ public class LinearRankDocTests extends AbstractRankDocWireSerializingTestCase<L
         if (frequently()) {
             for (int i = 0; i < mutated.normalizers.length; i++) {
                 if (frequently()) {
-                    mutated.normalizers[i] = randomAlphaOfLengthBetween(1, 10);
+                    mutated.normalizers[i] = randomValueOtherThan(instance.normalizers[i], () -> randomAlphaOfLengthBetween(1, 10));
                 }
             }
         }

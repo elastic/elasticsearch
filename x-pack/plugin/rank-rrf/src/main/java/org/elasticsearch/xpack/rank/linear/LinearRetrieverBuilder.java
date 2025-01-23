@@ -15,10 +15,8 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
-import org.elasticsearch.search.retriever.IdentityScoreNormalizer;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
-import org.elasticsearch.search.retriever.ScoreNormalizer;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -50,6 +48,8 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     public static final String NAME = "linear";
 
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
+
+    public static final float DEFAULT_SCORE = 0f;
 
     private final float[] weights;
     private final ScoreNormalizer[] normalizers;
@@ -108,18 +108,8 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         if (normalizers != null && normalizers.length != innerRetrievers.size()) {
             throw new IllegalArgumentException("The number of normalizers must match the number of inner retrievers");
         }
-        if (weights == null) {
-            this.weights = new float[innerRetrievers.size()];
-            Arrays.fill(this.weights, DEFAULT_WEIGHT);
-        } else {
-            this.weights = weights;
-        }
-        if (normalizers == null) {
-            this.normalizers = new ScoreNormalizer[innerRetrievers.size()];
-            Arrays.fill(this.normalizers, IdentityScoreNormalizer.INSTANCE);
-        } else {
-            this.normalizers = normalizers;
-        }
+        this.weights = weights;
+        this.normalizers = normalizers;
     }
 
     @Override
@@ -133,10 +123,13 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     @Override
     protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
         Map<RankDoc.RankKey, LinearRankDoc> docsToRankResults = Maps.newMapWithExpectedSize(rankWindowSize);
-        final String[] normalizerNames = Arrays.stream(normalizers).map(ScoreNormalizer::getName).toArray(String[]::new);
+        final String[] normalizerNames = normalizers == null
+            ? null
+            : Arrays.stream(normalizers).map(ScoreNormalizer::getName).toArray(String[]::new);
         for (int result = 0; result < rankResults.size(); result++) {
+            final ScoreNormalizer normalizer = normalizers == null ? IdentityScoreNormalizer.INSTANCE : normalizers[result];
             ScoreDoc[] originalScoreDocs = rankResults.get(result);
-            ScoreDoc[] normalizedScoreDocs = normalizers[result].normalizeScores(originalScoreDocs);
+            ScoreDoc[] normalizedScoreDocs = normalizer.normalizeScores(originalScoreDocs);
             for (int scoreDocIndex = 0; scoreDocIndex < normalizedScoreDocs.length; scoreDocIndex++) {
                 int finalResult = result;
                 int finalScoreIndex = scoreDocIndex;
@@ -151,9 +144,14 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                                 weights,
                                 normalizerNames
                             );
+                            value.normalizedScores = new float[rankResults.size()];
                         }
+                        final float docScore = false == Float.isNaN(normalizedScoreDocs[finalScoreIndex].score)
+                            ? normalizedScoreDocs[finalScoreIndex].score
+                            : DEFAULT_SCORE;
+                        final float weight = weights == null ? DEFAULT_WEIGHT : weights[finalResult];
                         value.normalizedScores[finalResult] = normalizedScoreDocs[finalScoreIndex].score;
-                        value.score += weights[finalResult] * normalizedScoreDocs[finalScoreIndex].score;
+                        value.score += weight * docScore;
                         return value;
                     }
                 );

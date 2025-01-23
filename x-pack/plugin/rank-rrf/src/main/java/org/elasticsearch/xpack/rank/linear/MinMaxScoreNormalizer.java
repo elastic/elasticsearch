@@ -1,13 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.search.retriever;
+package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -25,6 +23,8 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
 
     public static final ParseField MIN_FIELD = new ParseField("min");
     public static final ParseField MAX_FIELD = new ParseField("max");
+
+    private static final float EPSILON = 1e-6f;
 
     public static final ConstructingObjectParser<MinMaxScoreNormalizer, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
         Float min = (Float) args[0];
@@ -90,7 +90,7 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
         if (min > max) {
             throw new IllegalArgumentException("[min=" + min + "] must be less than [max=" + max + "]");
         }
-        boolean minEqualsMax = min.equals(max);
+        boolean minEqualsMax = Math.abs(min - max) < EPSILON;
         for (int i = 0; i < docs.length; i++) {
             float score;
             if (minEqualsMax) {

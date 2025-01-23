@@ -282,7 +282,6 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     protected final SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {
         var sourceBuilder = new SearchSourceBuilder().pointInTimeBuilder(pit)
             .trackTotalHits(false)
-            .trackScores(true)
             .storedFields(new StoredFieldsContext(false))
             .size(rankWindowSize);
         // apply the pre-filters downstream once

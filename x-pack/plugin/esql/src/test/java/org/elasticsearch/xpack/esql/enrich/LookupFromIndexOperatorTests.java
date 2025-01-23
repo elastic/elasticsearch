@@ -66,6 +66,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -258,7 +259,8 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
 
     @After
     public void release() {
-        Releasables.close(Releasables.wrap(releasables.reversed()), () -> terminate(threadPool));
+        Collections.reverse(releasables);
+        Releasables.close(Releasables.wrap(releasables), () -> terminate(threadPool));
     }
 
     @Override

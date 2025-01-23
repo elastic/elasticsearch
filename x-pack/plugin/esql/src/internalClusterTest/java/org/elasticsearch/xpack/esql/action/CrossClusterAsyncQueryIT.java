@@ -17,11 +17,13 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -51,6 +53,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.runAsyncQue
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.startAsyncQuery;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.startAsyncQueryWithPragmas;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.waitForCluster;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -294,13 +297,10 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         // run the stop query
         AsyncStopRequest stopRequest = new AsyncStopRequest(asyncExecutionId);
         ActionFuture<EsqlQueryResponse> stopAction = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
-        // ensure stop operation is running
         assertBusy(() -> {
-            try (EsqlQueryResponse asyncResponse = getAsyncResponse(client(), asyncExecutionId)) {
-                EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
-                assertNotNull(executionInfo);
-                assertThat(executionInfo.isPartial(), is(true));
-            }
+            List<TaskInfo> tasks = getDriverTasks(client(REMOTE_CLUSTER_2));
+            List<TaskInfo> reduceTasks = tasks.stream().filter(t -> t.description().contains("_LuceneSourceOperator") == false).toList();
+            assertThat(reduceTasks, empty());
         });
         // allow remoteB query to proceed
         CountingPauseFieldPlugin.allowEmitting.countDown();
@@ -375,11 +375,9 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         ActionFuture<EsqlQueryResponse> stopAction = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
         // ensure stop operation is running
         assertBusy(() -> {
-            try (EsqlQueryResponse asyncResponse = getAsyncResponse(client(), asyncExecutionId)) {
-                EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
-                assertNotNull(executionInfo);
-                assertThat(executionInfo.isPartial(), is(true));
-            }
+            List<TaskInfo> tasks = getDriverTasks(client(REMOTE_CLUSTER_2));
+            List<TaskInfo> reduceTasks = tasks.stream().filter(t -> t.description().contains("_LuceneSourceOperator") == false).toList();
+            assertThat(reduceTasks.size(), lessThanOrEqualTo(1));
         });
         // allow local query to proceed
         SimplePauseFieldPlugin.allowEmitting.countDown();
@@ -652,4 +650,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         }
     }
 
+    private static List<TaskInfo> getDriverTasks(Client client) {
+        return client.admin().cluster().prepareListTasks().setActions(DriverTaskRunner.ACTION_NAME).setDetailed(true).get().getTasks();
+    }
 }

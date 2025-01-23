@@ -86,7 +86,6 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
             threadPool,
             actionFilters,
             PutLifecycleRequest::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

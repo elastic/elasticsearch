@@ -322,7 +322,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             job.getConfig().getId(),
             RollupField.TASK_NAME,
             job,
-            null,
+            TimeValue.THIRTY_SECONDS /* TODO should this be configurable? longer by default? infinite? */,
             ActionListener.wrap(rollupConfigPersistentTask -> waitForRollupStarted(job, listener, persistentTasksService), e -> {
                 if (e instanceof ResourceAlreadyExistsException) {
                     e = new ElasticsearchStatusException(

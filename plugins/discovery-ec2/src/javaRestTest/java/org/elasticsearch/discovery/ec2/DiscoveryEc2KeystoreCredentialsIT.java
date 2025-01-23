@@ -41,7 +41,7 @@ public class DiscoveryEc2KeystoreCredentialsIT extends DiscoveryEc2ClusterFormat
         .setting(Ec2ClientSettings.ENDPOINT_SETTING.getKey(), ec2ApiFixture::getAddress)
         .environment("AWS_REGION", REGION)
         .keystore("discovery.ec2.access_key", ACCESS_KEY)
-        .keystore("discovery.ec2.secret_key", ESTestCase::randomIdentifier)
+        .keystore("discovery.ec2.secret_key", ESTestCase::randomSecretKey)
         .build();
 
     private static List<String> getAvailableTransportEndpoints() {

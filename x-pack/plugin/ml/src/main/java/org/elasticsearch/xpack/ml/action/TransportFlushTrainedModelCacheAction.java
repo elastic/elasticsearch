@@ -44,7 +44,6 @@ public class TransportFlushTrainedModelCacheAction extends AcknowledgedTransport
             threadPool,
             actionFilters,
             FlushTrainedModelCacheAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.modelCacheMetadataService = modelCacheMetadataService;

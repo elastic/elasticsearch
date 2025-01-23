@@ -182,16 +182,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     @Override
     public MappedFieldType getMappedFieldType() {
-        return new SemanticTextFieldMapper.SemanticTextFieldType(
-            "field",
-            "fake-inference-id",
-            null,
-            null,
-            null,
-            getVersion(),
-            false,
-            Map.of()
-        );
+        return new SemanticTextFieldMapper.SemanticTextFieldType("field", "fake-inference-id", null, null, null, false, Map.of());
     }
 
     @Override
@@ -306,17 +297,78 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testCannotBeUsedInMultiFields() {
-        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
-            b.field("type", "text");
-            b.startObject("fields");
-            b.startObject("semantic");
-            b.field("type", "semantic_text");
-            b.field("inference_id", "my_inference_id");
-            b.endObject();
-            b.endObject();
-        }), useLegacyFormat));
-        assertThat(e.getMessage(), containsString("Field [semantic] of type [semantic_text] can't be used in multifields"));
+    public void testMultiFieldsSupport() throws IOException {
+        if (useLegacyFormat) {
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                b.field("type", "text");
+                b.startObject("fields");
+                b.startObject("semantic");
+                b.field("type", "semantic_text");
+                b.field("inference_id", "my_inference_id");
+                b.endObject();
+                b.endObject();
+            }), useLegacyFormat));
+            assertThat(e.getMessage(), containsString("Field [semantic] of type [semantic_text] can't be used in multifields"));
+        } else {
+            var mapperService = createMapperService(fieldMapping(b -> {
+                b.field("type", "text");
+                b.startObject("fields");
+                b.startObject("semantic");
+                b.field("type", "semantic_text");
+                b.field("inference_id", "my_inference_id");
+                b.startObject("model_settings");
+                b.field("task_type", "sparse_embedding");
+                b.endObject();
+                b.endObject();
+                b.endObject();
+            }), useLegacyFormat);
+            assertSemanticTextField(mapperService, "field.semantic", true);
+
+            mapperService = createMapperService(fieldMapping(b -> {
+                b.field("type", "semantic_text");
+                b.field("inference_id", "my_inference_id");
+                b.startObject("model_settings");
+                b.field("task_type", "sparse_embedding");
+                b.endObject();
+                b.startObject("fields");
+                b.startObject("text");
+                b.field("type", "text");
+                b.endObject();
+                b.endObject();
+            }), useLegacyFormat);
+            assertSemanticTextField(mapperService, "field", true);
+
+            mapperService = createMapperService(fieldMapping(b -> {
+                b.field("type", "semantic_text");
+                b.field("inference_id", "my_inference_id");
+                b.startObject("model_settings");
+                b.field("task_type", "sparse_embedding");
+                b.endObject();
+                b.startObject("fields");
+                b.startObject("semantic");
+                b.field("type", "semantic_text");
+                b.field("inference_id", "another_inference_id");
+                b.startObject("model_settings");
+                b.field("task_type", "sparse_embedding");
+                b.endObject();
+                b.endObject();
+                b.endObject();
+            }), useLegacyFormat);
+            assertSemanticTextField(mapperService, "field", true);
+            assertSemanticTextField(mapperService, "field.semantic", true);
+
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                b.field("type", "semantic_text");
+                b.field("inference_id", "my_inference_id");
+                b.startObject("fields");
+                b.startObject("inference");
+                b.field("type", "text");
+                b.endObject();
+                b.endObject();
+            }), useLegacyFormat));
+            assertThat(e.getMessage(), containsString("is already used by another field"));
+
+        }
     }
 
     public void testUpdatesToInferenceIdNotSupported() throws IOException {

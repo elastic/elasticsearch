@@ -43,7 +43,6 @@ public class TransportUpdateJobAction extends TransportMasterNodeAction<UpdateJo
             threadPool,
             actionFilters,
             UpdateJobAction.Request::new,
-            indexNameExpressionResolver,
             PutJobAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

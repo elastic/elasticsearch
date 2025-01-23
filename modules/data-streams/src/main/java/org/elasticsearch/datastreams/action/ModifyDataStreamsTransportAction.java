@@ -27,6 +27,7 @@ import org.elasticsearch.transport.TransportService;
 
 public class ModifyDataStreamsTransportAction extends AcknowledgedTransportMasterNodeAction<ModifyDataStreamsAction.Request> {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final MetadataDataStreamsService metadataDataStreamsService;
 
     @Inject
@@ -45,9 +46,9 @@ public class ModifyDataStreamsTransportAction extends AcknowledgedTransportMaste
             threadPool,
             actionFilters,
             ModifyDataStreamsAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.metadataDataStreamsService = metadataDataStreamsService;
     }
 

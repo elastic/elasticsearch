@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 
 import java.io.IOException;
@@ -26,6 +28,7 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
 
     private final long primaryTerm;
     private final long segmentGeneration;
+    private final TimeValue timeout;
 
     public UnpromotableShardRefreshRequest(
         IndexShardRoutingTable indexShardRoutingTable,
@@ -33,15 +36,28 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
         long segmentGeneration,
         boolean failShardOnError
     ) {
+        this(indexShardRoutingTable, primaryTerm, segmentGeneration, failShardOnError, null);
+    }
+
+    public UnpromotableShardRefreshRequest(
+        IndexShardRoutingTable indexShardRoutingTable,
+        long primaryTerm,
+        long segmentGeneration,
+        boolean failShardOnError,
+        @Nullable TimeValue timeout
+    ) {
         super(indexShardRoutingTable, failShardOnError);
         this.primaryTerm = primaryTerm;
         this.segmentGeneration = segmentGeneration;
+        this.timeout = timeout;
     }
 
     public UnpromotableShardRefreshRequest(StreamInput in) throws IOException {
         super(in);
         segmentGeneration = in.readVLong();
         primaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVLong() : Engine.UNKNOWN_PRIMARY_TERM;
+        // The timeout is only used by the request sender, therefore we don't write it over the wire
+        timeout = null;
     }
 
     @Override
@@ -68,6 +84,11 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
 
     public long getPrimaryTerm() {
         return primaryTerm;
+    }
+
+    @Nullable
+    public TimeValue getTimeout() {
+        return timeout;
     }
 
     @Override

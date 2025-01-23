@@ -11,7 +11,6 @@ package org.elasticsearch.common.settings;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
-import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.bulk.WriteAckDelay;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
@@ -624,7 +623,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING,
         DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING,
         ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME,
-        DataStream.isFailureStoreFeatureFlagEnabled() ? DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING : null,
-        TransportUnpromotableShardRefreshAction.MAX_WAIT_TIME_FOR_REFRESH_UNBLOCK
+        DataStream.isFailureStoreFeatureFlagEnabled() ? DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING : null
     ).filter(Objects::nonNull).collect(toSet());
 }

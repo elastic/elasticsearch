@@ -9,13 +9,13 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -143,7 +143,6 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
             new ActionFilters(Set.of()),
             indicesService,
             threadPool,
-            TimeValue.timeValueSeconds(2),
             waitForBlocks
         ) {
             @Override
@@ -211,7 +210,6 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
             new ActionFilters(Set.of()),
             indicesService,
             threadPool,
-            TimeValue.timeValueSeconds(2),
             true
         ) {
             @Override
@@ -235,15 +233,13 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
             indexShardRoutingTable,
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomBoolean()
+            randomBoolean(),
+            TimeValue.timeValueSeconds(5)
         );
         transportService.sendRequest(localNode, TransportUnpromotableShardRefreshAction.NAME, request, expectError(e -> {
             final Throwable rootCause = e.getRootCause();
-            assertThat(rootCause, instanceOf(ClusterBlockException.class));
-            assertThat(
-                rootCause.getMessage(),
-                containsString("blocked by: [REQUEST_TIMEOUT/14/index refresh blocked, waiting for shard(s) to be started]")
-            );
+            assertThat(rootCause, instanceOf(ElasticsearchTimeoutException.class));
+            assertThat(rootCause.getMessage(), containsString("index refresh blocked, waiting for shard(s) to be started"));
             countDownLatch.countDown();
         }));
 

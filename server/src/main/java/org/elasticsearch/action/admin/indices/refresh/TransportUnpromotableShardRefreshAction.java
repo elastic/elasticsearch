@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -16,13 +17,9 @@ import org.elasticsearch.action.support.broadcast.unpromotable.TransportBroadcas
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
@@ -32,6 +29,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_REFRESH_BLOCK;
 
 public class TransportUnpromotableShardRefreshAction extends TransportBroadcastUnpromotableAction<
     UnpromotableShardRefreshRequest,
@@ -44,15 +43,8 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
         assert NAME.equals(RefreshAction.NAME + "/unpromotable");
     }
 
-    public static final Setting<TimeValue> MAX_WAIT_TIME_FOR_REFRESH_UNBLOCK = Setting.timeSetting(
-        "stateless.indices.refresh.max_wait_time_for_unblock",
-        TimeValue.timeValueSeconds(30),
-        Setting.Property.NodeScope
-    );
-
     private final IndicesService indicesService;
     private final ThreadPool threadPool;
-    private final TimeValue maxWaitTimeForRefreshUnblock;
     private final boolean useRefreshBlock;
 
     @Inject
@@ -71,19 +63,17 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
             actionFilters,
             indicesService,
             threadPool,
-            MAX_WAIT_TIME_FOR_REFRESH_UNBLOCK.get(clusterService.getSettings()),
             MetadataCreateIndexService.useRefreshBlock(clusterService.getSettings())
         );
     }
 
-    TransportUnpromotableShardRefreshAction(
+    public TransportUnpromotableShardRefreshAction(
         ClusterService clusterService,
         TransportService transportService,
         ShardStateAction shardStateAction,
         ActionFilters actionFilters,
         IndicesService indicesService,
         ThreadPool threadPool,
-        TimeValue maxWaitTimeForRefreshUnblock,
         boolean useRefreshBlock
     ) {
         super(
@@ -97,72 +87,38 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
         );
         this.indicesService = indicesService;
         this.threadPool = threadPool;
-        this.maxWaitTimeForRefreshUnblock = maxWaitTimeForRefreshUnblock;
         this.useRefreshBlock = useRefreshBlock;
     }
 
     @Override
     protected void beforeDispatchingRequestToUnpromotableShards(UnpromotableShardRefreshRequest request, ActionListener<Void> listener) {
         if (useRefreshBlock == false) {
-            ActionListener.completeWith(listener, () -> null);
+            listener.onResponse(null);
             return;
         }
 
-        new IndexRefreshUnBlockObserver(request.shardId().getIndexName(), listener).run();
-    }
+        var clusterStateObserver = new ClusterStateObserver(clusterService, request.getTimeout(), logger, threadPool.getThreadContext());
 
-    class IndexRefreshUnBlockObserver extends AbstractRunnable {
-        private final String indexName;
-        private final ActionListener<Void> listener;
-        private final ClusterStateObserver clusterStateObserver;
-
-        IndexRefreshUnBlockObserver(String indexName, ActionListener<Void> listener) {
-            this.indexName = indexName;
-            this.listener = listener;
-            this.clusterStateObserver = new ClusterStateObserver(
-                clusterService,
-                maxWaitTimeForRefreshUnblock,
-                logger,
-                threadPool.getThreadContext()
-            );
-        }
-
-        @Override
-        protected void doRun() throws Exception {
-            var state = clusterStateObserver.setAndGetObservedState();
-            var indexLevelBlockException = isIndexBlockedOnRefresh(state);
-            if (indexLevelBlockException == null) {
-                ActionListener.completeWith(listener, () -> null);
-                return;
+        clusterStateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                listener.onResponse(null);
             }
 
-            clusterStateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    run();
-                }
+            @Override
+            public void onClusterServiceClose() {
+                listener.onFailure(new NodeClosedException(clusterService.localNode()));
+            }
 
-                @Override
-                public void onClusterServiceClose() {
-                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
-                }
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                listener.onFailure(new ElasticsearchTimeoutException("index refresh blocked, waiting for shard(s) to be started"));
+            }
+        }, clusterState -> isIndexBlockedForRefresh(request.shardId().getIndexName(), clusterState) == false);
+    }
 
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    listener.onFailure(indexLevelBlockException);
-                }
-            });
-        }
-
-        private ClusterBlockException isIndexBlockedOnRefresh(ClusterState state) {
-            return state.blocks().indexBlockedException(ClusterBlockLevel.REFRESH, indexName);
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            logger.warn("Unexpected error while waiting for index refresh unblock", e);
-            listener.onFailure(e);
-        }
+    private boolean isIndexBlockedForRefresh(String index, ClusterState state) {
+        return state.blocks().hasIndexBlock(index, INDEX_REFRESH_BLOCK);
     }
 
     @Override

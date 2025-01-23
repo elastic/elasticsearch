@@ -331,7 +331,7 @@ public class ModelRegistry {
     private ArrayList<ModelConfigMap> parseHitsAsModels(SearchHits hits) {
         var modelConfigs = new ArrayList<ModelConfigMap>();
         for (var hit : hits) {
-            modelConfigs.add(new ModelConfigMap(hit.getSourceAsMapNoCaching(), Map.of()));
+            modelConfigs.add(new ModelConfigMap(hit.getSourceAsMap(), Map.of()));
         }
         return modelConfigs;
     }
@@ -375,8 +375,8 @@ public class ModelRegistry {
         }
 
         return new ModelConfigMap(
-            mappedHits.get(InferenceIndex.INDEX_NAME).getSourceAsMapNoCaching(),
-            mappedHits.get(InferenceSecretsIndex.INDEX_NAME).getSourceAsMapNoCaching()
+            mappedHits.get(InferenceIndex.INDEX_NAME).getSourceAsMap(),
+            mappedHits.get(InferenceSecretsIndex.INDEX_NAME).getSourceAsMap()
         );
     }
 

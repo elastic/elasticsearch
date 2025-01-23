@@ -432,7 +432,7 @@ public class QueryRulesIndexService {
 
     private static QueryRulesetResult mapSearchResponseToQueryRulesetList(SearchResponse response) {
         final List<QueryRulesetListItem> rulesetResults = Arrays.stream(response.getHits().getHits())
-            .map(searchHit -> QueryRulesIndexService.hitToQueryRulesetListItem(searchHit.getSourceAsMapNoCaching()))
+            .map(searchHit -> QueryRulesIndexService.hitToQueryRulesetListItem(searchHit.getSourceAsMap()))
             .toList();
         return new QueryRulesetResult(rulesetResults, (int) response.getHits().getTotalHits().value());
     }

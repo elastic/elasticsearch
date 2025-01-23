@@ -130,10 +130,11 @@ public class FieldSortIT extends ESIntegTestCase {
                 .setSize(10),
             response -> {
                 logClusterState();
+                Number previous = (Number) response.getHits().getHits()[0].getSourceAsMap().get("entry");
                 for (int j = 1; j < response.getHits().getHits().length; j++) {
                     Number current = (Number) response.getHits().getHits()[j].getSourceAsMap().get("entry");
-                    Number previous = (Number) response.getHits().getHits()[j - 1].getSourceAsMap().get("entry");
                     assertThat(response.toString(), current.intValue(), lessThan(previous.intValue()));
+                    previous = current;
                 }
             }
         );
@@ -144,10 +145,11 @@ public class FieldSortIT extends ESIntegTestCase {
                 .setSize(10),
             response -> {
                 logClusterState();
+                Number previous = (Number) response.getHits().getHits()[0].getSourceAsMap().get("entry");
                 for (int j = 1; j < response.getHits().getHits().length; j++) {
                     Number current = (Number) response.getHits().getHits()[j].getSourceAsMap().get("entry");
-                    Number previous = (Number) response.getHits().getHits()[j - 1].getSourceAsMap().get("entry");
                     assertThat(response.toString(), current.intValue(), greaterThan(previous.intValue()));
+                    previous = current;
                 }
             }
         );

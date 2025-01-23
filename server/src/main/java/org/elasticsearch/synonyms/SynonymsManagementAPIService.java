@@ -273,7 +273,7 @@ public class SynonymsManagementAPIService {
                     return;
                 }
                 final SynonymRule[] synonymRules = Arrays.stream(searchResponse.getHits().getHits())
-                    .map(hit -> sourceMapToSynonymRule(hit.getSourceAsMapNoCaching()))
+                    .map(hit -> sourceMapToSynonymRule(hit.getSourceAsMap()))
                     .toArray(SynonymRule[]::new);
                 searchListener.onResponse(new PagedResult<>(totalSynonymRules, synonymRules));
             }));

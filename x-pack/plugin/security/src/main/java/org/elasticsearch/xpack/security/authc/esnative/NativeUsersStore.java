@@ -155,7 +155,7 @@ public class NativeUsersStore {
                         .request();
                     request.indicesOptions().ignoreUnavailable();
                     ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener), (hit) -> {
-                        UserAndPassword u = transformUser(hit.getId(), hit.getSourceAsMapNoCaching());
+                        UserAndPassword u = transformUser(hit.getId(), hit.getSourceAsMap());
                         return u != null ? u.user() : null;
                     });
                 }
@@ -187,7 +187,7 @@ public class NativeUsersStore {
                         }
 
                         final List<QueryUserResult> userItems = Arrays.stream(searchResponse.getHits().getHits()).map(hit -> {
-                            UserAndPassword userAndPassword = transformUser(hit.getId(), hit.getSourceAsMapNoCaching());
+                            UserAndPassword userAndPassword = transformUser(hit.getId(), hit.getSourceAsMap());
                             return userAndPassword != null ? new QueryUserResult(userAndPassword.user(), hit.getSortValues()) : null;
                         }).filter(Objects::nonNull).toList();
                         listener.onResponse(new QueryUserResults(userItems, total));
@@ -709,7 +709,7 @@ public class NativeUsersStore {
                             assert searchResponse.getHits().getTotalHits().value() <= 10
                                 : "there are more than 10 reserved users we need to change this to retrieve them all!";
                             for (SearchHit searchHit : searchResponse.getHits().getHits()) {
-                                Map<String, Object> sourceMap = searchHit.getSourceAsMapNoCaching();
+                                Map<String, Object> sourceMap = searchHit.getSourceAsMap();
                                 String password = (String) sourceMap.get(Fields.PASSWORD.getPreferredName());
                                 Boolean enabled = (Boolean) sourceMap.get(Fields.ENABLED.getPreferredName());
                                 final String id = searchHit.getId();

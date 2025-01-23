@@ -91,7 +91,7 @@ public class Latest extends AbstractCompositeAggFunction {
             );
         }
 
-        Map<String, Object> document = topHits.getHits().getHits()[0].getSourceAsMapNoCaching();
+        Map<String, Object> document = topHits.getHits().getHits()[0].getSourceAsMap();
 
         // generator to create unique but deterministic document ids, so we
         // - do not create duplicates if we re-run after failure

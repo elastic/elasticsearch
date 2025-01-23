@@ -1769,7 +1769,7 @@ public class TokenService {
                                 client,
                                 request,
                                 new ContextPreservingActionListener<>(supplier, listener),
-                                (SearchHit hit) -> filterAndParseHit(hit.getSourceAsMapNoCaching(), filter)
+                                (SearchHit hit) -> filterAndParseHit(hit.getSourceAsMap(), filter)
                             );
                         }, listener::onFailure));
                 }
@@ -2737,7 +2737,7 @@ public class TokenService {
 
     record Doc(String id, Map<String, Object> sourceAsMap, long seqNo, long primaryTerm) {
         Doc(SearchHit searchHit) {
-            this(searchHit.getId(), searchHit.getSourceAsMapNoCaching(), searchHit.getSeqNo(), searchHit.getPrimaryTerm());
+            this(searchHit.getId(), searchHit.getSourceAsMap(), searchHit.getSeqNo(), searchHit.getPrimaryTerm());
         }
 
         Doc(GetResponse getResponse) {

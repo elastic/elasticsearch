@@ -119,9 +119,10 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             response -> {
                 assertHitCount(response, 1);
                 assertSearchHits(response, "1");
-                assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(2));
-                assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1").toString(), equalTo("value1"));
-                assertThat(response.getHits().getAt(0).getSourceAsMap().get("id").toString(), equalTo("1"));
+                Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+                assertThat(source.size(), equalTo(2));
+                assertThat(source.get("field1").toString(), equalTo("value1"));
+                assertThat(source.get("id").toString(), equalTo("1"));
             }
         );
 
@@ -131,9 +132,10 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             response -> {
                 assertHitCount(response, 1);
                 assertSearchHits(response, "2");
-                assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(2));
-                assertThat(response.getHits().getAt(0).getSourceAsMap().get("field2").toString(), equalTo("value2"));
-                assertThat(response.getHits().getAt(0).getSourceAsMap().get("id").toString(), equalTo("2"));
+                Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+                assertThat(source.size(), equalTo(2));
+                assertThat(source.get("field2").toString(), equalTo("value2"));
+                assertThat(source.get("id").toString(), equalTo("2"));
             }
         );
 
@@ -197,8 +199,9 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             response -> {
                 assertHitCount(response, 1);
                 assertSearchHits(response, "2");
-                assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
-                assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1").toString(), equalTo("value2"));
+                Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+                assertThat(source.size(), equalTo(1));
+                assertThat(source.get("field1").toString(), equalTo("value2"));
             }
         );
 
@@ -228,9 +231,10 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 response -> {
                     assertHitCount(response, 1);
                     assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(2));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), equalTo("value1"));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().get("id"), equalTo("1"));
+                    Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+                    assertThat(source.size(), equalTo(2));
+                    assertThat(source.get("field1"), equalTo("value1"));
+                    assertThat(source.get("id"), equalTo("1"));
                 }
             );
             assertResponse(
@@ -239,9 +243,10 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 response -> {
                     assertHitCount(response, 1);
                     assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(2));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().get("field2"), equalTo("value2"));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().get("id"), equalTo("2"));
+                    Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+                    assertThat(source.size(), equalTo(2));
+                    assertThat(source.get("field2"), equalTo("value2"));
+                    assertThat(source.get("id"), equalTo("2"));
                 }
             );
 
@@ -254,8 +259,9 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 response -> {
                     assertHitCount(response, 1);
                     assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().get("id"), equalTo("2"));
+                    Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+                    assertThat(source.size(), equalTo(1));
+                    assertThat(source.get("id"), equalTo("2"));
                 }
             );
 
@@ -267,13 +273,15 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 response -> {
                     assertHitCount(response, 2);
                     assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(2));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), equalTo("value1"));
-                    assertThat(response.getHits().getAt(0).getSourceAsMap().get("id"), equalTo("1"));
+                    Map<String, Object> source0 = response.getHits().getAt(0).getSourceAsMap();
+                    assertThat(source0.size(), equalTo(2));
+                    assertThat(source0.get("field1"), equalTo("value1"));
+                    assertThat(source0.get("id"), equalTo("1"));
                     assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
-                    assertThat(response.getHits().getAt(1).getSourceAsMap().size(), equalTo(2));
-                    assertThat(response.getHits().getAt(1).getSourceAsMap().get("field2"), equalTo("value2"));
-                    assertThat(response.getHits().getAt(1).getSourceAsMap().get("id"), equalTo("2"));
+                    Map<String, Object> source1 = response.getHits().getAt(1).getSourceAsMap();
+                    assertThat(source1.size(), equalTo(2));
+                    assertThat(source1.get("field2"), equalTo("value2"));
+                    assertThat(source1.get("id"), equalTo("2"));
                 }
             );
         }

@@ -53,6 +53,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
     private static final Logger logger = LogManager.getLogger(TransportPutMappingAction.class);
 
     private final MetadataMappingService metadataMappingService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final RequestValidators<PutMappingRequest> requestValidators;
     private final SystemIndices systemIndices;
 
@@ -74,10 +75,10 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
             threadPool,
             actionFilters,
             PutMappingRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.metadataMappingService = metadataMappingService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.requestValidators = Objects.requireNonNull(requestValidators);
         this.systemIndices = systemIndices;
     }

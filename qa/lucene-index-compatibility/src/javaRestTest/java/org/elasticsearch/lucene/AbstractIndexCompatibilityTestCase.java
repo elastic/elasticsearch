@@ -37,6 +37,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING;
 import static org.elasticsearch.test.cluster.util.Version.CURRENT;
 import static org.elasticsearch.test.cluster.util.Version.fromString;
 import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
@@ -259,13 +260,21 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
         return IndexMetadata.State.fromString((String) state) == IndexMetadata.State.CLOSE;
     }
 
-    protected static void addIndexWriteBlock(String indexName) throws Exception {
-        assertAcknowledged(client().performRequest(new Request("PUT", Strings.format("/%s/_block/write", indexName))));
-    }
-
     protected static void forceMerge(String indexName, int maxNumSegments) throws Exception {
         var request = new Request("POST", '/' + indexName + "/_forcemerge");
         request.addParameter("max_num_segments", String.valueOf(maxNumSegments));
         assertOK(client().performRequest(request));
+    }
+
+    protected void addIndexBlock(String indexName, IndexMetadata.APIBlock apiBlock) throws Exception {
+        logger.debug("--> adding index block [{}] to [{}]", apiBlock, indexName);
+        var request = new Request("PUT", Strings.format("/%s/_block/%s", indexName, apiBlock.name().toLowerCase(Locale.ROOT)));
+        assertAcknowledged(client().performRequest(request));
+    }
+
+    protected void assertThatIndexBlock(String indexName, IndexMetadata.APIBlock apiBlock) throws Exception {
+        var indexSettings = getIndexSettingsAsMap(indexName);
+        assertThat(indexSettings.get(VERIFIED_READ_ONLY_SETTING.getKey()), equalTo(Boolean.TRUE.toString()));
+        assertThat(indexSettings.get(apiBlock.settingName()), equalTo(Boolean.TRUE.toString()));
     }
 }

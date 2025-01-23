@@ -28,12 +28,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -58,7 +56,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.search.AsyncSearchContext.buildShardFailures;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -69,21 +66,17 @@ import static org.elasticsearch.core.Strings.format;
  * The fan out and collect algorithm is traditionally used as the initial phase which can either be a query execution or collection of
  * distributed frequencies
  */
-abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> implements AsyncSearchContext {
+abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends AsyncSearchContext<Result> {
     static final float DEFAULT_INDEX_BOOST = 1.0f;
     private final Logger logger;
-    private final NamedWriteableRegistry namedWriteableRegistry;
     private final SearchTransportService searchTransportService;
     private final Executor executor;
-    private final ActionListener<SearchResponse> listener;
-    private final SearchRequest request;
 
     /**
      * Used by subclasses to resolve node ids to DiscoveryNodes.
      **/
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTask task;
-    protected final SearchPhaseResults<Result> results;
     private final long clusterStateVersion;
     private final TransportVersion minTransportVersion;
     private final Map<String, AliasFilter> aliasFilter;
@@ -107,7 +100,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> imple
     private final AtomicBoolean requestCancelled = new AtomicBoolean();
 
     // protected for tests
-    protected final List<Releasable> releasables = new ArrayList<>();
     protected final String name;
 
     AbstractSearchAsyncAction(
@@ -129,8 +121,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> imple
         int maxConcurrentRequestsPerNode,
         SearchResponse.Clusters clusters
     ) {
+        super(request, resultConsumer, namedWriteableRegistry, listener);
         this.name = name;
-        this.namedWriteableRegistry = namedWriteableRegistry;
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
         final List<SearchShardIterator> iterators = new ArrayList<>();
         for (final SearchShardIterator iterator : shardsIts) {
@@ -161,18 +153,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> imple
         this.logger = logger;
         this.searchTransportService = searchTransportService;
         this.executor = executor;
-        this.request = request;
         this.task = task;
-        this.listener = ActionListener.runAfter(listener, () -> Releasables.close(releasables));
         this.nodeIdToConnection = nodeIdToConnection;
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.clusterStateVersion = clusterState.version();
         this.minTransportVersion = clusterState.getMinTransportVersion();
         this.aliasFilter = aliasFilter;
-        this.results = resultConsumer;
-        // register the release of the query consumer to free up the circuit breaker memory
-        // at the end of the search
-        addReleasable(resultConsumer);
         this.clusters = clusters;
     }
 
@@ -229,13 +215,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> imple
                 throw new SearchPhaseExecutionException(phaseName, msg, null, ShardSearchFailure.EMPTY_ARRAY);
             }
         }
-    }
-
-    /**
-     * Registers a {@link Releasable} that will be closed when the search request finishes or fails.
-     */
-    public void addReleasable(Releasable releasable) {
-        releasables.add(releasable);
     }
 
     /**
@@ -426,18 +405,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> imple
                     clusterStateVersion
                 );
             }
-            executePhase(nextPhase);
-        }
-    }
-
-    private void executePhase(SearchPhase phase) {
-        try {
-            phase.run();
-        } catch (RuntimeException e) {
-            if (logger.isDebugEnabled()) {
-                logger.debug(() -> format("Failed to execute [%s] while moving to [%s] phase", request, phase.getName()), e);
+            try {
+                nextPhase.run();
+            } catch (RuntimeException e) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug(() -> format("Failed to execute [%s] while moving to [%s] phase", request, nextPhase.getName()), e);
+                }
+                onPhaseFailure(nextPhase.getName(), "", e);
             }
-            onPhaseFailure(phase.getName(), "", e);
         }
     }
 
@@ -613,27 +588,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> imple
         return shardIterators[shardIndex].getOriginalIndices();
     }
 
-    /**
-      * Checks if the given context id is part of the point in time of this search (if exists).
-      * We should not release search contexts that belong to the point in time during or after searches.
-    */
-    public boolean isPartOfPointInTime(ShardSearchContextId contextId) {
-        return isPartOfPIT(namedWriteableRegistry, request, contextId);
-    }
-
-    public static boolean isPartOfPIT(
-        NamedWriteableRegistry namedWriteableRegistry,
-        SearchRequest request,
-        ShardSearchContextId contextId
-    ) {
-        final PointInTimeBuilder pointInTimeBuilder = request.pointInTimeBuilder();
-        if (pointInTimeBuilder != null) {
-            return request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry).contains(contextId);
-        } else {
-            return false;
-        }
-    }
-
     private SearchResponse buildSearchResponse(
         SearchResponseSections internalSearchResponse,
         ShardSearchFailure[] failures,
@@ -668,7 +622,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> imple
       * @param internalSearchResponse the internal search response
       * @param queryResults           the results of the query phase
       */
-    public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
+    public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<? extends SearchPhaseResult> queryResults) {
         ShardSearchFailure[] failures = buildShardFailures(shardFailures);
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
@@ -702,29 +656,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> imple
     @Override
     public void onPhaseFailure(String phase, String msg, Throwable cause) {
         raisePhaseFailure(new SearchPhaseExecutionException(phase, msg, cause, buildShardFailures(shardFailures)));
-    }
-
-    /**
-     * This method should be called if a search phase failed to ensure all relevant reader contexts are released.
-     * This method will also notify the listener and sends back a failure to the user.
-     *
-     * @param exception the exception explaining or causing the phase failure
-     */
-    private void raisePhaseFailure(SearchPhaseExecutionException exception) {
-        results.getSuccessfulResults().forEach((entry) -> {
-            // Do not release search contexts that are part of the point in time
-            if (entry.getContextId() != null && isPartOfPointInTime(entry.getContextId()) == false) {
-                try {
-                    SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
-                    Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
-                    sendReleaseSearchContext(entry.getContextId(), connection);
-                } catch (Exception inner) {
-                    inner.addSuppressed(exception);
-                    logger.trace("failed to release context", inner);
-                }
-            }
-        });
-        listener.onFailure(exception);
     }
 
     /**

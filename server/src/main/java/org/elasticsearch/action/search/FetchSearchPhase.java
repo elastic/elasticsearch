@@ -39,20 +39,20 @@ final class FetchSearchPhase extends SearchPhase {
 
     static final String NAME = "fetch";
 
-    private final AtomicArray<SearchPhaseResult> searchPhaseShardResults;
-    private final BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
-    private final AsyncSearchContext context;
+    private final AtomicArray<? extends SearchPhaseResult> searchPhaseShardResults;
+    private final BiFunction<SearchResponseSections, AtomicArray<? extends SearchPhaseResult>, SearchPhase> nextPhaseFactory;
+    private final AsyncSearchContext<?> context;
     private final SearchProgressListener progressListener;
     private final AggregatedDfs aggregatedDfs;
     @Nullable
-    private final SearchPhaseResults<SearchPhaseResult> resultConsumer;
+    private final SearchPhaseResults<? extends SearchPhaseResult> resultConsumer;
     private final SearchPhaseController.ReducedQueryPhase reducedQueryPhase;
     private final int numShards;
 
     FetchSearchPhase(
-        SearchPhaseResults<SearchPhaseResult> resultConsumer,
+        SearchPhaseResults<? extends SearchPhaseResult> resultConsumer,
         AggregatedDfs aggregatedDfs,
-        AsyncSearchContext context,
+        AsyncSearchContext<?> context,
         @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
         this(
@@ -69,11 +69,11 @@ final class FetchSearchPhase extends SearchPhase {
     }
 
     FetchSearchPhase(
-        SearchPhaseResults<SearchPhaseResult> resultConsumer,
+        SearchPhaseResults<? extends SearchPhaseResult> resultConsumer,
         AggregatedDfs aggregatedDfs,
-        AsyncSearchContext context,
+        AsyncSearchContext<?> context,
         @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
-        BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory
+        BiFunction<SearchResponseSections, AtomicArray<? extends SearchPhaseResult>, SearchPhase> nextPhaseFactory
     ) {
         super(NAME);
         this.searchPhaseShardResults = resultConsumer.getAtomicArray();

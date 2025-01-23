@@ -43,8 +43,6 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -91,28 +89,23 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.AbstractSearchAsyncAction.DEFAULT_INDEX_BOOST;
-import static org.elasticsearch.action.search.AsyncSearchContext.buildShardFailures;
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 import static org.elasticsearch.core.Strings.format;
 
-public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
+public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> extends AsyncSearchContext<Result> {
 
     private static final String NAME = "query";
 
     private static final Logger logger = LogManager.getLogger(SearchQueryThenFetchAsyncAction.class);
 
-    private final NamedWriteableRegistry namedWriteableRegistry;
     private final SearchTransportService searchTransportService;
     private final Executor executor;
-    private final ActionListener<SearchResponse> listener;
-    private final SearchRequest request;
 
     /**
      * Used by subclasses to resolve node ids to DiscoveryNodes.
      **/
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTask task;
-    protected final SearchPhaseResults<SearchPhaseResult> results;
     private final TransportVersion minNodeVersion;
     private final Map<String, AliasFilter> aliasFilter;
     private final Map<String, Float> concreteIndexBoosts;
@@ -141,9 +134,6 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
 
     private int outstandingShards;
 
-    // protected for tests
-    protected final List<Releasable> releasables = new ArrayList<>();
-
     private final SearchProgressListener progressListener;
 
     // informations to track the best bottom top doc globally.
@@ -159,7 +149,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
         Map<String, AliasFilter> aliasFilter,
         Map<String, Float> concreteIndexBoosts,
         Executor executor,
-        SearchPhaseResults<SearchPhaseResult> resultConsumer,
+        SearchPhaseResults<Result> resultConsumer,
         SearchRequest request,
         ActionListener<SearchResponse> listener,
         GroupShardsIterator<SearchShardIterator> shardsIts,
@@ -169,7 +159,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
         SearchResponse.Clusters clusters,
         Client client
     ) {
-        this.namedWriteableRegistry = namedWriteableRegistry;
+        super(request, resultConsumer, namedWriteableRegistry, listener);
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
         final List<SearchShardIterator> iterators = new ArrayList<>();
         for (final SearchShardIterator iterator : shardsIts) {
@@ -192,14 +182,11 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
         this.timeProvider = timeProvider;
         this.searchTransportService = searchTransportService;
         this.executor = executor;
-        this.request = request;
         this.task = task;
-        this.listener = ActionListener.runAfter(listener, () -> Releasables.close(releasables));
         this.nodeIdToConnection = nodeIdToConnection;
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.minNodeVersion = clusterState.getMinTransportVersion();
         this.aliasFilter = aliasFilter;
-        this.results = resultConsumer;
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
         releasables.add(resultConsumer);
@@ -255,7 +242,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
      * @param internalSearchResponse the internal search response
      * @param queryResults           the results of the query phase
      */
-    public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
+    public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<? extends SearchPhaseResult> queryResults) {
         ShardSearchFailure[] failures = buildShardFailures(shardFailures);
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
@@ -519,7 +506,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
         progressListener.notifyQueryFailure(shardIndex, shardTarget, exc);
     }
 
-    protected void onShardResult(SearchPhaseResult result) {
+    protected void onShardResult(Result result) {
         QuerySearchResult queryResult = result.queryResult();
         if (queryResult.isNull() == false
             // disable sort optims for scroll requests because they keep track of the last bottom doc locally (per shard)
@@ -549,8 +536,8 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
 
     static SearchPhase nextPhase(
         Client client,
-        AsyncSearchContext context,
-        SearchPhaseResults<SearchPhaseResult> queryResults,
+        AsyncSearchContext<?> context,
+        SearchPhaseResults<? extends SearchPhaseResult> queryResults,
         AggregatedDfs aggregatedDfs
     ) {
         var rankFeaturePhaseCoordCtx = RankFeaturePhase.coordinatorContext(context.getRequest().source(), client);
@@ -683,7 +670,9 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
                                 case SearchPhaseResult q -> {
                                     q.setShardIndex(shardIdx);
                                     q.setSearchShardTarget(target);
-                                    onShardResult(q);
+                                    @SuppressWarnings("unchecked")
+                                    var res = (Result) q;
+                                    onShardResult(res);
                                 }
                                 case null, default -> {
                                     assert false : "impossible [" + response.results[i] + "]";
@@ -769,7 +758,9 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
                 @Override
                 public void innerOnResponse(SearchPhaseResult result) {
                     try {
-                        onShardResult(result);
+                        @SuppressWarnings("unchecked")
+                        var res = (Result) result;
+                        onShardResult(res);
                     } catch (Exception exc) {
                         // TODO: this looks like a nasty bug where it to actually happen
                         assert false : exc;
@@ -957,36 +948,8 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
     }
 
     @Override
-    public void addReleasable(Releasable releasable) {
-        releasables.add(releasable);
-    }
-
-    @Override
     public void execute(Runnable command) {
         executor.execute(command);
-    }
-
-    /**
-     * This method should be called if a search phase failed to ensure all relevant reader contexts are released.
-     * This method will also notify the listener and sends back a failure to the user.
-     *
-     * @param exception the exception explaining or causing the phase failure
-     */
-    private void raisePhaseFailure(SearchPhaseExecutionException exception) {
-        results.getSuccessfulResults().forEach((entry) -> {
-            // Do not release search contexts that are part of the point in time
-            if (entry.getContextId() != null && isPartOfPointInTime(entry.getContextId()) == false) {
-                try {
-                    SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
-                    Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
-                    sendReleaseSearchContext(entry.getContextId(), connection);
-                } catch (Exception inner) {
-                    inner.addSuppressed(exception);
-                    logger.trace("failed to release context", inner);
-                }
-            }
-        });
-        listener.onFailure(exception);
     }
 
     @Override
@@ -995,10 +958,6 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
         if (connection != null) {
             searchTransportService.sendFreeContext(connection, contextId, ActionListener.noop());
         }
-    }
-
-    public boolean isPartOfPointInTime(ShardSearchContextId contextId) {
-        return AbstractSearchAsyncAction.isPartOfPIT(namedWriteableRegistry, request, contextId);
     }
 
     private void onShardResultConsumed(SearchPhaseResult result) {
@@ -1062,7 +1021,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
         if (phaseResult != null
             && phaseResult.hasSearchContext()
             && request.searchRequest.scroll() == null
-            && (AbstractSearchAsyncAction.isPartOfPIT(null, request.searchRequest, phaseResult.getContextId()) == false)) {
+            && (AsyncSearchContext.isPartOfPIT(null, request.searchRequest, phaseResult.getContextId()) == false)) {
             searchService.freeReaderContext(phaseResult.getContextId());
         }
     }
@@ -1267,7 +1226,7 @@ public class SearchQueryThenFetchAsyncAction implements AsyncSearchContext {
                                 && q.hasSuggestHits() == false
                                 && q.getRankShardResult() == null
                                 && searchRequest.searchRequest.scroll() == null
-                                && (AbstractSearchAsyncAction.isPartOfPIT(null, searchRequest.searchRequest, q.getContextId()) == false)) {
+                                && (AsyncSearchContext.isPartOfPIT(null, searchRequest.searchRequest, q.getContextId()) == false)) {
                                 if (dependencies.searchService.freeReaderContext(q.getContextId())) {
                                     q.clearContextId();
                                 }

@@ -58,7 +58,7 @@ public final class SearchContextId {
     }
 
     public static BytesReference encode(
-        List<SearchPhaseResult> searchPhaseResults,
+        List<? extends SearchPhaseResult> searchPhaseResults,
         Map<String, AliasFilter> aliasFilter,
         TransportVersion version,
         ShardSearchFailure[] shardFailures

@@ -36,11 +36,15 @@ final class FetchLookupFieldsPhase extends SearchPhase {
 
     static final String NAME = "fetch_lookup_fields";
 
-    private final AsyncSearchContext context;
+    private final AsyncSearchContext<?> context;
     private final SearchResponseSections searchResponse;
-    private final AtomicArray<SearchPhaseResult> queryResults;
+    private final AtomicArray<? extends SearchPhaseResult> queryResults;
 
-    FetchLookupFieldsPhase(AsyncSearchContext context, SearchResponseSections searchResponse, AtomicArray<SearchPhaseResult> queryResults) {
+    FetchLookupFieldsPhase(
+        AsyncSearchContext<?> context,
+        SearchResponseSections searchResponse,
+        AtomicArray<? extends SearchPhaseResult> queryResults
+    ) {
         super(NAME);
         this.context = context;
         this.searchResponse = searchResponse;

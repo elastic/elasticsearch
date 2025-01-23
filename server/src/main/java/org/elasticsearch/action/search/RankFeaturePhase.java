@@ -40,17 +40,17 @@ public class RankFeaturePhase extends SearchPhase {
     static final String NAME = "rank-feature";
 
     private static final Logger logger = LogManager.getLogger(RankFeaturePhase.class);
-    private final AsyncSearchContext context;
-    final SearchPhaseResults<SearchPhaseResult> queryPhaseResults;
+    private final AsyncSearchContext<?> context;
+    final SearchPhaseResults<? extends SearchPhaseResult> queryPhaseResults;
     final SearchPhaseResults<SearchPhaseResult> rankPhaseResults;
     private final AggregatedDfs aggregatedDfs;
     private final SearchProgressListener progressListener;
     private final RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext;
 
     RankFeaturePhase(
-        SearchPhaseResults<SearchPhaseResult> queryPhaseResults,
+        SearchPhaseResults<? extends SearchPhaseResult> queryPhaseResults,
         AggregatedDfs aggregatedDfs,
-        AsyncSearchContext context,
+        AsyncSearchContext<?> context,
         RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext
     ) {
         super(NAME);

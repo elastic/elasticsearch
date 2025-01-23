@@ -191,7 +191,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 exc -> {}
             )
         ) {
-            SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
+            SearchQueryThenFetchAsyncAction<?> action = new SearchQueryThenFetchAsyncAction<>(
                 null,
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),

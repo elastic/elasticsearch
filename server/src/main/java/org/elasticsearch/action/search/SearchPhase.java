@@ -41,7 +41,7 @@ abstract class SearchPhase {
     /**
      * Releases shard targets that are not used in the docsIdsToLoad.
      */
-    protected static void releaseIrrelevantSearchContext(SearchPhaseResult searchPhaseResult, AsyncSearchContext context) {
+    protected static void releaseIrrelevantSearchContext(SearchPhaseResult searchPhaseResult, AsyncSearchContext<?> context) {
         // we only release search context that we did not fetch from, if we are not scrolling
         // or using a PIT and if it has at least one hit that didn't make it to the global topDocs
         // phaseResult.getContextId() is the same for query & rank feature results
@@ -51,7 +51,7 @@ abstract class SearchPhase {
         if (phaseResult != null
             && (phaseResult.hasSearchContext() || (phaseResult instanceof QuerySearchResult q && q.isReduced() && q.getContextId() != null))
             && context.getRequest().scroll() == null
-            && (AbstractSearchAsyncAction.isPartOfPIT(null, context.getRequest(), phaseResult.getContextId()) == false)) {
+            && (AsyncSearchContext.isPartOfPIT(null, context.getRequest(), phaseResult.getContextId()) == false)) {
             try {
                 logger.trace("trying to release search context [{}]", phaseResult.getContextId());
                 SearchShardTarget shardTarget = phaseResult.getSearchShardTarget();

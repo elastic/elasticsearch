@@ -1544,7 +1544,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchPhase.start();
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
-                    var searchPhase = new SearchQueryThenFetchAsyncAction(
+                    var searchPhase = new SearchQueryThenFetchAsyncAction<>(
                         namedWriteableRegistry,
                         searchTransportService,
                         connectionLookup,

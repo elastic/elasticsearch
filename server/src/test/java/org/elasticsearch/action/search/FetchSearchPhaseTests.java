@@ -759,7 +759,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     }
 
-    private static BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> searchPhaseFactory(
+    private static BiFunction<SearchResponseSections, AtomicArray<? extends SearchPhaseResult>, SearchPhase> searchPhaseFactory(
         MockSearchPhaseContext mockSearchPhaseContext
     ) {
         return (searchResponse, scrollId) -> new SearchPhase("test") {

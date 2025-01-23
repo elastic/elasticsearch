@@ -9,19 +9,55 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.Transport;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-public interface AsyncSearchContext {
+public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
+
+    private static final Logger logger = LogManager.getLogger(AsyncSearchContext.class);
+
+    protected final SearchRequest request;
+
+    protected final SearchPhaseResults<Result> results;
+
+    private final NamedWriteableRegistry namedWriteableRegistry;
+
+    protected final ActionListener<SearchResponse> listener;
+
+    // protected for tests
+    protected final List<Releasable> releasables = new ArrayList<>();
+
+    protected AsyncSearchContext(
+        SearchRequest request,
+        SearchPhaseResults<Result> results,
+        NamedWriteableRegistry namedWriteableRegistry,
+        ActionListener<SearchResponse> listener
+    ) {
+        this.request = request;
+        this.results = results;
+        this.namedWriteableRegistry = namedWriteableRegistry;
+        this.listener = ActionListener.runAfter(listener, () -> Releasables.close(releasables));
+        ;
+        // register the release of the query consumer to free up the circuit breaker memory
+        // at the end of the search
+        addReleasable(results);
+    }
 
     static ShardSearchFailure[] buildShardFailures(SetOnce<AtomicArray<ShardSearchFailure>> shardFailuresRef) {
         AtomicArray<ShardSearchFailure> shardFailures = shardFailuresRef.get();
@@ -36,27 +72,72 @@ public interface AsyncSearchContext {
         return failures;
     }
 
-    SearchRequest getRequest();
+    static boolean isPartOfPIT(NamedWriteableRegistry namedWriteableRegistry, SearchRequest request, ShardSearchContextId contextId) {
+        final PointInTimeBuilder pointInTimeBuilder = request.pointInTimeBuilder();
+        if (pointInTimeBuilder != null) {
+            return request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry).contains(contextId);
+        } else {
+            return false;
+        }
+    }
 
-    void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults);
+    abstract SearchRequest getRequest();
 
-    SearchTransportService getSearchTransport();
+    abstract void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<? extends SearchPhaseResult> queryResults);
 
-    SearchTask getTask();
+    abstract SearchTransportService getSearchTransport();
 
-    void onPhaseFailure(String phase, String msg, Throwable cause);
+    abstract SearchTask getTask();
 
-    void addReleasable(Releasable releasable);
+    abstract void onPhaseFailure(String phase, String msg, Throwable cause);
 
-    void execute(Runnable command);
+    /**
+     * Registers a {@link Releasable} that will be closed when the search request finishes or fails.
+     */
+    public final void addReleasable(Releasable releasable) {
+        releasables.add(releasable);
+    }
 
-    void onShardFailure(int shardIndex, SearchShardTarget shard, Exception e);
+    abstract void execute(Runnable command);
 
-    Transport.Connection getConnection(String clusterAlias, String nodeId);
+    abstract void onShardFailure(int shardIndex, SearchShardTarget shard, Exception e);
 
-    OriginalIndices getOriginalIndices(int shardIndex);
+    abstract Transport.Connection getConnection(String clusterAlias, String nodeId);
 
-    void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection);
+    abstract OriginalIndices getOriginalIndices(int shardIndex);
 
-    void executeNextPhase(String currentPhase, Supplier<SearchPhase> nextPhaseSupplier);
+    abstract void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection);
+
+    abstract void executeNextPhase(String currentPhase, Supplier<SearchPhase> nextPhaseSupplier);
+
+    /**
+     * This method should be called if a search phase failed to ensure all relevant reader contexts are released.
+     * This method will also notify the listener and sends back a failure to the user.
+     *
+     * @param exception the exception explaining or causing the phase failure
+     */
+    protected final void raisePhaseFailure(SearchPhaseExecutionException exception) {
+        results.getSuccessfulResults().forEach((entry) -> {
+            // Do not release search contexts that are part of the point in time
+            if (entry.getContextId() != null && isPartOfPointInTime(entry.getContextId()) == false) {
+                try {
+                    SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
+                    Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
+                    sendReleaseSearchContext(entry.getContextId(), connection);
+                } catch (Exception inner) {
+                    inner.addSuppressed(exception);
+                    logger.trace("failed to release context", inner);
+                }
+            }
+        });
+        listener.onFailure(exception);
+    }
+
+    /**
+     * Checks if the given context id is part of the point in time of this search (if exists).
+     * We should not release search contexts that belong to the point in time during or after searches.
+     */
+    public boolean isPartOfPointInTime(ShardSearchContextId contextId) {
+        return isPartOfPIT(namedWriteableRegistry, request, contextId);
+    }
 }

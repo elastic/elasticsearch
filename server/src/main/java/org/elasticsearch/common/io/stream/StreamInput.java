@@ -1151,11 +1151,6 @@ public abstract class StreamInput extends InputStream {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
     }
 
-    // TODO: Add docs
-    public <C extends NamedWriteable> Writeable.Reader<? extends C> getNamedWriteableReader(Class<C> categoryClass) throws IOException {
-        throw new UnsupportedOperationException("can't get named writeable reader from StreamInput");
-    }
-
     /**
      * Reads a {@link NamedWriteable} from the current stream with the given name. It is assumed that the caller obtained the name
      * from other source, so it's not read from the stream. The name is used for looking for
@@ -1172,11 +1167,6 @@ public abstract class StreamInput extends InputStream {
         @SuppressWarnings("unused") String name
     ) throws IOException {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
-    }
-
-    // TODO: Add docs
-    public <C extends NamedWriteable> Writeable.Reader<? extends C> getNamedWriteableReader(Class<C> categoryClass, String name) {
-        throw new UnsupportedOperationException("can't get named writeable reader from StreamInput");
     }
 
     /**

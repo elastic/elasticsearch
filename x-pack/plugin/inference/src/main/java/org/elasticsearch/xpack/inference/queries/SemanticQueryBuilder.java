@@ -13,7 +13,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -66,21 +65,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         false,
         args -> new SemanticQueryBuilder((String) args[0], (String) args[1], (Boolean) args[2])
     );
-
-    // TODO: Generalize and move to NamedWriteableAwareStreamInput
-    private static class InferenceResultsReader implements Reader<InferenceResults> {
-        @Override
-        public InferenceResults read(StreamInput in) throws IOException {
-            NamedWriteableRegistry namedWriteableRegistry = in.namedWriteableRegistry();
-            if (namedWriteableRegistry == null) {
-                throw new IllegalStateException("Named writeable registry is required");
-            }
-
-            String name = in.readString();
-            Reader<? extends InferenceResults> reader = namedWriteableRegistry.getReader(InferenceResults.class, name);
-            return reader.read(in);
-        }
-    }
 
     private static class LegacyInferenceResultsMap extends AbstractMap<String, InferenceResults> {
         private static final String PLACEHOLDER_INFERENCE_ID = ".placeholder";
@@ -148,7 +132,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.query = in.readString();
         if (in.getTransportVersion().onOrAfter(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS)) {
             if (in.readBoolean()) {
-                this.inferenceResultsMap = in.readMap(new InferenceResultsReader());
+                this.inferenceResultsMap = in.readMap((input) -> input.readNamedWriteable(InferenceResults.class));
             } else {
                 this.inferenceResultsMap = null;
             }

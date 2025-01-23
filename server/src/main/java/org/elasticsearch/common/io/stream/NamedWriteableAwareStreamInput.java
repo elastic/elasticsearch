@@ -33,11 +33,6 @@ public class NamedWriteableAwareStreamInput extends FilterStreamInput {
         return readNamedWriteable(categoryClass, name);
     }
 
-    public <C extends NamedWriteable> Writeable.Reader<? extends C> getNamedWriteableReader(Class<C> categoryClass) throws IOException {
-        String name = readString();
-        return getNamedWriteableReader(categoryClass, name);
-    }
-
     @Override
     public <T extends NamedWriteable> List<T> readNamedWriteableCollectionAsList(Class<T> categoryClass) throws IOException {
         int count = readArraySize();
@@ -58,17 +53,13 @@ public class NamedWriteableAwareStreamInput extends FilterStreamInput {
         @SuppressWarnings("unused") Class<C> categoryClass,
         @SuppressWarnings("unused") String name
     ) throws IOException {
-        Writeable.Reader<? extends C> reader = getNamedWriteableReader(categoryClass, name);
+        Writeable.Reader<? extends C> reader = namedWriteableRegistry.getReader(categoryClass, name);
         C c = reader.read(this);
         if (c == null) {
             throwOnNullRead(reader);
         }
         assert assertNameMatches(name, c);
         return c;
-    }
-
-    public <C extends NamedWriteable> Writeable.Reader<? extends C> getNamedWriteableReader(Class<C> categoryClass, String name) {
-        return namedWriteableRegistry.getReader(categoryClass, name);
     }
 
     private static <C extends NamedWriteable> boolean assertNameMatches(String name, C c) {

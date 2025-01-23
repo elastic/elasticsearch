@@ -88,6 +88,9 @@ class NetworkAccessCheckActions {
         } catch (InvalidAlgorithmParameterException ex) {
             // Assert we actually hit the class we care about, LDAPCertStore (or its impl)
             assert Arrays.stream(ex.getStackTrace()).anyMatch(e -> e.getClassName().endsWith("LDAPCertStore"));
+        } catch (NoSuchAlgorithmException e) {
+            // In some environments (e.g. with FIPS enabled) the LDAPCertStore is not present, so this will fail.
+            // This is OK, as this means the class we care about (LDAPCertStore) is not even present
         }
     }
 

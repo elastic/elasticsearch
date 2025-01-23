@@ -10,6 +10,7 @@
 package org.elasticsearch.migration;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusAction;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusRequest;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse;
@@ -17,6 +18,9 @@ import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeAction
 import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeRequest;
 import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
@@ -36,6 +40,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.test.MockHttpTransport;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.upgrades.SingleFeatureMigrationResult;
 
@@ -78,6 +85,9 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(TestPlugin.class);
         plugins.add(ReindexPlugin.class);
+        plugins.add(MockTransportService.TestPlugin.class);
+        plugins.add(MockHttpTransport.TestPlugin.class); // TODO is this needed?
+        plugins.add(getTestTransportPlugin()); // TODO is this needed?
         return plugins;
     }
 
@@ -257,6 +267,58 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             logger.info(Strings.toString(statusResp));
             assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
         });
+    }
+
+    public void testIndexBlockIsRemovedWhenAliasRequestFails() throws Exception {
+        createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
+        createSystemIndexForDescriptor(INTERNAL_MANAGED);
+        ensureGreen();
+
+        // inject a failure when the alias transport action is called.
+        for (var transportService : internalCluster().getInstances(TransportService.class)) {
+            MockTransportService mockTransportService = (MockTransportService) transportService;
+
+            // Try to throw an exception
+            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (request instanceof IndicesAliasesRequest) {
+                    throw new ElasticsearchException("Potato");
+                }
+                if (action.equals(TransportIndicesAliasesAction.NAME)) {
+                    throw new ElasticsearchException("Potato");
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+
+            // Try to return a response
+            mockTransportService.addRequestHandlingBehavior(TransportIndicesAliasesAction.NAME, (handler, request, channel, task) -> {
+                if (request instanceof IndicesAliasesRequest) {
+                    throw new ElasticsearchException("Potato");
+                }
+                channel.sendResponse(
+                    IndicesAliasesResponse.build(
+                        List.of(
+                            IndicesAliasesResponse.AliasActionResult.build(
+                                List.of("index"),
+                                new IndicesAliasesRequest.AliasActions(IndicesAliasesRequest.AliasActions.Type.REMOVE),
+                                0
+                            )
+                        )
+                    )
+                );
+            });
+        }
+
+        client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT)).get();
+
+        assertBusy(() -> {
+            GetFeatureUpgradeStatusResponse statusResp = client().execute(
+                GetFeatureUpgradeStatusAction.INSTANCE,
+                new GetFeatureUpgradeStatusRequest(TEST_REQUEST_TIMEOUT)
+            ).get();
+            logger.info(Strings.toString(statusResp));
+            assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.MIGRATION_NEEDED));
+        });
+
     }
 
     public void testMigrationWillRunAfterError() throws Exception {

@@ -27,6 +27,6 @@ public class MatchOperatorTests extends MatchTests {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return MatchTests.parameters();
+        return parameterSuppliersFromTypedData(parametersWithoutFunctionNamedParams());
     }
 }

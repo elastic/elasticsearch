@@ -183,31 +183,37 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
             params = {
                 @MapParam.MapParamEntry(
                     name = "analyzer",
+                    type = "keyword",
                     valueHint = { "standard" },
                     description = "Analyzer used to convert the text in the query value into token."
                 ),
                 @MapParam.MapParamEntry(
                     name = "auto_generate_synonyms_phrase_query",
+                    type = "boolean",
                     valueHint = { "true", "false" },
                     description = "If true, match phrase queries are automatically created for multi-term synonyms."
                 ),
                 @MapParam.MapParamEntry(
                     name = "fuzziness",
+                    type = "keyword",
                     valueHint = { "AUTO", "1", "2" },
                     description = "Maximum edit distance allowed for matching."
                 ),
                 @MapParam.MapParamEntry(
                     name = "boost",
+                    type = "float",
                     valueHint = { "2.5" },
                     description = "Floating point number used to decrease or increase the relevance scores of the query."
                 ),
                 @MapParam.MapParamEntry(
                     name = "fuzzy_transpositions",
+                    type = "boolean",
                     valueHint = { "true", "false" },
                     description = "If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba)."
                 ),
                 @MapParam.MapParamEntry(
                     name = "fuzzy_rewrite",
+                    type = "keyword",
                     valueHint = {
                         "constant_score_blended",
                         "constant_score",
@@ -219,27 +225,32 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
                 ),
                 @MapParam.MapParamEntry(
                     name = "lenient",
+                    type = "boolean",
                     valueHint = { "true", "false" },
                     description = "If false, format-based errors, such as providing a text query value for a numeric field, are returned."
                 ),
                 @MapParam.MapParamEntry(
                     name = "max_expansions",
+                    type = "integer",
                     valueHint = { "50" },
                     description = "Maximum number of terms to which the query will expand."
                 ),
                 @MapParam.MapParamEntry(
                     name = "minimum_should_match",
+                    type = "integer",
                     valueHint = { "2" },
                     description = "Minimum number of clauses that must match for a document to be returned."
                 ),
                 @MapParam.MapParamEntry(
                     name = "operator",
+                    type = "keyword",
                     valueHint = { "AND", "OR" },
                     description = "Boolean logic used to interpret text in the query value"
                 ),
                 @MapParam.MapParamEntry(name = "prefix_length", valueHint = { "1" }, description = ""),
                 @MapParam.MapParamEntry(
                     name = "zero_terms_query",
+                    type = "keyword",
                     valueHint = { "none", "all" },
                     description = "Number of beginning characters left unchanged for fuzzy matching."
                 ) },

@@ -24,8 +24,8 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -41,8 +41,7 @@ public class MatchTests extends AbstractFunctionTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() {
+    protected static List<TestCaseSupplier> parametersWithoutFunctionNamedParams() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         addUnsignedLongCases(suppliers);
@@ -50,9 +49,17 @@ public class MatchTests extends AbstractFunctionTestCase {
         addNonNumericCases(suppliers);
         addQueryAsStringTestCases(suppliers);
         addStringTestCases(suppliers);
-        addMatchOptions(suppliers);
 
-        return parameterSuppliersFromTypedData(suppliers);
+        return suppliers;
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return parameterSuppliersFromTypedData(addFunctionNamedParams(parametersWithoutFunctionNamedParams()));
+    }
+
+    protected boolean hasFunctionNamedParams() {
+        return true;
     }
 
     private static void addNonNumericCases(List<TestCaseSupplier> suppliers) {
@@ -155,6 +162,33 @@ public class MatchTests extends AbstractFunctionTestCase {
                 false
             )
         );
+    }
+
+    private static List<TestCaseSupplier> addFunctionNamedParams(Collection<TestCaseSupplier> suppliers) {
+        List<TestCaseSupplier> result = new ArrayList<>();
+        for (TestCaseSupplier supplier : suppliers) {
+            List<DataType> dataTypes = new ArrayList<>(supplier.types());
+            dataTypes.add(UNSUPPORTED);
+            result.add(new TestCaseSupplier(supplier.name() + ", options", dataTypes, () -> {
+                List<TestCaseSupplier.TypedData> values = new ArrayList<>(supplier.get().getData());
+                values.add(
+                    new TestCaseSupplier.TypedData(
+                        new MapExpression(
+                            Source.EMPTY,
+                            List.of(
+                                new Literal(Source.EMPTY, "fuzziness", KEYWORD),
+                                new Literal(Source.EMPTY, randomAlphaOfLength(10), KEYWORD)
+                            )
+                        ),
+                        UNSUPPORTED,
+                        "options"
+                    ).forceLiteral()
+                );
+
+                return new TestCaseSupplier.TestCase(values, equalTo("MatchEvaluator"), DataType.BOOLEAN, equalTo(true));
+            }));
+        }
+        return result;
     }
 
     private static void addUnsignedLongCases(List<TestCaseSupplier> suppliers) {
@@ -374,40 +408,6 @@ public class MatchTests extends AbstractFunctionTestCase {
                     )
                 );
             }
-        }
-    }
-
-    private static void addMatchOptions(List<TestCaseSupplier> suppliers) {
-        for (Map.Entry<String, DataType> allowedOptions : Match.ALLOWED_OPTIONS.entrySet()) {
-            String optionName = allowedOptions.getKey();
-            DataType optionType = allowedOptions.getValue();
-
-            suppliers.add(new TestCaseSupplier(List.of(KEYWORD, KEYWORD, UNSUPPORTED), () -> {
-                Object optionValue = switch (optionType) {
-                    case BOOLEAN -> randomBoolean();
-                    case INTEGER -> randomIntBetween(0, 100000);
-                    case LONG -> randomLong();
-                    case FLOAT -> randomFloat();
-                    case DOUBLE -> randomDouble();
-                    case KEYWORD -> randomAlphaOfLength(10);
-                    default -> throw new IllegalArgumentException("Unsupported option type: " + optionType);
-                };
-                List<TestCaseSupplier.TypedData> values = new ArrayList<>();
-                values.add(new TestCaseSupplier.TypedData(randomAlphaOfLength(10), KEYWORD, "field"));
-                values.add(new TestCaseSupplier.TypedData(randomAlphaOfLength(10), KEYWORD, "query"));
-                values.add(
-                    new TestCaseSupplier.TypedData(
-                        new MapExpression(
-                            Source.EMPTY,
-                            List.of(new Literal(Source.EMPTY, optionName, KEYWORD), new Literal(Source.EMPTY, optionValue, optionType))
-                        ),
-                        UNSUPPORTED,
-                        "options"
-                    ).forceLiteral()
-                );
-
-                return new TestCaseSupplier.TestCase(values, equalTo("MatchEvaluator"), DataType.BOOLEAN, equalTo(true));
-            }));
         }
     }
 

@@ -90,6 +90,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -926,9 +927,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             renderParametersList(description.argNames(), description.argDescriptions());
             FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
             renderDescription(description.description(), info.detailedDescription(), info.note());
+            Optional<EsqlFunctionRegistry.ArgSignature> mapArgSignature = description.args()
+                .stream()
+                .filter(EsqlFunctionRegistry.ArgSignature::mapArg)
+                .findFirst();
+            boolean hasFunctionOptions = mapArgSignature.isPresent();
+            if (hasFunctionOptions) {
+                renderFunctionNamedParams((EsqlFunctionRegistry.MapArgSignature) mapArgSignature.get());
+            }
             boolean hasExamples = renderExamples(info);
             boolean hasAppendix = renderAppendix(info.appendix());
-            renderFullLayout(name, info.preview(), hasExamples, hasAppendix);
+            renderFullLayout(name, info.preview(), hasExamples, hasAppendix, hasFunctionOptions);
             renderKibanaInlineDocs(name, info);
             renderKibanaFunctionDefinition(name, info, description.args(), description.variadic());
             return;
@@ -947,8 +956,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     private static void renderTypes(List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
         StringBuilder header = new StringBuilder();
         List<String> argNames = args.stream().map(EsqlFunctionRegistry.ArgSignature::name).toList();
-        for (String arg : argNames) {
-            header.append(arg).append(" | ");
+        for (EsqlFunctionRegistry.ArgSignature arg : args) {
+            if (arg.optional()) {
+                header.append("(optional) ");
+            }
+            header.append(arg.name()).append(" | ");
         }
         header.append("result");
 
@@ -962,12 +974,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
             StringBuilder b = new StringBuilder();
             for (int i = 0; i < sig.getKey().size(); i++) {
+
                 DataType argType = sig.getKey().get(i);
-                if (args.get(i).mapArg()) {
-                    b.append("map | ");
+                EsqlFunctionRegistry.ArgSignature argSignature = args.get(i);
+                if (argSignature.mapArg()) {
+                    b.append("named parameters");
                 } else {
-                    b.append(argType.esNameIfPossible()).append(" | ");
+                    b.append(argType.esNameIfPossible());
                 }
+                b.append(" | ");
             }
             b.append("| ".repeat(argNames.size() - sig.getKey().size()));
             b.append(sig.getValue().esNameIfPossible());
@@ -986,6 +1001,27 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             """ + header + "\n" + table.stream().collect(Collectors.joining("\n")) + "\n|===\n";
         LogManager.getLogger(getTestClass()).info("Writing function types for [{}]:\n{}", functionName(), rendered);
         writeToTempDir("types", rendered, "asciidoc");
+    }
+
+    private static void renderFunctionNamedParams(EsqlFunctionRegistry.MapArgSignature mapArgSignature) throws IOException {
+        String header = "name | types | description";
+
+        List<String> table = new ArrayList<>();
+        for (Map.Entry<String, EsqlFunctionRegistry.MapEntryArgSignature> argSignatureEntry : mapArgSignature.mapParams().entrySet()) {
+            StringBuilder builder = new StringBuilder();
+            EsqlFunctionRegistry.MapEntryArgSignature arg = argSignatureEntry.getValue();
+            builder.append(arg.name()).append(" | ").append(arg.type()).append(" | ").append(arg.description());
+            table.add(builder.toString());
+        }
+
+        String rendered = DOCS_WARNING + """
+            *Supported function named parameters*
+
+            [%header.monospaced.styled,format=dsv,separator=|]
+            |===
+            """ + header + "\n" + table.stream().collect(Collectors.joining("\n")) + "\n|===\n";
+        LogManager.getLogger(getTestClass()).info("Writing function named parameters for [{}]:\n{}", functionName(), rendered);
+        writeToTempDir("functionNamedParams", rendered, "asciidoc");
     }
 
     private static void renderParametersList(List<String> argNames, List<String> argDescriptions) throws IOException {
@@ -1068,7 +1104,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return true;
     }
 
-    private static void renderFullLayout(String name, boolean preview, boolean hasExamples, boolean hasAppendix) throws IOException {
+    private static void renderFullLayout(String name, boolean preview, boolean hasExamples, boolean hasAppendix, boolean hasFunctionOptions)
+        throws IOException {
         String rendered = DOCS_WARNING + """
             [discrete]
             [[esql-$NAME$]]
@@ -1085,6 +1122,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             """.replace("$NAME$", name)
             .replace("$UPPER_NAME$", name.toUpperCase(Locale.ROOT))
             .replace("$PREVIEW_CALLOUT$", preview ? PREVIEW_CALLOUT : "");
+        if (hasFunctionOptions) {
+            rendered += "ifeval::[\"{release-state}\"==\"unreleased\"]\n"
+                + "//include::../optionalFunctionParams/"
+                + name
+                + ".asciidoc[]\n"
+                + "endif::[]\n";
+        }
         if (hasExamples) {
             rendered += "include::../examples/" + name + ".asciidoc[]\n";
         }

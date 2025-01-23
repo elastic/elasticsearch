@@ -703,8 +703,8 @@ FROM books
 // tag::match-with-named-function-params-result[]
 title:text
 The Hobbit or There and Back Again
-;
 // end::match-with-named-function-params-result[]
+;
 
 testMatchWithOptionsMinimumShouldMatch
 required_capability: match_function

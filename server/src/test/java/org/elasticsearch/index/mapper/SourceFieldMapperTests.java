@@ -235,8 +235,8 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
     public void testSyntheticUpdatesLegacy() throws Exception {
         var mappings = XContentBuilder.builder(XContentType.JSON.xContent()).startObject().startObject("_doc").startObject("_source");
         mappings.field("mode", "synthetic").endObject().endObject().endObject();
-        // one version before SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP
-        MapperService mapperService = createMapperService(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME, mappings);
+        var version = IndexVersionUtils.getPreviousVersion(IndexVersions.SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP);
+        MapperService mapperService = createMapperService(version, mappings);
         SourceFieldMapper mapper = mapperService.documentMapper().sourceMapper();
         assertTrue(mapper.enabled());
         assertTrue(mapper.isSynthetic());

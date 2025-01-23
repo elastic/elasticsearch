@@ -53,6 +53,12 @@
         body: { "events": [null, null]}
 
   - do:
+      index:
+        index: test-events
+        id: "7"
+        body: { "events": [["a", "b"], "a", ["c"], [["b"], "c"]]}
+
+  - do:
       indices.refresh: { }
 
   - do:
@@ -119,6 +125,17 @@
   - match:
      hits.hits.0._source: {}
 
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [7]
+  - match:
+      hits.hits.0._source:
+        events: ["a", "a", "b", "b", "c", "c"]
+
 ---
 
 "synthetic_source_keep value is respected":
@@ -174,6 +191,12 @@
         index: test-events
         id: "6"
         body: { "events": [ null, null ] }
+
+  - do:
+      index:
+        index: test-events
+        id: "7"
+        body: { "events": [["a", "b"], "a", ["c"], [["b"], "c"]]}
 
   - do:
       indices.refresh: { }
@@ -243,6 +266,17 @@
   - match:
       hits.hits.0._source:
         events: [ null, null ]
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 7 ]
+  - match:
+      hits.hits.0._source:
+        events: [["a", "b"], "a", ["c"], [["b"], "c"]]
 
 ---
 
@@ -306,6 +340,12 @@
         body: { "event-object": { "event-object-2": { "events": [ null, null ] } } }
 
   - do:
+      index:
+        index: test-events
+        id: "7"
+        body: { "event-object": { "event-object-2": { "events": [["a", "b"], "a", ["c"], [["b"], "c"]] } } }
+
+  - do:
       indices.refresh: { }
 
   - do:
@@ -345,7 +385,7 @@
       hits.hits.0._source:
         event-object:
           event-object-2:
-            events: [  "a", "b", "c", "c"]
+            events: [ "a", "b", "c", "c" ]
 
   - do:
       search:
@@ -379,6 +419,19 @@
               values: [ 6 ]
   - match:
       hits.hits.0._source: {}
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 7 ]
+  - match:
+      hits.hits.0._source:
+        event-object:
+          event-object-2:
+            events: [ "a", "a", "b", "b", "c", "c" ]
 
 ---
 
@@ -435,6 +488,12 @@
         index: test-events
         id: "6"
         body: { "events": [ null, null ] }
+
+  - do:
+      index:
+        index: test-events
+        id: "7"
+        body: { "events": [ [ "a", "b" ], "a", [ "c" ], [ [ "b" ], "c" ] ] }
 
   - do:
       indices.refresh: { }
@@ -504,3 +563,14 @@
   - match:
       hits.hits.0._source:
         events: [ null, null ]
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 7 ]
+  - match:
+      hits.hits.0._source:
+        events: [["a", "b"], "a", ["c"], [["b"], "c"]]

@@ -17,7 +17,7 @@ apply plugin: 'elasticsearch.bwc-test'
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster', 'capabilities', 'ilm'
+    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster', 'capabilities'
   }
   restTests {
     includeXpack 'esql'

@@ -10,23 +10,6 @@ setup:
       reason: "uses LOOKUP JOIN"
 
   - do:
-      ilm.put_lifecycle:
-        policy: "my_policy"
-        body: |
-          {
-            "policy": {
-              "phases": {
-                 "delete": {
-                   "min_age": "30s",
-                   "actions": {
-                     "delete": {}
-                   }
-                 }
-              }
-            }
-          }
-
-  - do:
       cluster.put_component_template:
         name: my_settings
         body:
@@ -34,8 +17,6 @@ setup:
             settings:
               index:
                 mode: lookup
-                lifecycle:
-                  name: "my_policy"
 
 
   - do:

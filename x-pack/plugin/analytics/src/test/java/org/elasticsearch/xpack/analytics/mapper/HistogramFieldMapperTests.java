@@ -451,8 +451,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    public boolean supportsNestedArrayValues() {
+    public void testSyntheticSourceKeepArrays() {
         // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
-        return false;
     }
 }

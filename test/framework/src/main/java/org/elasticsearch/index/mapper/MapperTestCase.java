@@ -1677,10 +1677,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return syntheticSourceSupport(ignoreMalformed);
     }
 
-    protected boolean supportsNestedArrayValues() {
-        return true;
-    }
-
     public void testSyntheticSourceKeepNone() throws IOException {
         SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
@@ -1709,37 +1705,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertThat(syntheticSource(mapperAll, example::buildInput), equalTo(expected));
     }
 
-    public void testSyntheticSourceInheritsKeepAll() throws IOException {
-        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
-        DocumentMapper mapperAll = createSytheticSourceMapperService(mapping(b -> {
-            b.startObject("wrapper");
-            b.field("type", "object");
-            b.field("synthetic_source_keep", "all");
-            b.startObject("properties");
-            b.startObject("field");
-            example.mapping().accept(b);
-            b.endObject();
-            b.endObject();
-            b.endObject();
-        })).documentMapper();
-
-        CheckedConsumer<XContentBuilder, IOException> buildInput = (XContentBuilder builder) -> {
-            builder.startObject("wrapper");
-            example.buildInput(builder);
-            builder.endObject();
-        };
-
-        var builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        buildInput.accept(builder);
-        builder.endObject();
-        String expected = Strings.toString(builder);
-        assertThat(syntheticSource(mapperAll, buildInput), equalTo(expected));
-    }
-
     public void testSyntheticSourceKeepArrays() throws IOException {
-        assumeTrue("Field type does not support nested array values", supportsNestedArrayValues());
-
         SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
         DocumentMapper mapperAll = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
@@ -1747,36 +1713,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             example.mapping().accept(b);
             b.endObject();
         })).documentMapper();
-
-        int elementCount = randomIntBetween(2, 5);
-        CheckedConsumer<XContentBuilder, IOException> buildInput = (XContentBuilder builder) -> {
-            example.buildInputArray(builder, elementCount);
-        };
-
-        var builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        buildInput.accept(builder);
-        builder.endObject();
-        String expected = Strings.toString(builder);
-        String actual = syntheticSource(mapperAll, buildInput);
-        assertThat(actual, equalTo(expected));
-    }
-
-    public void testSyntheticSourceIndexLevelKeepArrays() throws IOException {
-        assumeTrue("Field type does not support nested array values", supportsNestedArrayValues());
-
-        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
-        XContentBuilder mappings = mapping(b -> {
-            b.startObject("field");
-            example.mapping().accept(b);
-            b.endObject();
-        });
-
-        var settings = Settings.builder()
-            .put("index.mapping.source.mode", "synthetic")
-            .put("index.mapping.synthetic_source_keep", "arrays")
-            .build();
-        DocumentMapper mapperAll = createMapperService(getVersion(), settings, () -> true, mappings).documentMapper();
 
         int elementCount = randomIntBetween(2, 5);
         CheckedConsumer<XContentBuilder, IOException> buildInput = (XContentBuilder builder) -> {

@@ -1,0 +1,77 @@
+[[release-notes-8.17.1]]
+== {es} version 8.17.1
+
+Also see <<breaking-changes-8.17,Breaking changes in 8.17>>.
+
+[[bug-8.17.1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix moving function linear weighted avg {es-pull}118435[#118435] (issue: {es-issue}113751[#113751])
+
+CCS::
+* Resolve/cluster should mark remotes as not connected when a security exception is thrown {es-pull}119793[#119793]
+
+Data streams::
+* Add missing traces ilm policy for OTel traces data streams {es-pull}119449[#119449]
+
+Downsampling::
+* Handle `index.mapping.ignore_malformed` in downsampling {es-pull}119134[#119134] (issue: {es-issue}119075[#119075])
+* Support flattened field with downsampling {es-pull}118816[#118816] (issue: {es-issue}116319[#116319])
+
+ES|QL::
+* Allow DATE_PARSE to read the timezones {es-pull}118603[#118603] (issue: {es-issue}117680[#117680])
+* Fix ESQL async get while task is being cancelled {es-pull}119897[#119897]
+* Fix RLIKE folding with (unsupported) case insensitive pattern {es-pull}118454[#118454]
+
+ILM+SLM::
+* Add missing timeouts to rest-api-spec ILM APIs {es-pull}118837[#118837]
+* Add missing timeouts to rest-api-spec SLM APIs {es-pull}118958[#118958]
+
+Infra/Node Lifecycle::
+* Add missing timeouts to rest-api-spec shutdown APIs {es-pull}118921[#118921]
+
+Infra/REST API::
+* Add missing parameter to `xpack.info` rest-api-spec {es-pull}118954[#118954]
+
+Ingest Node::
+* Add missing timeouts to rest-api-spec ingest APIs {es-pull}118844[#118844]
+* Expose BwC enrich cache setting in plugin {es-pull}119131[#119131]
+* Fixing `GetDatabaseConfigurationAction` response serialization {es-pull}119233[#119233]
+
+License::
+* Remove unsupported timeout from rest-api-spec license API {es-pull}118919[#118919]
+
+Machine Learning::
+* Fix loss of context in the inference API for streaming APIs {es-pull}118999[#118999] (issue: {es-issue}119000[#119000])
+* Fix spike detection for short spikes at the tail of the data {es-pull}119637[#119637]
+* Fix timeout ingesting an empty string into a `semantic_text` field {es-pull}117840[#117840]
+* [Inference API] Fix bug checking for e5 or reranker default IDs {es-pull}119797[#119797]
+
+Search::
+* ESQL: `connect_transport_exception` should be thrown instead of `verification_exception` when ENRICH-ing if remote is disconnected {es-pull}119750[#119750]
+* Fix: do not let `_resolve/cluster` hang if remote is unresponsive {es-pull}119516[#119516]
+* Handle exceptions in query phase can match {es-pull}117469[#117469] (issue: {es-issue}104994[#104994])
+
+[[enhancement-8.17.1]]
+[float]
+=== Enhancements
+
+Authorization::
+* Improve handling of nested fields in index reader wrappers {es-pull}118757[#118757]
+
+Data streams::
+* Add mapping for `event_name` for OTel logs {es-pull}119495[#119495]
+
+Monitoring::
+* Addition of `tier_preference`, `creation_date` and `version` fields in Elasticsearch monitoring template {es-pull}117851[#117851]
+
+[[feature-8.17.1]]
+[float]
+=== New features
+
+Logs::
+* Make logsdb general available {es-pull}118559[#118559]
+
+

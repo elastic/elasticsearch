@@ -403,24 +403,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceCrudIT
   method: testGetServicesWithCompletionTaskType
   issue: https://github.com/elastic/elasticsearch/issues/119959
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {date.Implicit casting strings to dates for IN operator SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/120159
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {date.IN operator with null in list, doesn't find match SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/120157
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {date.IN operator with null in list, doesn't find match, EVAL to check value SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/120151
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {date.IN operator with null in list, finds match SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/120158
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {date.Implicit casting strings to dates for IN operator}
-  issue: https://github.com/elastic/elasticsearch/issues/120155
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {date.IN operator with null in list, finds match}
-  issue: https://github.com/elastic/elasticsearch/issues/120156
 - class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
   method: testRandomDirectoryIOExceptions
   issue: https://github.com/elastic/elasticsearch/issues/118733
@@ -439,9 +421,20 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   method: testRetryPointInTime
   issue: https://github.com/elastic/elasticsearch/issues/120442
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testMultipleInferencesTriggeringDownloadAndDeploy
+  issue: https://github.com/elastic/elasticsearch/issues/117208
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/120672
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {date.IN operator with null in list, doesn't find match}
-  issue: https://github.com/elastic/elasticsearch/issues/120348
+  method: test {date.Implicit casting strings to dates for IN operator}
+  issue: https://github.com/elastic/elasticsearch/issues/120155
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {date.IN operator with null in list, doesn't find match, EVAL to check value}
-  issue: https://github.com/elastic/elasticsearch/issues/120349
+  method: test {date.IN operator with null in list, finds match}
+  issue: https://github.com/elastic/elasticsearch/issues/120156
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {date.IN operator with null in list, finds match SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/120158
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {date.Implicit casting strings to dates for IN operator SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/120159

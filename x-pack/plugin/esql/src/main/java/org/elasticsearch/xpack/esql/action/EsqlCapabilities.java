@@ -574,6 +574,11 @@ public class EsqlCapabilities {
         JOIN_LOOKUP_V11(Build.current().isSnapshot()),
 
         /**
+         * LOOKUP JOIN without MV matching (https://github.com/elastic/elasticsearch/issues/118780)
+         */
+        JOIN_LOOKUP_SKIP_MV(JOIN_LOOKUP_V11.isEnabled()),
+
+        /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054
          */
         FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER,

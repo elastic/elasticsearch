@@ -21,7 +21,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder.RETRIEVERS_FIELD;
 
 public class LinearRetrieverComponent implements ToXContentObject {
 
@@ -45,7 +44,9 @@ public class LinearRetrieverComponent implements ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(RETRIEVERS_FIELD.getPreferredName(), retriever);
+        builder.field(RETRIEVER_FIELD.getPreferredName(), retriever);
+        builder.field(WEIGHT_FIELD.getPreferredName(), weight);
+        builder.field(NORMALIZER_FIELD.getPreferredName(), normalizer);
         return builder;
     }
 
@@ -73,7 +74,9 @@ public class LinearRetrieverComponent implements ToXContentObject {
                 return ScoreNormalizer.valueOf(p.text());
             } else if (p.currentToken() == XContentParser.Token.START_OBJECT) {
                 p.nextToken();
-                return ScoreNormalizer.parse(p.currentName(), p);
+                ScoreNormalizer normalizer = ScoreNormalizer.parse(p.currentName(), p);
+                p.nextToken();
+                return normalizer;
             }
             throw new ParsingException(p.getTokenLocation(), "Unsupported token [" + p.currentToken() + "]");
         }, NORMALIZER_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);

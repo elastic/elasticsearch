@@ -387,7 +387,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                             ),
                             rankWindowSize,
                             new float[] { 2.0f, 1.0f },
-                            null
+                            new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE }
                         ),
                         null
                     ),
@@ -484,7 +484,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                 rrfDetails.getDescription(),
                 equalTo(
                     "weighted linear combination score: [30.0] computed for normalized scores [9.0, 20.0, 1.0] "
-                        + "as sum of (weight[i] * score[i]) for each query."
+                        + "and weights [1.0, 1.0, 1.0] as sum of (weight[i] * score[i]) for each query."
                 )
             );
 

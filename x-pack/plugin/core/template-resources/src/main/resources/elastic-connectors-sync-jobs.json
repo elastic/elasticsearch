@@ -40,7 +40,6 @@
                       "type": "date"
                     },
                     "value": {
-                      "dynamic": "false",
                       "type": "object"
                     }
                   }

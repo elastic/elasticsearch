@@ -218,7 +218,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         // Finally, verify that all the indices exist and have the properties we expect.
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".int-man-old-reindexed-for-9",
+            ".int-man-old-reindexed-for-" + UPGRADED_TO_VERSION,
             INTERNAL_MANAGED_FLAG_VALUE,
             true,
             true,
@@ -226,7 +226,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".int-unman-old-reindexed-for-9",
+            ".int-unman-old-reindexed-for-" + UPGRADED_TO_VERSION,
             INTERNAL_UNMANAGED_FLAG_VALUE,
             false,
             true,
@@ -234,7 +234,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".ext-man-old-reindexed-for-9",
+            ".ext-man-old-reindexed-for-" + UPGRADED_TO_VERSION,
             EXTERNAL_MANAGED_FLAG_VALUE,
             true,
             false,
@@ -242,7 +242,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".ext-unman-old-reindexed-for-9",
+            ".ext-unman-old-reindexed-for-" + UPGRADED_TO_VERSION,
             EXTERNAL_UNMANAGED_FLAG_VALUE,
             false,
             false,
@@ -251,7 +251,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".second-int-man-old-reindexed-for-9",
+            ".second-int-man-old-reindexed-for-" + UPGRADED_TO_VERSION,
             SECOND_FEATURE_IDX_FLAG_VALUE,
             true,
             true,

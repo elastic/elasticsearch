@@ -417,7 +417,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             final IndexMode indexMode,
             final String fullFieldName
         ) {
-            return areDefaultSettingsUsed()
+            return (areDefaultSettingsUsed() || isNotIndexedAndHasDocValues())
                 && isLogsDbMode(indexMode)
                 && isHostNameField(fullFieldName)
                 && isPrimarySortField(indexSortConfig);
@@ -433,6 +433,10 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private boolean areDefaultSettingsUsed() {
             return indexed.isConfigured() == false && hasDocValues.isConfigured() == false;
+        }
+
+        private boolean isNotIndexedAndHasDocValues() {
+            return indexed.getValue() == false && hasDocValues.getValue();
         }
 
         private boolean isLogsDbMode(final IndexMode indexMode) {

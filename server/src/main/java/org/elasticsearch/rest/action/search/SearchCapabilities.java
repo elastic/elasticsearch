@@ -36,6 +36,9 @@ public final class SearchCapabilities {
     /** knn query where k defaults to the request size. */
     private static final String K_DEFAULT_TO_SIZE = "k_default_to_size";
 
+    /** Support deprecated window_size field in rank. */
+    private static final String RRF_WINDOW_SIZE_SUPPORT_DEPRECATED = "rrf_window_size_support_deprecated";
+
     private static final String RANDOM_SAMPLER_WITH_SCORED_SUBAGGS = "random_sampler_with_scored_subaggs";
     private static final String OPTIMIZED_SCALAR_QUANTIZATION_BBQ = "optimized_scalar_quantization_bbq";
     private static final String KNN_QUANTIZED_VECTOR_RESCORE_OVERSAMPLE = "knn_quantized_vector_rescore_oversample";
@@ -54,6 +57,7 @@ public final class SearchCapabilities {
         capabilities.add(MOVING_FN_RIGHT_MATH);
         capabilities.add(K_DEFAULT_TO_SIZE);
         capabilities.add(KQL_QUERY_SUPPORTED);
+        capabilities.add(RRF_WINDOW_SIZE_SUPPORT_DEPRECATED);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

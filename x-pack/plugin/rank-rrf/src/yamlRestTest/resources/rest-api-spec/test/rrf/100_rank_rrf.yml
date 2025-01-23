@@ -104,10 +104,12 @@ setup:
 "Simple rank with old window_size param":
 
   - requires:
-      cluster_features: ["gte_v8.16.0"]
-      reason: "deprecation added in 8.16"
-      test_runner_features: warnings
-
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ rrf_window_size_support_deprecated ]
+      test_runner_features: capabilities
+      reason: "add deprecated field [window_size] in 8.18 to support upgrade"
   - do:
       warnings:
         - "Deprecated field [rank] used, replaced by [retriever]"

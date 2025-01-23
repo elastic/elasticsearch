@@ -140,42 +140,42 @@ public class RenameProcessorTests extends ESTestCase {
 
     public void testRenameAtomicOperationSetFails() throws Exception {
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("list", List.of("item"));
+        metadata.put("_list", List.of("item"));
 
         IngestDocument ingestDocument = TestIngestDocument.ofMetadataWithValidator(
             metadata,
-            Map.of("new_field", new Metadata.FieldProperty<>(Object.class, true, true, (k, v) -> {
+            Map.of("_new_field", new Metadata.FieldProperty<>(Object.class, true, true, (k, v) -> {
                 if (v != null) {
                     throw new UnsupportedOperationException();
                 }
-            }), "list", new Metadata.FieldProperty<>(Object.class, true, true, null))
+            }), "_list", new Metadata.FieldProperty<>(Object.class, true, true, null))
         );
-        Processor processor = createRenameProcessor("list", "new_field", false, false);
+        Processor processor = createRenameProcessor("_list", "_new_field", false, false);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
         } catch (UnsupportedOperationException e) {
             // the set failed, the old field has not been removed
-            assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
-            assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(false));
+            assertThat(ingestDocument.getSourceAndMetadata().containsKey("_list"), equalTo(true));
+            assertThat(ingestDocument.getSourceAndMetadata().containsKey("_new_field"), equalTo(false));
         }
     }
 
     public void testRenameAtomicOperationRemoveFails() throws Exception {
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("list", List.of("item"));
+        metadata.put("_list", List.of("item"));
 
         IngestDocument ingestDocument = TestIngestDocument.ofMetadataWithValidator(
             metadata,
-            Map.of("list", new Metadata.FieldProperty<>(Object.class, false, true, null))
+            Map.of("_list", new Metadata.FieldProperty<>(Object.class, false, true, null))
         );
-        Processor processor = createRenameProcessor("list", "new_field", false, false);
+        Processor processor = createRenameProcessor("_list", "new_field", false, false);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
         } catch (IllegalArgumentException e) {
             // the set failed, the old field has not been removed
-            assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
+            assertThat(ingestDocument.getSourceAndMetadata().containsKey("_list"), equalTo(true));
             assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(false));
         }
     }

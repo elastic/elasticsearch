@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
@@ -18,6 +21,7 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.telemetry.TransformMeterRegistry;
 import org.junit.Before;
@@ -40,6 +44,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.only;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 public class TransformConfigAutoMigrationTests extends ESTestCase {
     private TransformConfigManager transformConfigManager;
@@ -51,8 +56,10 @@ public class TransformConfigAutoMigrationTests extends ESTestCase {
         super.setUp();
         transformConfigManager = mock();
         auditor = mock();
+        ThreadPool threadPool = mock();
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
-        autoMigration = new TransformConfigAutoMigration(transformConfigManager, auditor, TransformMeterRegistry.noOp());
+        autoMigration = new TransformConfigAutoMigration(transformConfigManager, auditor, TransformMeterRegistry.noOp(), threadPool);
     }
 
     protected boolean enableWarningsCheck() {
@@ -127,11 +134,16 @@ public class TransformConfigAutoMigrationTests extends ESTestCase {
 
     public void testMigrateAndSaveSuccess() throws InterruptedException {
         doAnswer(ans -> {
-            ActionListener<Boolean> listener = ans.getArgument(1);
+            ActionListener<Boolean> listener = ans.getArgument(2);
             listener.onResponse(true);
             return null;
-        }).when(transformConfigManager).putTransformConfiguration(any(), any());
+        }).when(transformConfigManager).updateTransformConfiguration(any(), any(), any());
         var originalConfig = randomTransformConfigWithDeprecatedSettings();
+        doAnswer(ans -> {
+            ActionListener<Tuple<TransformConfig, SeqNoPrimaryTermAndIndex>> listener = ans.getArgument(1);
+            listener.onResponse(Tuple.tuple(originalConfig, mock()));
+            return null;
+        }).when(transformConfigManager).getTransformConfigurationForUpdate(any(), any());
 
         testMigration(originalConfig, updatedConfig -> {
             assertThatMaxPageSearchSizeMigrated(updatedConfig, originalConfig);
@@ -139,20 +151,42 @@ public class TransformConfigAutoMigrationTests extends ESTestCase {
         });
     }
 
-    public void testMigrateAndSaveWithErrors() throws InterruptedException {
-        doAnswer(ans -> {
-            ActionListener<Boolean> listener = ans.getArgument(1);
-            listener.onFailure(new IllegalStateException("This is a failure"));
-            return null;
-        }).when(transformConfigManager).putTransformConfiguration(any(), any());
+    public void testMigrateAndSaveWithGetSequenceError() throws InterruptedException {
         var originalConfig = randomTransformConfigWithDeprecatedSettings();
+        doAnswer(ans -> {
+            ActionListener<?> listener = ans.getArgument(1);
+            listener.onFailure(new IllegalStateException("This is a getSequence failure."));
+            return null;
+        }).when(transformConfigManager).getTransformConfigurationForUpdate(any(), any());
+
+        testMigration(originalConfig, updatedConfig -> {
+            assertThat(updatedConfig, sameInstance(originalConfig));
+            verify(auditor, only()).warning(
+                eq(originalConfig.getId()),
+                eq("Failed to auto-migrate Config. Please see Elasticsearch logs. Continuing with old config.")
+            );
+        });
+    }
+
+    public void testMigrateAndSaveWithUpdateError() throws InterruptedException {
+        doAnswer(ans -> {
+            ActionListener<Boolean> listener = ans.getArgument(2);
+            listener.onFailure(new IllegalStateException("This is an update failure"));
+            return null;
+        }).when(transformConfigManager).updateTransformConfiguration(any(), any(), any());
+        var originalConfig = randomTransformConfigWithDeprecatedSettings();
+        doAnswer(ans -> {
+            ActionListener<Tuple<TransformConfig, SeqNoPrimaryTermAndIndex>> listener = ans.getArgument(1);
+            listener.onResponse(Tuple.tuple(originalConfig, mock()));
+            return null;
+        }).when(transformConfigManager).getTransformConfigurationForUpdate(any(), any());
 
         testMigration(originalConfig, updatedConfig -> {
             assertThat(updatedConfig, sameInstance(originalConfig));
             verify(auditor).info(eq(updatedConfig.getId()), eq(TransformMessages.MAX_PAGE_SEARCH_SIZE_MIGRATION));
             verify(auditor).warning(
                 eq(originalConfig.getId()),
-                eq("Failed to persist auto-migrated Config. Please see Elasticsearch logs. Continuing with old config.")
+                eq("Failed to auto-migrate Config. Please see Elasticsearch logs. Continuing with old config.")
             );
         });
     }

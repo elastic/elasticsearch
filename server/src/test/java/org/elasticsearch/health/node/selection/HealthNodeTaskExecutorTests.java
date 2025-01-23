@@ -42,6 +42,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNotNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -102,7 +103,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
                 eq("health-node"),
                 eq("health-node"),
                 eq(new HealthNodeTaskParams()),
-                eq(null),
+                isNotNull(),
                 any()
             )
         );
@@ -121,7 +122,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
             eq("health-node"),
             eq("health-node"),
             eq(new HealthNodeTaskParams()),
-            eq(null),
+            isNotNull(),
             any()
         );
     }

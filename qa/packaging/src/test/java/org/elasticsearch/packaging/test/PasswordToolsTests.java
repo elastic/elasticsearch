@@ -146,31 +146,14 @@ public class PasswordToolsTests extends PackagingTestCase {
      * We retry here on authentication errors for a couple of seconds just to verify that this is not the case.
      */
     private <R> R retryOnAuthenticationErrors(final Callable<R> callable) throws Exception {
-        R lastResponse = null;
         Exception failure = null;
         int retries = 5;
         while (retries-- > 0) {
             try {
-                final R response = callable.call();
-                if (response != null && response.toString().contains("Failed to authenticate user")) {
-                    logger.info(
-                        "Authentication failed (possibly due to UnavailableShardsException for the security index), retrying [{}]. "
-                            + "Response: [{}]",
-                        retries,
-                        response
-                    );
-                    lastResponse = response;
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException interrupted) {
-                        Thread.currentThread().interrupt();
-                        return response;
-                    }
-                } else {
-                    return response;
-                }
+                return callable.call();
             } catch (Exception e) {
-                if (e.getMessage().contains("401 Unauthorized")) {
+                if (e.getMessage() != null
+                    && (e.getMessage().contains("401 Unauthorized") || e.getMessage().contains("Failed to authenticate user"))) {
                     logger.info(
                         "Authentication failed (possibly due to UnavailableShardsException for the security index), retrying [{}].",
                         retries,
@@ -186,18 +169,13 @@ public class PasswordToolsTests extends PackagingTestCase {
                     } catch (InterruptedException interrupted) {
                         Thread.currentThread().interrupt();
                         failure.addSuppressed(interrupted);
-                        throw failure;
                     }
                 } else {
                     throw e;
                 }
             }
         }
-        if (failure != null) {
-            throw failure;
-        } else {
-            return lastResponse;
-        }
+        throw failure;
     }
 
     private Map<String, String> parseUsersAndPasswords(String output) {

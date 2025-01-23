@@ -64,17 +64,20 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
     }
 
     @Override
-    public void baselineMappings(XContentBuilder builder) throws IOException {
-        dataGenerationHelper.standardMapping(builder);
-    }
-
-    @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
         dataGenerationHelper.logsDbMapping(builder);
     }
 
     @Override
-    public void baselineSettings(Settings.Builder builder) {}
+    public void commonSettings(Settings.Builder builder) {
+        if (numShards > 0) {
+            builder.put("index.number_of_shards", numShards);
+        }
+        if (numReplicas > 0) {
+            builder.put("index.number_of_replicas", numReplicas);
+        }
+        builder.put("index.mapping.total_fields.limit", 5000);
+    }
 
     @Override
     public void contenderSettings(Settings.Builder builder) {
@@ -90,15 +93,7 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
     }
 
     @Override
-    public void commonSettings(Settings.Builder builder) {
-        if (numShards > 0) {
-            builder.put("index.number_of_shards", numShards);
-        }
-        if (numReplicas > 0) {
-            builder.put("index.number_of_replicas", numReplicas);
-        }
-        builder.put("index.mapping.total_fields.limit", 5000);
-    }
+    public void baselineSettings(Settings.Builder builder) {}
 
     @Override
     public void beforeStart() throws Exception {

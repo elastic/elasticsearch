@@ -72,7 +72,7 @@ log fields, such as DNS A records, HTTP headers, and log entries that represent 
 
 In `logsdb` index mode, indices are sorted by fields `host.name` and `@timestamp` by default. The `@timestamp` field is
 automatically injected if it is not present. The `host.name` field is automatically injected as `keyword` if it is not
-present and can be injected (this may not be possible if  `host` is a keyword field, for instance). If field
+present and can be injected - this may not be possible if  `host` is a keyword field, for instance. If field
 `host.name` can't be injected or can't be used for sorting (e.g. it's an IP field), sorting is only applied to field
 `@timestamp`.
 
@@ -80,8 +80,7 @@ NOTE: If `host.name` is injected and `subobjects` is set to `true` (default), th
 field named `host` with a `name` child field of type `keyword`. If `subobjects` is set to `false`, a single
 `host.name` field is mapped as a `keyword` field.
 
-With regard to ordering, `host.name` and `@timestamp` are sorted in ascending and descending order respectively,
-prioritizing the latest data.
+`host.name` and `@timestamp` are sorted in ascending and descending order respectively, prioritizing the latest data.
 
 It is possible to override the default sort configuration by configuring settings `index.sort.field` and
 `index.sort.order`. Section <<index-modules-index-sorting>> covers this topic in detail. To modify the sort
@@ -114,7 +113,7 @@ IMPORTANT: On existing data streams, `logsdb` mode is applied on <<data-streams-
 
 The storage footprint of `logsdb` indexes can further be reduced by enabling a routing optimization that relies on
 the fields in the sort configuration (except for `@timestamp`) to route documents to shards. The storage wins depend on
-the sort configuration and the nature of the logged data - we've observed 20% storage reductions in our benchmarks,
+the sort configuration and the nature of the logged data - we observed 20% storage reductions in our benchmarks,
 compared to the default configuration for `logsdb` mode. Combined with a negligible penalty to ingest
 performance (1-4%), this optimization is a good option for data streams that are expected to grow substantially with
 time.

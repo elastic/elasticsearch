@@ -74,7 +74,6 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     record CheckAction(CheckedRunnable<Exception> action, boolean isAlwaysDeniedToPlugins, Integer fromJavaVersion) {
         /**
          * These cannot be granted to plugins, so our test plugins cannot test the "allowed" case.
-         * Used both for always-denied entitlements and those granted only to the server itself.
          */
         static CheckAction deniedToPlugins(CheckedRunnable<Exception> action) {
             return new CheckAction(action, true, null);

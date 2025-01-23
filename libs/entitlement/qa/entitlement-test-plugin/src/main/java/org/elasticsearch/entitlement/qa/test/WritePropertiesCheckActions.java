@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.qa.test;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.qa.entitled.EntitledPlugin;
 
 @SuppressForbidden(reason = "testing entitlements")
 class WritePropertiesCheckActions {
@@ -26,6 +27,7 @@ class WritePropertiesCheckActions {
     }
 
     static void clearSystemProperty() {
+        EntitledPlugin.selfTest(); // TODO: find a better home
         System.clearProperty("es.entitlements.checkClearSystemProperty");
     }
 

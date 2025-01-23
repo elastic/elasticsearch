@@ -10,7 +10,6 @@
 package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.ServerUtils;
@@ -21,6 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -48,7 +48,9 @@ public class PasswordToolsTests extends PackagingTestCase {
     public void test20GeneratePasswords() throws Exception {
         assertWhileRunning(() -> {
             ServerUtils.waitForElasticsearch(installation);
-            Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
+            Shell.Result result = retryOnAuthenticationErrors(
+                () -> installation.executables().setupPasswordsTool.run("auto --batch", null)
+            );
             Map<String, String> userpasses = parseUsersAndPasswords(result.stdout());
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
                 String response = ServerUtils.makeRequest(
@@ -104,15 +106,15 @@ public class PasswordToolsTests extends PackagingTestCase {
 
         assertWhileRunning(() -> {
             ServerUtils.waitForElasticsearch("green", null, installation, "elastic", BOOTSTRAP_PASSWORD, null);
-            retryOn401(() -> {
-                String response = ServerUtils.makeRequest(
+            final String response = retryOnAuthenticationErrors(
+                () -> ServerUtils.makeRequest(
                     Request.Get("http://localhost:9200/_cluster/health?wait_for_status=green&timeout=180s"),
                     "elastic",
                     BOOTSTRAP_PASSWORD,
                     null
-                );
-                assertThat(response, containsString("\"status\":\"green\""));
-            });
+                )
+            );
+            assertThat(response, containsString("\"status\":\"green\""));
         });
 
     }
@@ -135,20 +137,45 @@ public class PasswordToolsTests extends PackagingTestCase {
         });
     }
 
-    private void retryOn401(CheckedRunnable<Exception> runnable) throws Exception {
+    /**
+     * The security index is created on startup.
+     * It can happen that even when the security index exists, we get an authentication failure as `elastic`
+     * user because the reserved realm checks the security index first.
+     * This is because we check the security index too early (just after the creation) when all shards did not get allocated yet.
+     * Hence, the call can result in an `UnavailableShardsException` and cause the authentication to fail.
+     * We retry here on authentication errors for a couple of seconds just to verify that this is not the case.
+     */
+    private <R> R retryOnAuthenticationErrors(final Callable<R> callable) throws Exception {
+        R lastResponse = null;
         Exception failure = null;
         int retries = 5;
         while (retries-- > 0) {
             try {
-                runnable.run();
-                return;
+                final R response = callable.call();
+                if (response != null && response.toString().contains("Failed to authenticate user")) {
+                    logger.info(
+                        "Authentication failed (possibly due to UnavailableShardsException for the security index), retrying [{}]. "
+                            + "Response: [{}]",
+                        retries,
+                        response
+                    );
+                    lastResponse = response;
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        return response;
+                    }
+                } else {
+                    return response;
+                }
             } catch (Exception e) {
-                // We create the security index on startup. It can happen that even when the security index exists,
-                // we get an authN failure as `elastic` user because the reserved realm checks the security index first.
-                // It can happen that we check the security index too early after the security index creation
-                // but because all shards are allocated. This can result in an UnavailableShardsException.
-                // We retry here on authentication errors for a couple of seconds just to verify this is not the case.
                 if (e.getMessage().contains("401 Unauthorized")) {
+                    logger.info(
+                        "Authentication failed (possibly due to UnavailableShardsException for the security index), retrying [{}].",
+                        retries,
+                        e
+                    );
                     if (failure == null) {
                         failure = e;
                     } else {
@@ -158,14 +185,19 @@ public class PasswordToolsTests extends PackagingTestCase {
                         Thread.sleep(1000);
                     } catch (InterruptedException interrupted) {
                         Thread.currentThread().interrupt();
-                        return;
+                        failure.addSuppressed(interrupted);
+                        throw failure;
                     }
                 } else {
                     throw e;
                 }
             }
         }
-        throw failure;
+        if (failure != null) {
+            throw failure;
+        } else {
+            return lastResponse;
+        }
     }
 
     private Map<String, String> parseUsersAndPasswords(String output) {

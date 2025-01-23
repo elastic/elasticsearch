@@ -12,6 +12,6 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 dependencies {
-  javaRestTestImplementation project(':libs:entitlement:qa:test-plugin')
-  clusterModules project(':libs:entitlement:qa:test-plugin')
+  javaRestTestImplementation project(':libs:entitlement:qa:entitlement-test-plugin')
+  clusterModules project(':libs:entitlement:qa:entitlement-test-plugin')
 }

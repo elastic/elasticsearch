@@ -26,7 +26,7 @@ public class EntitlementsDeniedIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("test-plugin", spec -> EntitlementsUtil.setupEntitlements(spec, true, null))
+        .module("entitlement-test-plugin", spec -> EntitlementsUtil.setupEntitlements(spec, true, null))
         .systemProperty("es.entitlements.enabled", "true")
         .setting("xpack.security.enabled", "false")
         // Logs in libs/entitlement/qa/build/test-results/javaRestTest/TEST-org.elasticsearch.entitlement.qa.EntitlementsDeniedIT.xml

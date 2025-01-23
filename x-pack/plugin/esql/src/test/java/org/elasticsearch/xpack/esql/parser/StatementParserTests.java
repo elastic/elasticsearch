@@ -2966,9 +2966,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidJoinPatterns() {
+        var joinPattern = randomIndexPattern(WILDCARD_PATTERN);
         expectError(
-            "FROM " + randomIndexPatterns() + " | JOIN my-index-pattern* ON " + randomIdentifier(),
-            "invalid index pattern [my-index-pattern*], * is not allowed in LOOKUP JOIN"
+            "FROM " + randomIndexPatterns() + " | JOIN " + joinPattern + " ON " + randomIdentifier(),
+            "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], * is not allowed in LOOKUP JOIN"
         );
     }
 }

@@ -44,7 +44,11 @@ public class IdentifierGenerator {
             index.append(randomCharacterFrom(validCharacters));
         }
         if (canAdd(Features.WILDCARD_PATTERN, features)) {
-            index.append('*');
+            if (ESTestCase.randomBoolean()) {
+                index.append('*');
+            } else {
+                index.insert(ESTestCase.randomIntBetween(0, index.length() - 1), '*');
+            }
         } else if (canAdd(Features.DATE_MATH, features)) {
             // https://www.elastic.co/guide/en/elasticsearch/reference/8.17/api-conventions.html#api-date-math-index-names
             index.insert(0, "<");
@@ -95,7 +99,7 @@ public class IdentifierGenerator {
         return ESTestCase.randomBoolean();
     }
 
-    private static String maybeQuote(String term) {
+    public static String maybeQuote(String term) {
         if (term.contains("\"")) {
             return term;
         }

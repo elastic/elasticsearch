@@ -216,8 +216,8 @@ ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
 
-LEFT_BRACES : {this.isDevVersion()}? '{';
-RIGHT_BRACES : {this.isDevVersion()}? '}';
+LEFT_BRACES : '{';
+RIGHT_BRACES : '}';
 
 NESTED_WHERE : WHERE -> type(WHERE);
 

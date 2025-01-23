@@ -37,7 +37,8 @@ POST _migration/reindex/my-data-stream/_cancel
 [[data-stream-reindex-cancel-prereqs]]
 ==== {api-prereq-title}
 
-?????????????????????????
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the data stream.
 
 [[data-stream-reindex-cancel-path-params]]
 ==== {api-path-parms-title}

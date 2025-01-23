@@ -50,17 +50,7 @@ POST _migration/reindex
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `manage`
-<<privileges-list-cluster,cluster privilege>> to use this API.
-
-* If the {es} {security-features} are enabled, you must have the following
-security privileges:
-
-** The `read` <<privileges-list-indices,index privilege>> for the source data
-stream.
-** The `write` index privilege for the source data stream.
-
-** The `delete_index` privilege.
-
+<<privileges-list-indices,index privilege>> for the data stream.
 
 [[data-stream-reindex-body]]
 ==== {api-request-body-title}
@@ -94,3 +84,230 @@ The number of requests per second used by the <<docs-reindex, reindex>> operatio
 This can be any decimal number greater than `0`, though it defaults to `10`. The value can also be `-1`, which will
 cause there to be no throttling. Consult the reindex documentation for more information.
 // end::migrate_data_stream_reindex_max_request_per_second-tag[]
+
+
+[[reindex-data-stream-api-example]]
+==== {api-examples-title}
+
+Assume we have a data stream `my-data-stream` with the following backing indices, all of which have index major version 7.
+
+* .ds-my-data-stream-2024.01.07-000001
+* .ds-my-data-stream-2024.02.07-000002
+* .ds-my-data-stream-2024.03.07-000003
+
+Let's also assume that `.ds-my-data-stream-2024.03.07-000003` is the write index.
+If the {es} is version 8 and we wish to upgrade to major version 9, the version 7 indices must be upgraded in preparation.
+We can use this API to reindex a data stream with version 7 backing indices and make them version 8 backing indices.
+
+We start with a call the the API:
+
+[source,console]
+----
+POST _migration/reindex
+{
+    "source": {
+        "index": "my-data-stream"
+    },
+    "mode": "upgrade"
+}
+----
+// TEST[setup:my_data_stream]
+// TEST[teardown:data_stream_cleanup]
+
+As this task runs in the background this API will return immediately.
+The task will do the following:
+
+First, the data stream is rolled over. So that no documents are lost during the reindex, we make the existing backing indices
+read-only before reindexing them. Since we cannot make a data stream's write index read-only, we must rollover the data
+stream. This will produce a new write index `.ds-my-data-stream-2025.01.17-000004`, which will have be major version 8,
+and thus does not need to be upgraded.
+
+Once the data stream has a write index with an update-to-date major version we can proceed with reindexing the old indices.
+
+For each of the version 7 indices, we now do the following:
+* Set the index to read-only to guarantee that no writes are lost
+* Delete the target index if one exists. This is done so that if the per-index processing needs to be retried, we start with a new target index.
+* Create the target index using <create-from>. This copies the settings and mappings from the old backing index to the new backing index.
+* Use the <reindex API> to copy the contents of the old backing index to the new backing index.
+* Replace the old index in the data stream with the new index, using the <modify data stream API>.
+* Finally, the old backing index is deleted.
+
+By default only one backing index will be processed at a time. If it is better to reindex multiple backing indices
+concurrently, this can be controlled by the <migrate_max_concurrent_indices_reindexed_per_data_stream-setting, max.concurrent.indices setting>.
+
++
++
+While the reindex data stream task is running, we can inspect the current status:
+
+[source,console-result]
+----
+GET _migration/reindex/my-data-stream/_status
+----
+
+For example, we might be the following response. This shows there was an error because the user running this API
+does not have adequate permissions for the data stream.
+
+[source,console-result]
+----
+{
+  "start_time": "2025-01-17T20:50:47.349",
+  "start_time_millis": "1737147047349",
+  "complete": false,
+  "total_indices_in_data_stream": 4,
+  "total_indices_requiring_upgrade": 3,
+  "successes": 0,
+  "in_progress": [
+    {
+      "index": ".ds-my-data-stream-2024.01.07-000001",
+      "total_doc_count": 164937,
+      "reindexed_doc_count": 6849
+    }
+  ],
+  "pending": 2,
+  "errors": []
+}
+----
+
+Assume at this point the user has obtained the correct permissions. We can now re-run the task
+
+[source,console-result]
+----
+POST _migration/reindex
+{
+    "source": {
+        "index": "my-data-stream"
+    },
+    "mode": "upgrade"
+}
+---
+
+And now checking the status we get the following:
+[source,console-result]
+----
+{
+  "start_time": "2025-01-17T20:50:47.349",
+  "start_time_millis": "1737147047349",
+  "complete": false,
+  "total_indices_in_data_stream": 4,
+  "total_indices_requiring_upgrade": 3,
+  "successes": 0,
+  "in_progress": [
+    {
+      "index": ".ds-my-data-stream-2024.01.07-000001",
+      "total_doc_count": 164937,
+      "reindexed_doc_count": 6849
+    }
+  ],
+  "pending": 2,
+  "errors": []
+}
+----
+
+This output means that the first backing index, `.ds-my-data-stream-2024.01.07-000001`, is currently being processed,
+and none of the backing indices have already been completed. Notice that `total_indices_in_data_stream` has a value of `4`
+because, after the rollover, there are 4 indices in the data stream. But the new write index has version 8, and
+thus doesn't need to be reindexed, so `total_indices_requiring_upgrade` is only 3.
+
++
+After the first backing index has completed, status might return the following:
+[source,console-result]
+----
+{
+  "start_time": "2025-01-17T20:50:47.349",
+  "start_time_millis": "1737147047349",
+  "complete": false,
+  "total_indices_in_data_stream": 4,
+  "total_indices_requiring_upgrade": 3,
+  "successes": 0,
+  "in_progress": [
+    {
+      "index": ".ds-my-data-stream-2024.02.07-000002",
+      "total_doc_count": 100000,
+      "reindexed_doc_count": 999
+    }
+  ],
+  "pending": 1,
+  "errors": []
+}
+----
+
+Perhaps some time later we decide that `.ds-my-data-stream-2024.02.07-000002` hasn't made much progress. We can see this
+with the values `reindexed_doc_count` and `total_doc_count`, where `reindexed_doc_count/total_doc_count` is the percent
+completion of the index currently being reindexed.
++
+A possible solution is to change the value of the <migrate_data_stream_reindex_max_request_per_second-setting,max request setting>.
+Update this setting would effect the reindexing of backing indices which have not yet started, but would not effect
+ `.ds-my-data-stream-2024.02.07-000002`. Since this index has not progressed very far, we can cancel the task and then optimize the setting value.
+
+We run the following to cancel the task:
+
+[source,console-result]
+----
+POST _migration/reindex/my-data-stream/_cancel
+----
+
+After setting <blank> to the appropriate value, but can restart the task:
+
+[source,console-result]
+----
+POST _migration/reindex
+{
+    "source": {
+        "index": "my-data-stream"
+    },
+    "mode": "upgrade"
+}
+---
+
+Checking the status again shortly will show the following:
+
+[source,console-result]
+----
+{
+  "start_time": "2025-01-17T20:50:47.349",
+  "start_time_millis": "1737147047349",
+  "complete": false,
+  "total_indices_in_data_stream": 4,
+  "total_indices_requiring_upgrade": 2,
+  "successes": 0,
+  "in_progress": [
+    {
+      "index": ".ds-my-data-stream-2024.02.07-000002",
+      "total_doc_count": 100000,
+      "reindexed_doc_count": 999
+    }
+  ],
+  "pending": 1,
+  "errors": []
+}
+----
+
+Notice that `total_indices_requiring_upgrade` is now 2 instead of 3. This is because we successfully upgraded the first
+backing index in th previous run the task.
++
+Once all backing indices have been reindexes, the status will still avaibable to look up for 24 hours after the completion
+of the task. After completion we get the following output:
+
+[source,console-result]
+----
+{
+  "start_time": "2025-01-17T20:50:47.349",
+  "start_time_millis": "1737147047349",
+  "complete": true,
+  "total_indices_in_data_stream": 4,
+  "total_indices_requiring_upgrade": 2,
+  "successes": 2,
+  "in_progress": [],
+  "pending": 0,
+  "errors": []
+}
+----
+
+
+We can now check the data stream to verify that indices were upgraded.
+
+[source,console-result]
+----
+GET /_data_stream
+----
+

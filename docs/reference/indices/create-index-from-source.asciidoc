@@ -27,8 +27,8 @@ POST /_create_from/my-index/another-index/
 [[indices-create-index-from-source-api-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have the `create_index`
-or `manage` <<privileges-list-indices,index privilege>> for the target index.
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the index.
 
 [[indices-create-index-from-source-api-desc]]
 ==== {api-description-title}
@@ -61,3 +61,88 @@ destination index.
 (Optional, boolean) Filter out any index blocks from the source index when creating the destination index.
 Defaults to `true`.
 
+[[indices-create-index-from-source-api-example]]
+==== {api-examples-title}
+
+Start by creating a source index that we'll copy using this API.
+
+[source,console]
+--------------------------------------------------
+PUT /my-index
+{
+  "settings": {
+    "index": {
+      "number_of_shards": 3,
+      "block.writes": true
+    }
+  },
+  "mappings": {
+    "properties": {
+        "field1": { "type": "text" }
+    }
+  }
+}
+--------------------------------------------------
+
+Now we create a destination index from the source index. This new index will have the same mappings and settings
+as the source index.
+
+[source,console]
+--------------------------------------------------
+POST /_create_from/my-index/my-new-index
+--------------------------------------------------
+
+
+Alternatively, we could override some of the source's settings and mappings. This will use the source settings
+and mappings as a basis and combine in the overrides to create the destination settings and mappings.
+
+[source,console]
+--------------------------------------------------
+POST /_create_from/my-index/my-new-index
+{
+  "settings_override": {
+    "index": {
+      "number_of_shards": 5
+    }
+  },
+  "mappings": {
+    "properties": {
+        "field2": { "type": "boolean" }
+    }
+  }
+}
+--------------------------------------------------
+
+Since the destination index is empty, we very likely will want to write into the index after creation.
+This would not be possible if the source index contains an index write block which is copied over to the destination index.
+One way to handle this is to remove the index write block using a settings override. For example, the following
+settings override removes all index blocks.
+
+
+[source,console]
+--------------------------------------------------
+POST /_create_from/my-index/my-new-index
+{
+  "settings_override": {
+    "index": {
+      "index.blocks.write": null,
+      "index.blocks.read": null,
+      "index.blocks.read_only": null,
+      "index.blocks.read_only_allow_delete": null,
+      "index.blocks.metadata": null
+    }
+  }
+}
+--------------------------------------------------
+
+Since this is a common scenario, index blocks are actually removed by default. This is controlled with the parameter
+`remove_index_blocks`, which defaults to `true`. If we want the destination index to contains the index blocks from
+the source index, we can do the following:
+
+[source,console]
+--------------------------------------------------
+POST /_create_from/my-index/my-new-index
+{
+  "remove_index_blocks": false
+}
+--------------------------------------------------

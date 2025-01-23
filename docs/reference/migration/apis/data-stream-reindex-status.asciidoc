@@ -28,7 +28,8 @@ If the task fails, the cause of the failure will be part of the status.
 [[data-stream-reindex-status-prereqs]]
 ==== {api-prereq-title}
 
-?????????????????????????
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the data stream.
 
 [[data-stream-reindex-status-path-params]]
 ==== {api-path-parms-title}

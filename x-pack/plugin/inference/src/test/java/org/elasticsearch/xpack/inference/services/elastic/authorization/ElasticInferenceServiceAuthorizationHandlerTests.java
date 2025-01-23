@@ -185,6 +185,7 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
             verifyNoMoreInteractions(logger);
         }
     }
+
     @SuppressWarnings("unchecked")
     public void testGetAuthorization_OnResponseCalledOnce() throws IllegalStateException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
@@ -195,15 +196,15 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
         ActionListener<ElasticInferenceServiceAuthorization> listener = mock(ActionListener.class);
 
         String responseJson = """
-            {
-                "models": [
-                    {
-                      "model_name": "model-a",
-                      "task_types": ["embedding/text/sparse", "chat/completion"]
-                    }
-                ]
-            }
-        """;
+                {
+                    "models": [
+                        {
+                          "model_name": "model-a",
+                          "task_types": ["embedding/text/sparse", "chat/completion"]
+                        }
+                    ]
+                }
+            """;
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
@@ -214,45 +215,46 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
         verifyNoMoreInteractions(logger);
     }
 
-public void testGetAuthorization_InvalidResponse() throws IOException {
-    var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-    var eisGatewayUrl = getUrl(webServer);
-    var logger = mock(Logger.class);
-    var authHandler = new ElasticInferenceServiceAuthorizationHandler(eisGatewayUrl, threadPool, logger);
+    public void testGetAuthorization_InvalidResponse() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var eisGatewayUrl = getUrl(webServer);
+        var logger = mock(Logger.class);
+        var authHandler = new ElasticInferenceServiceAuthorizationHandler(eisGatewayUrl, threadPool, logger);
 
-    try (var sender = senderFactory.createSender()) {
-        String responseJson = """
-                {
-                    "completion": [
-                        {
-                            "result": "some result 1"
-                        },
-                        {
-                            "result": "some result 2"
-                        }
-                    ]
-                }
-            """;
+        try (var sender = senderFactory.createSender()) {
+            String responseJson = """
+                    {
+                        "completion": [
+                            {
+                                "result": "some result 1"
+                            },
+                            {
+                                "result": "some result 2"
+                            }
+                        ]
+                    }
+                """;
 
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        PlainActionFuture<ElasticInferenceServiceAuthorization> listener = new PlainActionFuture<>();
-        authHandler.getAuthorization(listener, sender);
+            PlainActionFuture<ElasticInferenceServiceAuthorization> listener = new PlainActionFuture<>();
+            authHandler.getAuthorization(listener, sender);
 
-        var authResponse = listener.actionGet(TIMEOUT);
-        assertTrue(authResponse.enabledTaskTypes().isEmpty());
-        assertFalse(authResponse.isEnabled());
+            var authResponse = listener.actionGet(TIMEOUT);
+            assertTrue(authResponse.enabledTaskTypes().isEmpty());
+            assertFalse(authResponse.isEnabled());
 
-        var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
-        verify(logger).warn(loggerArgsCaptor.capture());
-        var message = loggerArgsCaptor.getValue();
-        assertThat(
-            message,
-            is(
-                "Failed to retrieve the authorization information from the Elastic Inference Service."
-                    + " Received an invalid response type: InferenceServiceResults"
-            ));
-    }
+            var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
+            verify(logger).warn(loggerArgsCaptor.capture());
+            var message = loggerArgsCaptor.getValue();
+            assertThat(
+                message,
+                is(
+                    "Failed to retrieve the authorization information from the Elastic Inference Service."
+                        + " Received an invalid response type: InferenceServiceResults"
+                )
+            );
+        }
 
     }
 

@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.TimeValue;
@@ -23,7 +24,7 @@ import java.util.Map;
 public class GetMappingsRequest extends ClusterInfoRequest<GetMappingsRequest> {
 
     public GetMappingsRequest(TimeValue masterTimeout) {
-        super(masterTimeout);
+        super(masterTimeout, IndicesOptions.strictExpandOpen());
     }
 
     public GetMappingsRequest(StreamInput in) throws IOException {

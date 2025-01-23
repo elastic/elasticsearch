@@ -155,6 +155,10 @@ public abstract class MappedFieldType {
         return isIndexed;
     }
 
+    public boolean hasDocValuesSparseIndex() {
+        return false;
+    }
+
     /**
      * Returns true if the field is indexed.
      */

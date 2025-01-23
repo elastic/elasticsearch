@@ -9,7 +9,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.script.ScriptCompiler;
@@ -59,12 +62,16 @@ public class MultiFieldsTests extends ESTestCase {
     }
 
     private KeywordFieldMapper.Builder getKeywordFieldMapperBuilder(boolean isStored, boolean hasNormalizer) {
+        final IndexSettings indexSettings = new IndexSettings(
+            IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).build(),
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
+        );
         var keywordFieldMapperBuilder = new KeywordFieldMapper.Builder(
             "field",
             IndexAnalyzers.of(Map.of(), Map.of("normalizer", Lucene.STANDARD_ANALYZER), Map.of()),
             ScriptCompiler.NONE,
             Integer.MAX_VALUE,
-            IndexVersion.current()
+            indexSettings
         );
         if (isStored) {
             keywordFieldMapperBuilder.stored(true);

@@ -124,7 +124,7 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         assertThat(sourceMode, equalTo("stored"));
 
         request = new Request("GET", "/_migration/deprecations");
-        var componentTemplates = (Map<?, ?>) entityAsMap(client.performRequest(request)).get("component_templates");
+        var componentTemplates = (Map<?, ?>) entityAsMap(client.performRequest(request)).get("templates");
         assertThat(componentTemplates.containsKey("logs@custom"), equalTo(true));
         var issue = ((List<Map<?, ?>>) componentTemplates.get("logs@custom")).getFirst();
         assertThat(issue.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
@@ -205,7 +205,7 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         assertThat(sourceMode, equalTo("stored"));
 
         request = new Request("GET", "/_migration/deprecations");
-        var componentTemplates = (Map<?, ?>) entityAsMap(client.performRequest(request)).get("component_templates");
+        var componentTemplates = (Map<?, ?>) entityAsMap(client.performRequest(request)).get("templates");
         assertThat(componentTemplates.containsKey("logs@custom"), equalTo(true));
         var issue = ((List<Map<?, ?>>) componentTemplates.get("logs@custom")).getFirst();
         assertThat(issue.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));

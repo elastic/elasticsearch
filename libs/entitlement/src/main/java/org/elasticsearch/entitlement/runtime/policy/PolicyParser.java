@@ -48,6 +48,7 @@ public class PolicyParser {
     protected final XContentParser policyParser;
     protected final String policyName;
     private final boolean isExternalPlugin;
+    private final Map<String, Class<?>> externalEntitlements;
 
     static String getEntitlementTypeName(Class<? extends Entitlement> entitlementClass) {
         var entitlementClassName = entitlementClass.getSimpleName();
@@ -66,9 +67,16 @@ public class PolicyParser {
     }
 
     public PolicyParser(InputStream inputStream, String policyName, boolean isExternalPlugin) throws IOException {
+        this(inputStream, policyName, isExternalPlugin, EXTERNAL_ENTITLEMENTS);
+    }
+
+    // package private for tests
+    PolicyParser(InputStream inputStream, String policyName, boolean isExternalPlugin, Map<String, Class<?>> externalEntitlements)
+        throws IOException {
         this.policyParser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, Objects.requireNonNull(inputStream));
         this.policyName = policyName;
         this.isExternalPlugin = isExternalPlugin;
+        this.externalEntitlements = externalEntitlements;
     }
 
     public Policy parsePolicy() {
@@ -124,14 +132,29 @@ public class PolicyParser {
 
     protected Entitlement parseEntitlement(String scopeName, String entitlementType) throws IOException {
         XContentLocation startLocation = policyParser.getTokenLocation();
-        Class<?> entitlementClass = EXTERNAL_ENTITLEMENTS.get(entitlementType);
+        Class<?> entitlementClass = externalEntitlements.get(entitlementType);
 
         if (entitlementClass == null) {
             throw newPolicyParserException(scopeName, "unknown entitlement type [" + entitlementType + "]");
         }
 
-        Constructor<?> entitlementConstructor = entitlementClass.getConstructors()[0];
-        ExternalEntitlement entitlementMetadata = entitlementConstructor.getAnnotation(ExternalEntitlement.class);
+        Constructor<?> entitlementConstructor = null;
+        ExternalEntitlement entitlementMetadata = null;
+        for (var ctor : entitlementClass.getConstructors()) {
+            var metadata = ctor.getAnnotation(ExternalEntitlement.class);
+            if (metadata != null) {
+                if (entitlementMetadata != null) {
+                    throw new IllegalStateException(
+                        "entitlement class ["
+                            + entitlementClass.getName()
+                            + "] has more than one constructor annotated with ExternalEntitlement"
+                    );
+                }
+                entitlementConstructor = ctor;
+                entitlementMetadata = metadata;
+            }
+
+        }
         if (entitlementMetadata == null) {
             throw newPolicyParserException(scopeName, "unknown entitlement type [" + entitlementType + "]");
         }

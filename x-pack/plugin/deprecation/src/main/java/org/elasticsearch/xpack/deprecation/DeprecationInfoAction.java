@@ -144,7 +144,14 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-        static final Set<String> RESERVED_NAMES = Set.of("cluster_settings", "node_settings", "index_settings", "data_streams");
+        static final Set<String> RESERVED_NAMES = Set.of(
+            "cluster_settings",
+            "node_settings",
+            "index_settings",
+            "data_streams",
+            "templates",
+            "ilm_policies"
+        );
         private final List<DeprecationIssue> clusterSettingsIssues;
         private final List<DeprecationIssue> nodeSettingsIssues;
         private final Map<String, Map<String, List<DeprecationIssue>>> resourceDeprecationIssues;
@@ -178,6 +185,8 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             resourceDeprecationIssues = mutableResourceDeprecations;
             assert resourceDeprecationIssues.containsKey("index_settings") : "the field 'index_settings' is missing";
             assert resourceDeprecationIssues.containsKey("data_streams") : "the field 'data_streams' is missing";
+            assert resourceDeprecationIssues.containsKey("templates") : "the field 'templates' is missing";
+            assert resourceDeprecationIssues.containsKey("ilm_policies") : "the field 'ilm_policies' is missing";
         }
 
         public Response(
@@ -200,6 +209,8 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             this.pluginSettingsIssues = pluginSettingsIssues;
             assert resourceDeprecationIssues.containsKey("index_settings") : "the field 'index_settings' is missing";
             assert resourceDeprecationIssues.containsKey("data_streams") : "the field 'data_streams' is missing";
+            assert resourceDeprecationIssues.containsKey("templates") : "the field 'templates' is missing";
+            assert resourceDeprecationIssues.containsKey("ilm_policies") : "the field 'ilm_policies' is missing";
         }
 
         public List<DeprecationIssue> getClusterSettingsIssues() {
@@ -220,6 +231,18 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
 
         public Map<String, Map<String, List<DeprecationIssue>>> getResourceDeprecationIssues() {
             return resourceDeprecationIssues;
+        }
+
+        public Map<String, List<DeprecationIssue>> getDataStreamDeprecationIssues() {
+            return resourceDeprecationIssues.get(DataStreamDeprecationChecker.NAME);
+        }
+
+        public Map<String, List<DeprecationIssue>> getTemplateDeprecationIssues() {
+            return resourceDeprecationIssues.get(TemplateDeprecationChecker.NAME);
+        }
+
+        public Map<String, List<DeprecationIssue>> getIlmPolicyDeprecationIssues() {
+            return resourceDeprecationIssues.get(IlmPolicyDeprecationChecker.NAME);
         }
 
         @Override
@@ -281,6 +304,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
          * @param request The originating request containing the index expressions to evaluate
          * @param nodeDeprecationResponse The response containing the deprecation issues found on each node
          * @param clusterSettingsChecks The list of cluster-level checks
+         * @param pluginSettingIssues this map gets modified to move transform deprecation issues into cluster_settings
          * @return The list of deprecation issues found in the cluster
          */
         public static DeprecationInfoAction.Response from(

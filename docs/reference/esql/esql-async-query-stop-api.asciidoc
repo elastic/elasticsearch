@@ -1,0 +1,49 @@
+[[esql-async-query-stop-api]]
+=== {esql} async query stop API
+++++
+<titleabbrev>{esql} async query stop API</titleabbrev>
+++++
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-esql[ES|QL APIs].
+--
+
+The <<esql,{esql}>> async query stop API is used to manually stop an async query. Once the stop command is issued,
+the query stops processing new data and returns the results that have been already processed. Note that due to the pipelined
+nature of {esql} queries, the stop operation is not immediate and may take time to return results.
+
+The results are returned in <<esql-query-api-response-body,the same format>> as the
+<<esql-async-query-get-api,{esql} async query get API>>.
+If the query has been finished by the time the stop command is issued, the results are returned immediately.
+
+If the query processing has not finished by the time the stop command is issued, the response will have the `is_partial`
+field set to `true`.
+
+[source,console]
+----
+POST /query/async/FkpMRkJGS1gzVDRlM3g4ZzMyRGlLbkEaTXlJZHdNT09TU2VTZVBoNDM3cFZMUToxMDM=/stop
+----
+// TEST[skip: no access to query ID]
+
+[[esql-async-query-stop-api-request]]
+==== {api-request-title}
+
+`POST /_query/async/<query_id>/stop`
+
+[[esql-async-query-stop-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, only the authenticated user that submitted the original query request
+can stop the query.
+
+[[esql-async-query-stop-api-path-params]]
+==== {api-path-parms-title}
+
+`<query_id>`::
+(Required, string)
+Identifier for the query to stop.
++
+A query ID is provided in the <<esql-async-query-api,{esql} async query API>>'s
+response for a query that does not complete in the awaited time.

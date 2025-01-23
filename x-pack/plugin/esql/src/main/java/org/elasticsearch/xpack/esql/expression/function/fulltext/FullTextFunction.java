@@ -276,7 +276,7 @@ public abstract class FullTextFunction extends Function implements TranslationAw
      * @param or disjunction to check
      * @return true if the disjunction is pushable, false otherwise
      */
-    public static boolean checkDisjunctionPushable(Or or) {
+    private static boolean checkDisjunctionPushable(Or or) {
         boolean hasFullText = or.anyMatch(FullTextFunction.class::isInstance);
         return hasFullText == false || onlyFullTextFunctionsInExpression(or);
     }

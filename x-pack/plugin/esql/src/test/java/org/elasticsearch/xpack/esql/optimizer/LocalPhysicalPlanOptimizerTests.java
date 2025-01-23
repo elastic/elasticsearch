@@ -1673,6 +1673,24 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(fieldExtract.child(), instanceOf(EsQueryExec.class));
     }
 
+    public void testMatchFunctionWithPushableDisjunction() {
+        String query = """
+            from test
+            | where match(last_name, "Smith") or emp_no > 10""";
+        var plan = plannerOptimizer.plan(query);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var esQuery = as(fieldExtract.child(), EsQueryExec.class);
+        var boolQuery = as(esQuery.query(), BoolQueryBuilder.class);
+        Source source = new Source(2, 37, "emp_no > 10");
+        BoolQueryBuilder expected = new BoolQueryBuilder().should(new MatchQueryBuilder("last_name", "Smith").lenient(true))
+            .should(wrapWithSingleQuery(query, QueryBuilders.rangeQuery("emp_no").gt(10), "emp_no", source));
+        assertThat(esQuery.query().toString(), equalTo(expected.toString()));
+    }
+
     private QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {
         return FilterTests.singleValueQuery(query, inner, fieldName, source);
     }

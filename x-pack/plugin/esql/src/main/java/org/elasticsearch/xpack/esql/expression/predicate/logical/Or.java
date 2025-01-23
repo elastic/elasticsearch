@@ -12,9 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 
 import java.io.IOException;
 
@@ -58,10 +56,5 @@ public class Or extends BinaryLogic implements Negatable<BinaryLogic> {
     protected Expression canonicalize() {
         // NB: this add a circular dependency between Predicates / Logical package
         return Predicates.combineOr(Predicates.splitOr(super.canonicalize()));
-    }
-
-    @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        return super.translatable(pushdownPredicates) && FullTextFunction.checkDisjunctionPushable(this);
     }
 }

@@ -52,7 +52,7 @@ public class TimedListenerTests extends ESTestCase {
 
     public void testExecuting_DoesNotCallOnFailureForTimeout_AfterIllegalArgumentException() {
         AtomicReference<Runnable> onTimeout = new AtomicReference<>();
-        var mockThreadPool = mockThreadPoolForTimeout(onTimeout);
+        var mockThreadPool = mockThreadPoolForTimeout(onTimeout, threadPool);
 
         @SuppressWarnings("unchecked")
         ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
@@ -122,7 +122,7 @@ public class TimedListenerTests extends ESTestCase {
 
     public void testRequest_DoesNotCallOnFailureForTimeout_AfterAlreadyCallingOnResponse() throws Exception {
         AtomicReference<Runnable> onTimeout = new AtomicReference<>();
-        var mockThreadPool = mockThreadPoolForTimeout(onTimeout);
+        var mockThreadPool = mockThreadPoolForTimeout(onTimeout, threadPool);
 
         @SuppressWarnings("unchecked")
         ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
@@ -136,7 +136,7 @@ public class TimedListenerTests extends ESTestCase {
         verifyNoMoreInteractions(listener);
     }
 
-    private ThreadPool mockThreadPoolForTimeout(AtomicReference<Runnable> onTimeoutRunnable) {
+    public static ThreadPool mockThreadPoolForTimeout(AtomicReference<Runnable> onTimeoutRunnable, ThreadPool threadPool) {
         var mockThreadPool = mock(ThreadPool.class);
         when(mockThreadPool.executor(any())).thenReturn(mock(ExecutorService.class));
         when(mockThreadPool.getThreadContext()).thenReturn(threadPool.getThreadContext());

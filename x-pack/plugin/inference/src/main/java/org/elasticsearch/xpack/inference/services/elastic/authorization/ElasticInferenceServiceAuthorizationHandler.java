@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -49,15 +50,15 @@ public class ElasticInferenceServiceAuthorizationHandler {
     private final ThreadPool threadPool;
     private final Logger logger;
 
-    public ElasticInferenceServiceAuthorizationHandler(String baseUrl, ThreadPool threadPool) {
-        this.baseUrl = Objects.requireNonNull(baseUrl);
+    public ElasticInferenceServiceAuthorizationHandler(@Nullable String baseUrl, ThreadPool threadPool) {
+        this.baseUrl = baseUrl;
         this.threadPool = Objects.requireNonNull(threadPool);
         logger = LogManager.getLogger(ElasticInferenceServiceAuthorizationHandler.class);
     }
 
     // only use for testing
-    ElasticInferenceServiceAuthorizationHandler(String baseUrl, ThreadPool threadPool, Logger logger) {
-        this.baseUrl = Objects.requireNonNull(baseUrl);
+    ElasticInferenceServiceAuthorizationHandler(@Nullable String baseUrl, ThreadPool threadPool, Logger logger) {
+        this.baseUrl = baseUrl;
         this.threadPool = Objects.requireNonNull(threadPool);
         this.logger = Objects.requireNonNull(logger);
     }
@@ -67,8 +68,16 @@ public class ElasticInferenceServiceAuthorizationHandler {
      * @param listener a listener to receive the response
      * @param sender a {@link Sender} for making the request to the EIS gateway
      */
-    public void getAuth(ActionListener<ElasticInferenceServiceAuthorization> listener, Sender sender) {
+    public void getAuthorization(ActionListener<ElasticInferenceServiceAuthorization> listener, Sender sender) {
         try {
+            logger.debug("Retrieving authorization information from the Elastic Inference Service.");
+
+            if (Strings.isNullOrEmpty(baseUrl)) {
+                logger.warn("The base URL for the authorization service is not valid, rejecting authorization.");
+                listener.onResponse(ElasticInferenceServiceAuthorization.newDisabledService());
+                return;
+            }
+
             // ensure that the sender is initialized
             sender.start();
 

@@ -112,7 +112,7 @@ public class ElasticInferenceService extends SenderService {
                 // we don't need to do anything if there was a failure, everything is disabled by default
             });
 
-            authorizationHandler.getAuth(listener, getSender());
+            authorizationHandler.getAuthorization(listener, getSender());
         } catch (Exception e) {
             // we don't need to do anything if there was a failure, everything is disabled by default
         }

@@ -42,7 +42,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class InferenceBaseRestTest extends ESRestTestCase {
-
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -330,29 +329,11 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return (List<Map<String, Object>>) getInternalAsMap("_inference/_all").get("endpoints");
     }
 
-    protected List<Object> getAllServices() throws IOException {
-        var endpoint = Strings.format("_inference/_services");
-        return getInternalAsList(endpoint);
-    }
-
-    @SuppressWarnings("unchecked")
-    protected List<Object> getServices(TaskType taskType) throws IOException {
-        var endpoint = Strings.format("_inference/_services/%s", taskType);
-        return getInternalAsList(endpoint);
-    }
-
     private Map<String, Object> getInternalAsMap(String endpoint) throws IOException {
         var request = new Request("GET", endpoint);
         var response = client().performRequest(request);
         assertOkOrCreated(response);
         return entityAsMap(response);
-    }
-
-    private List<Object> getInternalAsList(String endpoint) throws IOException {
-        var request = new Request("GET", endpoint);
-        var response = client().performRequest(request);
-        assertOkOrCreated(response);
-        return entityAsList(response);
     }
 
     protected Map<String, Object> infer(String modelId, List<String> input) throws IOException {
@@ -511,7 +492,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         }
     }
 
-    protected static void assertOkOrCreated(Response response) throws IOException {
+    public static void assertOkOrCreated(Response response) throws IOException {
         int statusCode = response.getStatusLine().getStatusCode();
         // Once EntityUtils.toString(entity) is called the entity cannot be reused.
         // Avoid that call with check here.

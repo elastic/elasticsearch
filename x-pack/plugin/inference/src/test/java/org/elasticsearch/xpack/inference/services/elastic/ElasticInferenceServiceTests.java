@@ -749,7 +749,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             ActionListener<ElasticInferenceServiceAuthorization> listener = invocation.getArgument(0);
             listener.onResponse(auth);
             return Void.TYPE;
-        }).when(mockAuthHandler).getAuth(any(), any());
+        }).when(mockAuthHandler).getAuthorization(any(), any());
 
         return new ElasticInferenceService(
             mock(HttpRequestSender.Factory.class),
@@ -778,7 +778,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             ActionListener<ElasticInferenceServiceAuthorization> listener = invocation.getArgument(0);
             listener.onResponse(auth);
             return Void.TYPE;
-        }).when(mockAuthHandler).getAuth(any(), any());
+        }).when(mockAuthHandler).getAuthorization(any(), any());
 
         return new ElasticInferenceService(
             senderFactory,

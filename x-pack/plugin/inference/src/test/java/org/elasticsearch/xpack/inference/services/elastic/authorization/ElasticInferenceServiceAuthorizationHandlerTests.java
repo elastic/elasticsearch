@@ -33,8 +33,9 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender.MAX_RETIES;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
@@ -55,6 +56,46 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
         clientManager.close();
         terminate(threadPool);
         webServer.close();
+    }
+
+    public void testDoesNotAttempt_ToRetrieveAuthorization_IfBaseUrlIsNull() throws Exception {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var logger = mock(Logger.class);
+        var authHandler = new ElasticInferenceServiceAuthorizationHandler(null, threadPool, logger);
+
+        try (var sender = senderFactory.createSender()) {
+            PlainActionFuture<ElasticInferenceServiceAuthorization> listener = new PlainActionFuture<>();
+            authHandler.getAuthorization(listener, sender);
+
+            var authResponse = listener.actionGet(TIMEOUT);
+            assertTrue(authResponse.enabledTaskTypes().isEmpty());
+            assertFalse(authResponse.isEnabled());
+
+            var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
+            verify(logger).warn(loggerArgsCaptor.capture());
+            var message = loggerArgsCaptor.getValue();
+            assertThat(message, is("The base URL for the authorization service is not valid, rejecting authorization."));
+        }
+    }
+
+    public void testDoesNotAttempt_ToRetrieveAuthorization_IfBaseUrlIsEmpty() throws Exception {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var logger = mock(Logger.class);
+        var authHandler = new ElasticInferenceServiceAuthorizationHandler("", threadPool, logger);
+
+        try (var sender = senderFactory.createSender()) {
+            PlainActionFuture<ElasticInferenceServiceAuthorization> listener = new PlainActionFuture<>();
+            authHandler.getAuthorization(listener, sender);
+
+            var authResponse = listener.actionGet(TIMEOUT);
+            assertTrue(authResponse.enabledTaskTypes().isEmpty());
+            assertFalse(authResponse.isEnabled());
+
+            var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
+            verify(logger).warn(loggerArgsCaptor.capture());
+            var message = loggerArgsCaptor.getValue();
+            assertThat(message, is("The base URL for the authorization service is not valid, rejecting authorization."));
+        }
     }
 
     public void testGetAuthorization_FailsWhenAnInvalidFieldIsFound() throws IOException {
@@ -78,7 +119,7 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
             queueWebServerResponsesForRetries(responseJson);
 
             PlainActionFuture<ElasticInferenceServiceAuthorization> listener = new PlainActionFuture<>();
-            authHandler.getAuth(listener, sender);
+            authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
             assertTrue(authResponse.enabledTaskTypes().isEmpty());
@@ -128,13 +169,18 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             PlainActionFuture<ElasticInferenceServiceAuthorization> listener = new PlainActionFuture<>();
-            authHandler.getAuth(listener, sender);
+            authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
             assertThat(authResponse.enabledTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
             assertTrue(authResponse.isEnabled());
 
-            verifyNoInteractions(logger);
+            var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
+            verify(logger, times(1)).debug(loggerArgsCaptor.capture());
+
+            var message = loggerArgsCaptor.getValue();
+            assertThat(message, is("Retrieving authorization information from the Elastic Inference Service."));
+            verifyNoMoreInteractions(logger);
         }
     }
 }

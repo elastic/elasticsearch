@@ -32,7 +32,7 @@ public record ElasticInferenceServiceAuthorization(Map<String, EnumSet<TaskType>
     public static ElasticInferenceServiceAuthorization of(ElasticInferenceServiceAuthorizationResponseEntity responseEntity) {
         var enabledModels = new HashMap<String, EnumSet<TaskType>>();
 
-        for (var model : responseEntity.getAllowedModels()) {
+        for (var model : responseEntity.getAuthorizedModels()) {
             // if there are no task types we'll ignore the model because it's likely we didn't understand
             // the task type and don't support it anyway
             if (model.taskTypes().isEmpty() == false) {

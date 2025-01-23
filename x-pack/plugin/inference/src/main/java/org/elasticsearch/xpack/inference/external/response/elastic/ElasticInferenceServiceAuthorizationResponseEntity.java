@@ -54,20 +54,20 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
         );
 
     static {
-        PARSER.declareObjectArray(constructorArg(), AuthorizedModel.ALLOWED_MODEL_PARSER::apply, new ParseField("models"));
+        PARSER.declareObjectArray(constructorArg(), AuthorizedModel.AUTHORIZED_MODEL_PARSER::apply, new ParseField("models"));
     }
 
     public record AuthorizedModel(String modelName, EnumSet<TaskType> taskTypes) implements Writeable, ToXContentObject {
 
         @SuppressWarnings("unchecked")
-        public static ConstructingObjectParser<AuthorizedModel, Void> ALLOWED_MODEL_PARSER = new ConstructingObjectParser<>(
+        public static ConstructingObjectParser<AuthorizedModel, Void> AUTHORIZED_MODEL_PARSER = new ConstructingObjectParser<>(
             AuthorizedModel.class.getSimpleName(),
             args -> new AuthorizedModel((String) args[0], toTaskTypes((List<String>) args[1]))
         );
 
         static {
-            ALLOWED_MODEL_PARSER.declareString(constructorArg(), new ParseField("model_name"));
-            ALLOWED_MODEL_PARSER.declareStringArray(constructorArg(), new ParseField("task_types"));
+            AUTHORIZED_MODEL_PARSER.declareString(constructorArg(), new ParseField("model_name"));
+            AUTHORIZED_MODEL_PARSER.declareStringArray(constructorArg(), new ParseField("task_types"));
         }
 
         private static EnumSet<TaskType> toTaskTypes(List<String> stringTaskTypes) {
@@ -105,10 +105,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
         }
     }
 
-    private final List<AuthorizedModel> allowedModels;
+    private final List<AuthorizedModel> authorizedModels;
 
-    public ElasticInferenceServiceAuthorizationResponseEntity(List<AuthorizedModel> allowedModels) {
-        this.allowedModels = Objects.requireNonNull(allowedModels);
+    public ElasticInferenceServiceAuthorizationResponseEntity(List<AuthorizedModel> authorizedModels) {
+        this.authorizedModels = Objects.requireNonNull(authorizedModels);
     }
 
     /**
@@ -130,8 +130,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
         }
     }
 
-    public List<AuthorizedModel> getAllowedModels() {
-        return allowedModels;
+    public List<AuthorizedModel> getAuthorizedModels() {
+        return authorizedModels;
     }
 
     @Override
@@ -141,7 +141,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(allowedModels);
+        out.writeCollection(authorizedModels);
     }
 
     @Override

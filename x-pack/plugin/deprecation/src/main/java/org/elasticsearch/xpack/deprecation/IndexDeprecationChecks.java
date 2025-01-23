@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.LegacyFormatNames;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -19,7 +20,6 @@ import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -32,27 +32,27 @@ import java.util.function.Function;
  */
 public class IndexDeprecationChecks {
 
-    static DeprecationIssue oldIndicesCheck(IndexMetadata indexMetadata, ClusterState clusterState) {
+    static DeprecationIssue oldIndicesCheck(IndexDeprecationComponents components) {
         // TODO: this check needs to be revised. It's trivially true right now.
-        IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
+        IndexVersion currentCompatibilityVersion = components.indexMetadata().getCompatibilityVersion();
         // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
-        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, false) && isNotDataStreamIndex(indexMetadata, clusterState)) {
+        if (DeprecatedIndexPredicate.reindexRequired(components.indexMetadata(), false) && isNotDataStreamIndex(components)) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "Old index with a compatibility version < 9.0",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
                 "This index has version: " + currentCompatibilityVersion.toReleaseVersion(),
                 false,
-                Collections.singletonMap("reindex_required", true)
+                meta(components)
             );
         }
         return null;
     }
 
-    static DeprecationIssue ignoredOldIndicesCheck(IndexMetadata indexMetadata, ClusterState clusterState) {
-        IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
+    static DeprecationIssue ignoredOldIndicesCheck(IndexDeprecationComponents components) {
+        IndexVersion currentCompatibilityVersion = components.indexMetadata().getCompatibilityVersion();
         // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
-        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, true) && isNotDataStreamIndex(indexMetadata, clusterState)) {
+        if (DeprecatedIndexPredicate.reindexRequired(components.indexMetadata(), true) && isNotDataStreamIndex(components)) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.WARNING,
                 "Old index with a compatibility version < 9.0 Has Been Ignored",
@@ -61,26 +61,35 @@ public class IndexDeprecationChecks {
                     + currentCompatibilityVersion.toReleaseVersion()
                     + " and will be supported as read-only in 9.0",
                 false,
-                Collections.singletonMap("reindex_required", true)
+                meta(components)
             );
         }
         return null;
     }
 
-    private static boolean isNotDataStreamIndex(IndexMetadata indexMetadata, ClusterState clusterState) {
-        return clusterState.metadata().findDataStreams(indexMetadata.getIndex().getName()).isEmpty();
+    private static boolean isNotDataStreamIndex(IndexDeprecationComponents components) {
+        return components.clusterState().metadata().findDataStreams(components.indexMetadata().getIndex().getName()).isEmpty();
     }
 
-    static DeprecationIssue translogRetentionSettingCheck(IndexMetadata indexMetadata, ClusterState clusterState) {
-        final boolean softDeletesEnabled = IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexMetadata.getSettings());
+    private static Map<String, Object> meta(IndexDeprecationComponents components) {
+        var transforms = components.indexToTransformIds().getOrDefault(components.indexMetadata().getIndex().getName(), List.of());
+        if (transforms.isEmpty()) {
+            return Map.of("reindex_required", true);
+        } else {
+            return Map.of("reindex_required", true, "transform_ids", transforms);
+        }
+    }
+
+    static DeprecationIssue translogRetentionSettingCheck(IndexDeprecationComponents components) {
+        final boolean softDeletesEnabled = IndexSettings.INDEX_SOFT_DELETES_SETTING.get(components.indexMetadata().getSettings());
         if (softDeletesEnabled) {
-            if (IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexMetadata.getSettings())
-                || IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexMetadata.getSettings())) {
+            if (IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(components.indexMetadata().getSettings())
+                || IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(components.indexMetadata().getSettings())) {
                 List<String> settingKeys = new ArrayList<>();
-                if (IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexMetadata.getSettings())) {
+                if (IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(components.indexMetadata().getSettings())) {
                     settingKeys.add(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey());
                 }
-                if (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexMetadata.getSettings())) {
+                if (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(components.indexMetadata().getSettings())) {
                     settingKeys.add(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey());
                 }
                 Map<String, Object> meta = DeprecationIssue.createMetaMapForRemovableSettings(settingKeys);
@@ -98,8 +107,8 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue checkIndexDataPath(IndexMetadata indexMetadata, ClusterState clusterState) {
-        if (IndexMetadata.INDEX_DATA_PATH_SETTING.exists(indexMetadata.getSettings())) {
+    static DeprecationIssue checkIndexDataPath(IndexDeprecationComponents components) {
+        if (IndexMetadata.INDEX_DATA_PATH_SETTING.exists(components.indexMetadata().getSettings())) {
             final String message = String.format(
                 Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in a future version",
@@ -113,8 +122,8 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue storeTypeSettingCheck(IndexMetadata indexMetadata, ClusterState clusterState) {
-        final String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(indexMetadata.getSettings());
+    static DeprecationIssue storeTypeSettingCheck(IndexDeprecationComponents components) {
+        final String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(components.indexMetadata().getSettings());
         if (IndexModule.Type.SIMPLEFS.match(storeType)) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.WARNING,
@@ -130,10 +139,10 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue frozenIndexSettingCheck(IndexMetadata indexMetadata, ClusterState clusterState) {
-        Boolean isIndexFrozen = FrozenEngine.INDEX_FROZEN.get(indexMetadata.getSettings());
+    static DeprecationIssue frozenIndexSettingCheck(IndexDeprecationComponents components) {
+        Boolean isIndexFrozen = FrozenEngine.INDEX_FROZEN.get(components.indexMetadata().getSettings());
         if (Boolean.TRUE.equals(isIndexFrozen)) {
-            String indexName = indexMetadata.getIndex().getName();
+            String indexName = components.indexMetadata().getIndex().getName();
             return new DeprecationIssue(
                 DeprecationIssue.Level.WARNING,
                 "index ["
@@ -220,10 +229,10 @@ public class IndexDeprecationChecks {
         return issues;
     }
 
-    static DeprecationIssue deprecatedCamelCasePattern(IndexMetadata indexMetadata, ClusterState clusterState) {
+    static DeprecationIssue deprecatedCamelCasePattern(IndexDeprecationComponents components) {
         List<String> fields = new ArrayList<>();
         fieldLevelMappingIssue(
-            indexMetadata,
+            components.indexMetadata(),
             ((mappingMetadata, sourceAsMap) -> fields.addAll(
                 findInPropertiesRecursively(
                     mappingMetadata.type(),
@@ -276,5 +285,17 @@ public class IndexDeprecationChecks {
         }
         sb.deleteCharAt(sb.length() - 1);
         return sb.toString();
+    }
+
+    public record IndexDeprecationComponents(
+        IndexMetadata indexMetadata,
+        ClusterState clusterState,
+        Map<String, List<String>> indexToTransformIds
+    ) {}
+
+    @FunctionalInterface
+    public interface IndexDeprecationCheck {
+        @Nullable
+        DeprecationIssue apply(IndexDeprecationChecks.IndexDeprecationComponents c);
     }
 }

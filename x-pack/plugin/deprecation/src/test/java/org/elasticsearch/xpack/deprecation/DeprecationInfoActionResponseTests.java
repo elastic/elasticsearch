@@ -117,9 +117,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         boolean dataStreamIssueFound = randomBoolean();
         DeprecationIssue foundIssue = createTestDeprecationIssue();
         List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks = List.of((s) -> clusterIssueFound ? foundIssue : null);
-        List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> indexSettingsChecks = List.of(
-            (idx, cs) -> indexIssueFound ? foundIssue : null
-        );
+        List<IndexDeprecationChecks.IndexDeprecationCheck> indexSettingsChecks = List.of((c) -> indexIssueFound ? foundIssue : null);
         List<BiFunction<DataStream, ClusterState, DeprecationIssue>> dataStreamChecks = List.of(
             (ds, cs) -> dataStreamIssueFound ? foundIssue : null
         );
@@ -144,7 +142,8 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             dataStreamChecks,
             clusterSettingsChecks,
             Collections.emptyMap(),
-            Collections.emptyList()
+            Collections.emptyList(),
+            Map.of()
         );
 
         if (clusterIssueFound) {
@@ -213,7 +212,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         DeprecationIssue foundIssue1 = createTestDeprecationIssue(metaMap1);
         DeprecationIssue foundIssue2 = createTestDeprecationIssue(foundIssue1, metaMap2);
         List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks = Collections.emptyList();
-        List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> indexSettingsChecks = List.of((idx, cs) -> null);
+        List<IndexDeprecationChecks.IndexDeprecationCheck> indexSettingsChecks = List.of((c) -> null);
         List<BiFunction<DataStream, ClusterState, DeprecationIssue>> dataStreamChecks = List.of((ds, cs) -> null);
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
@@ -235,7 +234,8 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             dataStreamChecks,
             clusterSettingsChecks,
             Collections.emptyMap(),
-            Collections.emptyList()
+            Collections.emptyList(),
+            Map.of()
         );
 
         String details = foundIssue1.getDetails() != null ? foundIssue1.getDetails() + " " : "";
@@ -278,12 +278,10 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             return null;
         }));
         AtomicReference<Settings> visibleIndexSettings = new AtomicReference<>();
-        List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> indexSettingsChecks = Collections.unmodifiableList(
-            Arrays.asList((idx, cs) -> {
-                visibleIndexSettings.set(idx.getSettings());
-                return null;
-            })
-        );
+        List<IndexDeprecationChecks.IndexDeprecationCheck> indexSettingsChecks = Collections.unmodifiableList(Arrays.asList((c) -> {
+            visibleIndexSettings.set(c.indexMetadata().getSettings());
+            return null;
+        }));
         AtomicInteger backingIndicesCount = new AtomicInteger(0);
         List<BiFunction<DataStream, ClusterState, DeprecationIssue>> dataStreamChecks = Collections.unmodifiableList(
             Arrays.asList((ds, cs) -> {
@@ -308,7 +306,8 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             dataStreamChecks,
             clusterSettingsChecks,
             Collections.emptyMap(),
-            List.of("some.deprecated.property", "some.other.*.deprecated.property")
+            List.of("some.deprecated.property", "some.other.*.deprecated.property"),
+            Map.of()
         );
 
         settingsBuilder = settings(IndexVersion.current());

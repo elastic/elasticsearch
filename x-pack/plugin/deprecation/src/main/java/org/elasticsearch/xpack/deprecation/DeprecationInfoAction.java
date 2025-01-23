@@ -260,13 +260,14 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
          * this function will run through all the checks and build out the final list of issues that exist in the
          * cluster.
          *
-         * @param state The cluster state
+         * @param state                       The cluster state
          * @param indexNameExpressionResolver Used to resolve indices into their concrete names
-         * @param request The originating request containing the index expressions to evaluate
-         * @param nodeDeprecationResponse The response containing the deprecation issues found on each node
-         * @param indexSettingsChecks The list of index-level checks that will be run across all specified
-         *                            concrete indices
-         * @param clusterSettingsChecks The list of cluster-level checks
+         * @param request                     The originating request containing the index expressions to evaluate
+         * @param nodeDeprecationResponse     The response containing the deprecation issues found on each node
+         * @param indexSettingsChecks         The list of index-level checks that will be run across all specified
+         *                                    concrete indices
+         * @param clusterSettingsChecks       The list of cluster-level checks
+         * @param indexToTransformIds         Map of index name to the transform ids that write to that index
          * @return The list of deprecation issues found in the cluster
          */
         public static DeprecationInfoAction.Response from(
@@ -274,11 +275,12 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             IndexNameExpressionResolver indexNameExpressionResolver,
             Request request,
             NodesDeprecationCheckResponse nodeDeprecationResponse,
-            List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> indexSettingsChecks,
+            List<IndexDeprecationChecks.IndexDeprecationCheck> indexSettingsChecks,
             List<BiFunction<DataStream, ClusterState, DeprecationIssue>> dataStreamChecks,
             List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks,
             Map<String, List<DeprecationIssue>> pluginSettingIssues,
-            List<String> skipTheseDeprecatedSettings
+            List<String> skipTheseDeprecatedSettings,
+            Map<String, List<String>> indexToTransformIds
         ) {
             assert Transports.assertNotTransportThread("walking mappings in indexSettingsChecks is expensive");
             // Allow system index access here to prevent deprecation warnings when we call this API
@@ -295,7 +297,13 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 IndexMetadata indexMetadata = stateWithSkippedSettingsRemoved.getMetadata().index(concreteIndex);
                 List<DeprecationIssue> singleIndexIssues = filterChecks(
                     indexSettingsChecks,
-                    c -> c.apply(indexMetadata, stateWithSkippedSettingsRemoved)
+                    c -> c.apply(
+                        new IndexDeprecationChecks.IndexDeprecationComponents(
+                            indexMetadata,
+                            stateWithSkippedSettingsRemoved,
+                            indexToTransformIds
+                        )
+                    )
                 );
                 if (singleIndexIssues.size() > 0) {
                     indexSettingsIssues.put(concreteIndex, singleIndexIssues);

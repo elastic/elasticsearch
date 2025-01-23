@@ -16,10 +16,13 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.common.settings.Settings;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 
 public class AddIndexBlockRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
@@ -40,16 +43,33 @@ public class AddIndexBlockRollingUpgradeIT extends AbstractRollingUpgradeTestCas
                 assertNull(verifiedSettingValue());
             } else {
                 assertThat(verifiedSettingValue(), Matchers.equalTo("true"));
+
+                expectThrows(
+                    ResponseException.class,
+                    () -> updateIndexSettings(
+                        INDEX_NAME,
+                        Settings.builder().putNull(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey())
+                    )
+                );
             }
         } else {
             assertTrue(isUpgradedCluster());
             blockWrites();
             assertThat(verifiedSettingValue(), Matchers.equalTo("true"));
+
+            expectThrows(
+                ResponseException.class,
+                () -> updateIndexSettings(
+                    INDEX_NAME,
+                    Settings.builder().putNull(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey())
+                )
+            );
         }
     }
 
     private static void blockWrites() throws IOException {
-        client().performRequest(new Request(HttpMethod.PUT.name(), "/" + INDEX_NAME + "/_block/write"));
+        var block = randomFrom(IndexMetadata.APIBlock.READ_ONLY, IndexMetadata.APIBlock.WRITE).name().toLowerCase(Locale.ROOT);
+        client().performRequest(new Request(HttpMethod.PUT.name(), "/" + INDEX_NAME + "/_block/" + block));
 
         expectThrows(
             ResponseException.class,

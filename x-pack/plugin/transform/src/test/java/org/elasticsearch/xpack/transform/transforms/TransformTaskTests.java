@@ -80,6 +80,7 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNotNull;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -352,7 +353,7 @@ public class TransformTaskTests extends ESTestCase {
             eq(42L),
             isNull(),
             eq("Node is shutting down."),
-            isNull(),
+            isNotNull(),
             any()
         );
     }

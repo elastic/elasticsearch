@@ -10,13 +10,10 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -68,13 +65,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected final Logger logger;
 
     private final long clusterStateVersion;
-    private final TransportVersion minTransportVersion;
-    private final Map<String, AliasFilter> aliasFilter;
-    private final Map<String, Float> concreteIndexBoosts;
-    private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
-    private final Object shardFailuresMutex = new Object();
-    private final SearchTimeProvider timeProvider;
-    private final SearchResponse.Clusters clusters;
 
     private static final VarHandle OUTSTANDING_SHARDS;
 
@@ -123,20 +113,20 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             searchTransportService,
             executor,
             nodeIdToConnection,
-            shardsIts
+            shardsIts,
+            aliasFilter,
+            concreteIndexBoosts,
+            timeProvider,
+            clusterState,
+            clusters
         );
         this.name = name;
         OUTSTANDING_SHARDS.setRelease(this, shardIterators.length);
         this.maxConcurrentRequestsPerNode = maxConcurrentRequestsPerNode;
         // in the case were we have less shards than maxConcurrentRequestsPerNode we don't need to throttle
         this.throttleConcurrentRequests = maxConcurrentRequestsPerNode < shardsIts.size();
-        this.timeProvider = timeProvider;
         this.logger = logger;
-        this.concreteIndexBoosts = concreteIndexBoosts;
         this.clusterStateVersion = clusterState.version();
-        this.minTransportVersion = clusterState.getMinTransportVersion();
-        this.aliasFilter = aliasFilter;
-        this.clusters = clusters;
     }
 
     protected void notifyListShards(
@@ -485,13 +475,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
-    /**
-      * Returns the targeted {@link OriginalIndices} for the provided {@code shardIndex}.
-      */
-    public OriginalIndices getOriginalIndices(int shardIndex) {
-        return shardIterators[shardIndex].getOriginalIndices();
-    }
-
     private SearchResponse buildSearchResponse(
         SearchResponseSections internalSearchResponse,
         ShardSearchFailure[] failures,
@@ -538,13 +521,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             if (buildPointInTimeFromSearchResults()) {
                 searchContextId = SearchContextId.encode(queryResults.asList(), aliasFilter, minTransportVersion, failures);
             } else {
-                if (request.source() != null
-                    && request.source().pointInTimeBuilder() != null
-                    && request.source().pointInTimeBuilder().singleSession() == false) {
-                    searchContextId = request.source().pointInTimeBuilder().getEncodedId();
-                } else {
-                    searchContextId = null;
-                }
+                searchContextId = buildSearchContextId();
             }
             ActionListener.respondAndRelease(listener, buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
         }

@@ -14,10 +14,13 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
@@ -25,12 +28,14 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -69,6 +74,15 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
     protected final GroupShardsIterator<SearchShardIterator> shardsIts;
     protected final SearchShardIterator[] shardIterators;
 
+    protected final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
+    protected final Object shardFailuresMutex = new Object();
+
+    protected final TransportVersion minTransportVersion;
+    protected final Map<String, AliasFilter> aliasFilter;
+    protected final Map<String, Float> concreteIndexBoosts;
+    protected final TransportSearchAction.SearchTimeProvider timeProvider;
+    protected final SearchResponse.Clusters clusters;
+
     /**
      * Used by subclasses to resolve node ids to DiscoveryNodes.
      **/
@@ -83,7 +97,12 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
         SearchTransportService searchTransportService,
         Executor executor,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
-        GroupShardsIterator<SearchShardIterator> shardsIts
+        GroupShardsIterator<SearchShardIterator> shardsIts,
+        Map<String, AliasFilter> aliasFilter,
+        Map<String, Float> concreteIndexBoosts,
+        TransportSearchAction.SearchTimeProvider timeProvider,
+        ClusterState clusterState,
+        SearchResponse.Clusters clusters
     ) {
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
         final List<SearchShardIterator> iterators = new ArrayList<>();
@@ -114,6 +133,12 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
         addReleasable(results);
+
+        this.timeProvider = timeProvider;
+        this.concreteIndexBoosts = concreteIndexBoosts;
+        this.minTransportVersion = clusterState.getMinTransportVersion();
+        this.aliasFilter = aliasFilter;
+        this.clusters = clusters;
     }
 
     static ShardSearchFailure[] buildShardFailures(SetOnce<AtomicArray<ShardSearchFailure>> shardFailuresRef) {
@@ -178,7 +203,12 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
         return nodeIdToConnection.apply(clusterAlias, nodeId);
     }
 
-    abstract OriginalIndices getOriginalIndices(int shardIndex);
+    /**
+     * Returns the targeted {@link OriginalIndices} for the provided {@code shardIndex}.
+     */
+    public OriginalIndices getOriginalIndices(int shardIndex) {
+        return shardIterators[shardIndex].getOriginalIndices();
+    }
 
     abstract void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection);
 
@@ -254,4 +284,10 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
         }
     }
 
+    protected BytesReference buildSearchContextId() {
+        var source = request.source();
+        return source != null && source.pointInTimeBuilder() != null && source.pointInTimeBuilder().singleSession() == false
+            ? source.pointInTimeBuilder().getEncodedId()
+            : null;
+    }
 }

@@ -13,10 +13,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopFieldDocs;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
@@ -98,14 +96,6 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
 
     private static final Logger logger = LogManager.getLogger(SearchQueryThenFetchAsyncAction.class);
 
-    private final TransportVersion minNodeVersion;
-    private final Map<String, AliasFilter> aliasFilter;
-    private final Map<String, Float> concreteIndexBoosts;
-    private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
-    private final Object shardFailuresMutex = new Object();
-    private final TransportSearchAction.SearchTimeProvider timeProvider;
-    private final SearchResponse.Clusters clusters;
-
     private static final VarHandle OUTSTANDING_SHARDS;
 
     static {
@@ -153,19 +143,19 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
             searchTransportService,
             executor,
             nodeIdToConnection,
-            shardsIts
+            shardsIts,
+            aliasFilter,
+            concreteIndexBoosts,
+            timeProvider,
+            clusterState,
+            clusters
         );
         outstandingShards = shardIterators.length;
-        this.timeProvider = timeProvider;
-        this.concreteIndexBoosts = concreteIndexBoosts;
-        this.minNodeVersion = clusterState.getMinTransportVersion();
-        this.aliasFilter = aliasFilter;
-        this.clusters = clusters;
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
-        this.progressListener = task.getProgressListener();
         this.client = client;
 
+        this.progressListener = task.getProgressListener();
         // don't build the SearchShard list (can be expensive) if the SearchProgressListener won't use it
         if (progressListener != SearchProgressListener.NOOP) {
             notifyListShards(progressListener, clusters, request.source());
@@ -215,14 +205,10 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
             final String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
-            var source = request.source();
-            final BytesReference searchContextId;
-            if (source != null && source.pointInTimeBuilder() != null && source.pointInTimeBuilder().singleSession() == false) {
-                searchContextId = source.pointInTimeBuilder().getEncodedId();
-            } else {
-                searchContextId = null;
-            }
-            ActionListener.respondAndRelease(listener, buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
+            ActionListener.respondAndRelease(
+                listener,
+                buildSearchResponse(internalSearchResponse, failures, scrollId, buildSearchContextId())
+            );
         }
     }
 
@@ -508,11 +494,6 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
         return nextPhase(client, this, results, null);
     }
 
-    @Override
-    public OriginalIndices getOriginalIndices(int shardIndex) {
-        return shardIterators[shardIndex].getOriginalIndices();
-    }
-
     private static ShardSearchRequest rewriteShardSearchRequest(
         BottomSortValuesCollector bottomSortCollector,
         int trackTotalHitsUpTo,
@@ -545,7 +526,7 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
             finish();
             return;
         }
-        final boolean supportsBatchedQuery = minNodeVersion.onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION);
+        final boolean supportsBatchedQuery = minTransportVersion.onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION);
         final Map<String, NodeQueryRequest> perNodeQueries = new HashMap<>();
         AbstractSearchAsyncAction.doCheckNoMissingShards(NAME, request, shardsIts, AbstractSearchAsyncAction::makeMissingShardsError);
         final String localNodeId = searchTransportService.transportService().getLocalNode().getId();

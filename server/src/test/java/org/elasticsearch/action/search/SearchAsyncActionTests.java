@@ -166,13 +166,13 @@ public class SearchAsyncActionTests extends ESTestCase {
         request.setMaxConcurrentShardRequests(numConcurrent);
         boolean doReplicas = randomBoolean();
         int numShards = randomIntBetween(5, 10);
-        Boolean[] shardFailures = new Boolean[numShards];
+        Boolean[] sFailures = new Boolean[numShards];
         // at least one response otherwise the entire request fails
-        shardFailures[randomIntBetween(0, shardFailures.length - 1)] = false;
-        for (int i = 0; i < shardFailures.length; i++) {
-            if (shardFailures[i] == null) {
+        sFailures[randomIntBetween(0, sFailures.length - 1)] = false;
+        for (int i = 0; i < sFailures.length; i++) {
+            if (sFailures[i] == null) {
                 boolean failure = randomBoolean();
-                shardFailures[i] = failure;
+                sFailures[i] = failure;
             }
         }
         CountDownLatch latch = new CountDownLatch(1);
@@ -240,7 +240,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                             connection.getNode()
                         );
                         try {
-                            if (shardFailures[shardIt.shardId().id()]) {
+                            if (sFailures[shardIt.shardId().id()]) {
                                 listener.onFailure(new RuntimeException());
                             } else {
                                 listener.onResponse(testSearchPhaseResult);

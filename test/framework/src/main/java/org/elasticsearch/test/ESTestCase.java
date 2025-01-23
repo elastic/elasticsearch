@@ -683,7 +683,8 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertWarnings(true, Stream.concat(Arrays.stream(settings).map(setting -> {
             String warningMessage = String.format(
                 Locale.ROOT,
-                "[%s] setting was deprecated in Elasticsearch and will be removed in a future release.",
+                "[%s] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the deprecation changes documentation for the next major version.",
                 setting.getKey()
             );
             return new DeprecationWarning(

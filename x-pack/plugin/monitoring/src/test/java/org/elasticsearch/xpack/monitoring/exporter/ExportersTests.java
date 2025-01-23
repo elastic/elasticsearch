@@ -295,8 +295,10 @@ public class ExportersTests extends ESTestCase {
         assertEquals(settings.get("xpack.monitoring.exporters._name1.cluster_alerts.management.blacklist"), "false");
 
         assertWarnings(
-            "[xpack.monitoring.exporters._name1.type] setting was deprecated in Elasticsearch and will be removed in a future release.",
-            "[xpack.monitoring.exporters._name0.type] setting was deprecated in Elasticsearch and will be removed in a future release.",
+            "[xpack.monitoring.exporters._name1.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation changes documentation for the next major version.",
+            "[xpack.monitoring.exporters._name0.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation changes documentation for the next major version.",
             "[xpack.monitoring.exporters._name0.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch and will "
                 + "be removed in a future release.",
             "[xpack.monitoring.exporters._name1.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch and will "

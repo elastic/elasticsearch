@@ -146,7 +146,7 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.enrich.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release."
+                + "in a future release. See the deprecation changes documentation for the next major version."
         );
     }
 

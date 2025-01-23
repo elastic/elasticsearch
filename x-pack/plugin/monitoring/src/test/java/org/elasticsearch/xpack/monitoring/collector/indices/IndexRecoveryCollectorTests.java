@@ -171,7 +171,8 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
                 + "removed in a future release.",
             "[xpack.monitoring.collection.index.recovery.active_only] setting was deprecated in Elasticsearch and will be removed "
                 + "in a future release.",
-            "[xpack.monitoring.collection.indices] setting was deprecated in Elasticsearch and will be removed in a future release."
+            "[xpack.monitoring.collection.indices] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation changes documentation for the next major version."
         );
     }
 

@@ -118,6 +118,7 @@ import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -957,38 +958,42 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ReaderContext readerContext = findReaderContext(request.contextId(), request);
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
-        rewriteAndFetchShardRequest(readerContext.indexShard(), shardSearchRequest, listener.delegateFailure((l, rewritten) -> {
-            runAsync(getExecutor(readerContext.indexShard()), () -> {
-                try (SearchContext searchContext = createContext(readerContext, rewritten, task, ResultsType.FETCH, false)) {
-                    if (request.lastEmittedDoc() != null) {
-                        searchContext.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
-                    }
-                    searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
-                    searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
-                    try (
-                        SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(
-                            searchContext,
-                            true,
-                            System.nanoTime()
-                        )
-                    ) {
-                        fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks());
-                        if (readerContext.singleSession()) {
-                            freeReaderContext(request.contextId());
+        rewriteAndFetchShardRequestBeforeFetchPhase(
+            readerContext.indexShard(),
+            shardSearchRequest,
+            listener.delegateFailure((l, rewritten) -> {
+                runAsync(getExecutor(readerContext.indexShard()), () -> {
+                    try (SearchContext searchContext = createContext(readerContext, rewritten, task, ResultsType.FETCH, false)) {
+                        if (request.lastEmittedDoc() != null) {
+                            searchContext.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
                         }
-                        executor.success();
+                        searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
+                        searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
+                        try (
+                            SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(
+                                searchContext,
+                                true,
+                                System.nanoTime()
+                            )
+                        ) {
+                            fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks());
+                            if (readerContext.singleSession()) {
+                                freeReaderContext(request.contextId());
+                            }
+                            executor.success();
+                        }
+                        var fetchResult = searchContext.fetchResult();
+                        // inc-ref fetch result because we close the SearchContext that references it in this try-with-resources block
+                        fetchResult.incRef();
+                        return fetchResult;
+                    } catch (Exception e) {
+                        assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
+                        // we handle the failure in the failure listener below
+                        throw e;
                     }
-                    var fetchResult = searchContext.fetchResult();
-                    // inc-ref fetch result because we close the SearchContext that references it in this try-with-resources block
-                    fetchResult.incRef();
-                    return fetchResult;
-                } catch (Exception e) {
-                    assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
-                    // we handle the failure in the failure listener below
-                    throw e;
-                }
-            }, wrapFailureListener(l, readerContext, markAsUsed));
-        }));
+                }, wrapFailureListener(l, readerContext, markAsUsed));
+            })
+        );
     }
 
     protected void checkCancelled(SearchShardTask task) {
@@ -1878,6 +1883,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         AggregatorFactories.Builder aggregations = source.aggregations();
         return aggregations == null || aggregations.mustVisitAllDocs() == false;
+    }
+
+    private void rewriteAndFetchShardRequestBeforeFetchPhase(
+        IndexShard shard,
+        ShardSearchRequest request,
+        ActionListener<ShardSearchRequest> listener
+    ) {
+        if (request.source().explain() == false || request.source().rescores().stream().allMatch(r -> r instanceof QueryRescorerBuilder)) {
+            // Rewriting the shard request is useless unless explain is enabled and a learning to rank rescorer is used.
+            listener.onResponse(request);
+            return;
+        }
+
+        rewriteAndFetchShardRequest(shard, request, listener);
     }
 
     @SuppressWarnings("unchecked")

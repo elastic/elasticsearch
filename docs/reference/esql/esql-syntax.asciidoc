@@ -190,6 +190,7 @@ POST /_query
 "query": """
 FROM library
 | WHERE match(author, "Frank Herbert", {"minimum_should_match": 2, "operator": "AND"})
+| LIMIT 5
 """
 }
 ----

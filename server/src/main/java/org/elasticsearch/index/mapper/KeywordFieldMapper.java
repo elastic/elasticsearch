@@ -91,7 +91,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private static final Logger logger = LogManager.getLogger(KeywordFieldMapper.class);
 
     public static final String CONTENT_TYPE = "keyword";
-    public static final String HOST_NAME = "host.name";
+    private static final String HOST_NAME = "host.name";
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
@@ -417,7 +417,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             final IndexMode indexMode,
             final String fullFieldName
         ) {
-            return (areDefaultSettingsUsed() || isNotIndexedAndHasDocValues())
+            return (defaultIndexedAndDocValues() || isNotIndexedAndHasDocValues())
                 && isLogsDbMode(indexMode)
                 && isHostNameField(fullFieldName)
                 && isPrimarySortField(indexSortConfig);
@@ -431,7 +431,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return indexSortConfig != null && indexSortConfig.hasPrimarySortOnField(HOST_NAME);
         }
 
-        private boolean areDefaultSettingsUsed() {
+        private boolean defaultIndexedAndDocValues() {
             return indexed.isConfigured() == false && hasDocValues.isConfigured() == false;
         }
 

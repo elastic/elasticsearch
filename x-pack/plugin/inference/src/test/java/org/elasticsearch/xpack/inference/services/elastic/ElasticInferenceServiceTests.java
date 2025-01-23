@@ -479,7 +479,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 List.of("input text"),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.SEARCH,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -500,7 +500,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
 
             var requestMap = entityAsMap(request.getBody());
-            assertThat(requestMap, is(Map.of("input", List.of("input text"))));
+            assertThat(requestMap, is(Map.of("input", List.of("input text"), "usage_context", "search")));
         }
     }
 
@@ -564,7 +564,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap, is(Map.of("input", List.of("input text"))));
+            assertThat(requestMap, is(Map.of("input", List.of("input text"), "usage_context", "ingest")));
         }
     }
 

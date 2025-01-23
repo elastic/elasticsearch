@@ -1,0 +1,5 @@
+pr: 120643
+summary: Remove index blocks by default in `create_from`
+area: Indices APIs
+type: enhancement
+issues: []

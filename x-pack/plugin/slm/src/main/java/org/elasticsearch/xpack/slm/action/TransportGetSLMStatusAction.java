@@ -42,7 +42,6 @@ public class TransportGetSLMStatusAction extends TransportMasterNodeAction<Ackno
             threadPool,
             actionFilters,
             AcknowledgedRequest.Plain::new,
-            indexNameExpressionResolver,
             GetSLMStatusAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

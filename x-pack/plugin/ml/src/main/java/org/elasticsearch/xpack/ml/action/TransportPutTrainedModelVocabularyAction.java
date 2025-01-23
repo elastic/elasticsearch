@@ -56,7 +56,6 @@ public class TransportPutTrainedModelVocabularyAction extends TransportMasterNod
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

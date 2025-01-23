@@ -165,8 +165,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
         }
     }
 
-    protected MapMatcher responseMatcher() {
-        return matchesMap();
+    protected MapMatcher responseMatcher(Map<String, Object> result) {
+        return getResultMatcher(result);
     }
 
     public void testAllowedIndices() throws Exception {
@@ -182,10 +182,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             Response resp = runESQLCommand(user, "from index-user1 | stats sum=sum(value)");
             assertOK(resp);
             Map<String, Object> responseMap = entityAsMap(resp);
-            MapMatcher mapMatcher = responseMatcher();
-            if (responseMap.get("took") != null) {
-                mapMatcher = mapMatcher.entry("took", ((Integer) responseMap.get("took")).intValue());
-            }
+            MapMatcher mapMatcher = responseMatcher(responseMap);
             MapMatcher matcher = mapMatcher.entry("columns", List.of(Map.of("name", "sum", "type", "double")))
                 .entry("values", List.of(List.of(43.0d)));
             assertMap(responseMap, matcher);
@@ -195,10 +192,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             Response resp = runESQLCommand(user, "from index-user2 | stats sum=sum(value)");
             assertOK(resp);
             Map<String, Object> responseMap = entityAsMap(resp);
-            MapMatcher mapMatcher = responseMatcher();
-            if (responseMap.get("took") != null) {
-                mapMatcher = mapMatcher.entry("took", ((Integer) responseMap.get("took")).intValue());
-            }
+            MapMatcher mapMatcher = responseMatcher(responseMap);
             MapMatcher matcher = mapMatcher.entry("columns", List.of(Map.of("name", "sum", "type", "double")))
                 .entry("values", List.of(List.of(72.0d)));
             assertMap(responseMap, matcher);
@@ -208,10 +202,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             Response resp = runESQLCommand("metadata1_read2", "from " + index + " | stats sum=sum(value)");
             assertOK(resp);
             Map<String, Object> responseMap = entityAsMap(resp);
-            MapMatcher mapMatcher = responseMatcher();
-            if (responseMap.get("took") != null) {
-                mapMatcher = mapMatcher.entry("took", ((Integer) responseMap.get("took")).intValue());
-            }
+            MapMatcher mapMatcher = responseMatcher(responseMap);
             MapMatcher matcher = mapMatcher.entry("columns", List.of(Map.of("name", "sum", "type", "double")))
                 .entry("values", List.of(List.of(72.0d)));
             assertMap(responseMap, matcher);
@@ -226,9 +217,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
             );
             assertOK(resp);
             Map<String, Object> responseMap = entityAsMap(resp);
-            MapMatcher matcher = responseMatcher().entry("took", ((Integer) responseMap.get("took")).intValue())
-                .entry("columns", List.of(Map.of("name", "sum", "type", "double"), Map.of("name", "index", "type", "keyword")))
-                .entry("values", List.of(List.of(72.0d, "index-user2")));
+            MapMatcher matcher = responseMatcher(responseMap).entry(
+                "columns",
+                List.of(Map.of("name", "sum", "type", "double"), Map.of("name", "index", "type", "keyword"))
+            ).entry("values", List.of(List.of(72.0d, "index-user2")));
             assertMap(responseMap, matcher);
         }
     }
@@ -238,16 +230,14 @@ public class EsqlSecurityIT extends ESRestTestCase {
             Response resp = runESQLCommand("alias_user1", "from " + index + " METADATA _index" + "| KEEP _index, org, value | LIMIT 10");
             assertOK(resp);
             Map<String, Object> responseMap = entityAsMap(resp);
-            MapMatcher matcher = responseMatcher().entry("took", ((Integer) responseMap.get("took")).intValue())
-                .entry(
-                    "columns",
-                    List.of(
-                        Map.of("name", "_index", "type", "keyword"),
-                        Map.of("name", "org", "type", "keyword"),
-                        Map.of("name", "value", "type", "double")
-                    )
+            MapMatcher matcher = responseMatcher(responseMap).entry(
+                "columns",
+                List.of(
+                    Map.of("name", "_index", "type", "keyword"),
+                    Map.of("name", "org", "type", "keyword"),
+                    Map.of("name", "value", "type", "double")
                 )
-                .entry("values", List.of(List.of("index-user1", "sales", 31.0d)));
+            ).entry("values", List.of(List.of("index-user1", "sales", 31.0d)));
             assertMap(responseMap, matcher);
         }
     }
@@ -599,6 +589,16 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         resp = expectThrows(
             ResponseException.class,
+            () -> runESQLCommand(
+                "metadata1_read2",
+                "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x"
+            )
+        );
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-first-alias]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        resp = expectThrows(
+            ResponseException.class,
             () -> runESQLCommand("metadata1_read2", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
         );
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
@@ -608,6 +608,20 @@ public class EsqlSecurityIT extends ESRestTestCase {
             ResponseException.class,
             () -> runESQLCommand("alias_user1", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
         );
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testFromLookupIndexForbidden() throws Exception {
+        var resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM lookup-user1"));
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM lookup-first-alias"));
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-first-alias]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        resp = expectThrows(ResponseException.class, () -> runESQLCommand("alias_user1", "FROM lookup-user1"));
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
     }

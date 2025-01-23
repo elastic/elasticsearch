@@ -1,5 +1,5 @@
 [[infer-service-google-vertex-ai]]
-=== Google Vertex AI {infer} service
+=== Google Vertex AI {infer} integration
 
 .New API reference
 [sidebar]

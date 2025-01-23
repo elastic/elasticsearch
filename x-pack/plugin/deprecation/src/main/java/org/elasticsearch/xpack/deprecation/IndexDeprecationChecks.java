@@ -15,7 +15,6 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -37,12 +36,30 @@ public class IndexDeprecationChecks {
         // TODO: this check needs to be revised. It's trivially true right now.
         IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
         // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
-        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata) && isNotDataStreamIndex(indexMetadata, clusterState)) {
+        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, false) && isNotDataStreamIndex(indexMetadata, clusterState)) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "Old index with a compatibility version < 9.0",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
                 "This index has version: " + currentCompatibilityVersion.toReleaseVersion(),
+                false,
+                Collections.singletonMap("reindex_required", true)
+            );
+        }
+        return null;
+    }
+
+    static DeprecationIssue ignoredOldIndicesCheck(IndexMetadata indexMetadata, ClusterState clusterState) {
+        IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
+        // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
+        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, true) && isNotDataStreamIndex(indexMetadata, clusterState)) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Old index with a compatibility version < 9.0 Has Been Ignored",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
+                "This read-only index has version: "
+                    + currentCompatibilityVersion.toReleaseVersion()
+                    + " and will be supported as read-only in 9.0",
                 false,
                 Collections.singletonMap("reindex_required", true)
             );
@@ -201,31 +218,6 @@ public class IndexDeprecationChecks {
         }
 
         return issues;
-    }
-
-    static DeprecationIssue checkSourceModeInMapping(IndexMetadata indexMetadata, ClusterState clusterState) {
-        if (SourceFieldMapper.onOrAfterDeprecateModeVersion(indexMetadata.getCreationVersion())) {
-            boolean[] useSourceMode = { false };
-            fieldLevelMappingIssue(indexMetadata, ((mappingMetadata, sourceAsMap) -> {
-                Object source = sourceAsMap.get("_source");
-                if (source instanceof Map<?, ?> sourceMap) {
-                    if (sourceMap.containsKey("mode")) {
-                        useSourceMode[0] = true;
-                    }
-                }
-            }));
-            if (useSourceMode[0]) {
-                return new DeprecationIssue(
-                    DeprecationIssue.Level.CRITICAL,
-                    SourceFieldMapper.DEPRECATION_WARNING,
-                    "https://github.com/elastic/elasticsearch/pull/117172",
-                    SourceFieldMapper.DEPRECATION_WARNING,
-                    false,
-                    null
-                );
-            }
-        }
-        return null;
     }
 
     static DeprecationIssue deprecatedCamelCasePattern(IndexMetadata indexMetadata, ClusterState clusterState) {

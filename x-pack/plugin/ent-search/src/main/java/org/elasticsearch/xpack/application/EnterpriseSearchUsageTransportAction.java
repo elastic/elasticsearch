@@ -72,14 +72,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         XPackLicenseState licenseState,
         Client client
     ) {
-        super(
-            XPackUsageFeatureAction.ENTERPRISE_SEARCH.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.ENTERPRISE_SEARCH.name(), transportService, clusterService, threadPool, actionFilters);
         this.licenseState = licenseState;
         this.clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
         this.indicesAdminClient = clientWithOrigin.admin().indices();

@@ -1,5 +1,5 @@
 [[infer-service-hugging-face]]
-=== HuggingFace {infer} service
+=== HuggingFace {infer} integration
 
 .New API reference
 [sidebar]

@@ -1,5 +1,5 @@
 [[infer-service-cohere]]
-=== Cohere {infer} service
+=== Cohere {infer} integration
 
 .New API reference
 [sidebar]

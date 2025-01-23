@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
@@ -40,6 +41,7 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -70,6 +72,17 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
     private final boolean ccsCheckCompatibility;
     private final ThreadPool threadPool;
 
+    // Max permissible time we can wait before the distrib code cuts off the connection.
+    // There are 2 reasons why we let user specify a timeout parameter:
+    //
+    // 1. transport.connect_timeout in elasticsearch.yml controls how long to wait before a connection
+    // is cut off. This setting is not guaranteed to exist and if it does not exist, 30s is the default
+    // value. This may be too long for the user.
+    //
+    // 2. User may not want to change transport.connect_timeout since it affects other aspects of Elasticsearch.
+    // In such cases, this parameter helps control how long to wait.
+    private final long maxTimeoutInSeconds;
+
     @Inject
     public TransportResolveClusterAction(
         TransportService transportService,
@@ -85,6 +98,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
         this.threadPool = threadPool;
+        this.maxTimeoutInSeconds = TransportSettings.CONNECT_TIMEOUT.get(clusterService.getSettings()).getSeconds();
     }
 
     @Override
@@ -331,18 +345,29 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                 };
 
                 ActionListener<ResolveClusterActionResponse> resultsListener;
-                if (request.getTimeout() != null) {
+                TimeValue timeout = request.getTimeout();
+                // Wrap the listener with a timeout since a timeout was specified.
+                if (timeout != null) {
                     var releaserListener = ActionListener.releaseAfter(remoteListener, refs.acquire());
-                    // Wrap the listener with a timeout only if a valid timeout was specified.
                     resultsListener = ListenerTimeouts.wrapWithTimeout(
                         threadPool,
-                        request.getTimeout(),
+                        timeout,
                         searchCoordinationExecutor,
                         releaserListener,
                         ignored -> releaserListener.onFailure(new ConnectTransportException(null, "Could not connect to the remote node"))
                     );
                 } else {
                     resultsListener = ActionListener.releaseAfter(remoteListener, refs.acquire());
+                }
+
+                // Fail the action if the specified timeout exceeds the value set in elasticsearch.yml.
+                if (timeout != null && timeout.getSeconds() > maxTimeoutInSeconds) {
+                    resultsListener.onFailure(
+                        new IllegalArgumentException(
+                            "Timeout exceeds the value of transport.connect_timeout: " + maxTimeoutInSeconds + " seconds"
+                        )
+                    );
+                    return;
                 }
 
                 remoteClusterClient.execute(TransportResolveClusterAction.REMOTE_TYPE, remoteRequest, resultsListener);

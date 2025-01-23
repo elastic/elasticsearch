@@ -51,7 +51,6 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
             threadPool,
             actionFilters,
             EnrichStatsAction.Request::new,
-            indexNameExpressionResolver,
             EnrichStatsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

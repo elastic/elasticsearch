@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -129,10 +130,10 @@ import java.util.stream.IntStream;
  *     the same number of rows that it was sent no matter how many documents match.
  * </p>
  */
-abstract class AbstractLookupService<R extends AbstractLookupService.Request, T extends AbstractLookupService.TransportRequest> {
+public abstract class AbstractLookupService<R extends AbstractLookupService.Request, T extends AbstractLookupService.TransportRequest> {
     private final String actionName;
     private final ClusterService clusterService;
-    private final SearchService searchService;
+    private final LookupShardContextFactory lookupShardContextFactory;
     private final TransportService transportService;
     private final Executor executor;
     private final BigArrays bigArrays;
@@ -151,7 +152,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
     AbstractLookupService(
         String actionName,
         ClusterService clusterService,
-        SearchService searchService,
+        LookupShardContextFactory lookupShardContextFactory,
         TransportService transportService,
         BigArrays bigArrays,
         BlockFactory blockFactory,
@@ -160,7 +161,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
     ) {
         this.actionName = actionName;
         this.clusterService = clusterService;
-        this.searchService = searchService;
+        this.lookupShardContextFactory = lookupShardContextFactory;
         this.transportService = transportService;
         this.executor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH);
         this.bigArrays = bigArrays;
@@ -323,9 +324,8 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         final List<Releasable> releasables = new ArrayList<>(6);
         boolean started = false;
         try {
-            final ShardSearchRequest shardSearchRequest = new ShardSearchRequest(request.shardId, 0, AliasFilter.EMPTY);
-            final SearchContext searchContext = searchService.createSearchContext(shardSearchRequest, SearchService.NO_TIMEOUT);
-            releasables.add(searchContext);
+            LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
+            releasables.add(shardContext.release);
             final LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(
                 blockFactory.breaker(),
                 localBreakerSettings.overReservedBytes(),
@@ -363,8 +363,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
                 }
             }
             releasables.add(finishPages);
-            SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
-            QueryList queryList = queryList(request, searchExecutionContext, inputBlock, request.inputDataType);
+            QueryList queryList = queryList(request, shardContext.executionContext, inputBlock, request.inputDataType);
             var warnings = Warnings.createWarnings(
                 DriverContext.WarningsMode.COLLECT,
                 request.source.source().getLineNumber(),
@@ -375,11 +374,11 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
                 driverContext.blockFactory(),
                 EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
                 queryList,
-                searchExecutionContext.getIndexReader(),
+                shardContext.context.searcher().getIndexReader(),
                 warnings
             );
             releasables.add(queryOperator);
-            var extractFieldsOperator = extractFieldsOperator(searchContext, driverContext, request.extractFields);
+            var extractFieldsOperator = extractFieldsOperator(shardContext.context, driverContext, request.extractFields);
             releasables.add(extractFieldsOperator);
 
             /*
@@ -402,20 +401,32 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
                 List.of(extractFieldsOperator, finishPages),
                 outputOperator,
                 Driver.DEFAULT_STATUS_INTERVAL,
-                Releasables.wrap(searchContext, localBreaker)
+                Releasables.wrap(shardContext.release, localBreaker)
             );
             task.addListener(() -> {
                 String reason = Objects.requireNonNullElse(task.getReasonCancelled(), "task was cancelled");
                 driver.cancel(reason);
             });
             var threadContext = transportService.getThreadPool().getThreadContext();
-            Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, listener.map(ignored -> {
-                List<Page> out = collectedPages;
-                if (mergePages && out.isEmpty()) {
-                    out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
+            Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    List<Page> out = collectedPages;
+                    if (mergePages && out.isEmpty()) {
+                        out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
+                    }
+                    listener.onResponse(out);
                 }
-                return out;
-            }));
+
+                @Override
+                public void onFailure(Exception e) {
+                    Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(collectedPages.iterator(), p -> () -> {
+                        p.allowPassingToDifferentDriver();
+                        p.releaseBlocks();
+                    })));
+                    listener.onFailure(e);
+                }
+            });
             started = true;
         } catch (Exception e) {
             listener.onFailure(e);
@@ -427,15 +438,10 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
     }
 
     private static Operator extractFieldsOperator(
-        SearchContext searchContext,
+        EsPhysicalOperationProviders.ShardContext shardContext,
         DriverContext driverContext,
         List<NamedExpression> extractFields
     ) {
-        EsPhysicalOperationProviders.ShardContext shardContext = new EsPhysicalOperationProviders.DefaultShardContext(
-            0,
-            searchContext.getSearchExecutionContext(),
-            searchContext.request().getAliasFilter()
-        );
         List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>(extractFields.size());
         for (NamedExpression extractField : extractFields) {
             BlockLoader loader = shardContext.blockLoader(
@@ -459,7 +465,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         return new ValuesSourceReaderOperator(
             driverContext.blockFactory(),
             fields,
-            List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.searcher().getIndexReader(), searchContext::newSourceLoader)),
+            List.of(new ValuesSourceReaderOperator.ShardContext(shardContext.searcher().getIndexReader(), shardContext::newSourceLoader)),
             0
         );
     }
@@ -665,6 +671,44 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         @Override
         public boolean hasReferences() {
             return refs.hasReferences();
+        }
+    }
+
+    /**
+     * Create a {@link LookupShardContext} for a locally allocated {@link ShardId}.
+     */
+    public interface LookupShardContextFactory {
+        LookupShardContext create(ShardId shardId) throws IOException;
+
+        static LookupShardContextFactory fromSearchService(SearchService searchService) {
+            return shardId -> {
+                ShardSearchRequest shardSearchRequest = new ShardSearchRequest(shardId, 0, AliasFilter.EMPTY);
+                return LookupShardContext.fromSearchContext(
+                    searchService.createSearchContext(shardSearchRequest, SearchService.NO_TIMEOUT)
+                );
+            };
+        }
+    }
+
+    /**
+     * {@link AbstractLookupService} uses this to power the queries and field loading that
+     * it needs to perform to actually do the lookup.
+     */
+    public record LookupShardContext(
+        EsPhysicalOperationProviders.ShardContext context,
+        SearchExecutionContext executionContext,
+        Releasable release
+    ) {
+        public static LookupShardContext fromSearchContext(SearchContext context) {
+            return new LookupShardContext(
+                new EsPhysicalOperationProviders.DefaultShardContext(
+                    0,
+                    context.getSearchExecutionContext(),
+                    context.request().getAliasFilter()
+                ),
+                context.getSearchExecutionContext(),
+                context
+            );
         }
     }
 }

@@ -55,8 +55,8 @@ public class DataStreamDeprecationChecks {
                 DeprecationIssue.Level.WARNING,
                 "Old data stream with a compatibility version < 9.0 Have Been Ignored",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-                "This data stream has backing indices that were created before Elasticsearch 9.0.0 and have been marked as OK to"
-                    + "remain read-only after upgrade",
+                "This data stream has read only backing indices that were created before Elasticsearch 9.0.0 and have been marked as "
+                    + "OK to remain read-only after upgrade",
                 false,
                 ofEntries(
                     entry("reindex_required", true),

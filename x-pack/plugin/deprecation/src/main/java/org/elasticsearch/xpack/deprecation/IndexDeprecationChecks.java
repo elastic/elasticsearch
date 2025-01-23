@@ -57,9 +57,9 @@ public class IndexDeprecationChecks {
                 DeprecationIssue.Level.WARNING,
                 "Old index with a compatibility version < 9.0 Has Been Ignored",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-                "This index has version: "
+                "This read-only index has version: "
                     + currentCompatibilityVersion.toReleaseVersion()
-                    + " and has been marked as OK to become read-only after upgrade",
+                    + " and will be supported as read-only in 9.0",
                 false,
                 Collections.singletonMap("reindex_required", true)
             );

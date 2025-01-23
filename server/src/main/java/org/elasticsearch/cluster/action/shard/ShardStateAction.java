@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -70,6 +71,7 @@ import java.util.Set;
 
 import static org.apache.logging.log4j.Level.DEBUG;
 import static org.apache.logging.log4j.Level.ERROR;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_REFRESH_BLOCK;
 import static org.elasticsearch.cluster.service.MasterService.isPublishFailureException;
 import static org.elasticsearch.core.Strings.format;
 
@@ -619,6 +621,7 @@ public class ShardStateAction {
             List<TaskContext<StartedShardUpdateTask>> tasksToBeApplied = new ArrayList<>();
             List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(batchExecutionContext.taskContexts().size());
             Set<ShardRouting> seenShardRoutings = new HashSet<>(); // to prevent duplicates
+            Set<Index> indicesWithUnpromotableShardsStarted = null;
             final Map<Index, ClusterStateTimeRanges> updatedTimestampRanges = new HashMap<>();
             final ClusterState initialState = batchExecutionContext.initialState();
             for (var taskContext : batchExecutionContext.taskContexts()) {
@@ -737,6 +740,14 @@ public class ShardStateAction {
                                     new ClusterStateTimeRanges(newTimestampMillisRange, newEventIngestedMillisRange)
                                 );
                             }
+
+                            if (matched.isPromotableToPrimary() == false
+                                && initialState.blocks().hasIndexBlock(index.getName(), INDEX_REFRESH_BLOCK)) {
+                                if (indicesWithUnpromotableShardsStarted == null) {
+                                    indicesWithUnpromotableShardsStarted = new HashSet<>();
+                                }
+                                indicesWithUnpromotableShardsStarted.add(index);
+                            }
                         }
                     }
                 }
@@ -760,6 +771,8 @@ public class ShardStateAction {
                     maybeUpdatedState = ClusterState.builder(maybeUpdatedState).metadata(metadataBuilder).build();
                 }
 
+                maybeUpdatedState = maybeRemoveIndexRefreshBlocks(maybeUpdatedState, indicesWithUnpromotableShardsStarted);
+
                 assert assertStartedIndicesHaveCompleteTimestampRanges(maybeUpdatedState);
 
                 for (final var taskContext : tasksToBeApplied) {
@@ -774,6 +787,35 @@ public class ShardStateAction {
             }
 
             return maybeUpdatedState;
+        }
+
+        private ClusterState maybeRemoveIndexRefreshBlocks(
+            ClusterState clusterState,
+            @Nullable Set<Index> indicesWithUnpromotableShardsStarted
+        ) {
+            if (indicesWithUnpromotableShardsStarted == null) {
+                return clusterState;
+            }
+
+            ClusterBlocks.Builder clusterBlocksBuilder = null;
+            for (Index indexWithUnpromotableShardsStarted : indicesWithUnpromotableShardsStarted) {
+                String indexName = indexWithUnpromotableShardsStarted.getName();
+                assert clusterState.blocks().hasIndexBlock(indexName, INDEX_REFRESH_BLOCK);
+
+                var indexRoutingTable = clusterState.routingTable().index(indexWithUnpromotableShardsStarted);
+                if (indexRoutingTable.readyForSearch(clusterState)) {
+                    if (clusterBlocksBuilder == null) {
+                        clusterBlocksBuilder = ClusterBlocks.builder(clusterState.blocks());
+                    }
+                    clusterBlocksBuilder.removeIndexBlock(indexName, INDEX_REFRESH_BLOCK);
+                }
+            }
+
+            if (clusterBlocksBuilder == null) {
+                return clusterState;
+            }
+
+            return ClusterState.builder(clusterState).blocks(clusterBlocksBuilder).build();
         }
 
         private static boolean assertStartedIndicesHaveCompleteTimestampRanges(ClusterState clusterState) {

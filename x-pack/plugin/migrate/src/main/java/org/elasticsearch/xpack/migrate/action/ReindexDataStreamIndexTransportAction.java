@@ -323,7 +323,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             logger.debug("Comparing source [{}] and dest [{}] doc counts", sourceIndexName, destIndexName);
             client.execute(
                 RefreshAction.INSTANCE,
-                new RefreshRequest(sourceIndexName, destIndexName),
+                new RefreshRequest(destIndexName),
                 listener.delegateFailureAndWrap((delegate, ignored) -> {
                     getIndexDocCount(sourceIndexName, parentTaskId, delegate.delegateFailureAndWrap((delegate1, sourceCount) -> {
                         getIndexDocCount(destIndexName, parentTaskId, delegate1.delegateFailureAndWrap((delegate2, destCount) -> {

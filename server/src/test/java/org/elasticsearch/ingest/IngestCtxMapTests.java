@@ -129,8 +129,8 @@ public class IngestCtxMapTests extends ESTestCase {
     }
 
     public void testRemove() {
-        String cannotRemove = "cannotRemove";
-        String canRemove = "canRemove";
+        String cannotRemove = "_cannotRemove";
+        String canRemove = "_canRemove";
         map = new IngestCtxMap(
             new HashMap<>(),
             new TestIngestCtxMetadata(
@@ -143,15 +143,15 @@ public class IngestCtxMapTests extends ESTestCase {
                 )
             )
         );
-        String msg = "cannotRemove cannot be removed";
+        String msg = "_cannotRemove cannot be removed";
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> map.remove(cannotRemove));
         assertEquals(msg, err.getMessage());
 
         err = expectThrows(IllegalArgumentException.class, () -> map.put(cannotRemove, null));
-        assertEquals("cannotRemove cannot be null", err.getMessage());
+        assertEquals("_cannotRemove cannot be null", err.getMessage());
 
         err = expectThrows(IllegalArgumentException.class, () -> map.entrySet().iterator().next().setValue(null));
-        assertEquals("cannotRemove cannot be null", err.getMessage());
+        assertEquals("_cannotRemove cannot be null", err.getMessage());
 
         err = expectThrows(IllegalArgumentException.class, () -> {
             Iterator<Map.Entry<String, Object>> it = map.entrySet().iterator();

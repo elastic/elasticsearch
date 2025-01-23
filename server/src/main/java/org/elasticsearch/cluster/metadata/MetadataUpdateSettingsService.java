@@ -431,7 +431,7 @@ public class MetadataUpdateSettingsService {
     private static void verifyReadOnlyIndices(@Nullable Set<Index> readOnlyIndices, ClusterBlocks blocks) {
         if (readOnlyIndices != null) {
             for (Index readOnlyIndex : readOnlyIndices) {
-                if (blocks.indexBlocked(ClusterBlockLevel.WRITE, readOnlyIndex.getName())) {
+                if (blocks.indexBlocked(ClusterBlockLevel.WRITE, readOnlyIndex.getName()) == false) {
                     throw new IllegalArgumentException(
                         String.format(Locale.ROOT, "Can't remove the `write` level block for read-only compatible index %s", readOnlyIndex)
                     );

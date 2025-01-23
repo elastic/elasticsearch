@@ -404,7 +404,12 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
     public void testUpdateLifecycle() {
         String dataStream = randomAlphaOfLength(5);
         DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
-        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of());
+        final var projectId = randomProjectIdOrDefault();
+        ProjectMetadata before = DataStreamTestHelper.getClusterStateWithDataStreams(
+            projectId,
+            List.of(new Tuple<>(dataStream, 2)),
+            List.of()
+        ).metadata().getProject(projectId);
         MetadataDataStreamsService service = new MetadataDataStreamsService(
             mock(ClusterService.class),
             mock(IndicesService.class),
@@ -412,8 +417,8 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         );
         {
             // Remove lifecycle
-            ClusterState after = service.updateDataLifecycle(before, List.of(dataStream), null);
-            DataStream updatedDataStream = after.metadata().getProject().dataStreams().get(dataStream);
+            ProjectMetadata after = service.updateDataLifecycle(before, List.of(dataStream), null);
+            DataStream updatedDataStream = after.dataStreams().get(dataStream);
             assertNotNull(updatedDataStream);
             assertThat(updatedDataStream.getLifecycle(), nullValue());
             before = after;
@@ -421,8 +426,8 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
         {
             // Set lifecycle
-            ClusterState after = service.updateDataLifecycle(before, List.of(dataStream), lifecycle);
-            DataStream updatedDataStream = after.metadata().getProject().dataStreams().get(dataStream);
+            ProjectMetadata after = service.updateDataLifecycle(before, List.of(dataStream), lifecycle);
+            DataStream updatedDataStream = after.dataStreams().get(dataStream);
             assertNotNull(updatedDataStream);
             assertThat(updatedDataStream.getLifecycle(), equalTo(lifecycle));
         }

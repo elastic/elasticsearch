@@ -64,7 +64,15 @@ public class MetadataDataStreamsService {
                 ClusterState clusterState
             ) {
                 return new Tuple<>(
-                    updateDataLifecycle(clusterState, modifyLifecycleTask.getDataStreamNames(), modifyLifecycleTask.getDataLifecycle()),
+                    ClusterState.builder(clusterState)
+                        .putProjectMetadata(
+                            updateDataLifecycle(
+                                clusterState.metadata().getProject(modifyLifecycleTask.getProjectId()),
+                                modifyLifecycleTask.getDataStreamNames(),
+                                modifyLifecycleTask.getDataLifecycle()
+                            )
+                        )
+                        .build(),
                     modifyLifecycleTask
                 );
             }
@@ -144,6 +152,7 @@ public class MetadataDataStreamsService {
      * Submits the task to set the lifecycle to the requested data streams.
      */
     public void setLifecycle(
+        final ProjectId projectId,
         final List<String> dataStreamNames,
         DataStreamLifecycle lifecycle,
         TimeValue ackTimeout,
@@ -152,7 +161,7 @@ public class MetadataDataStreamsService {
     ) {
         updateLifecycleTaskQueue.submitTask(
             "set-lifecycle",
-            new UpdateLifecycleTask(dataStreamNames, lifecycle, ackTimeout, listener),
+            new UpdateLifecycleTask(projectId, dataStreamNames, lifecycle, ackTimeout, listener),
             masterTimeout
         );
     }
@@ -161,6 +170,7 @@ public class MetadataDataStreamsService {
      * Submits the task to remove the lifecycle from the requested data streams.
      */
     public void removeLifecycle(
+        ProjectId projectId,
         List<String> dataStreamNames,
         TimeValue ackTimeout,
         TimeValue masterTimeout,
@@ -168,7 +178,7 @@ public class MetadataDataStreamsService {
     ) {
         updateLifecycleTaskQueue.submitTask(
             "delete-lifecycle",
-            new UpdateLifecycleTask(dataStreamNames, null, ackTimeout, listener),
+            new UpdateLifecycleTask(projectId, dataStreamNames, null, ackTimeout, listener),
             masterTimeout
         );
     }
@@ -271,12 +281,11 @@ public class MetadataDataStreamsService {
      * Creates an updated cluster state in which the requested data streams have the data stream lifecycle provided.
      * Visible for testing.
      */
-    ClusterState updateDataLifecycle(ClusterState currentState, List<String> dataStreamNames, @Nullable DataStreamLifecycle lifecycle) {
-        Metadata metadata = currentState.metadata();
-        Metadata.Builder builder = Metadata.builder(metadata);
+    ProjectMetadata updateDataLifecycle(ProjectMetadata project, List<String> dataStreamNames, @Nullable DataStreamLifecycle lifecycle) {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(project);
         boolean onlyInternalDataStreams = true;
         for (var dataStreamName : dataStreamNames) {
-            var dataStream = validateDataStream(metadata.getProject(), dataStreamName);
+            var dataStream = validateDataStream(project, dataStreamName);
             builder.put(dataStream.copy().setLifecycle(lifecycle).build());
             onlyInternalDataStreams = onlyInternalDataStreams && dataStream.isInternal();
         }
@@ -284,7 +293,7 @@ public class MetadataDataStreamsService {
             // We don't issue any warnings if all data streams are internal data streams
             lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(), onlyInternalDataStreams);
         }
-        return ClusterState.builder(currentState).metadata(builder.build()).build();
+        return builder.build();
     }
 
     /**
@@ -428,18 +437,25 @@ public class MetadataDataStreamsService {
      */
     static class UpdateLifecycleTask extends AckedBatchedClusterStateUpdateTask {
 
+        private final ProjectId projectId;
         private final List<String> dataStreamNames;
         private final DataStreamLifecycle lifecycle;
 
         UpdateLifecycleTask(
+            ProjectId projectId,
             List<String> dataStreamNames,
             @Nullable DataStreamLifecycle lifecycle,
             TimeValue ackTimeout,
             ActionListener<AcknowledgedResponse> listener
         ) {
             super(ackTimeout, listener);
+            this.projectId = projectId;
             this.dataStreamNames = dataStreamNames;
             this.lifecycle = lifecycle;
+        }
+
+        public ProjectId getProjectId() {
+            return projectId;
         }
 
         public List<String> getDataStreamNames() {

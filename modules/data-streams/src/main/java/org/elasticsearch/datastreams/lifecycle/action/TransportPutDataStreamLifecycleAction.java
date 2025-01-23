@@ -83,6 +83,7 @@ public class TransportPutDataStreamLifecycleAction extends AcknowledgedTransport
             systemIndices.validateDataStreamAccess(name, threadPool.getThreadContext());
         }
         metadataDataStreamsService.setLifecycle(
+            state.projectId(),
             dataStreamNames,
             request.getLifecycle(),
             request.ackTimeout(),

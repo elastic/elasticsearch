@@ -38,7 +38,6 @@ tasks.named("yamlRestTest").configure {
     '^cat.recovery/*/*',
     '^cat.snapshots/*/*',
     '^cluster.desired_balance/10_basic/*',
-    '^data_stream/lifecycle/*/*',
     '^data_stream/10_basic/Get data stream and check DSL and ILM information',
     '^data_stream/40_supported_apis/Verify shard stores api', // uses _shard_stores API
     '^health/10_basic/*',

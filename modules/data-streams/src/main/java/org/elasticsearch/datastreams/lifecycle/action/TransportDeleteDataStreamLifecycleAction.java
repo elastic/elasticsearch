@@ -81,7 +81,13 @@ public class TransportDeleteDataStreamLifecycleAction extends AcknowledgedTransp
         for (String name : dataStreamNames) {
             systemIndices.validateDataStreamAccess(name, threadPool.getThreadContext());
         }
-        metadataDataStreamsService.removeLifecycle(dataStreamNames, request.ackTimeout(), request.masterNodeTimeout(), listener);
+        metadataDataStreamsService.removeLifecycle(
+            state.projectId(),
+            dataStreamNames,
+            request.ackTimeout(),
+            request.masterNodeTimeout(),
+            listener
+        );
     }
 
     @Override

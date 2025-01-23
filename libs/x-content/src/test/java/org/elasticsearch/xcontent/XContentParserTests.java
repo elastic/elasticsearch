@@ -15,7 +15,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -33,6 +36,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.internal.matchers.ThrowableMessageMatcher.hasMessage;
 
@@ -653,6 +657,29 @@ public class XContentParserTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
 
+    }
+
+    public void testJsonIncludeSourceOnParserError() throws IOException {
+        var xContent = XContentFactory.xContent(XContentType.JSON);
+        var source = "{\"field\": invalid}"; // causes parse exception
+        var sourceEnabled = XContentParserConfiguration.EMPTY;
+        var sourceDisabled = XContentParserConfiguration.EMPTY.withIncludeSourceOnError(false);
+
+        var parseException = assertThrows(XContentParseException.class, () -> createParser(xContent, sourceEnabled, source).map());
+        assertThat(parseException.getMessage(), containsString(source));
+
+        parseException = assertThrows(XContentParseException.class, () -> createParser(xContent, sourceDisabled, source).map());
+        assertThat(parseException.getMessage(), not(containsString(source)));
+    }
+
+    private XContentParser createParser(XContent xContent, XContentParserConfiguration config, String content) throws IOException {
+        return switch (randomInt(3)) {
+            case 0 -> xContent.createParser(config, content);
+            case 1 -> xContent.createParser(config, content.getBytes(StandardCharsets.UTF_8));
+            case 2 -> xContent.createParser(config, new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8)));
+            case 3 -> xContent.createParser(config, new StringReader(content));
+            default -> throw new IllegalArgumentException();
+        };
     }
 
     /**

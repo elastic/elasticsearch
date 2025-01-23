@@ -537,6 +537,11 @@ public class RestRequest implements ToXContent.Params, Traceable {
         return parserConfig;
     }
 
+    private XContentParserConfiguration internalParserConfig() {
+        // consume query param lazily so we can report if consumed or not
+        return parserConfig.withIncludeSourceOnError(paramAsBoolean("include_source_on_error", true));
+    }
+
     /**
      * A parser for the contents of this request if there is a body, otherwise throws an {@link ElasticsearchParseException}. Use
      * {@link #applyContentParser(CheckedConsumer)} if you want to gracefully handle when the request doesn't have any contents. Use
@@ -544,8 +549,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      */
     public final XContentParser contentParser() throws IOException {
         BytesReference content = requiredContent(); // will throw exception if body or content type missing
-        return XContentHelper.createParserNotCompressed(parserConfig, content, xContentType.get());
-
+        return XContentHelper.createParserNotCompressed(internalParserConfig(), content, xContentType.get());
     }
 
     /**
@@ -574,7 +578,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
         Tuple<XContentType, ReleasableBytesReference> tuple = contentOrSourceParam();
-        return XContentHelper.createParserNotCompressed(parserConfig, tuple.v2(), tuple.v1().xContent().type());
+        return XContentHelper.createParserNotCompressed(internalParserConfig(), tuple.v2(), tuple.v1().xContent().type());
     }
 
     /**
@@ -585,7 +589,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     public final void withContentOrSourceParamParserOrNull(CheckedConsumer<XContentParser, IOException> withParser) throws IOException {
         if (hasContentOrSourceParam()) {
             Tuple<XContentType, ReleasableBytesReference> tuple = contentOrSourceParam();
-            try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, tuple.v2(), tuple.v1())) {
+            try (XContentParser parser = XContentHelper.createParserNotCompressed(internalParserConfig(), tuple.v2(), tuple.v1())) {
                 withParser.accept(parser);
             }
         } else {

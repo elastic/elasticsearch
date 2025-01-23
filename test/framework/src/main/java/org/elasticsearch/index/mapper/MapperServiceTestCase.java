@@ -395,6 +395,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             XContentType.JSON,
             routing,
             dynamicTemplates,
+            true,
             XContentMeteringParserDecorator.NOOP
         );
     }

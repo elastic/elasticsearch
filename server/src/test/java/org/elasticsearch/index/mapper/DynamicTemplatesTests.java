@@ -675,6 +675,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                     XContentType.JSON,
                     null,
                     Map.of("foo", "geo_point"),
+                    true,
                     XContentMeteringParserDecorator.NOOP
                 )
             );

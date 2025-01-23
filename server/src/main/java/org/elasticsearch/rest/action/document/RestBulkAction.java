@@ -103,6 +103,7 @@ public class RestBulkAction extends BaseRestHandler {
             boolean defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
             bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
             bulkRequest.setRefreshPolicy(request.param("refresh"));
+            bulkRequest.includeSourceOnError(request.paramAsBoolean("include_source_on_error", true));
             ReleasableBytesReference content = request.requiredContent();
 
             try {
@@ -160,20 +161,21 @@ public class RestBulkAction extends BaseRestHandler {
         ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
             this.request = request;
             this.handlerSupplier = handlerSupplier;
-            this.parser = new BulkRequestParser(true, request.getRestApiVersion()).incrementalParser(
-                request.param("index"),
-                request.param("routing"),
-                FetchSourceContext.parseFromRestRequest(request),
-                request.param("pipeline"),
-                request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false),
-                request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false),
-                request.paramAsBoolean("list_executed_pipelines", false),
-                allowExplicitIndex,
-                request.getXContentType(),
-                (indexRequest, type) -> items.add(indexRequest),
-                items::add,
-                items::add
-            );
+            this.parser = new BulkRequestParser(true, request.paramAsBoolean("include_source_on_error", true), request.getRestApiVersion())
+                .incrementalParser(
+                    request.param("index"),
+                    request.param("routing"),
+                    FetchSourceContext.parseFromRestRequest(request),
+                    request.param("pipeline"),
+                    request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false),
+                    request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false),
+                    request.paramAsBoolean("list_executed_pipelines", false),
+                    allowExplicitIndex,
+                    request.getXContentType(),
+                    (indexRequest, type) -> items.add(indexRequest),
+                    items::add,
+                    items::add
+                );
         }
 
         @Override

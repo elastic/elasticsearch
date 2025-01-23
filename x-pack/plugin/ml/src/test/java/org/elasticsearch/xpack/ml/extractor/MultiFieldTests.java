@@ -23,7 +23,7 @@ public class MultiFieldTests extends ESTestCase {
         ExtractedField wrapped = new DocValueField("a.b", Collections.singleton("integer"));
         ExtractedField field = new MultiField("a", wrapped);
 
-        assertThat(field.value(hit), equalTo(new Integer[] { 2 }));
+        assertThat(field.value(hit, new SourceSupplier(hit)), equalTo(new Integer[] { 2 }));
         assertThat(field.getName(), equalTo("a.b"));
         assertThat(field.getSearchField(), equalTo("a.b"));
         assertThat(field.getMethod(), equalTo(ExtractedField.Method.DOC_VALUE));
@@ -39,7 +39,7 @@ public class MultiFieldTests extends ESTestCase {
         ExtractedField wrapped = new DocValueField("a", Collections.singleton("integer"));
         ExtractedField field = new MultiField("a.b", "a", "a", wrapped);
 
-        assertThat(field.value(hit), equalTo(new Integer[] { 1 }));
+        assertThat(field.value(hit, new SourceSupplier(hit)), equalTo(new Integer[] { 1 }));
         assertThat(field.getName(), equalTo("a.b"));
         assertThat(field.getSearchField(), equalTo("a"));
         assertThat(field.getMethod(), equalTo(ExtractedField.Method.DOC_VALUE));

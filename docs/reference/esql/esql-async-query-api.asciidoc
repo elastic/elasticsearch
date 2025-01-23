@@ -170,3 +170,10 @@ API>> to get the current status and available results for the query.
 (Boolean)
 If `true`, the query request is still executing.
 --
+
+`is_partial`::
++
+--
+(Boolean)
+If `true`, the query has partial results - for example, as a result of using the <<esql-async-query-stop-api, async query stop API>>.
+--

@@ -31,49 +31,49 @@ public final class DateDiffNanosMillisEvaluator implements EvalOperator.Expressi
 
   private final EvalOperator.ExpressionEvaluator unit;
 
-  private final EvalOperator.ExpressionEvaluator startTimestamp;
+  private final EvalOperator.ExpressionEvaluator startTimestampNanos;
 
-  private final EvalOperator.ExpressionEvaluator endTimestamp;
+  private final EvalOperator.ExpressionEvaluator endTimestampMillis;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public DateDiffNanosMillisEvaluator(Source source, EvalOperator.ExpressionEvaluator unit,
-      EvalOperator.ExpressionEvaluator startTimestamp,
-      EvalOperator.ExpressionEvaluator endTimestamp, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator startTimestampNanos,
+      EvalOperator.ExpressionEvaluator endTimestampMillis, DriverContext driverContext) {
     this.source = source;
     this.unit = unit;
-    this.startTimestamp = startTimestamp;
-    this.endTimestamp = endTimestamp;
+    this.startTimestampNanos = startTimestampNanos;
+    this.endTimestampMillis = endTimestampMillis;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
     try (BytesRefBlock unitBlock = (BytesRefBlock) unit.eval(page)) {
-      try (LongBlock startTimestampBlock = (LongBlock) startTimestamp.eval(page)) {
-        try (LongBlock endTimestampBlock = (LongBlock) endTimestamp.eval(page)) {
+      try (LongBlock startTimestampNanosBlock = (LongBlock) startTimestampNanos.eval(page)) {
+        try (LongBlock endTimestampMillisBlock = (LongBlock) endTimestampMillis.eval(page)) {
           BytesRefVector unitVector = unitBlock.asVector();
           if (unitVector == null) {
-            return eval(page.getPositionCount(), unitBlock, startTimestampBlock, endTimestampBlock);
+            return eval(page.getPositionCount(), unitBlock, startTimestampNanosBlock, endTimestampMillisBlock);
           }
-          LongVector startTimestampVector = startTimestampBlock.asVector();
-          if (startTimestampVector == null) {
-            return eval(page.getPositionCount(), unitBlock, startTimestampBlock, endTimestampBlock);
+          LongVector startTimestampNanosVector = startTimestampNanosBlock.asVector();
+          if (startTimestampNanosVector == null) {
+            return eval(page.getPositionCount(), unitBlock, startTimestampNanosBlock, endTimestampMillisBlock);
           }
-          LongVector endTimestampVector = endTimestampBlock.asVector();
-          if (endTimestampVector == null) {
-            return eval(page.getPositionCount(), unitBlock, startTimestampBlock, endTimestampBlock);
+          LongVector endTimestampMillisVector = endTimestampMillisBlock.asVector();
+          if (endTimestampMillisVector == null) {
+            return eval(page.getPositionCount(), unitBlock, startTimestampNanosBlock, endTimestampMillisBlock);
           }
-          return eval(page.getPositionCount(), unitVector, startTimestampVector, endTimestampVector);
+          return eval(page.getPositionCount(), unitVector, startTimestampNanosVector, endTimestampMillisVector);
         }
       }
     }
   }
 
-  public IntBlock eval(int positionCount, BytesRefBlock unitBlock, LongBlock startTimestampBlock,
-      LongBlock endTimestampBlock) {
+  public IntBlock eval(int positionCount, BytesRefBlock unitBlock,
+      LongBlock startTimestampNanosBlock, LongBlock endTimestampMillisBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       BytesRef unitScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
@@ -88,30 +88,30 @@ public final class DateDiffNanosMillisEvaluator implements EvalOperator.Expressi
           result.appendNull();
           continue position;
         }
-        if (startTimestampBlock.isNull(p)) {
+        if (startTimestampNanosBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (startTimestampBlock.getValueCount(p) != 1) {
-          if (startTimestampBlock.getValueCount(p) > 1) {
+        if (startTimestampNanosBlock.getValueCount(p) != 1) {
+          if (startTimestampNanosBlock.getValueCount(p) > 1) {
             warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
         }
-        if (endTimestampBlock.isNull(p)) {
+        if (endTimestampMillisBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (endTimestampBlock.getValueCount(p) != 1) {
-          if (endTimestampBlock.getValueCount(p) > 1) {
+        if (endTimestampMillisBlock.getValueCount(p) != 1) {
+          if (endTimestampMillisBlock.getValueCount(p) > 1) {
             warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
         }
         try {
-          result.appendInt(DateDiff.processNanosMillis(unitBlock.getBytesRef(unitBlock.getFirstValueIndex(p), unitScratch), startTimestampBlock.getLong(startTimestampBlock.getFirstValueIndex(p)), endTimestampBlock.getLong(endTimestampBlock.getFirstValueIndex(p))));
+          result.appendInt(DateDiff.processNanosMillis(unitBlock.getBytesRef(unitBlock.getFirstValueIndex(p), unitScratch), startTimestampNanosBlock.getLong(startTimestampNanosBlock.getFirstValueIndex(p)), endTimestampMillisBlock.getLong(endTimestampMillisBlock.getFirstValueIndex(p))));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -122,12 +122,12 @@ public final class DateDiffNanosMillisEvaluator implements EvalOperator.Expressi
   }
 
   public IntBlock eval(int positionCount, BytesRefVector unitVector,
-      LongVector startTimestampVector, LongVector endTimestampVector) {
+      LongVector startTimestampNanosVector, LongVector endTimestampMillisVector) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       BytesRef unitScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendInt(DateDiff.processNanosMillis(unitVector.getBytesRef(p, unitScratch), startTimestampVector.getLong(p), endTimestampVector.getLong(p)));
+          result.appendInt(DateDiff.processNanosMillis(unitVector.getBytesRef(p, unitScratch), startTimestampNanosVector.getLong(p), endTimestampMillisVector.getLong(p)));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -139,12 +139,12 @@ public final class DateDiffNanosMillisEvaluator implements EvalOperator.Expressi
 
   @Override
   public String toString() {
-    return "DateDiffNanosMillisEvaluator[" + "unit=" + unit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + "]";
+    return "DateDiffNanosMillisEvaluator[" + "unit=" + unit + ", startTimestampNanos=" + startTimestampNanos + ", endTimestampMillis=" + endTimestampMillis + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(unit, startTimestamp, endTimestamp);
+    Releasables.closeExpectNoException(unit, startTimestampNanos, endTimestampMillis);
   }
 
   private Warnings warnings() {
@@ -164,27 +164,27 @@ public final class DateDiffNanosMillisEvaluator implements EvalOperator.Expressi
 
     private final EvalOperator.ExpressionEvaluator.Factory unit;
 
-    private final EvalOperator.ExpressionEvaluator.Factory startTimestamp;
+    private final EvalOperator.ExpressionEvaluator.Factory startTimestampNanos;
 
-    private final EvalOperator.ExpressionEvaluator.Factory endTimestamp;
+    private final EvalOperator.ExpressionEvaluator.Factory endTimestampMillis;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory unit,
-        EvalOperator.ExpressionEvaluator.Factory startTimestamp,
-        EvalOperator.ExpressionEvaluator.Factory endTimestamp) {
+        EvalOperator.ExpressionEvaluator.Factory startTimestampNanos,
+        EvalOperator.ExpressionEvaluator.Factory endTimestampMillis) {
       this.source = source;
       this.unit = unit;
-      this.startTimestamp = startTimestamp;
-      this.endTimestamp = endTimestamp;
+      this.startTimestampNanos = startTimestampNanos;
+      this.endTimestampMillis = endTimestampMillis;
     }
 
     @Override
     public DateDiffNanosMillisEvaluator get(DriverContext context) {
-      return new DateDiffNanosMillisEvaluator(source, unit.get(context), startTimestamp.get(context), endTimestamp.get(context), context);
+      return new DateDiffNanosMillisEvaluator(source, unit.get(context), startTimestampNanos.get(context), endTimestampMillis.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "DateDiffNanosMillisEvaluator[" + "unit=" + unit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + "]";
+      return "DateDiffNanosMillisEvaluator[" + "unit=" + unit + ", startTimestampNanos=" + startTimestampNanos + ", endTimestampMillis=" + endTimestampMillis + "]";
     }
   }
 }

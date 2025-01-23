@@ -245,27 +245,27 @@ public class DateDiff extends EsqlScalarFunction {
     }
 
     @Evaluator(extraName = "ConstantNanosMillis", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
-    static int processNanosMillis(@Fixed Part datePartFieldUnit, long startTimestamp, long endTimestamp) throws IllegalArgumentException {
-        ZonedDateTime zdtStart = ZonedDateTime.ofInstant(DateUtils.toInstant(startTimestamp), UTC);
-        ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(Instant.ofEpochMilli(endTimestamp), UTC);
+    static int processNanosMillis(@Fixed Part datePartFieldUnit, long startTimestampNanos, long endTimestampMillis) throws IllegalArgumentException {
+        ZonedDateTime zdtStart = ZonedDateTime.ofInstant(DateUtils.toInstant(startTimestampNanos), UTC);
+        ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(Instant.ofEpochMilli(endTimestampMillis), UTC);
         return datePartFieldUnit.diff(zdtStart, zdtEnd);
     }
 
     @Evaluator(extraName = "NanosMillis", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
-    static int processNanosMillis(BytesRef unit, long startTimestamp, long endTimestamp) throws IllegalArgumentException {
-        return processNanosMillis(Part.resolve(unit.utf8ToString()), startTimestamp, endTimestamp);
+    static int processNanosMillis(BytesRef unit, long startTimestampNanos, long endTimestampMillis) throws IllegalArgumentException {
+        return processNanosMillis(Part.resolve(unit.utf8ToString()), startTimestampNanos, endTimestampMillis);
     }
 
     @Evaluator(extraName = "ConstantMillisNanos", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
-    static int processMillisNanos(@Fixed Part datePartFieldUnit, long startTimestamp, long endTimestamp) throws IllegalArgumentException {
-        ZonedDateTime zdtStart = ZonedDateTime.ofInstant(Instant.ofEpochMilli(startTimestamp), UTC);
-        ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(DateUtils.toInstant(endTimestamp), UTC);
+    static int processMillisNanos(@Fixed Part datePartFieldUnit, long startTimestampMillis, long endTimestampNanos) throws IllegalArgumentException {
+        ZonedDateTime zdtStart = ZonedDateTime.ofInstant(Instant.ofEpochMilli(startTimestampMillis), UTC);
+        ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(DateUtils.toInstant(endTimestampNanos), UTC);
         return datePartFieldUnit.diff(zdtStart, zdtEnd);
     }
 
     @Evaluator(extraName = "MillisNanos", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
-    static int processMillisNanos(BytesRef unit, long startTimestamp, long endTimestamp) throws IllegalArgumentException {
-        return processMillisNanos(Part.resolve(unit.utf8ToString()), startTimestamp, endTimestamp);
+    static int processMillisNanos(BytesRef unit, long startTimestampMillis, long endTimestampNanos) throws IllegalArgumentException {
+        return processMillisNanos(Part.resolve(unit.utf8ToString()), startTimestampMillis, endTimestampNanos);
     }
 
     @FunctionalInterface
@@ -299,7 +299,8 @@ public class DateDiff extends EsqlScalarFunction {
         } else if (startTimestamp.dataType() == DATETIME && endTimestamp.dataType() == DATE_NANOS) {
             return toEvaluator(toEvaluator, DateDiffConstantMillisNanosEvaluator.Factory::new, DateDiffMillisNanosEvaluator.Factory::new);
         }
-        throw new UnsupportedOperationException("How'd we get here?");
+        throw new UnsupportedOperationException("Invalid types [" + startTimestamp.dataType() + ", " + endTimestamp.dataType() + "] " +
+            "If you see this error, there is a bug in DateDiff.resolveType()");
     }
 
     private ExpressionEvaluator.Factory toEvaluator(
@@ -329,10 +330,9 @@ public class DateDiff extends EsqlScalarFunction {
         }
 
         String operationName = sourceText();
-        String operationName1 = sourceText();
         TypeResolution resolution = isString(unit, sourceText(), FIRST).and(
             TypeResolutions.isType(startTimestamp, DataType::isDate, operationName, SECOND, "datetime or date_nanos")
-        ).and(TypeResolutions.isType(endTimestamp, DataType::isDate, operationName1, THIRD, "datetime or date_nanos"));
+        ).and(TypeResolutions.isType(endTimestamp, DataType::isDate, operationName, THIRD, "datetime or date_nanos"));
 
         if (resolution.unresolved()) {
             return resolution;

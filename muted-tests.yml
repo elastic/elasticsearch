@@ -233,12 +233,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/120668
-- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
-  issue: https://github.com/elastic/elasticsearch/issues/120674
-- class: org.elasticsearch.entitlement.qa.EntitlementsDeniedNonModularIT
-  issue: https://github.com/elastic/elasticsearch/issues/120675
-- class: org.elasticsearch.entitlement.qa.EntitlementsDeniedIT
-  issue: https://github.com/elastic/elasticsearch/issues/120676
 
 # Examples:
 #

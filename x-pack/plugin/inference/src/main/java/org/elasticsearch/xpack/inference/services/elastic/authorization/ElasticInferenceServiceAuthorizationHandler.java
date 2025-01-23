@@ -33,7 +33,6 @@ import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenc
  * Handles retrieving the authorization information from EIS.
  */
 public class ElasticInferenceServiceAuthorizationHandler {
-    // private static final Logger logger = LogManager.getLogger(ElasticInferenceServiceAuthorizationHandler.class);
 
     private static final String FAILED_TO_RETRIEVE_MESSAGE =
         "Failed to retrieve the authorization information from the Elastic Inference Service.";

@@ -284,27 +284,26 @@ public class VerifierTests extends ESTestCase {
             error("row a = 1, b = \"c\" | eval x = round(b)")
         );
         assertEquals(
-            "1:31: second argument of [round(a, b)] must be [integer], found value [b] type [keyword]",
+            "1:31: second argument of [round(a, b)] must be [whole number except unsigned_long or counter types], "
+                + "found value [b] type [keyword]",
             error("row a = 1, b = \"c\" | eval x = round(a, b)")
         );
         assertEquals(
-            "1:31: second argument of [round(a, 3.5)] must be [integer], found value [3.5] type [double]",
+            "1:31: second argument of [round(a, 3.5)] must be [whole number except unsigned_long or counter types], "
+                + "found value [3.5] type [double]",
             error("row a = 1, b = \"c\" | eval x = round(a, 3.5)")
         );
     }
 
     public void testImplicitCastingErrorMessages() {
-        assertEquals(
-            "1:23: Cannot convert string [c] to [INTEGER], error [Cannot parse number [c]]",
-            error("row a = round(123.45, \"c\")")
-        );
+        assertEquals("1:23: Cannot convert string [c] to [LONG], error [Cannot parse number [c]]", error("row a = round(123.45, \"c\")"));
         assertEquals(
             "1:27: Cannot convert string [c] to [DOUBLE], error [Cannot parse number [c]]",
             error("row a = 1 | eval x = acos(\"c\")")
         );
         assertEquals(
             "1:33: Cannot convert string [c] to [DOUBLE], error [Cannot parse number [c]]\n"
-                + "line 1:38: Cannot convert string [a] to [INTEGER], error [Cannot parse number [a]]",
+                + "line 1:38: Cannot convert string [a] to [LONG], error [Cannot parse number [a]]",
             error("row a = 1 | eval x = round(acos(\"c\"),\"a\")")
         );
         assertEquals(
@@ -1288,9 +1287,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testKqlFunctionsNotAllowedAfterCommands() throws Exception {
-        // Skip test if the kql function is not enabled.
-        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
-
         // Source commands
         assertEquals("1:13: [KQL] function cannot be used after SHOW", error("show info | where kql(\"8.16.0\")"));
         assertEquals("1:17: [KQL] function cannot be used after ROW", error("row a= \"Anna\" | where kql(\"Anna\")"));
@@ -1348,9 +1344,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testKqlFunctionOnlyAllowedInWhere() throws Exception {
-        // Skip test if the kql function is not enabled.
-        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
-
         assertEquals("1:9: [KQL] function is only supported in WHERE commands", error("row a = kql(\"Anna\")"));
         checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Anna\")", "function");
     }
@@ -1402,9 +1395,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testKqlFunctionArgNotNullOrConstant() throws Exception {
-        // Skip test if the kql function is not enabled.
-        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
-
         assertEquals(
             "1:19: argument of [kql(first_name)] must be a constant, received [first_name]",
             error("from test | where kql(first_name)")
@@ -1418,9 +1408,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testKqlFunctionWithDisjunctions() {
-        // Skip test if the kql function is not enabled.
-        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
-
         checkWithDisjunctions("KQL", "kql(\"first_name: Anna\")", "function");
     }
 
@@ -1463,8 +1450,6 @@ public class VerifierTests extends ESTestCase {
         checkWithFullTextFunctionsDisjunctions("MATCH", "match(last_name, \"Smith\")", "function");
         checkWithFullTextFunctionsDisjunctions(":", "last_name : \"Smith\"", "operator");
         checkWithFullTextFunctionsDisjunctions("QSTR", "qstr(\"last_name: Smith\")", "function");
-
-        assumeTrue("KQL function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
         checkWithFullTextFunctionsDisjunctions("KQL", "kql(\"last_name: Smith\")", "function");
     }
 
@@ -1493,9 +1478,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testKqlFunctionWithNonBooleanFunctions() {
-        // Skip test if the kql function is not enabled.
-        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
-
         checkFullTextFunctionsWithNonBooleanFunctions("KQL", "kql(\"first_name: Anna\")", "function");
     }
 
@@ -2001,13 +1983,34 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testLookupJoinDataTypeMismatch() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
 
         query("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
 
         assertEquals(
             "1:87: JOIN left field [language_code] of type [KEYWORD] is incompatible with right field [language_code] of type [INTEGER]",
             error("FROM test | EVAL language_code = languages::keyword | LOOKUP JOIN languages_lookup ON language_code")
+        );
+    }
+
+    public void testInvalidMapOption() {
+        assumeTrue("MapExpression require snapshot build", EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled());
+        // invalid key
+        assertEquals(
+            "1:22: Invalid option key in [log_with_base_in_map(languages, {\"base\":2.0, \"invalidOption\":true})], "
+                + "expected base but got [\"invalidOption\"]",
+            error("FROM test | EVAL l = log_with_base_in_map(languages, {\"base\":2.0, \"invalidOption\":true})")
+        );
+        // key is case-sensitive
+        assertEquals(
+            "1:22: Invalid option key in [log_with_base_in_map(languages, {\"Base\":2.0})], " + "expected base but got [\"Base\"]",
+            error("FROM test | EVAL l = log_with_base_in_map(languages, {\"Base\":2.0})")
+        );
+        // invalid value
+        assertEquals(
+            "1:22: Invalid option value in [log_with_base_in_map(languages, {\"base\":\"invalid\"})], "
+                + "expected a numeric number but got [invalid]",
+            error("FROM test | EVAL l = log_with_base_in_map(languages, {\"base\":\"invalid\"})")
         );
     }
 

@@ -12,6 +12,7 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
@@ -361,9 +362,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             null
         );
 
+        String template = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
         createComposableTemplate(
             client(),
-            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
+            template,
             dataStream,
             new Template(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5).put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
@@ -407,19 +409,24 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // snapshot)
         assertOK(client().performRequest(new Request("DELETE", "/_data_stream/" + dataStream)));
 
-        createPolicy(
-            client(),
-            policy,
-            new Phase("hot", TimeValue.ZERO, Map.of()),
-            new Phase(
-                "warm",
-                TimeValue.ZERO,
-                Map.of(ShrinkAction.NAME, new ShrinkAction(1, null, false), ForceMergeAction.NAME, new ForceMergeAction(1, null))
-            ),
-            new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, FreezeAction.INSTANCE)),
-            null,
-            null
-        );
+        try {
+            createPolicy(
+                client(),
+                policy,
+                new Phase("hot", TimeValue.ZERO, Map.of()),
+                new Phase(
+                    "warm",
+                    TimeValue.ZERO,
+                    Map.of(ShrinkAction.NAME, new ShrinkAction(1, null, false), ForceMergeAction.NAME, new ForceMergeAction(1, null))
+                ),
+                new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, FreezeAction.INSTANCE)),
+                null,
+                null
+            );
+            fail("Expected a deprecation warning.");
+        } catch (WarningFailureException e) {
+            assertThat(e.getMessage(), containsString("The freeze action in ILM is deprecated and will be removed in a future version"));
+        }
 
         // restore the datastream
         Request restoreSnapshot = new Request("POST", "/_snapshot/" + snapshotRepo + "/" + dsSnapshotName + "/_restore");
@@ -432,7 +439,16 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         // the restored index is now managed by the now updated ILM policy and needs to go through the warm and cold phase
         assertBusy(() -> {
-            Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
+            Step.StepKey stepKeyForIndex;
+            try {
+                stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
+            } catch (WarningFailureException e) {
+                assertThat(
+                    e.getMessage(),
+                    containsString("The freeze action in ILM is deprecated and will be removed in a future version")
+                );
+                stepKeyForIndex = getKeyForIndex(e.getResponse(), searchableSnapMountedIndexName);
+            }
             assertThat(stepKeyForIndex.phase(), is("cold"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
         }, 30, TimeUnit.SECONDS);
@@ -983,5 +999,19 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
     private void triggerStateChange() throws IOException {
         Request rerouteRequest = new Request("POST", "/_cluster/reroute");
         client().performRequest(rerouteRequest);
+    }
+
+    private Step.StepKey getKeyForIndex(Response response, String indexName) throws IOException {
+        Map<String, Object> responseMap;
+        try (InputStream is = response.getEntity().getContent()) {
+            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices")).get(indexName);
+        String phase = (String) indexResponse.get("phase");
+        String action = (String) indexResponse.get("action");
+        String step = (String) indexResponse.get("step");
+        return new Step.StepKey(phase, action, step);
     }
 }

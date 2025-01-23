@@ -322,7 +322,9 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler, transformNode));
 
         var transformMeterRegistry = TransformMeterRegistry.create(services.telemetryProvider().getMeterRegistry());
-        transformConfigAutoMigration.set(new TransformConfigAutoMigration(configManager, auditor, transformMeterRegistry));
+        transformConfigAutoMigration.set(
+            new TransformConfigAutoMigration(configManager, auditor, transformMeterRegistry, services.threadPool())
+        );
 
         return List.of(
             transformServices.get(),

@@ -758,7 +758,8 @@ public class MistralServiceTests extends ESTestCase {
                                "required": true,
                                "sensitive": true,
                                "updatable": true,
-                               "type": "str"
+                               "type": "str",
+                               "supported_task_types": ["text_embedding"]
                            },
                            "model": {
                                "description": "Refer to the Mistral models documentation for the list of available text embedding models.",
@@ -766,7 +767,8 @@ public class MistralServiceTests extends ESTestCase {
                                "required": true,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "str"
+                               "type": "str",
+                               "supported_task_types": ["text_embedding"]
                            },
                            "rate_limit.requests_per_minute": {
                                "description": "Minimize the number of rate limit errors.",
@@ -774,7 +776,8 @@ public class MistralServiceTests extends ESTestCase {
                                "required": false,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "int"
+                               "type": "int",
+                               "supported_task_types": ["text_embedding"]
                            },
                            "max_input_tokens": {
                                "description": "Allows you to specify the maximum number of tokens per input.",
@@ -782,7 +785,8 @@ public class MistralServiceTests extends ESTestCase {
                                "required": false,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "int"
+                               "type": "int",
+                               "supported_task_types": ["text_embedding"]
                            }
                        }
                    }

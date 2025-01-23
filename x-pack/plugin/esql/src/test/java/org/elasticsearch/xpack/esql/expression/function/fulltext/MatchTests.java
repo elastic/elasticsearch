@@ -11,20 +11,16 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.stringCases;
@@ -32,12 +28,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("match")
 public class MatchTests extends AbstractFunctionTestCase {
-
-    private static final String FIELD_TYPE_ERROR_STRING =
-        "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version";
-
-    private static final String QUERY_TYPE_ERROR_STRING =
-        "keyword, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version";
 
     public MatchTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -53,37 +43,7 @@ public class MatchTests extends AbstractFunctionTestCase {
         addQueryAsStringTestCases(suppliers);
         addStringTestCases(suppliers);
 
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(
-                suppliers,
-                (o, v, t) -> errorMessageStringForMatch(o, v, t, (l, p) -> p == 0 ? FIELD_TYPE_ERROR_STRING : QUERY_TYPE_ERROR_STRING)
-            )
-        );
-    }
-
-    private static String errorMessageStringForMatch(
-        boolean includeOrdinal,
-        List<Set<DataType>> validPerPosition,
-        List<DataType> types,
-        PositionalErrorMessageSupplier positionalErrorMessageSupplier
-    ) {
-        for (int i = 0; i < types.size(); i++) {
-            // Need to check for nulls and bad parameters in order
-            if (types.get(i) == DataType.NULL) {
-                return TypeResolutions.ParamOrdinal.fromIndex(i).name().toLowerCase(Locale.ROOT)
-                    + " argument of [] cannot be null, received [null]";
-            }
-            if (validPerPosition.get(i).contains(types.get(i)) == false) {
-                break;
-            }
-        }
-
-        try {
-            return typeErrorMessage(includeOrdinal, validPerPosition, types, positionalErrorMessageSupplier);
-        } catch (IllegalStateException e) {
-            // This means all the positional args were okay, so the expected error is for nulls or from the combination
-            return EsqlBinaryComparison.formatIncompatibleTypesMessage(types.get(0), types.get(1), "");
-        }
+        return parameterSuppliersFromTypedData(suppliers);
     }
 
     private static void addNonNumericCases(List<TestCaseSupplier> suppliers) {
@@ -410,10 +370,6 @@ public class MatchTests extends AbstractFunctionTestCase {
 
     public final void testLiteralExpressions() {
         Expression expression = buildLiteralExpression(testCase);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
-            return;
-        }
         assertFalse("expected resolved", expression.typeResolved().unresolved());
     }
 

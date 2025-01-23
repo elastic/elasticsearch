@@ -35,12 +35,12 @@ import java.util.function.ToLongBiFunction;
 /**
  * A simple cache for enrich that uses {@link Cache}. There is one instance of this cache and
  * multiple enrich processors with different policies will use this cache.
- *
+ * <p>
  * The key of the cache is based on the search request and the enrich index that will be used.
  * Search requests that enrich generates target the alias for an enrich policy, this class
  * resolves the alias to the actual enrich index and uses that for the cache key. This way
  * no stale entries will be returned if a policy execution happens and a new enrich index is created.
- *
+ * <p>
  * There is no cleanup mechanism of stale entries in case a new enrich index is created
  * as part of a policy execution. This shouldn't be needed as cache entries for prior enrich
  * indices will be eventually evicted, because these entries will not end up being used. The
@@ -173,8 +173,11 @@ public final class EnrichCache {
         List<Map<?, ?>> result = new ArrayList<>(response.getHits().getHits().length);
         long size = 0;
         for (SearchHit hit : response.getHits()) {
-            result.add(deepCopy(hit.getSourceAsMap(), true));
+            // There is a cost of decompressing source here plus caching it.
+            // We do it first so we don't decompress it twice.
             size += hit.getSourceRef() != null ? hit.getSourceRef().ramBytesUsed() : 0;
+            // Do we need deep copy here, we are creating a modifiable map already?
+            result.add(deepCopy(hit.getSourceAsMap(), true));
         }
         return new CacheValue(Collections.unmodifiableList(result), size);
     }

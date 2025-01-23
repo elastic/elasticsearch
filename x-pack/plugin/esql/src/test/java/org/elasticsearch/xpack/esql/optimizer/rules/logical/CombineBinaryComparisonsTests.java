@@ -11,8 +11,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
@@ -37,6 +38,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOrEqualOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOrEqualOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.notEqualsOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -45,19 +47,17 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 public class CombineBinaryComparisonsTests extends ESTestCase {
-
-    private static final Expression DUMMY_EXPRESSION =
-        new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRulesTests.DummyBooleanExpression(EMPTY, 0);
+    private Expression combine(BinaryLogic e) {
+        return new CombineBinaryComparisons().rule(e, unboundLogicalOptimizerContext());
+    }
 
     public void testCombineBinaryComparisonsNotComparable() {
         FieldAttribute fa = getFieldAttribute();
         LessThanOrEqual lte = lessThanOrEqualOf(fa, SIX);
         LessThan lt = lessThanOf(fa, FALSE);
 
-        CombineBinaryComparisons rule = new CombineBinaryComparisons();
-
         And and = new And(EMPTY, lte, lt);
-        Expression exp = rule.rule(and);
+        Expression exp = combine(and);
         assertEquals(exp, and);
     }
 
@@ -67,9 +67,7 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
         LessThanOrEqual lte = lessThanOrEqualOf(fa, SIX);
         LessThan lt = lessThanOf(fa, FIVE);
 
-        CombineBinaryComparisons rule = new CombineBinaryComparisons();
-
-        Expression exp = rule.rule(new And(EMPTY, lte, lt));
+        Expression exp = combine(new And(EMPTY, lte, lt));
         assertEquals(LessThan.class, exp.getClass());
         LessThan r = (LessThan) exp;
         assertEquals(FIVE, r.right());
@@ -81,9 +79,7 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
         GreaterThanOrEqual gte = greaterThanOrEqualOf(fa, SIX);
         GreaterThan gt = greaterThanOf(fa, FIVE);
 
-        CombineBinaryComparisons rule = new CombineBinaryComparisons();
-
-        Expression exp = rule.rule(new And(EMPTY, gte, gt));
+        Expression exp = combine(new And(EMPTY, gte, gt));
         assertEquals(GreaterThanOrEqual.class, exp.getClass());
         GreaterThanOrEqual r = (GreaterThanOrEqual) exp;
         assertEquals(SIX, r.right());
@@ -95,9 +91,7 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
         GreaterThanOrEqual gte = greaterThanOrEqualOf(fa, FIVE);
         GreaterThan gt = greaterThanOf(fa, FIVE);
 
-        CombineBinaryComparisons rule = new CombineBinaryComparisons();
-
-        Expression exp = rule.rule(new And(EMPTY, gte, gt));
+        Expression exp = combine(new And(EMPTY, gte, gt));
         assertEquals(GreaterThan.class, exp.getClass());
         GreaterThan r = (GreaterThan) exp;
         assertEquals(FIVE, r.right());
@@ -111,9 +105,7 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
         LessThanOrEqual lte = lessThanOrEqualOf(fa, L(7));
         LessThan lt = lessThanOf(fa, SIX);
 
-        CombineBinaryComparisons rule = new CombineBinaryComparisons();
-
-        Expression exp = rule.rule(new And(EMPTY, gte, new And(EMPTY, gt, new And(EMPTY, lt, lte))));
+        Expression exp = combine(new And(EMPTY, gte, new And(EMPTY, gt, new And(EMPTY, lt, lte))));
         assertEquals(And.class, exp.getClass());
         And and = (And) exp;
         assertEquals(gt, and.left());
@@ -128,10 +120,8 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
         LessThanOrEqual lte = lessThanOrEqualOf(fa, L(7));
         Expression ne = notEqualsOf(fa, FIVE);
 
-        CombineBinaryComparisons rule = new CombineBinaryComparisons();
-
         // TRUE AND a != 5 AND 4 < a <= 7
-        Expression exp = rule.rule(new And(EMPTY, gte, new And(EMPTY, TRUE, new And(EMPTY, gt, new And(EMPTY, ne, lte)))));
+        Expression exp = combine(new And(EMPTY, gte, new And(EMPTY, TRUE, new And(EMPTY, gt, new And(EMPTY, ne, lte)))));
         assertEquals(And.class, exp.getClass());
         And and = ((And) exp);
         assertEquals(And.class, and.right().getClass());
@@ -150,8 +140,7 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
         GreaterThanOrEqual gte = greaterThanOrEqualOf(fa, ONE);
         LessThan lt = lessThanOf(fa, FIVE);
 
-        CombineBinaryComparisons rule = new CombineBinaryComparisons();
-        Expression exp = rule.rule(new And(EMPTY, gte, lt));
+        Expression exp = combine(new And(EMPTY, gte, lt));
         assertEquals(And.class, exp.getClass());
 
         And and = (And) exp;
@@ -167,8 +156,7 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
         GreaterThan gt = greaterThanOf(fa, THREE);
         And and = new And(EMPTY, neq, gt);
 
-        CombineBinaryComparisons rule = new CombineBinaryComparisons();
-        Expression exp = rule.rule(and);
+        Expression exp = combine(and);
         assertEquals(gt, exp);
     }
 
@@ -180,8 +168,7 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
         GreaterThanOrEqual gte = greaterThanOrEqualOf(fa, TWO);
         And and = new And(EMPTY, neq, gte);
 
-        CombineBinaryComparisons rule = new CombineBinaryComparisons();
-        Expression exp = rule.rule(and);
+        Expression exp = combine(and);
         assertEquals(GreaterThan.class, exp.getClass());
         GreaterThan gt = (GreaterThan) exp;
         assertEquals(TWO, gt.right());
@@ -195,8 +182,7 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
         GreaterThanOrEqual gte = greaterThanOrEqualOf(fa, ONE);
         And and = new And(EMPTY, neq, gte);
 
-        CombineBinaryComparisons rule = new CombineBinaryComparisons();
-        Expression exp = rule.rule(and);
+        Expression exp = combine(and);
         assertEquals(And.class, exp.getClass()); // can't optimize
     }
 
@@ -208,8 +194,7 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
         LessThanOrEqual lte = lessThanOrEqualOf(fa, THREE);
         And and = new And(EMPTY, neq, lte);
 
-        CombineBinaryComparisons rule = new CombineBinaryComparisons();
-        Expression exp = rule.rule(and);
+        Expression exp = combine(and);
         assertEquals(and, exp); // can't optimize
     }
 
@@ -221,8 +206,7 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
         LessThanOrEqual lte = lessThanOrEqualOf(fa, TWO);
         And and = new And(EMPTY, neq, lte);
 
-        CombineBinaryComparisons rule = new CombineBinaryComparisons();
-        Expression exp = rule.rule(and);
+        Expression exp = combine(and);
         assertEquals(LessThan.class, exp.getClass());
         LessThan lt = (LessThan) exp;
         assertEquals(TWO, lt.right());
@@ -236,8 +220,7 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
         LessThanOrEqual lte = lessThanOrEqualOf(fa, ONE);
         And and = new And(EMPTY, neq, lte);
 
-        CombineBinaryComparisons rule = new CombineBinaryComparisons();
-        Expression exp = rule.rule(and);
+        Expression exp = combine(and);
         assertEquals(lte, exp);
     }
 
@@ -251,8 +234,7 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
 
         Or or = new Or(EMPTY, gt1, gt2);
 
-        CombineBinaryComparisons rule = new CombineBinaryComparisons();
-        Expression exp = rule.rule(or);
+        Expression exp = combine(or);
         assertEquals(exp, or);
     }
 
@@ -266,8 +248,7 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
 
         Or or = new Or(EMPTY, gt1, new Or(EMPTY, gt2, gt3));
 
-        CombineBinaryComparisons rule = new CombineBinaryComparisons();
-        Expression exp = rule.rule(or);
+        Expression exp = combine(or);
         assertEquals(GreaterThan.class, exp.getClass());
 
         GreaterThan gt = (GreaterThan) exp;
@@ -284,8 +265,7 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
 
         Or or = new Or(EMPTY, new Or(EMPTY, gt1, gt2), gte3);
 
-        CombineBinaryComparisons rule = new CombineBinaryComparisons();
-        Expression exp = rule.rule(or);
+        Expression exp = combine(or);
         assertEquals(GreaterThan.class, exp.getClass());
 
         GreaterThan gt = (GreaterThan) exp;
@@ -302,8 +282,7 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
 
         Or or = new Or(EMPTY, new Or(EMPTY, lt1, lt2), lt3);
 
-        CombineBinaryComparisons rule = new CombineBinaryComparisons();
-        Expression exp = rule.rule(or);
+        Expression exp = combine(or);
         assertEquals(LessThan.class, exp.getClass());
 
         LessThan lt = (LessThan) exp;
@@ -320,8 +299,7 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
 
         Or or = new Or(EMPTY, lt2, new Or(EMPTY, lte2, lt1));
 
-        CombineBinaryComparisons rule = new CombineBinaryComparisons();
-        Expression exp = rule.rule(or);
+        Expression exp = combine(or);
         assertEquals(LessThanOrEqual.class, exp.getClass());
 
         LessThanOrEqual lte = (LessThanOrEqual) exp;
@@ -340,8 +318,7 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
 
         Or or = new Or(EMPTY, new Or(EMPTY, lt2, gt3), new Or(EMPTY, lt1, gt4));
 
-        CombineBinaryComparisons rule = new CombineBinaryComparisons();
-        Expression exp = rule.rule(or);
+        Expression exp = combine(or);
         assertEquals(Or.class, exp.getClass());
 
         Or ro = (Or) exp;
@@ -367,7 +344,7 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
         And right = new And(EMPTY, a2, common);
         Or or = new Or(EMPTY, left, right);
 
-        Expression exp = new BooleanSimplification().rule(or);
+        Expression exp = new BooleanSimplification().rule(or, unboundLogicalOptimizerContext());
         assertEquals(new And(EMPTY, common, new Or(EMPTY, a1, a2)), exp);
     }
 
@@ -391,8 +368,7 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
         );
 
         for (And and : testCases) {
-            CombineBinaryComparisons rule = new CombineBinaryComparisons();
-            Expression exp = rule.rule(and);
+            Expression exp = combine(and);
             assertEquals("Rule should not have transformed [" + and.nodeString() + "]", and, exp);
         }
     }

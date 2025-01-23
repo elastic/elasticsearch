@@ -232,7 +232,8 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
                 false
             )
         );
-        return parameterSuppliersFromTypedData(anyNullIsNull(true, suppliers));
+
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

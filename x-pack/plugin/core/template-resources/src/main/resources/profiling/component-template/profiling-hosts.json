@@ -55,6 +55,13 @@
             }
           }
         },
+        "os": {
+          "properties": {
+            "type": {
+              "type": "keyword"
+            }
+          }
+        },
         "profiling": {
           "properties": {
             "project.id": {

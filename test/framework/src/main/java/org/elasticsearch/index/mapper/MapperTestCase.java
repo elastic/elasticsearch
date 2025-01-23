@@ -1180,7 +1180,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         var firstExample = support.example(1);
         int maxDocs = randomIntBetween(20, 50);
         var settings = Settings.builder()
-            .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
             .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
             .build();
         var mapperService = createMapperService(getVersion(), settings, () -> true, mapping(b -> {
@@ -1213,7 +1213,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             try (var indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 int start = randomBoolean() ? 0 : randomIntBetween(1, maxDocs - 10);
                 var snapshot = new LuceneSyntheticSourceChangesSnapshot(
-                    mapperService.mappingLookup(),
+                    mapperService,
                     new Engine.Searcher(
                         "recovery",
                         indexReader,

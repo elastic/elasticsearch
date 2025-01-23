@@ -495,6 +495,9 @@ public final class CsvTestUtils {
             for (Type value : Type.values()) {
                 LOOKUP.put(value.name(), value);
             }
+            // Types with a different field caps family type
+            LOOKUP.put("SEMANTIC_TEXT", TEXT);
+
             // widen smaller types
             LOOKUP.put("SHORT", INTEGER);
             LOOKUP.put("BYTE", INTEGER);

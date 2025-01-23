@@ -114,7 +114,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettingsSet;
     protected final boolean rstOnClose;
-    private final TransportVersion version;
     private final CircuitBreakerService circuitBreakerService;
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
@@ -148,7 +147,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     ) {
         this.settings = settings;
         this.profileSettingsSet = getProfileSettings(settings);
-        this.version = version;
         this.threadPool = threadPool;
         this.circuitBreakerService = circuitBreakerService;
         this.networkService = networkService;
@@ -197,11 +195,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             networkService.getHandlingTimeTracker(),
             ignoreDeserializationErrors
         );
-    }
-
-    @Override
-    public TransportVersion getVersion() {
-        return version;
     }
 
     public StatsTracker getStatsTracker() {

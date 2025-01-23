@@ -34,6 +34,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.replication.PendingReplicationActions;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -1488,7 +1489,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * @return true the shard has a translog.
+     * @return true the shard has a translog. In the case there is no translog, the shard is not writeable.
      */
     public boolean hasTranslog() {
         return translogConfig.hasTranslog();
@@ -3572,7 +3573,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Acquire a primary operation permit whenever the shard is ready for indexing. If a permit is directly available, the provided
      * ActionListener will be called on the calling thread. During relocation hand-off, permit acquisition can be delayed. The provided
      * ActionListener will then be called using the provided executor.
-     *
      */
     public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, Executor executorOnDelay) {
         acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, false);
@@ -3585,7 +3585,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) {
         verifyNotClosed();
         assert shardRouting.primary() : "acquirePrimaryOperationPermit should only be called on primary shard: " + shardRouting;
-        indexShardOperationPermits.acquire(wrapPrimaryOperationPermitListener(onPermitAcquired), executorOnDelay, forceExecution);
+
+        ActionListener<Releasable> onPermitAcquiredWrapped = onPermitAcquired.delegateFailureAndWrap((delegate, releasable) -> {
+            final ActionListener<Releasable> wrappedListener = indexShardOperationPermits.wrapContextPreservingActionListener(
+                delegate,
+                executorOnDelay,
+                forceExecution
+            );
+            try (var listeners = new RefCountingListener(wrappedListener.map(unused -> releasable))) {
+                indexEventListener.onAcquirePrimaryOperationPermit(this, () -> listeners.acquire());
+            }
+        });
+
+        indexShardOperationPermits.acquire(wrapPrimaryOperationPermitListener(onPermitAcquiredWrapped), executorOnDelay, forceExecution);
     }
 
     public boolean isPrimaryMode() {

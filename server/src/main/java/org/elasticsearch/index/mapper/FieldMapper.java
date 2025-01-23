@@ -1386,6 +1386,11 @@ public abstract class FieldMapper extends Mapper {
             return this;
         }
 
+        public Builder addMultiField(FieldMapper.Builder builder) {
+            this.multiFieldsBuilder.add(builder);
+            return this;
+        }
+
         protected BuilderParams builderParams(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
             return new BuilderParams(multiFieldsBuilder.build(mainFieldBuilder, context), copyTo, sourceKeepMode, hasScript, onScriptError);
         }

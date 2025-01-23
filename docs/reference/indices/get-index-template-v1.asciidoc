@@ -4,8 +4,8 @@
 <titleabbrev>Get index template (legacy)</titleabbrev>
 ++++
 
-IMPORTANT: This documentation is about legacy index templates, 
-which are deprecated and will be replaced by the composable templates introduced in {es} 7.8. 
+IMPORTANT: This documentation is about legacy index templates,
+which are deprecated and will be replaced by the composable templates introduced in {es} 7.8.
 For information about composable templates, see <<index-templates>>.
 
 .New API reference
@@ -69,7 +69,7 @@ or use a value of `_all` or `*`.
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local-deprecated-9.0.0]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 

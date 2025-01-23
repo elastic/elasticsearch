@@ -13,29 +13,33 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
-import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.planner.EsqlExpressionTranslators;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -60,7 +64,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
 /**
  * Full text function that performs a {@link QueryStringQuery} .
  */
-public class Match extends FullTextFunction implements Validatable {
+public class Match extends FullTextFunction implements PostOptimizationVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
 
@@ -97,12 +101,14 @@ public class Match extends FullTextFunction implements Validatable {
 
     @FunctionInfo(
         returnType = "boolean",
+        operator = ":",
         preview = true,
         description = """
             Use `MATCH` to perform a <<query-dsl-match-query,match query>> on the specified field.
             Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.
 
-            Match can be used on text fields, as well as other field types like boolean, dates, and numeric types.
+            Match can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>,
+            as well as other field types like keyword, boolean, dates, and numeric types.
 
             For a simplified syntax, you can use the <<esql-search-operators,match operator>> `:` operator instead of `MATCH`.
 
@@ -201,7 +207,7 @@ public class Match extends FullTextFunction implements Validatable {
     }
 
     @Override
-    public void validate(Failures failures) {
+    public void postOptimizationVerification(Failures failures) {
         Expression fieldExpression = field();
         // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
         if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
@@ -222,7 +228,7 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     public Object queryAsObject() {
-        Object queryAsObject = query().fold();
+        Object queryAsObject = query().fold(FoldContext.small() /* TODO remove me */);
 
         // Convert BytesRef to string for string-based values
         if (queryAsObject instanceof BytesRef bytesRef) {
@@ -270,8 +276,23 @@ public class Match extends FullTextFunction implements Validatable {
     }
 
     @Override
-    protected ExpressionTranslator<Match> translator() {
-        return new EsqlExpressionTranslators.MatchFunctionTranslator();
+    protected Query translate(TranslatorHandler handler) {
+        Expression fieldExpression = field;
+        // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
+        if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
+            fieldExpression = convertFunction.field();
+        }
+        if (fieldExpression instanceof FieldAttribute fieldAttribute) {
+            String fieldName = fieldAttribute.name();
+            if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {
+                // If we have multiple field types, we allow the query to be done, but getting the underlying field name
+                fieldName = multiTypeEsField.getName();
+            }
+            // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
+            return new MatchQuery(source(), fieldName, queryAsObject(), Map.of("lenient", "true"));
+        }
+
+        throw new IllegalArgumentException("Match must have a field attribute as the first argument");
     }
 
     @Override

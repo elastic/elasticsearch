@@ -223,7 +223,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -2634,7 +2633,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 .authorize(
                     indexMonitoringActionName,
                     Sets.newHashSet(internalSecurityIndex, TestRestrictedIndices.SECURITY_MAIN_ALIAS, asyncSearchIndex),
-                    metadata.getIndicesLookup(),
+                    metadata,
                     fieldPermissionsCache
                 );
             assertThat(iac.hasIndexPermissions(internalSecurityIndex), is(true));
@@ -2857,20 +2856,19 @@ public class ReservedRolesStoreTests extends ESTestCase {
             .build();
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
         IndicesAccessControl iac = superuserRole.indices()
-            .authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
+            .authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("a1", "ba"), metadata, fieldPermissionsCache);
         assertThat(iac.hasIndexPermissions("a1"), is(true));
         assertThat(iac.hasIndexPermissions("b"), is(true));
         iac = superuserRole.indices()
-            .authorize(TransportDeleteIndexAction.TYPE.name(), Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
+            .authorize(TransportDeleteIndexAction.TYPE.name(), Sets.newHashSet("a1", "ba"), metadata, fieldPermissionsCache);
         assertThat(iac.hasIndexPermissions("a1"), is(true));
         assertThat(iac.hasIndexPermissions("b"), is(true));
-        iac = superuserRole.indices().authorize(TransportIndexAction.NAME, Sets.newHashSet("a2", "ba"), lookup, fieldPermissionsCache);
+        iac = superuserRole.indices().authorize(TransportIndexAction.NAME, Sets.newHashSet("a2", "ba"), metadata, fieldPermissionsCache);
         assertThat(iac.hasIndexPermissions("a2"), is(true));
         assertThat(iac.hasIndexPermissions("b"), is(true));
         iac = superuserRole.indices()
-            .authorize(TransportUpdateSettingsAction.TYPE.name(), Sets.newHashSet("aaaaaa", "ba"), lookup, fieldPermissionsCache);
+            .authorize(TransportUpdateSettingsAction.TYPE.name(), Sets.newHashSet("aaaaaa", "ba"), metadata, fieldPermissionsCache);
         assertThat(iac.hasIndexPermissions("aaaaaa"), is(true));
         assertThat(iac.hasIndexPermissions("b"), is(true));
 
@@ -2879,7 +2877,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             .authorize(
                 randomFrom(TransportSearchAction.TYPE.name(), GetIndexAction.NAME),
                 Sets.newHashSet(TestRestrictedIndices.SECURITY_MAIN_ALIAS),
-                lookup,
+                metadata,
                 fieldPermissionsCache
             );
         assertThat("For " + iac, iac.hasIndexPermissions(TestRestrictedIndices.SECURITY_MAIN_ALIAS), is(true));
@@ -2890,7 +2888,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             .authorize(
                 randomFrom(TransportIndexAction.NAME, TransportDeleteIndexAction.TYPE.name()),
                 Sets.newHashSet(TestRestrictedIndices.SECURITY_MAIN_ALIAS),
-                lookup,
+                metadata,
                 fieldPermissionsCache
             );
         assertThat("For " + iac, iac.hasIndexPermissions(TestRestrictedIndices.SECURITY_MAIN_ALIAS), is(false));

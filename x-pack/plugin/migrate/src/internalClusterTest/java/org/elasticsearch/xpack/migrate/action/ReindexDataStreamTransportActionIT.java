@@ -28,7 +28,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.migrate.MigratePlugin;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamRequest;
-import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamResponse;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamEnrichedStatus;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTask;
 
@@ -61,8 +60,7 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
         );
         assertThrows(
             ResourceNotFoundException.class,
-            () -> client().execute(new ActionType<ReindexDataStreamResponse>(ReindexDataStreamAction.NAME), reindexDataStreamRequest)
-                .actionGet()
+            () -> client().execute(new ActionType<AcknowledgedResponse>(ReindexDataStreamAction.NAME), reindexDataStreamRequest).actionGet()
         );
     }
 
@@ -74,12 +72,11 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
             dataStreamName
         );
         final int backingIndexCount = createDataStream(dataStreamName);
-        ReindexDataStreamResponse response = client().execute(
-            new ActionType<ReindexDataStreamResponse>(ReindexDataStreamAction.NAME),
+        AcknowledgedResponse response = client().execute(
+            new ActionType<AcknowledgedResponse>(ReindexDataStreamAction.NAME),
             reindexDataStreamRequest
         ).actionGet();
-        String persistentTaskId = response.getTaskId();
-        assertThat(persistentTaskId, equalTo("reindex-data-stream-" + dataStreamName));
+        String persistentTaskId = "reindex-data-stream-" + dataStreamName;
         AtomicReference<ReindexDataStreamTask> runningTask = new AtomicReference<>();
         for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
             TaskManager taskManager = transportService.getTaskManager();

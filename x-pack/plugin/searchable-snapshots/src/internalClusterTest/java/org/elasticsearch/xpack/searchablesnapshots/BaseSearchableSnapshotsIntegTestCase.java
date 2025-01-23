@@ -109,8 +109,8 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             builder.put(
                 CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getKey(),
                 rarely()
-                    ? new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
-                    : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
+                    ? ByteSizeValue.of(randomIntBetween(4, 1024), ByteSizeUnit.KB)
+                    : ByteSizeValue.of(randomIntBetween(1, 10), ByteSizeUnit.MB)
             );
         }
         if (DiscoveryNode.canContainData(otherSettings) && randomBoolean()) {
@@ -119,23 +119,23 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         builder.put(
             SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
             rarely()
-                ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
-                : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
+                ? pageAligned(ByteSizeValue.of(randomIntBetween(4, 1024), ByteSizeUnit.KB))
+                : pageAligned(ByteSizeValue.of(randomIntBetween(1, 10), ByteSizeUnit.MB))
         );
         if (randomBoolean()) {
             builder.put(
                 SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(),
                 rarely()
-                    ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
-                    : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
+                    ? pageAligned(ByteSizeValue.of(randomIntBetween(4, 1024), ByteSizeUnit.KB))
+                    : pageAligned(ByteSizeValue.of(randomIntBetween(1, 10), ByteSizeUnit.MB))
             );
         }
         if (randomBoolean()) {
             builder.put(
                 SharedBlobCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(),
                 rarely()
-                    ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
-                    : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
+                    ? pageAligned(ByteSizeValue.of(randomIntBetween(4, 1024), ByteSizeUnit.KB))
+                    : pageAligned(ByteSizeValue.of(randomIntBetween(1, 10), ByteSizeUnit.MB))
             );
         }
         return builder.build();

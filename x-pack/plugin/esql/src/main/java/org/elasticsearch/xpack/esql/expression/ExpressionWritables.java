@@ -9,9 +9,6 @@ package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.ExpressionCoreWritables;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateWritables;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextWritables;
@@ -34,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
+import org.elasticsearch.xpack.esql.expression.function.scalar.map.LogWithBaseInMap;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -73,6 +71,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
@@ -161,6 +162,7 @@ public class ExpressionWritables {
         entries.add(IsNull.ENTRY);
         entries.add(Length.ENTRY);
         entries.add(Log10.ENTRY);
+        entries.add(LogWithBaseInMap.ENTRY);
         entries.add(LTrim.ENTRY);
         entries.add(Neg.ENTRY);
         entries.add(Not.ENTRY);

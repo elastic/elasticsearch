@@ -1890,13 +1890,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ShardSearchRequest request,
         ActionListener<ShardSearchRequest> listener
     ) {
-        if (request.source().explain() == false || request.source().rescores().stream().allMatch(r -> r instanceof QueryRescorerBuilder)) {
-            // Rewriting the shard request is useless unless explain is enabled and a learning to rank rescorer is used.
-            listener.onResponse(request);
+        if (request.source().explain() && request.source().rescores().stream().anyMatch(r -> r instanceof QueryRescorerBuilder == false)) {
+            // Rewriting the shard request is useful only when explain is enabled and a learning to rank rescorer is used.
+            rewriteAndFetchShardRequest(shard, request, listener);
             return;
         }
 
-        rewriteAndFetchShardRequest(shard, request, listener);
+        listener.onResponse(request);
     }
 
     @SuppressWarnings("unchecked")

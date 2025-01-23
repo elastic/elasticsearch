@@ -284,6 +284,9 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         TransportRequest transportRequest
     ) {
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+        // At this stage we already checked privileges
+        // see getRequiredPrivilege and AbstractLookupService#hasPrivilege
+        // We can access the index regardless of the user/role that is executing the query
         try (ThreadContext.StoredContext unused = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
             super.sendChildRequest(parentTask, delegate, targetNode, transportRequest);
         }

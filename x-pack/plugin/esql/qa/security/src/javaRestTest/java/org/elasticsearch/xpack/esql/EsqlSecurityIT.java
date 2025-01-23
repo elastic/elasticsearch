@@ -181,6 +181,17 @@ public class EsqlSecurityIT extends ESRestTestCase {
             }
             """);
         assertOK(client().performRequest(request));
+
+        request = new Request("POST", "_security/user/fls_user4");
+        request.setJsonEntity("""
+            {
+              "password" : "x-pack-test-password",
+              "roles" : [ "fls_user4_1", "fls_user4_2" ],
+              "full_name" : "Test Role",
+              "email" : "test.role@example.com"
+            }
+            """);
+        assertOK(client().performRequest(request));
     }
 
     protected MapMatcher responseMatcher() {
@@ -683,6 +694,20 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 )
             )
 
+        );
+
+        resp = runESQLCommand("fls_user4", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN `lookup-user2` ON value");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(
+                List.of(
+                    Map.of("name", "x", "type", "double"),
+                    Map.of("name", "value", "type", "double"),
+                    Map.of("name", "org", "type", "keyword")
+                )
+            )
         );
     }
 

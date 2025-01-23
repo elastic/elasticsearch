@@ -109,6 +109,22 @@ fls_user3:
       field_security:
         grant: [ "org", "value", "other" ]
 
+fls_user4_1:
+  cluster: []
+  indices:
+    - names: [ 'lookup-user2' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ "org" ]
+
+fls_user4_2:
+  cluster: []
+  indices:
+    - names: [ 'lookup-user2' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ "value" ]
+
 dls_user:
   cluster: []
   indices:

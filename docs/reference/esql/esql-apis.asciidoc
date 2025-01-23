@@ -17,6 +17,7 @@ overview of {esql} and related tutorials, see <<esql>>.
 * <<esql-async-query-api>>
 * <<esql-async-query-get-api>>
 * <<esql-async-query-delete-api>>
+* <<esql-async-query-stop-api>>
 
 
 include::esql-query-api.asciidoc[]
@@ -26,3 +27,5 @@ include::esql-async-query-api.asciidoc[]
 include::esql-async-query-get-api.asciidoc[]
 
 include::esql-async-query-delete-api.asciidoc[]
+
+include::esql-async-query-stop-api.asciidoc[]

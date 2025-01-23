@@ -45,7 +45,6 @@ public class TransportDeleteAutoFollowPatternAction extends AcknowledgedTranspor
             threadPool,
             actionFilters,
             DeleteAutoFollowPatternAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }

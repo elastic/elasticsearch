@@ -4310,33 +4310,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Reset the current engine to a new one.
      *
-     * Calls {@link Engine#prepareForEngineReset(ActionListener)} on the current engine, then closes it, and loads a new engine without
+     * Calls {@link Engine#prepareForEngineReset()} on the current engine, then closes it, and loads a new engine without
      * doing any translog recovery.
-     *
-     * In case of failure, the shard is failed.
-     *
-     * @param listener the listener to be called when the engine has been reset
      */
-    public void resetEngine(ActionListener<Void> listener) {
+    public void resetEngine() {
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
-        var wrappedListener = listener.delegateResponse((l, e) -> {
+        try {
+            final var currentEngine = getEngine();
+            currentEngine.prepareForEngineReset();
+            var engineConfig = newEngineConfig(replicationTracker);
+            synchronized (engineMutex) {
+                verifyNotClosed();
+                IOUtils.close(currentEngine);
+                var newEngine = createEngine(engineConfig);
+                currentEngineReference.set(newEngine);
+                onNewEngine(newEngine);
+            }
+            onSettingsChanged();
+        } catch (Exception e) {
             failShard("unable to reset engine", e);
-            l.onFailure(e);
-        });
-        ActionListener.run(wrappedListener, l -> {
-            currentEngineReference.get().prepareForEngineReset(l.map(unused -> {
-                var engineConfig = newEngineConfig(replicationTracker);
-                synchronized (engineMutex) {
-                    verifyNotClosed();
-                    IOUtils.close(currentEngineReference.get());
-                    var newEngine = createEngine(engineConfig);
-                    currentEngineReference.set(newEngine);
-                    onNewEngine(newEngine);
-                }
-                onSettingsChanged();
-                return null;
-            }));
-        });
+        }
     }
 
     /**

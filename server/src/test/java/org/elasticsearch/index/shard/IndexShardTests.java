@@ -4565,8 +4565,8 @@ public class IndexShardTests extends IndexShardTestCase {
             try {
                 return new ReadOnlyEngine(config, null, null, true, Function.identity(), true, true) {
                     @Override
-                    public void prepareForEngineReset(ActionListener<Void> listener) throws IOException {
-                        listener.onResponse(null);
+                    public void prepareForEngineReset() throws IOException {
+                        ;
                     }
                 };
             } finally {
@@ -4578,11 +4578,9 @@ public class IndexShardTests extends IndexShardTestCase {
 
         var onAcquired = new PlainActionFuture<Releasable>();
         indexShard.acquireAllPrimaryOperationsPermits(onAcquired, TimeValue.timeValueMinutes(1L));
-        var onEngineReset = new PlainActionFuture<Void>();
         try (var permits = safeGet(onAcquired)) {
-            indexShard.resetEngine(onEngineReset);
+            indexShard.resetEngine();
         }
-        safeGet(onEngineReset);
         safeAwait(newEngineCreated);
         safeAwait(newEngineNotification);
         closeShard(indexShard, false);

@@ -195,19 +195,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
 
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        String mapping = """
-            {
-              "_doc":{
-                "dynamic":"strict",
-                "properties":{
-                  "foo1":{
-                    "type":"text"
-                  }
-                }
-              }
-            }
-            """;
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex).mapping(mapping)).actionGet();
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex).mapping(MAPPING)).actionGet();
 
         // call reindex
         var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
@@ -337,6 +325,13 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         var sourceIndex = "logs-" + randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         indicesAdmin().create(new CreateIndexRequest(sourceIndex)).actionGet();
 
+        {
+            var indexRequest = new IndexRequest(sourceIndex);
+            indexRequest.source("{ \"foo1\": \"cheese\" }", XContentType.JSON);
+            client().index(indexRequest).actionGet();
+            indicesAdmin().refresh(new RefreshRequest(sourceIndex)).actionGet();
+        }
+
         // call reindex
         var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
             .actionGet()
@@ -359,6 +354,9 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             // sanity check specific value from dest mapping
             assertEquals("text", XContentMapValues.extractValue("properties.foo1.type", destMappings));
         }
+
+        // verify doc was successfully added
+        assertHitCount(prepareSearch(destIndex).setSize(0), 1);
     }
 
     private static final String TSDB_MAPPING = """
@@ -422,6 +420,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             indexRequest.source(TSDB_DOC.replace("$time", formatInstant(time)), XContentType.JSON);
             var indexResponse = client().index(indexRequest).actionGet();
             backingIndexName = indexResponse.getIndex();
+            indicesAdmin().refresh(new RefreshRequest(backingIndexName)).actionGet();
         }
 
         var sourceSettings = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(backingIndexName))
@@ -455,12 +454,10 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
         assertEquals(startTime, destStart);
         assertEquals(endTime, destEnd);
-    }
 
-    // TODO more logsdb/tsdb specific tests
-    // TODO more data stream specific tests (how are data streams indices are different from regular indices?)
-    // TODO check other IndexMetadata fields that need to be fixed after the fact
-    // TODO what happens if don't have necessary perms for a given index?
+        // verify doc was successfully added
+        assertHitCount(prepareSearch(destIndex).setSize(0), 1);
+    }
 
     private static void cleanupMetadataBlocks(String index) {
         var settings = Settings.builder()

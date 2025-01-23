@@ -569,7 +569,7 @@ language.id:integer | language.name:text | language.name.keyword:keyword
 ;
 
 joinOnNestedNestedFieldRowExplicitKeyword
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 required_capability: lookup_join_text
 
 ROW language.name.keyword = "English"
@@ -582,7 +582,7 @@ language.id:integer | language.name:text | language.name.keyword:keyword
 ;
 
 joinOnNestedNestedFieldRowExplicitKeywords
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 required_capability: lookup_join_text
 
 ROW language.name.keyword = ["English", "French"]
@@ -1284,6 +1284,23 @@ required_capability: join_lookup_v12
 FROM languages_lookup_non_unique_key
 | WHERE language_code == 1
 | LOOKUP JOIN languages_lookup ON language_code
+| KEEP language_code, language_name, country
+| SORT language_code, language_name, country
+;
+
+language_code:integer | language_name:keyword       | country:text
+1                     | English                     | Canada
+1                     | English                     | United Kingdom
+1                     | English                     | United States of America
+1                     | English                     | null
+;
+
+lookupIndexQuoting
+required_capability: join_lookup_v12
+FROM languages_lookup_non_unique_key
+| WHERE language_code == 1
+| LOOKUP JOIN "languages_lookup" ON language_code
+| LOOKUP JOIN """languages_lookup""" ON language_code
 | KEEP language_code, language_name, country
 | SORT language_code, language_name, country
 ;

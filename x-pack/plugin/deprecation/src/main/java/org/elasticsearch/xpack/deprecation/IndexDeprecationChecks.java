@@ -55,8 +55,8 @@ public class IndexDeprecationChecks {
         if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, true) && isNotDataStreamIndex(indexMetadata, clusterState)) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.WARNING,
-                "Old index with a compatibility version < 9.0 Has Been Ignored",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
+                "Old index with a compatibility version < 8.0 Has Been Ignored",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/current/migrating-8.0.html#breaking-changes-8.0",
                 "This read-only index has version: "
                     + currentCompatibilityVersion.toReleaseVersion()
                     + " and will be supported as read-only in 9.0",

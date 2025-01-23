@@ -259,7 +259,7 @@ public class DataStreamDeprecationChecksTests extends ESTestCase {
         DataStream dataStream = new DataStream(
             randomAlphaOfLength(10),
             allIndices,
-            randomNegativeLong(),
+            randomLong() * -1L,
             Map.of(),
             randomBoolean(),
             false,
@@ -278,9 +278,9 @@ public class DataStreamDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
-            "Old data stream with a compatibility version < 9.0 Have Been Ignored",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-            "This data stream has read only backing indices that were created before Elasticsearch 9.0.0 and have been marked as "
+            "Old data stream with a compatibility version < 8.0 Have Been Ignored",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/current/migrating-8.0.html#breaking-changes-8.0",
+            "This data stream has read only backing indices that were created before Elasticsearch 8.0.0 and have been marked as "
                 + "OK to remain read-only after upgrade",
             false,
             ofEntries(

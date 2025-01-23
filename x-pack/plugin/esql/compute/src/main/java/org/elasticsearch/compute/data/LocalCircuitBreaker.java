@@ -134,4 +134,9 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
             breaker.addWithoutBreaking(-reservedBytes);
         }
     }
+
+    @Override
+    public String toString() {
+        return "LocalCircuitBreaker[" + reservedBytes + "/" + overReservedBytes + ":" + maxOverReservedBytes + "]";
+    }
 }

@@ -1,5 +1,0 @@
-pr: 120376
-summary: Support externally resetting index shard's engine
-area: Engine
-type: enhancement
-issues: []

@@ -179,7 +179,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
 
         // all requests would have an equal weight and use the identity normalizer
         source.retriever(
-            new org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder(
+            new LinearRetrieverBuilder(
                 Arrays.asList(
                     new CompoundRetrieverBuilder.RetrieverSource(standard0, null),
                     new CompoundRetrieverBuilder.RetrieverSource(standard1, null),

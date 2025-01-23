@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.rank.linear;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -17,7 +19,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder.RETRIEVERS_FIELD;
 
 public class LinearRetrieverComponent implements ToXContentObject {
@@ -46,52 +49,37 @@ public class LinearRetrieverComponent implements ToXContentObject {
         return builder;
     }
 
-    public static LinearRetrieverComponent fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
-        RetrieverBuilder retrieverBuilder = null;
-        Float weight = null;
-        ScoreNormalizer normalizer = null;
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                if (RETRIEVER_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
-                    parser.nextToken();
-                    ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-                    parser.nextToken();
-                    ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
-                    final String retrieverName = parser.currentName();
-                    parser.nextToken();
-                    retrieverBuilder = parser.namedObject(RetrieverBuilder.class, retrieverName, context);
-                    parser.nextToken();
-                } else if (WEIGHT_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
-                    parser.nextToken();
-                    weight = parser.floatValue();
-                } else if (NORMALIZER_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
-                    parser.nextToken();
-                    if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                        normalizer = ScoreNormalizer.valueOf(parser.text());
-                    } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                        parser.nextToken();
-                        normalizer = ScoreNormalizer.parse(parser.currentName(), parser);
-                        parser.nextToken();
-                    } else {
-                        throw new ParsingException(parser.getTokenLocation(), "Unsupported token [" + parser.currentToken() + "]");
-                    }
-                } else {
-                    throw new ParsingException(
-                        parser.getTokenLocation(),
-                        "Unexpected token [" + parser.currentToken() + "] for linear retriever."
-                    );
-                }
-            } else {
-                throw new ParsingException(
-                    parser.getTokenLocation(),
-                    "Expected [" + XContentParser.Token.FIELD_NAME + "] but got [" + parser.currentToken() + "] instead."
-                );
+    @SuppressWarnings("unchecked")
+    static final ConstructingObjectParser<LinearRetrieverComponent, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
+        "retriever-component",
+        false,
+        args -> {
+            RetrieverBuilder retrieverBuilder = (RetrieverBuilder) args[0];
+            Float weight = (Float) args[1];
+            ScoreNormalizer normalizer = (ScoreNormalizer) args[2];
+            return new LinearRetrieverComponent(retrieverBuilder, weight, normalizer);
+        }
+    );
+
+    static {
+        PARSER.declareNamedObject(constructorArg(), (p, c, n) -> {
+            RetrieverBuilder innerRetriever = p.namedObject(RetrieverBuilder.class, n, c);
+            c.trackRetrieverUsage(innerRetriever.getName());
+            return innerRetriever;
+        }, RETRIEVER_FIELD);
+        PARSER.declareFloat(optionalConstructorArg(), WEIGHT_FIELD);
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return ScoreNormalizer.valueOf(p.text());
+            } else if (p.currentToken() == XContentParser.Token.START_OBJECT) {
+                p.nextToken();
+                return ScoreNormalizer.parse(p.currentName(), p);
             }
-        }
-        if (retrieverBuilder == null) {
-            throw new IllegalArgumentException("Missing required field [" + RETRIEVER_FIELD.getPreferredName() + "]");
-        }
-        return new LinearRetrieverComponent(retrieverBuilder, weight, normalizer);
+            throw new ParsingException(p.getTokenLocation(), "Unsupported token [" + p.currentToken() + "]");
+        }, NORMALIZER_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
+    }
+
+    public static LinearRetrieverComponent fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
+        return PARSER.apply(parser, context);
     }
 }

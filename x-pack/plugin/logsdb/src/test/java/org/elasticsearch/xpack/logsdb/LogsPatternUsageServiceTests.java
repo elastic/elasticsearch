@@ -150,7 +150,7 @@ public class LogsPatternUsageServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<ClusterUpdateSettingsResponse> listener = (ActionListener<ClusterUpdateSettingsResponse>) invocationOnMock
-                    .getArguments()[2];
+                .getArguments()[2];
             ClusterUpdateSettingsResponse response;
             if (randomBoolean()) {
                 var persistentSettings = Settings.builder().put("logsdb.prior_logs_usage", true).build();

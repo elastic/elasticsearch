@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
+import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -59,8 +60,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
-
-    private static final String PLACEHOLDER_INFERENCE_ID = "placeholder";
 
     private static final ConstructingObjectParser<SemanticQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -83,9 +82,33 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
     }
 
-    private enum InferenceResultsFormat {
-        SINGLE, // A single inference result, the legacy format
-        MAP // A map of inference results
+    private static class LegacyInferenceResultsMap extends AbstractMap<String, InferenceResults> {
+        private static final String PLACEHOLDER_INFERENCE_ID = ".placeholder";
+
+        private final Map<String, InferenceResults> wrappedMap;
+
+        private LegacyInferenceResultsMap(InferenceResults inferenceResults) {
+            this.wrappedMap = Map.of(PLACEHOLDER_INFERENCE_ID, inferenceResults);
+        }
+
+        private InferenceResults getInferenceResults() {
+            return wrappedMap.get(PLACEHOLDER_INFERENCE_ID);
+        }
+
+        @Override
+        public Set<Entry<String, InferenceResults>> entrySet() {
+            return wrappedMap.entrySet();
+        }
+
+        @Override
+        public InferenceResults get(Object key) {
+            return wrappedMap.get(key);
+        }
+
+        @Override
+        public boolean containsKey(Object key) {
+            return wrappedMap.containsKey(key);
+        }
     }
 
     static {
@@ -97,7 +120,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     private final String fieldName;
     private final String query;
-    private final InferenceResultsFormat inferenceResultsFormat;
     private final Map<String, InferenceResults> inferenceResultsMap;
     private final boolean noInferenceResults;
     private final Boolean lenient;
@@ -115,7 +137,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
         this.fieldName = fieldName;
         this.query = query;
-        this.inferenceResultsFormat = null;
         this.inferenceResultsMap = null;
         this.noInferenceResults = false;
         this.lenient = lenient;
@@ -128,19 +149,15 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         if (in.getTransportVersion().onOrAfter(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS)) {
             if (in.readBoolean()) {
                 this.inferenceResultsMap = in.readMap(new InferenceResultsReader());
-                this.inferenceResultsFormat = InferenceResultsFormat.MAP;
             } else {
                 this.inferenceResultsMap = null;
-                this.inferenceResultsFormat = null;
             }
         } else {
             InferenceResults inferenceResults = in.readOptionalNamedWriteable(InferenceResults.class);
             if (inferenceResults != null) {
-                this.inferenceResultsMap = Map.of(PLACEHOLDER_INFERENCE_ID, inferenceResults);
-                this.inferenceResultsFormat = InferenceResultsFormat.SINGLE;
+                this.inferenceResultsMap = new LegacyInferenceResultsMap(inferenceResults);
             } else {
                 this.inferenceResultsMap = null;
-                this.inferenceResultsFormat = null;
             }
         }
         this.noInferenceResults = in.readBoolean();
@@ -188,7 +205,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.query = other.query;
         this.boost = other.boost;
         this.queryName = other.queryName;
-        this.inferenceResultsFormat = inferenceResultsMap != null ? InferenceResultsFormat.MAP : null;
         this.inferenceResultsMap = inferenceResultsMap;
         this.noInferenceResults = noInferenceResults;
         this.lenient = other.lenient;
@@ -250,10 +266,15 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 );
             }
 
+            final InferenceResults inferenceResults;
             String inferenceId = semanticTextFieldType.getSearchInferenceId();
-            InferenceResults inferenceResults = inferenceResultsFormat == InferenceResultsFormat.MAP
-                ? inferenceResultsMap.get(inferenceId)
-                : inferenceResultsMap.get(PLACEHOLDER_INFERENCE_ID);
+            if (inferenceResultsMap instanceof LegacyInferenceResultsMap legacyInferenceResultsMap) {
+                // We are reading inference results from a coordinator node using an old transport version
+                inferenceResults = legacyInferenceResultsMap.getInferenceResults();
+            } else {
+                inferenceResults = inferenceResultsMap.get(inferenceId);
+            }
+
             if (inferenceResults == null) {
                 throw new IllegalStateException(
                     "No inference results set for ["
@@ -297,7 +318,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     private SemanticQueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {
         if (inferenceResultsMap != null || noInferenceResults) {
-            // TODO: Need to check if inference results map is complete?
             return this;
         }
 
@@ -425,7 +445,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     protected boolean doEquals(SemanticQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(query, other.query)
-            && Objects.equals(inferenceResultsFormat, other.inferenceResultsFormat)
             && Objects.equals(inferenceResultsMap, other.inferenceResultsMap)
             && Objects.equals(noInferenceResults, other.noInferenceResults)
             && Objects.equals(lenient, other.lenient);
@@ -433,6 +452,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, query, inferenceResultsFormat, inferenceResultsMap, noInferenceResults, lenient);
+        return Objects.hash(fieldName, query, inferenceResultsMap, noInferenceResults, lenient);
     }
 }

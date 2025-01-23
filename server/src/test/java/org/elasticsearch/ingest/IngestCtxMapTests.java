@@ -131,12 +131,10 @@ public class IngestCtxMapTests extends ESTestCase {
     public void testRemove() {
         String cannotRemove = "cannotRemove";
         String canRemove = "canRemove";
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put(cannotRemove, "value");
         map = new IngestCtxMap(
             new HashMap<>(),
             new TestIngestCtxMetadata(
-                metadata,
+                new HashMap<>(Map.of(cannotRemove, "value")),
                 Map.of(
                     cannotRemove,
                     new Metadata.FieldProperty<>(String.class, false, true, null),

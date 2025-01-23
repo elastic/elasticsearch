@@ -44,7 +44,7 @@ Once the proper security permissions are obtained, then you can rely on the `con
 in the response to determine whether the remote cluster is available and ready for querying.
 ====
 
-NOTE: When querying older clusters that do not support the _resolve/cluster endpoint
+NOTE: When querying older clusters that do not support the `_resolve/cluster` endpoint
 without an index expression, the local cluster will send the index expression `dummy*`
 to those remote clusters, so if an errors occur, you may see a reference to that index
 expression even though you didn't request it. If it causes a problem, you can instead

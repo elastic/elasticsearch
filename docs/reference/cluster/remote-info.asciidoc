@@ -26,8 +26,8 @@ Returns configured remote cluster information.
 [[cluster-remote-info-api-desc]]
 ==== {api-description-title}
 
-The cluster remote info API allows you to retrieve all of the configured
-remote cluster information. It returns connection and endpoint information keyed
+The cluster remote info API allows you to retrieve information about configured
+remote clusters. It returns connection and endpoint information keyed
 by the configured remote cluster alias.
 
 TIP: This endpoint returns the information that reflects state on the cluster

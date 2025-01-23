@@ -57,6 +57,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("user4", "x-pack-test-password", "user4", false)
         .user("user5", "x-pack-test-password", "user5", false)
         .user("fls_user", "x-pack-test-password", "fls_user", false)
+        .user("fls_user2", "x-pack-test-password", "fls_user2", false)
+        .user("fls_user3", "x-pack-test-password", "fls_user3", false)
         .user("dls_user", "x-pack-test-password", "dls_user", false)
         .user("metadata1_read2", "x-pack-test-password", "metadata1_read2", false)
         .user("alias_user1", "x-pack-test-password", "alias_user1", false)
@@ -93,7 +95,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     public void indexDocuments() throws IOException {
         Settings lookupSettings = Settings.builder().put("index.mode", "lookup").build();
         String mapping = """
-            "properties":{"value": {"type": "double"}, "org": {"type": "keyword"}}
+            "properties":{"value": {"type": "double"}, "org": {"type": "keyword"}, "other": {"type": "keyword"}}
             """;
 
         createIndex("index", Settings.EMPTY, mapping);
@@ -164,6 +166,21 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 """);
             assertOK(client().performRequest(aliasRequest));
         }
+
+        createMultiRoleUsers();
+    }
+
+    private void createMultiRoleUsers() throws IOException {
+        Request request = new Request("POST", "_security/user/dls_user2");
+        request.setJsonEntity("""
+            {
+              "password" : "x-pack-test-password",
+              "roles" : [ "dls_user", "dls_user2" ],
+              "full_name" : "Test Role",
+              "email" : "test.role@example.com"
+            }
+            """);
+        assertOK(client().performRequest(request));
     }
 
     protected MapMatcher responseMatcher() {
@@ -608,6 +625,65 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
         assertThat(respMap.get("values"), equalTo(List.of(List.of(32.0, "marketing"))));
 
+        // same, but with a user that has two dls roles that allow him more visibility
+
+        resp = runESQLCommand("dls_user2", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN `lookup-user2` ON value | KEEP x, org");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+
+        assertThat(respMap.get("values"), equalTo(List.of(Arrays.asList(40.0, "sales"))));
+
+        resp = runESQLCommand("dls_user2", "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN `lookup-user2` ON value | KEEP x, org");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(32.0, "marketing"))));
+
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testLookupJoinFieldLevelSecurity() throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V11.capabilityName()))
+        );
+
+        Response resp = runESQLCommand("fls_user2", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN `lookup-user2` ON value");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(
+                List.of(
+                    Map.of("name", "x", "type", "double"),
+                    Map.of("name", "value", "type", "double"),
+                    Map.of("name", "org", "type", "keyword")
+                )
+            )
+        );
+
+        resp = runESQLCommand("fls_user3", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN `lookup-user2` ON value");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(
+                List.of(
+                    Map.of("name", "x", "type", "double"),
+                    Map.of("name", "value", "type", "double"),
+                    Map.of("name", "org", "type", "keyword"),
+                    Map.of("name", "other", "type", "keyword")
+                )
+            )
+
+        );
     }
 
     public void testLookupJoinIndexForbidden() throws Exception {

@@ -108,19 +108,18 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
         this.enrichPolicyResolver = new EnrichPolicyResolver(clusterService, transportService, planExecutor.indexResolver());
-        AbstractLookupService.CreateShardContext lookupCreateShardContext = AbstractLookupService.CreateShardContext.fromSearchService(
-            searchService
-        );
+        AbstractLookupService.LookupShardContextFactory lookupLookupShardContextFactory = AbstractLookupService.LookupShardContextFactory
+            .fromSearchService(searchService);
         this.enrichLookupService = new EnrichLookupService(
             clusterService,
-            lookupCreateShardContext,
+            lookupLookupShardContextFactory,
             transportService,
             bigArrays,
             blockFactory
         );
         this.lookupFromIndexService = new LookupFromIndexService(
             clusterService,
-            lookupCreateShardContext,
+            lookupLookupShardContextFactory,
             transportService,
             bigArrays,
             blockFactory

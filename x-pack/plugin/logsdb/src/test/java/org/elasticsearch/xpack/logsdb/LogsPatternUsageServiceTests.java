@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
@@ -27,6 +28,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class LogsPatternUsageServiceTests extends ESTestCase {
@@ -85,19 +89,14 @@ public class LogsPatternUsageServiceTests extends ESTestCase {
         service.check();
         assertTrue(service.hasPriorLogsUsage);
         assertNull(service.cancellable);
+
+        verifyNoInteractions(threadPool);
+        verify(client, times(1)).execute(same(ClusterUpdateSettingsAction.INSTANCE), any(), any());
     }
 
     public void testCheckHasUsageNoMatch() {
         var nodeSettings = Settings.EMPTY;
         var client = mock(Client.class);
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<ClusterUpdateSettingsResponse> listener = (ActionListener<ClusterUpdateSettingsResponse>) invocationOnMock
-                .getArguments()[2];
-            var persistentSettings = Settings.builder().put("logsdb.prior_logs_usage", true).build();
-            listener.onResponse(new ClusterUpdateSettingsResponse(true, Settings.EMPTY, persistentSettings));
-            return null;
-        }).when(client).execute(same(ClusterUpdateSettingsAction.INSTANCE), any(), any());
 
         var threadPool = mock(ThreadPool.class);
         var scheduledCancellable = mock(Scheduler.ScheduledCancellable.class);
@@ -112,6 +111,73 @@ public class LogsPatternUsageServiceTests extends ESTestCase {
         service.check();
         assertFalse(service.hasPriorLogsUsage);
         assertNotNull(service.cancellable);
+
+        verify(threadPool, times(1)).schedule(any(), any(), any());
+        verifyNoInteractions(client);
+    }
+
+    public void testCheckPriorLogsUsageAlreadySet() {
+        var nodeSettings = Settings.EMPTY;
+        var client = mock(Client.class);
+
+        var threadPool = mock(ThreadPool.class);
+        var scheduledCancellable = mock(Scheduler.ScheduledCancellable.class);
+        when(threadPool.schedule(any(), any(), any())).thenReturn(scheduledCancellable);
+        var clusterState = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>("log-app1-prod", 1)), List.of());
+        clusterState = ClusterState.builder(clusterState)
+            .metadata(
+                Metadata.builder(clusterState.getMetadata())
+                    .persistentSettings(Settings.builder().put("logsdb.prior_logs_usage", true).build())
+                    .build()
+            )
+            .build();
+        Supplier<Metadata> metadataSupplier = clusterState::metadata;
+
+        LogsPatternUsageService service = new LogsPatternUsageService(client, nodeSettings, threadPool, metadataSupplier);
+        service.isMaster = true;
+        assertFalse(service.hasPriorLogsUsage);
+        assertNull(service.cancellable);
+        service.check();
+        assertTrue(service.hasPriorLogsUsage);
+        assertNull(service.cancellable);
+
+        verifyNoInteractions(client, threadPool);
+    }
+
+    public void testCheckHasUsageUnexpectedResponse() {
+        var nodeSettings = Settings.EMPTY;
+        var client = mock(Client.class);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<ClusterUpdateSettingsResponse> listener = (ActionListener<ClusterUpdateSettingsResponse>) invocationOnMock
+                    .getArguments()[2];
+            ClusterUpdateSettingsResponse response;
+            if (randomBoolean()) {
+                var persistentSettings = Settings.builder().put("logsdb.prior_logs_usage", true).build();
+                response = new ClusterUpdateSettingsResponse(false, Settings.EMPTY, persistentSettings);
+            } else {
+                response = new ClusterUpdateSettingsResponse(true, Settings.EMPTY, Settings.EMPTY);
+            }
+            listener.onResponse(response);
+            return null;
+        }).when(client).execute(same(ClusterUpdateSettingsAction.INSTANCE), any(), any());
+
+        var threadPool = mock(ThreadPool.class);
+        var scheduledCancellable = mock(Scheduler.ScheduledCancellable.class);
+        when(threadPool.schedule(any(), any(), any())).thenReturn(scheduledCancellable);
+        var clusterState = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>("logs-app1-prod", 1)), List.of());
+        Supplier<Metadata> metadataSupplier = clusterState::metadata;
+
+        LogsPatternUsageService service = new LogsPatternUsageService(client, nodeSettings, threadPool, metadataSupplier);
+        service.isMaster = true;
+        assertFalse(service.hasPriorLogsUsage);
+        assertNull(service.cancellable);
+        service.check();
+        assertFalse(service.hasPriorLogsUsage);
+        assertNotNull(service.cancellable);
+
+        verify(threadPool, times(1)).schedule(any(), any(), any());
+        verify(client, times(1)).execute(same(ClusterUpdateSettingsAction.INSTANCE), any(), any());
     }
 
     public void testHasLogsUsage() {

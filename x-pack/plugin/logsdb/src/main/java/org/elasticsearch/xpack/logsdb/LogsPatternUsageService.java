@@ -139,6 +139,7 @@ final class LogsPatternUsageService implements LocalNodeMasterListener {
                 hasPriorLogsUsage = true;
                 cancellable = null;
             } else {
+                LOGGER.debug(() -> "unexpected response [" + LOGSDB_PRIOR_LOGS_USAGE.getKey() + "]");
                 scheduleNext(TimeValue.ONE_MINUTE);
             }
         }, e -> {

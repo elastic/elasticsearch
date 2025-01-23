@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -224,4 +225,75 @@ public class DataStreamDeprecationChecksTests extends ESTestCase {
         nameToIndexMetadata.put(indexMetadata.getIndex().getName(), indexMetadata);
         return indexMetadata.getIndex();
     }
+
+    public void testOldIndicesIgnoredWarningCheck() {
+        int oldIndexCount = randomIntBetween(1, 100);
+        int newIndexCount = randomIntBetween(1, 100);
+
+        List<Index> allIndices = new ArrayList<>();
+        Map<String, IndexMetadata> nameToIndexMetadata = new HashMap<>();
+        Set<String> expectedIndices = new HashSet<>();
+
+        for (int i = 0; i < oldIndexCount; i++) {
+            Settings.Builder settings = settings(IndexVersion.fromId(7170099));
+
+            String indexName = "old-data-stream-index-" + i;
+            settings.put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true);
+            expectedIndices.add(indexName);
+
+            Settings.Builder settingsBuilder = settings;
+            IndexMetadata oldIndexMetadata = IndexMetadata.builder(indexName)
+                .settings(settingsBuilder)
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build();
+            allIndices.add(oldIndexMetadata.getIndex());
+            nameToIndexMetadata.put(oldIndexMetadata.getIndex().getName(), oldIndexMetadata);
+        }
+
+        for (int i = 0; i < newIndexCount; i++) {
+            Index newIndex = createNewIndex(i, false, nameToIndexMetadata);
+            allIndices.add(newIndex);
+        }
+
+        DataStream dataStream = new DataStream(
+            randomAlphaOfLength(10),
+            allIndices,
+            randomNegativeLong(),
+            Map.of(),
+            randomBoolean(),
+            false,
+            false,
+            randomBoolean(),
+            randomFrom(IndexMode.values()),
+            null,
+            randomFrom(DataStreamOptions.EMPTY, DataStreamOptions.FAILURE_STORE_DISABLED, DataStreamOptions.FAILURE_STORE_ENABLED, null),
+            List.of(),
+            randomBoolean(),
+            null
+        );
+
+        Metadata metadata = Metadata.builder().indices(nameToIndexMetadata).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Old data stream with a compatibility version < 9.0 Have Been Ignored",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
+            "This data stream has read only backing indices that were created before Elasticsearch 9.0.0 and have been marked as "
+                + "OK to remain read-only after upgrade",
+            false,
+            ofEntries(
+                entry("reindex_required", true),
+                entry("total_backing_indices", oldIndexCount + newIndexCount),
+                entry("ignored_indices_requiring_upgrade_count", expectedIndices.size()),
+                entry("ignored_indices_requiring_upgrade", expectedIndices)
+            )
+        );
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(DATA_STREAM_CHECKS, c -> c.apply(dataStream, clusterState));
+
+        assertThat(issues, equalTo(singletonList(expected)));
+    }
+
 }

@@ -118,7 +118,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         IndexMetadata sourceIndex = clusterService.state().getMetadata().index(sourceIndexName);
         Settings settingsBefore = sourceIndex.getSettings();
 
-        var hasOldVersion = DeprecatedIndexPredicate.getReindexRequiredPredicate(clusterService.state().metadata());
+        var hasOldVersion = DeprecatedIndexPredicate.getReindexRequiredPredicate(clusterService.state().metadata(), false);
         if (hasOldVersion.test(sourceIndex.getIndex()) == false) {
             logger.warn(
                 "Migrating index [{}] with version [{}] is unnecessary as its version is not before [{}]",

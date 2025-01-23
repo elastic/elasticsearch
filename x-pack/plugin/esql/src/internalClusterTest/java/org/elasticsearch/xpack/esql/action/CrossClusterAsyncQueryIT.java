@@ -375,9 +375,11 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         ActionFuture<EsqlQueryResponse> stopAction = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
         // ensure stop operation is running
         assertBusy(() -> {
-            List<TaskInfo> tasks = getDriverTasks(client(REMOTE_CLUSTER_2));
-            List<TaskInfo> reduceTasks = tasks.stream().filter(t -> t.description().contains("_LuceneSourceOperator") == false).toList();
-            assertThat(reduceTasks.size(), lessThanOrEqualTo(1));
+            try (EsqlQueryResponse asyncResponse = getAsyncResponse(client(), asyncExecutionId)) {
+                EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
+                assertNotNull(executionInfo);
+                assertThat(executionInfo.isPartial(), is(true));
+            }
         });
         // allow local query to proceed
         SimplePauseFieldPlugin.allowEmitting.countDown();

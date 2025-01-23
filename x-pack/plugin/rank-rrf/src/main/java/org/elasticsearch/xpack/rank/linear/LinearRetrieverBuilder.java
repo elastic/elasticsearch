@@ -12,6 +12,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
@@ -121,6 +122,12 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     }
 
     @Override
+    protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
+        sourceBuilder.trackScores(true);
+        return sourceBuilder;
+    }
+
+    @Override
     protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
         Map<RankDoc.RankKey, LinearRankDoc> docsToRankResults = Maps.newMapWithExpectedSize(rankWindowSize);
         final String[] normalizerNames = normalizers == null
@@ -146,6 +153,8 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                             );
                             value.normalizedScores = new float[rankResults.size()];
                         }
+                        // if we do not have scores associated with this result set, just ignore its contribution to the final
+                        // score computation by setting its score to 0.
                         final float docScore = false == Float.isNaN(normalizedScoreDocs[finalScoreIndex].score)
                             ? normalizedScoreDocs[finalScoreIndex].score
                             : DEFAULT_SCORE;

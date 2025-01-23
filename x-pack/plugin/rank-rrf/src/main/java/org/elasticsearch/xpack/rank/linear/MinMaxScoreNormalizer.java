@@ -68,7 +68,11 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
         float correction = 0f;
         float xMin = Float.MAX_VALUE;
         float xMax = Float.MIN_VALUE;
+        boolean atLeastOneValidScore = false;
         for (ScoreDoc rd : docs) {
+            if (false == atLeastOneValidScore && false == Float.isNaN(rd.score)) {
+                atLeastOneValidScore = true;
+            }
             if (rd.score > xMax) {
                 xMax = rd.score;
             }
@@ -76,6 +80,11 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
                 xMin = rd.score;
             }
         }
+        if (false == atLeastOneValidScore) {
+            // we do not have any scores to normalize, so we just return the original array
+            return docs;
+        }
+
         if (min == null) {
             min = xMin;
         } else {

@@ -484,7 +484,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                 rrfDetails.getDescription(),
                 equalTo(
                     "weighted linear combination score: [30.0] computed for normalized scores [9.0, 20.0, 1.0] "
-                        + "and weights [1.0, 1.0, 1.0] as sum of (weight[i] * score[i]) for each query."
+                        + "as sum of (weight[i] * score[i]) for each query."
                 )
             );
 

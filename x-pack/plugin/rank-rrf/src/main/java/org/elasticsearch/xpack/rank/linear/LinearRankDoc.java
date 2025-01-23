@@ -85,8 +85,7 @@ public class LinearRankDoc extends RankDoc {
                 + score
                 + "] computed for normalized scores "
                 + Arrays.toString(normalizedScores)
-                + " and weights "
-                + Arrays.toString(weights == null ? new float[sources.length] : weights)
+                + (weights == null ? "" : " and weights " + Arrays.toString(weights))
                 + " as sum of (weight[i] * score[i]) for each query.",
             details
         );

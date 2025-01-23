@@ -16,9 +16,12 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
@@ -152,6 +155,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             "templates",
             "ilm_policies"
         );
+        static final Set<String> RESOURCE_CHECKER_FIELD_NAMES = Set.of("index_settings", "data_streams", "templates", "ilm_policies");
         private final List<DeprecationIssue> clusterSettingsIssues;
         private final List<DeprecationIssue> nodeSettingsIssues;
         private final Map<String, Map<String, List<DeprecationIssue>>> resourceDeprecationIssues;
@@ -183,10 +187,6 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 mutableResourceDeprecations = in.readMap(in2 -> in2.readMapOfLists(DeprecationIssue::new));
             }
             resourceDeprecationIssues = mutableResourceDeprecations;
-            assert resourceDeprecationIssues.containsKey("index_settings") : "the field 'index_settings' is missing";
-            assert resourceDeprecationIssues.containsKey("data_streams") : "the field 'data_streams' is missing";
-            assert resourceDeprecationIssues.containsKey("templates") : "the field 'templates' is missing";
-            assert resourceDeprecationIssues.containsKey("ilm_policies") : "the field 'ilm_policies' is missing";
         }
 
         public Response(
@@ -207,10 +207,6 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 );
             }
             this.pluginSettingsIssues = pluginSettingsIssues;
-            assert resourceDeprecationIssues.containsKey("index_settings") : "the field 'index_settings' is missing";
-            assert resourceDeprecationIssues.containsKey("data_streams") : "the field 'data_streams' is missing";
-            assert resourceDeprecationIssues.containsKey("templates") : "the field 'templates' is missing";
-            assert resourceDeprecationIssues.containsKey("ilm_policies") : "the field 'ilm_policies' is missing";
         }
 
         public List<DeprecationIssue> getClusterSettingsIssues() {
@@ -222,27 +218,23 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         }
 
         public Map<String, List<DeprecationIssue>> getIndexSettingsIssues() {
-            return resourceDeprecationIssues.get(IndexDeprecationChecker.NAME);
+            return resourceDeprecationIssues.getOrDefault(IndexDeprecationChecker.NAME, Map.of());
         }
 
         public Map<String, List<DeprecationIssue>> getPluginSettingsIssues() {
             return pluginSettingsIssues;
         }
 
-        public Map<String, Map<String, List<DeprecationIssue>>> getResourceDeprecationIssues() {
-            return resourceDeprecationIssues;
-        }
-
         public Map<String, List<DeprecationIssue>> getDataStreamDeprecationIssues() {
-            return resourceDeprecationIssues.get(DataStreamDeprecationChecker.NAME);
+            return resourceDeprecationIssues.getOrDefault(DataStreamDeprecationChecker.NAME, Map.of());
         }
 
         public Map<String, List<DeprecationIssue>> getTemplateDeprecationIssues() {
-            return resourceDeprecationIssues.get(TemplateDeprecationChecker.NAME);
+            return resourceDeprecationIssues.getOrDefault(TemplateDeprecationChecker.NAME, Map.of());
         }
 
         public Map<String, List<DeprecationIssue>> getIlmPolicyDeprecationIssues() {
-            return resourceDeprecationIssues.get(IlmPolicyDeprecationChecker.NAME);
+            return resourceDeprecationIssues.getOrDefault(IlmPolicyDeprecationChecker.NAME, Map.of());
         }
 
         @Override
@@ -254,8 +246,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             }
             if (out.getTransportVersion()
                 .between(TransportVersions.DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK, TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
-                Map<String, List<DeprecationIssue>> dataStreamIssues = resourceDeprecationIssues.get(DataStreamDeprecationChecker.NAME);
-                out.writeMap(dataStreamIssues, StreamOutput::writeCollection);
+                out.writeMap(getDataStreamDeprecationIssues(), StreamOutput::writeCollection);
             }
             if (out.getTransportVersion().before(TransportVersions.V_7_11_0)) {
                 out.writeCollection(pluginSettingsIssues.getOrDefault("ml_settings", Collections.emptyList()));
@@ -269,12 +260,18 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject()
+            builder.startObject()
                 .array("cluster_settings", clusterSettingsIssues.toArray())
                 .array("node_settings", nodeSettingsIssues.toArray())
                 .mapContents(resourceDeprecationIssues)
-                .mapContents(pluginSettingsIssues)
-                .endObject();
+                .mapContents(pluginSettingsIssues);
+            // Ensure that all the required fields are present in the response.
+            for (String fieldName : RESOURCE_CHECKER_FIELD_NAMES) {
+                if (resourceDeprecationIssues.containsKey(fieldName) == false) {
+                    builder.startObject(fieldName).endObject();
+                }
+            }
+            return builder.endObject();
         }
 
         @Override
@@ -305,6 +302,10 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
          * @param nodeDeprecationResponse The response containing the deprecation issues found on each node
          * @param clusterSettingsChecks The list of cluster-level checks
          * @param pluginSettingIssues this map gets modified to move transform deprecation issues into cluster_settings
+         * @param skipTheseDeprecatedSettings the settings that will be removed from cluster metadata and the index metadata of all the
+         *                                    indexes specified by indexNames
+         * @param resourceDeprecationCheckers these are checkers that take as input the cluster state and return a map from resource type
+         *                                    to issues grouped by the resource name.
          * @return The list of deprecation issues found in the cluster
          */
         public static DeprecationInfoAction.Response from(
@@ -329,10 +330,10 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
 
             Map<String, Map<String, List<DeprecationIssue>>> resourceDeprecationIssues = new HashMap<>();
             for (ResourceDeprecationChecker resourceDeprecationChecker : resourceDeprecationCheckers) {
-                resourceDeprecationIssues.put(
-                    resourceDeprecationChecker.getName(),
-                    resourceDeprecationChecker.check(stateWithSkippedSettingsRemoved, request)
-                );
+                Map<String, List<DeprecationIssue>> issues = resourceDeprecationChecker.check(stateWithSkippedSettingsRemoved, request);
+                if (issues.isEmpty() == false) {
+                    resourceDeprecationIssues.put(resourceDeprecationChecker.getName(), issues);
+                }
             }
 
             // WORKAROUND: move transform deprecation issues into cluster_settings
@@ -361,6 +362,10 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
      * @return A modified cluster state with the given settings removed
      */
     private static ClusterState removeSkippedSettings(ClusterState state, String[] indexNames, List<String> skipTheseDeprecatedSettings) {
+        // Short-circuit, no need to reconstruct the cluster state if there are no settings to remove
+        if (skipTheseDeprecatedSettings == null || skipTheseDeprecatedSettings.isEmpty()) {
+            return state;
+        }
         ClusterState.Builder clusterStateBuilder = new ClusterState.Builder(state);
         Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
         metadataBuilder.transientSettings(
@@ -378,6 +383,47 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             filteredIndexMetadataBuilder.settings(filteredSettings);
             indicesBuilder.put(indexName, filteredIndexMetadataBuilder.build());
         }
+        metadataBuilder.componentTemplates(state.metadata().componentTemplates().entrySet().stream().map(entry -> {
+            String templateName = entry.getKey();
+            ComponentTemplate componentTemplate = entry.getValue();
+            Template template = componentTemplate.template();
+            if (template.settings() == null || template.settings().isEmpty()) {
+                return Tuple.tuple(templateName, componentTemplate);
+            }
+            return Tuple.tuple(
+                templateName,
+                new ComponentTemplate(
+                    Template.builder(template)
+                        .settings(template.settings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false))
+                        .build(),
+                    componentTemplate.version(),
+                    componentTemplate.metadata(),
+                    componentTemplate.deprecated()
+                )
+            );
+        }).collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
+        metadataBuilder.indexTemplates(state.metadata().templatesV2().entrySet().stream().map(entry -> {
+            String templateName = entry.getKey();
+            ComposableIndexTemplate indexTemplate = entry.getValue();
+            Template template = indexTemplate.template();
+            if (templateName == null || template.settings() == null || template.settings().isEmpty()) {
+                return Tuple.tuple(templateName, indexTemplate);
+            }
+            return Tuple.tuple(
+                templateName,
+                indexTemplate.toBuilder()
+                    .template(
+                        Template.builder(indexTemplate.template())
+                            .settings(
+                                indexTemplate.template()
+                                    .settings()
+                                    .filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false)
+                            )
+                    )
+                    .build()
+            );
+        }).collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
+
         metadataBuilder.indices(indicesBuilder);
         clusterStateBuilder.metadata(metadataBuilder);
         return clusterStateBuilder.build();

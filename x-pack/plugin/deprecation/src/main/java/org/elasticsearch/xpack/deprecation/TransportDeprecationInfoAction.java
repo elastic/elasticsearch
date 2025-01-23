@@ -75,8 +75,6 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
-        // The names of the implementation of the ResourceDeprecationChecker are part of the API. They need to be converted to a noop
-        // if they have no active checks.
         this.resourceDeprecationCheckers = List.of(
             new IndexDeprecationChecker(indexNameExpressionResolver),
             new DataStreamDeprecationChecker(indexNameExpressionResolver),

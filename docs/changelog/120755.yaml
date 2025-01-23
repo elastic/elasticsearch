@@ -1,0 +1,5 @@
+pr: 120755
+summary: Support using the semantic query across multiple inference IDs
+area: "Relevance, Search"
+type: enhancement
+issues: []

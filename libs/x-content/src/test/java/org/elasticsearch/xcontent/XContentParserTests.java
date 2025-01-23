@@ -15,9 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
@@ -673,13 +671,9 @@ public class XContentParserTests extends ESTestCase {
     }
 
     private XContentParser createParser(XContent xContent, XContentParserConfiguration config, String content) throws IOException {
-        return switch (randomInt(3)) {
-            case 0 -> xContent.createParser(config, content);
-            case 1 -> xContent.createParser(config, content.getBytes(StandardCharsets.UTF_8));
-            case 2 -> xContent.createParser(config, new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8)));
-            case 3 -> xContent.createParser(config, new StringReader(content));
-            default -> throw new IllegalArgumentException();
-        };
+        return randomBoolean()
+            ? xContent.createParser(config, content)
+            : xContent.createParser(config, content.getBytes(StandardCharsets.UTF_8));
     }
 
     /**

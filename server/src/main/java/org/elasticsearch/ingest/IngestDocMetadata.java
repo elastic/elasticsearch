@@ -42,6 +42,20 @@ class IngestDocMetadata extends Metadata {
         new FieldProperty<>(Map.class).withWritable().withNullable()
     );
 
+    private static final char UNDERSCORE = '_';
+    static {
+        // there's an optimization here in the overridden isAvailable below, but it only works if the first character of each of these
+        // keys starts with an underscore, since we know all the keys up front, though, we can just make sure that's always true
+        validateLeadingUnderscores(PROPERTIES);
+    }
+
+    private static Map<String, FieldProperty<?>> validateLeadingUnderscores(final Map<String, FieldProperty<?>> properties) {
+        for (String key : properties.keySet()) {
+            assert key.charAt(0) == UNDERSCORE;
+        }
+        return properties;
+    }
+
     protected final ZonedDateTime timestamp;
 
     IngestDocMetadata(String index, String id, long version, String routing, VersionType versionType, ZonedDateTime timestamp) {
@@ -53,7 +67,8 @@ class IngestDocMetadata extends Metadata {
     }
 
     IngestDocMetadata(Map<String, Object> metadata, Map<String, FieldProperty<?>> properties, ZonedDateTime timestamp) {
-        super(metadata, properties);
+        // this arity is exposed for tests, so we have to validate the properties map separately if it isn't PROPERTIES itself
+        super(metadata, properties == PROPERTIES ? properties : validateLeadingUnderscores(properties));
         this.timestamp = timestamp;
     }
 
@@ -99,5 +114,17 @@ class IngestDocMetadata extends Metadata {
                 + value.getClass().getName()
                 + "]"
         );
+    }
+
+    @Override
+    public boolean isAvailable(String key) {
+        // the key cannot be null or empty because of the nature of the calling code, and this is already validated in IngestDocument
+        assert key != null && key.isEmpty() == false;
+        // we can avoid a map lookup on most keys since we know that the only keys that are 'metadata keys' for an ingest document
+        // must be keys that start with an underscore
+        if (key.charAt(0) != UNDERSCORE) {
+            return false;
+        }
+        return super.isAvailable(key);
     }
 }

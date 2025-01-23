@@ -220,9 +220,9 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
 
     public abstract void contenderMappings(XContentBuilder builder) throws IOException;
 
-    public void baselineSettings(Settings.Builder builder) {}
+    public abstract void baselineSettings(Settings.Builder builder);
 
-    public void contenderSettings(Settings.Builder builder) {}
+    public abstract void contenderSettings(Settings.Builder builder);
 
     public void commonSettings(Settings.Builder builder) {}
 

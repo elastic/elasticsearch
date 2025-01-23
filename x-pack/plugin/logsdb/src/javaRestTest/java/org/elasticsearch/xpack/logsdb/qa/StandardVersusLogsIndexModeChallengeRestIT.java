@@ -39,108 +39,54 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * Basic challenge test - we index same documents into an index with standard index mode and an index with logsdb index mode.
- * Then we verify that results of common operations are the same modulo knows differences like synthetic source modifications.
- * This test uses simple mapping and document structure in order to allow easier debugging of the test itself.
+ * Challenge test (see {@link BulkStaticMappingChallengeRestIT}) that uses randomly generated
+ * mapping and documents in order to cover more code paths and permutations.
  */
 public abstract class StandardVersusLogsIndexModeChallengeRestIT extends AbstractChallengeRestTest {
-    private final int numShards = randomBoolean() ? randomIntBetween(2, 4) : 0;
-    private final int numReplicas = randomBoolean() ? randomIntBetween(1, 3) : 0;
-    private final boolean fullyDynamicMapping = randomBoolean();
+    protected final boolean fullyDynamicMapping = randomBoolean();
     private final boolean useCustomSortConfig = fullyDynamicMapping == false && randomBoolean();
     private final boolean routeOnSortFields = useCustomSortConfig && randomBoolean();
+    private final int numShards = randomBoolean() ? randomIntBetween(2, 4) : 0;
+    private final int numReplicas = randomBoolean() ? randomIntBetween(1, 3) : 0;
+    protected final DataGenerationHelper dataGenerationHelper;
 
     public StandardVersusLogsIndexModeChallengeRestIT() {
+        this(new DataGenerationHelper());
+    }
+
+    protected StandardVersusLogsIndexModeChallengeRestIT(DataGenerationHelper dataGenerationHelper) {
         super("standard-apache-baseline", "logs-apache-contender", "baseline-template", "contender-template", 101, 101);
+        this.dataGenerationHelper = dataGenerationHelper;
     }
 
     @Override
     public void baselineMappings(XContentBuilder builder) throws IOException {
-        if (fullyDynamicMapping == false) {
-            builder.startObject()
-                .startObject("properties")
-
-                .startObject("@timestamp")
-                .field("type", "date")
-                .endObject()
-
-                .startObject("host.name")
-                .field("type", "keyword")
-                .field("ignore_above", randomIntBetween(1000, 1200))
-                .endObject()
-
-                .startObject("message")
-                .field("type", "keyword")
-                .field("ignore_above", randomIntBetween(1000, 1200))
-                .endObject()
-
-                .startObject("method")
-                .field("type", "keyword")
-                .field("ignore_above", randomIntBetween(1000, 1200))
-                .endObject()
-
-                .startObject("memory_usage_bytes")
-                .field("type", "long")
-                .field("ignore_malformed", randomBoolean())
-                .endObject()
-
-                .endObject()
-
-                .endObject();
-        } else {
-            // We want dynamic mapping, but we need host.name to be a keyword instead of text to support aggregations.
-            builder.startObject()
-                .startObject("properties")
-
-                .startObject("host.name")
-                .field("type", "keyword")
-                .field("ignore_above", randomIntBetween(1000, 1200))
-                .endObject()
-
-                .endObject()
-                .endObject();
-        }
+        dataGenerationHelper.standardMapping(builder);
     }
 
     @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
-        builder.startObject();
-        builder.field("subobjects", false);
+        dataGenerationHelper.logsDbMapping(builder);
+    }
 
-        if (fullyDynamicMapping == false) {
-            builder.startObject("properties")
+    @Override
+    public void baselineSettings(Settings.Builder builder) {}
 
-                .startObject("@timestamp")
-                .field("type", "date")
-                .endObject()
-
-                .startObject("host.name")
-                .field("type", "keyword")
-                .field("ignore_above", randomIntBetween(1000, 1200))
-                .endObject()
-
-                .startObject("message")
-                .field("type", "keyword")
-                .field("ignore_above", randomIntBetween(1000, 1200))
-                .endObject()
-
-                .startObject("method")
-                .field("type", "keyword")
-                .field("ignore_above", randomIntBetween(1000, 1200))
-                .endObject()
-
-                .startObject("memory_usage_bytes")
-                .field("type", "long")
-                .field("ignore_malformed", randomBoolean())
-                .endObject()
-
-                .endObject();
+    @Override
+    public void contenderSettings(Settings.Builder builder) {
+        builder.put("index.mode", "logsdb");
+        if (useCustomSortConfig) {
+            builder.putList("index.sort.field", "host.name", "method", "@timestamp");
+            builder.putList("index.sort.order", "asc", "asc", "desc");
+            if (routeOnSortFields) {
+                builder.put("index.logsdb.route_on_sort_fields", true);
+            }
         }
-
-        builder.endObject();
+        dataGenerationHelper.logsDbSettings(builder);
     }
 
     @Override
@@ -155,26 +101,11 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
     }
 
     @Override
-    public void contenderSettings(Settings.Builder builder) {
-        builder.put("index.mode", "logsdb");
-        if (useCustomSortConfig) {
-            builder.putList("index.sort.field", "host.name", "method", "@timestamp");
-            builder.putList("index.sort.order", "asc", "asc", "desc");
-            if (routeOnSortFields) {
-                builder.put("index.logsdb.route_on_sort_fields", true);
-            }
-        }
-    }
-
-    @Override
-    public void baselineSettings(Settings.Builder builder) {}
-
-    @Override
     public void beforeStart() throws Exception {
         waitForLogs(client());
     }
 
-    public boolean autoGenerateId() {
+    protected boolean autoGenerateId() {
         return routeOnSortFields;
     }
 
@@ -351,14 +282,12 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
     }
 
     protected XContentBuilder generateDocument(final Instant timestamp) throws IOException {
-        return XContentFactory.jsonBuilder()
-            .startObject()
-            .field("@timestamp", DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(timestamp))
-            .field("host.name", randomFrom("foo", "bar", "baz"))
-            .field("message", randomFrom("a message", "another message", "still another message", "one more message"))
-            .field("method", randomFrom("put", "post", "get"))
-            .field("memory_usage_bytes", randomLongBetween(1000, 2000))
-            .endObject();
+        var document = XContentFactory.jsonBuilder();
+        dataGenerationHelper.generateDocument(
+            document,
+            Map.of("@timestamp", DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(timestamp))
+        );
+        return document;
     }
 
     @SuppressWarnings("unchecked")
@@ -423,5 +352,20 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
 
     private void indexDocuments(List<XContentBuilder> documents) throws IOException {
         indexDocuments(() -> documents, () -> documents);
+    }
+
+    protected final Map<String, Object> performBulkRequest(String json, boolean isBaseline) throws IOException {
+        var request = new Request("POST", "/" + (isBaseline ? getBaselineDataStreamName() : getContenderDataStreamName()) + "/_bulk");
+        request.setJsonEntity(json);
+        request.addParameter("refresh", "true");
+        var response = client.performRequest(request);
+        assertOK(response);
+        var responseBody = entityAsMap(response);
+        assertThat(
+            "errors in " + (isBaseline ? "baseline" : "contender") + " bulk response:\n " + responseBody,
+            responseBody.get("errors"),
+            equalTo(false)
+        );
+        return responseBody;
     }
 }

@@ -17,8 +17,11 @@ import java.util.Map;
 
 /**
  * Challenge test that uses bulk indexing for both baseline and contender sides.
+ * We index same documents into an index with standard index mode and an index with logsdb index mode.
+ * Then we verify that results of common operations are the same modulo knows differences like synthetic source
+ * modifications.
  */
-public class BulkChallengeRestIT extends StandardVersusLogsIndexModeRandomDataChallengeRestIT {
+public class BulkChallengeRestIT extends StandardVersusLogsIndexModeChallengeRestIT {
 
     public BulkChallengeRestIT() {}
 

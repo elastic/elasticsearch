@@ -18,7 +18,7 @@ import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class ReindexChallengeRestIT extends StandardVersusLogsIndexModeRandomDataChallengeRestIT {
+public abstract class ReindexChallengeRestIT extends StandardVersusLogsIndexModeChallengeRestIT {
 
     @Override
     public void indexDocuments(

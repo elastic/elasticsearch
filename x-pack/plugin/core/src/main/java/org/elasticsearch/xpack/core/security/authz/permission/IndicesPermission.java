@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiPredicate;
@@ -819,7 +820,8 @@ public final class IndicesPermission {
             assert roleIndices.length != 0;
             this.privilege = privilege;
             this.actionMatcher = privilege.predicate();
-            this.indices = resolveSelectors(roleIndices);
+            //this.indices = roleIndices;
+            this.indices = addFailureExclusions(resolveSelectors(roleIndices));
             this.allowRestrictedIndices = allowRestrictedIndices;
             ConcurrentHashMap<String[], Automaton> indexNameAutomatonMemo = new ConcurrentHashMap<>(1);
             //TODO: need to add NOT name::failures to the indexNameAutomaton
@@ -837,6 +839,79 @@ public final class IndicesPermission {
             this.query = query;
         }
 
+
+
+        //test* becomes /(test.*)&~(test.*::failures)/" ... only need to do this if there is a wildcard in the pattern in the role
+        //
+
+        //this works the same as if the user expliclity said name:*, /~name::failures/
+        private String[] addFailureExclusions(String[] indices) {
+
+           //deny any pattern that does not have a ::failure selector explicilty requested
+            Map<String, Set<Optional<String>>> hasFailures = new HashMap<>();
+            boolean needsFailureExclusion = false;
+            //collect all the indices, keyed by name with a value of all the selectors.
+            // Only the ::failures selector should be present since ::* is expanded to ::failures,::data and ::data has been removed.
+            for(String indexPattern : indices ){
+                if(indexPattern.startsWith("/")){
+                    //TODO: [Jake] figure out regular expression support
+                    hasFailures.computeIfAbsent(indexPattern, k -> new HashSet<>()).add(Optional.empty());
+                    continue;
+                }
+
+                if(needsFailureExclusion == false && indexPattern.contains("*") ){
+                    needsFailureExclusion = true;
+                }
+                if(IndexNameExpressionResolver.hasSelectorSuffix(indexPattern)) {
+                    Tuple<String, String> parts = IndexNameExpressionResolver.splitSelectorExpression(indexPattern);
+                    assert parts.v2() != null && parts.v2().toLowerCase(Locale.ROOT).equals(IndexComponentSelector.FAILURES.getKey())
+                        : "Only the ::failures selector should be present.";
+                    hasFailures.computeIfAbsent(parts.v1(), k -> new HashSet<>()).add(Optional.of(parts.v2()));
+                } else {
+                    hasFailures.computeIfAbsent(indexPattern, k -> new HashSet<>()).add(Optional.empty()); //no selector == ::data
+                }
+            }
+            //there are no wildcard patterns in the group's index patterns, so no need to add the exclusions
+            if(needsFailureExclusion == false){
+                return indices;
+            }
+
+            //find all the patterns that have a wildcard and do not have a ::failures selector
+            for(Map.Entry<String, Set<Optional<String>>> entry : hasFailures.entrySet()){
+                if(entry.getKey().contains("*") && entry.getKey().startsWith("/") == false){
+                    //index pattern has a wildcard and is not a regular expression
+                    boolean addFailureExclusion = false;
+                    for(Optional<String> selector : entry.getValue()){
+                        if(selector.isPresent()){
+                            assert selector.get().equals(IndexComponentSelector.FAILURES.getKey());
+                            //already has a failure selector for the pattern, so we should not exclude ::failures
+                        } else {
+                            addFailureExclusion = true;
+                        }
+                    };
+                    if(addFailureExclusion){
+                        //mark the object exclusion for the ::failures selector
+                        entry.getValue().add(Optional.of("ADD_FAILURES_EXCLUSION"));
+                    }
+                }
+            }
+
+            List<String> indicesWithExclusions = new ArrayList<>();
+
+            for(Map.Entry<String, Set<Optional<String>>> entry : hasFailures.entrySet()){
+                //the selector can have at most 2 of the values: (empty + ::failures) or (empty + FAILURES_EXCLUSION)
+                // but never (::failures + FAILURES_EXCLUSION)
+                //when we see (empty + FAILURES_EXCLUSION) we will update the index pattern to be regular expression that excludes failures
+               if(entry.getValue().stream().anyMatch(s -> s.isPresent() && s.get().equals("ADD_FAILURES_EXCLUSION"))){
+                   String asRegex = "(" + entry.getKey().replaceAll("\\*", ".*") + ")";
+                   indicesWithExclusions.add("/" + asRegex + "&~(" + asRegex + "::failures)/");
+                } else {
+                   indicesWithExclusions.add(IndexNameExpressionResolver.combineSelector(entry.getKey(), IndexComponentSelector.FAILURES));
+               }
+            }
+
+          return indicesWithExclusions.toArray(String[]::new);
+        }
         /**
          * This method will transform the indices as defined for the group to resolve the selectors.
          * The full expression (for index/datastream/alias named `name`) can be expressed as one of the following patterns:
@@ -859,6 +934,7 @@ public final class IndicesPermission {
             //TODO: [Jake] ensure that remote_indices can not have selectors via similar role validation
             List<String> indicesResolvedBySelector = new ArrayList<>(indices.length);
             for(String index: indices){
+                //TODO: [Jake] What about regular expression patterns that have selectors ...maybe just deny them for now ?
                 if(IndexNameExpressionResolver.hasSelectorSuffix(index)) {
                     Tuple<String, String> parts = IndexNameExpressionResolver.splitSelectorExpression(index);
                     String name = parts.v1();

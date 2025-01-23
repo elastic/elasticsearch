@@ -273,9 +273,11 @@ public class CountedKeywordFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).mappedFieldType.isIndexed(), true);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+        private final SourceKeepMode indexSourceKeepMode;
 
-        protected Builder(String name) {
+        protected Builder(String name, SourceKeepMode indexSourceKeepMode) {
             super(name);
+            this.indexSourceKeepMode = indexSourceKeepMode;
         }
 
         @Override
@@ -305,7 +307,8 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                     countFieldMapper.fieldType()
                 ),
                 builderParams(this, context),
-                countFieldMapper
+                countFieldMapper,
+                indexSourceKeepMode
             );
         }
     }
@@ -385,21 +388,26 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         }
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> new CountedKeywordFieldMapper.Builder(n));
+    public static TypeParser PARSER = new TypeParser(
+        (n, c) -> new CountedKeywordFieldMapper.Builder(n, c.getIndexSettings().sourceKeepMode())
+    );
 
     private final FieldType fieldType;
     private final BinaryFieldMapper countFieldMapper;
+    private final SourceKeepMode indexSourceKeepMode;
 
     protected CountedKeywordFieldMapper(
         String simpleName,
         FieldType fieldType,
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
-        BinaryFieldMapper countFieldMapper
+        BinaryFieldMapper countFieldMapper,
+        SourceKeepMode indexSourceKeepMode
     ) {
         super(simpleName, mappedFieldType, builderParams);
         this.fieldType = fieldType;
         this.countFieldMapper = countFieldMapper;
+        this.indexSourceKeepMode = indexSourceKeepMode;
     }
 
     @Override
@@ -481,7 +489,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
+        return new Builder(leafName(), indexSourceKeepMode).init(this);
     }
 
     @Override
@@ -491,8 +499,8 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        var keepMode = sourceKeepMode();
-        if (keepMode.isPresent() && keepMode.get() != SourceKeepMode.NONE) {
+        var keepMode = sourceKeepMode().orElse(indexSourceKeepMode);
+        if (keepMode != SourceKeepMode.NONE) {
             return super.syntheticSourceSupport();
         }
 

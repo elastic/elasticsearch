@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Map.entry;
-import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class ElasticsearchTests extends ESTestCase {
@@ -63,7 +62,6 @@ public class ElasticsearchTests extends ESTestCase {
 
         var pluginsWithNativeAccess = Elasticsearch.findPluginsWithNativeAccess(policies);
 
-        assertThat(pluginsWithNativeAccess, aMapWithSize(2));
         assertThat(pluginsWithNativeAccess.keySet(), containsInAnyOrder("plugin-with-native", "another-plugin-with-native"));
         assertThat(pluginsWithNativeAccess.get("plugin-with-native"), containsInAnyOrder("module.a"));
         assertThat(pluginsWithNativeAccess.get("another-plugin-with-native"), containsInAnyOrder("module.a2", "module.b2"));

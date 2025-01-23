@@ -11,6 +11,7 @@ package org.elasticsearch.plugins;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.jdk.JarHell;
@@ -544,14 +545,14 @@ public class PluginsLoader {
     private static void enableNativeAccess(String mainModuleName, Set<String> modulesWithNativeAccess, Controller controller) {
         for (var moduleName : modulesWithNativeAccess) {
             var module = controller.layer().findModule(moduleName);
-            module.ifPresentOrElse(
-                m -> NativeAccessUtil.enableNativeAccess(controller, m),
-                () -> logger.warn(
-                    "Native access not enabled for module [{}]: not a valid module name in layer [{}]",
-                    moduleName,
-                    mainModuleName
-                )
-            );
+            module.ifPresentOrElse(m -> NativeAccessUtil.enableNativeAccess(controller, m), () -> {
+                assert false
+                    : Strings.format(
+                        "Native access not enabled for module [%s]: not a valid module name in layer [%s]",
+                        moduleName,
+                        mainModuleName
+                    );
+            });
         }
     }
 }

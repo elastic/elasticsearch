@@ -1064,16 +1064,10 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             // {"columns":[{"name":"dv","type":"keyword"},{"name":"no_dv","type":"keyword"}],"values":[["test",null]]}
             try {
                 Map<String, Object> result = entityAsMap(client().performRequest(esql));
-                MapMatcher mapMatcher = matchesMap();
-                if (result.get("took") != null) {
-                    mapMatcher = mapMatcher.entry("took", ((Integer) result.get("took")).intValue());
-                }
-                assertMap(
+                assertResultMap(
                     result,
-                    mapMatcher.entry(
-                        "columns",
-                        List.of(Map.of("name", "dv", "type", "keyword"), Map.of("name", "no_dv", "type", "keyword"))
-                    ).entry("values", List.of(List.of("test", "test")))
+                    List.of(Map.of("name", "dv", "type", "keyword"), Map.of("name", "no_dv", "type", "keyword")),
+                    List.of(List.of("test", "test"))
                 );
             } catch (ResponseException e) {
                 logger.error(

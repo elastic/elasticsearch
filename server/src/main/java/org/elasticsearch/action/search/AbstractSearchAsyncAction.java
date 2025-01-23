@@ -29,7 +29,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -127,20 +126,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.throttleConcurrentRequests = maxConcurrentRequestsPerNode < shardsIts.size();
         this.logger = logger;
         this.clusterStateVersion = clusterState.version();
-    }
-
-    protected void notifyListShards(
-        SearchProgressListener progressListener,
-        SearchResponse.Clusters clusters,
-        SearchSourceBuilder sourceBuilder
-    ) {
-        progressListener.notifyListShards(
-            SearchProgressListener.buildSearchShards(this.shardsIts),
-            SearchProgressListener.buildSearchShards(toSkipShardsIts),
-            clusters,
-            sourceBuilder == null || sourceBuilder.size() > 0,
-            timeProvider
-        );
     }
 
     protected String missingShardsErrorMessage(StringBuilder missingShards) {

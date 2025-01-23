@@ -28,6 +28,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.Transport;
@@ -139,6 +140,20 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
         this.minTransportVersion = clusterState.getMinTransportVersion();
         this.aliasFilter = aliasFilter;
         this.clusters = clusters;
+    }
+
+    protected void notifyListShards(
+        SearchProgressListener progressListener,
+        SearchResponse.Clusters clusters,
+        SearchSourceBuilder sourceBuilder
+    ) {
+        progressListener.notifyListShards(
+            SearchProgressListener.buildSearchShards(this.shardsIts),
+            SearchProgressListener.buildSearchShards(toSkipShardsIts),
+            clusters,
+            sourceBuilder == null || sourceBuilder.size() > 0,
+            timeProvider
+        );
     }
 
     static ShardSearchFailure[] buildShardFailures(SetOnce<AtomicArray<ShardSearchFailure>> shardFailuresRef) {

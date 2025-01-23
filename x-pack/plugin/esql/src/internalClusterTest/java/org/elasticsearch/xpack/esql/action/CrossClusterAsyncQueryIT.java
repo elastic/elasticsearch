@@ -283,6 +283,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 
         // wait until the query of 'cluster-a:logs-*' has finished (it is not blocked since we are not searching the 'blocking' index on it)
         waitForCluster(client(), REMOTE_CLUSTER_1, asyncExecutionId);
+        waitForCluster(client(), LOCAL_CLUSTER, asyncExecutionId);
 
         /* at this point:
          *  the query against cluster-a should be finished

@@ -86,6 +86,7 @@ public class CrossClusterAsyncEnrichStopIT extends AbstractEnrichBasedCrossClust
 
         // wait until c1 is done
         waitForCluster(client(), "c1", asyncExecutionId);
+        waitForCluster(client(), LOCAL_CLUSTER, asyncExecutionId);
 
         // Run the stop request
         var stopRequest = new AsyncStopRequest(asyncExecutionId);

@@ -57,7 +57,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -203,7 +202,6 @@ public class ComputeService {
             exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 // run compute on the coordinator
-                final AtomicReference<ComputeResponse> localResponse = new AtomicReference<>(new ComputeResponse(List.of()));
                 final AtomicBoolean localClusterWasInterrupted = new AtomicBoolean();
                 try (
                     var localListener = new ComputeListener(
@@ -212,19 +210,12 @@ public class ComputeService {
                         computeListener.acquireCompute().delegateFailure((l, profiles) -> {
                             if (execInfo.isCrossClusterSearch() && execInfo.clusterAliases().contains(LOCAL_CLUSTER)) {
                                 var tookTime = TimeValue.timeValueNanos(System.nanoTime() - execInfo.getRelativeStartNanos());
-                                var resp = localResponse.get();
                                 var status = localClusterWasInterrupted.get()
                                     ? EsqlExecutionInfo.Cluster.Status.PARTIAL
                                     : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
                                 execInfo.swapCluster(
                                     LOCAL_CLUSTER,
-                                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(status)
-                                        .setTook(tookTime)
-                                        .setTotalShards(resp.getTotalShards())
-                                        .setSuccessfulShards(resp.getSuccessfulShards())
-                                        .setSkippedShards(resp.getSkippedShards())
-                                        .setFailedShards(resp.getFailedShards())
-                                        .build()
+                                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(status).setTook(tookTime).build()
                                 );
                             }
                             l.onResponse(profiles);
@@ -251,7 +242,16 @@ public class ComputeService {
                             cancelQueryOnFailure,
                             localListener.acquireCompute().map(r -> {
                                 localClusterWasInterrupted.set(execInfo.isPartial());
-                                localResponse.set(r);
+                                if (execInfo.isCrossClusterSearch() && execInfo.clusterAliases().contains(LOCAL_CLUSTER)) {
+                                    execInfo.swapCluster(
+                                        LOCAL_CLUSTER,
+                                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(r.getTotalShards())
+                                            .setSuccessfulShards(r.getSuccessfulShards())
+                                            .setSkippedShards(r.getSkippedShards())
+                                            .setFailedShards(r.getFailedShards())
+                                            .build()
+                                    );
+                                }
                                 return r.getProfiles();
                             })
                         );

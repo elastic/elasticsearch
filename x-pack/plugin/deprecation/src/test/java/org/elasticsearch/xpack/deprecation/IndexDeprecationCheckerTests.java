@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -144,6 +145,26 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS)
         );
         assertThat(issuesByIndex.size(), equalTo(0));
+    }
+
+    public void testOldIndicesIgnoredWarningCheck() {
+        IndexVersion createdWith = IndexVersion.fromId(7170099);
+        Settings.Builder settings = settings(createdWith).put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .build();
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Old index with a compatibility version < 9.0 Has Been Ignored",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
+            "This read-only index has version: " + createdWith.toReleaseVersion() + " and will be supported as read-only in 9.0",
+            false,
+            singletonMap("reindex_required", true)
+        );
+        Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(clusterState, null);
+        assertTrue(issuesByIndex.containsKey("test"));
+        assertEquals(List.of(expected), issuesByIndex.get("test"));
     }
 
     public void testTranslogRetentionSettings() {

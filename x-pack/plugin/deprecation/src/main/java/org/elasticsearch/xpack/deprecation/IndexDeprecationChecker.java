@@ -37,8 +37,9 @@ import static org.elasticsearch.xpack.deprecation.DeprecationInfoAction.filterCh
 public class IndexDeprecationChecker implements ResourceDeprecationChecker {
 
     public static final String NAME = "index_settings";
-    private static List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(
+    private static final List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(
         IndexDeprecationChecker::oldIndicesCheck,
+        IndexDeprecationChecker::ignoredOldIndicesCheck,
         IndexDeprecationChecker::translogRetentionSettingCheck,
         IndexDeprecationChecker::checkIndexDataPath,
         IndexDeprecationChecker::storeTypeSettingCheck,
@@ -78,12 +79,30 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         // TODO: this check needs to be revised. It's trivially true right now.
         IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
         // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
-        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata) && isNotDataStreamIndex(indexMetadata, clusterState)) {
+        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, false) && isNotDataStreamIndex(indexMetadata, clusterState)) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "Old index with a compatibility version < 9.0",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
                 "This index has version: " + currentCompatibilityVersion.toReleaseVersion(),
+                false,
+                Collections.singletonMap("reindex_required", true)
+            );
+        }
+        return null;
+    }
+
+    static DeprecationIssue ignoredOldIndicesCheck(IndexMetadata indexMetadata, ClusterState clusterState) {
+        IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
+        // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
+        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, true) && isNotDataStreamIndex(indexMetadata, clusterState)) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Old index with a compatibility version < 9.0 Has Been Ignored",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
+                "This read-only index has version: "
+                    + currentCompatibilityVersion.toReleaseVersion()
+                    + " and will be supported as read-only in 9.0",
                 false,
                 Collections.singletonMap("reindex_required", true)
             );

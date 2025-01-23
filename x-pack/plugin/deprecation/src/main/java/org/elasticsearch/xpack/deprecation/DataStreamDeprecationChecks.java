@@ -24,10 +24,7 @@ public class DataStreamDeprecationChecks {
     static DeprecationIssue oldIndicesCheck(DataStream dataStream, ClusterState clusterState) {
         List<Index> backingIndices = dataStream.getIndices();
 
-        Set<String> indicesNeedingUpgrade = backingIndices.stream()
-            .filter(DeprecatedIndexPredicate.getReindexRequiredPredicate(clusterState.metadata()))
-            .map(Index::getName)
-            .collect(Collectors.toUnmodifiableSet());
+        Set<String> indicesNeedingUpgrade = getReindexRequiredIndices(backingIndices, clusterState, false);
 
         if (indicesNeedingUpgrade.isEmpty() == false) {
             return new DeprecationIssue(
@@ -46,5 +43,41 @@ public class DataStreamDeprecationChecks {
         }
 
         return null;
+    }
+
+    static DeprecationIssue ignoredOldIndicesCheck(DataStream dataStream, ClusterState clusterState) {
+        List<Index> backingIndices = dataStream.getIndices();
+
+        Set<String> ignoredIndices = getReindexRequiredIndices(backingIndices, clusterState, true);
+
+        if (ignoredIndices.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Old data stream with a compatibility version < 9.0 Have Been Ignored",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
+                "This data stream has read only backing indices that were created before Elasticsearch 9.0.0 and have been marked as "
+                    + "OK to remain read-only after upgrade",
+                false,
+                ofEntries(
+                    entry("reindex_required", true),
+                    entry("total_backing_indices", backingIndices.size()),
+                    entry("ignored_indices_requiring_upgrade_count", ignoredIndices.size()),
+                    entry("ignored_indices_requiring_upgrade", ignoredIndices)
+                )
+            );
+        }
+
+        return null;
+    }
+
+    private static Set<String> getReindexRequiredIndices(
+        List<Index> backingIndices,
+        ClusterState clusterState,
+        boolean filterToBlockedStatus
+    ) {
+        return backingIndices.stream()
+            .filter(DeprecatedIndexPredicate.getReindexRequiredPredicate(clusterState.metadata(), filterToBlockedStatus))
+            .map(Index::getName)
+            .collect(Collectors.toUnmodifiableSet());
     }
 }

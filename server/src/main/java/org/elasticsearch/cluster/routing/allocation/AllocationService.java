@@ -53,7 +53,6 @@ import org.elasticsearch.snapshots.SnapshotsInfoService;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -83,8 +82,6 @@ public class AllocationService {
     private final ClusterInfoService clusterInfoService;
     private final SnapshotsInfoService snapshotsInfoService;
     private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
-    // Tracks node IDs whose shutdown metadata has already been considered for resetting allocation/relocation failures
-    private final Set<String> processedNodeShutdowns = new HashSet<>();
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     @SuppressWarnings("this-escape")
@@ -595,24 +592,49 @@ public class AllocationService {
      */
     private boolean shouldResetAllocationFailures(ClusterChangedEvent changeEvent) {
         final var clusterState = changeEvent.state();
-        boolean hasAllocationFailures = clusterState.getRoutingNodes().hasAllocationFailures();
-        boolean hasRelocationFailures = clusterState.getRoutingNodes().hasRelocationFailures();
-        var shutdownEventAffectsAllocation = false;
-        final var nodes = clusterState.nodes();
-        final var nodeShutdowns = clusterState.metadata().nodeShutdowns();
-        // If we remove a shutdown marker from a node, but it is still in the cluster, we could re-attempt failed relocations/allocations.
-        shutdownEventAffectsAllocation = processedNodeShutdowns.stream()
-            .anyMatch(nodeId -> nodeShutdowns.contains(nodeId) == false && nodes.get(nodeId) != null);
-        // Clean up processed shutdowns that are removed from the cluster metadata
-        processedNodeShutdowns.removeIf(nodeId -> nodeShutdowns.contains(nodeId) == false);
-        for (var shutdown : nodeShutdowns.getAll().entrySet()) {
+
+        if (clusterState.getRoutingNodes().hasAllocationFailures() == false
+            && clusterState.getRoutingNodes().hasRelocationFailures() == false) {
+            return false;
+        }
+        if (changeEvent.nodesAdded()) {
+            return true;
+        }
+
+        final var currentNodeShutdowns = clusterState.metadata().nodeShutdowns();
+        final var previousNodeShutdowns = changeEvent.previousState().metadata().nodeShutdowns();
+
+        if (currentNodeShutdowns.equals(previousNodeShutdowns)) {
+            return false;
+        }
+
+        for (var currentShutdown : currentNodeShutdowns.getAll().entrySet()) {
+            var previousNodeShutdown = previousNodeShutdowns.get(currentShutdown.getKey());
+            if (currentShutdown.equals(previousNodeShutdown)) {
+                continue;
+            }
             // A RESTART doesn't necessarily move around shards, so no need to consider it for a reset.
             // Furthermore, once the node rejoins after restarting, there will be a reset if necessary.
-            if (shutdown.getValue().getType() != SingleNodeShutdownMetadata.Type.RESTART) {
-                shutdownEventAffectsAllocation |= processedNodeShutdowns.add(shutdown.getKey());
+            if (currentShutdown.getValue().getType() == SingleNodeShutdownMetadata.Type.RESTART) {
+                continue;
+            }
+            // A node with no shutdown marker or a RESTART marker receives a non-RESTART shutdown marker
+            if (previousNodeShutdown == null || previousNodeShutdown.getType() == Type.RESTART) {
+                return true;
             }
         }
-        return (changeEvent.nodesAdded() || shutdownEventAffectsAllocation) && (hasAllocationFailures || hasRelocationFailures);
+
+        for (var previousShutdown : previousNodeShutdowns.getAll().entrySet()) {
+            var nodeId = previousShutdown.getKey();
+            // A non-RESTART marker is removed but the node is still in the cluster. We could re-attempt failed relocations/allocations.
+            if (currentNodeShutdowns.get(nodeId) == null
+                && previousShutdown.getValue().getType() != SingleNodeShutdownMetadata.Type.RESTART
+                && clusterState.nodes().get(nodeId) != null) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private ClusterState rerouteWithResetFailedCounter(ClusterState clusterState) {

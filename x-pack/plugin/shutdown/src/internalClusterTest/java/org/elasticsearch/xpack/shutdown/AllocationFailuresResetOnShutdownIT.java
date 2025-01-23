@@ -66,24 +66,34 @@ public class AllocationFailuresResetOnShutdownIT extends ESIntegTestCase {
         assertThat(shardAfterFailures.state(), equalTo(ShardRoutingState.STARTED));
         assertThat(stateAfterFailures.nodes().get(shardAfterFailures.currentNodeId()).getName(), equalTo(node1));
         failRelocation.set(false);
-        // A non-RESTART node shutdown should reset the counter and allow more relocation retries
-        final var request = createRequest(randomFrom(SingleNodeShutdownMetadata.Type.values()), node1, node2);
-        client().execute(PutShutdownNodeAction.INSTANCE, request).get();
-        if (request.getType() != SingleNodeShutdownMetadata.Type.RESTART) {
-            assertBusy(() -> {
-                var stateAfterNodeJoin = internalCluster().clusterService().state();
-                var relocatedShard = stateAfterNodeJoin.routingTable().index("index1").shard(0).primaryShard();
-                assertThat(relocatedShard.relocationFailureInfo().failedRelocations(), Matchers.lessThan(maxAttempts));
-                assertThat(relocatedShard, notNullValue());
-                assertThat(stateAfterNodeJoin.nodes().get(relocatedShard.currentNodeId()).getName(), not(equalTo(node1)));
-            });
-        } else {
+        if (randomBoolean()) {
+            // A RESTART marker shouldn't cause a reset of failures
+            final var request = createRequest(SingleNodeShutdownMetadata.Type.RESTART, node1, null);
+            client().execute(PutShutdownNodeAction.INSTANCE, request).get();
             var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             var shard = state.routingTable().index("index1").shard(0).primaryShard();
             assertThat(shard, notNullValue());
             assertThat(shard.relocationFailureInfo().failedRelocations(), equalTo(maxAttempts));
             assertThat(state.nodes().get(shard.currentNodeId()).getName(), equalTo(node1));
         }
+        // A non-RESTART node shutdown should reset the counter and allow more relocation retries
+        final var request = createRequest(
+            randomFrom(
+                SingleNodeShutdownMetadata.Type.REPLACE,
+                SingleNodeShutdownMetadata.Type.SIGTERM,
+                SingleNodeShutdownMetadata.Type.REMOVE
+            ),
+            node1,
+            node2
+        );
+        client().execute(PutShutdownNodeAction.INSTANCE, request).get();
+        assertBusy(() -> {
+            var stateAfterNodeJoin = internalCluster().clusterService().state();
+            var relocatedShard = stateAfterNodeJoin.routingTable().index("index1").shard(0).primaryShard();
+            assertThat(relocatedShard.relocationFailureInfo().failedRelocations(), Matchers.lessThan(maxAttempts));
+            assertThat(relocatedShard, notNullValue());
+            assertThat(stateAfterNodeJoin.nodes().get(relocatedShard.currentNodeId()).getName(), not(equalTo(node1)));
+        });
     }
 
     public void testResetRelocationFailuresOnNodeShutdownRemovalOfExistingNode() throws Exception {
@@ -178,12 +188,10 @@ public class AllocationFailuresResetOnShutdownIT extends ESIntegTestCase {
 
         failAllocation.set(false);
 
-        // A non-RESTART node shutdown should reset the counter and allow more relocation retries
-        final var request = createRequest(randomFrom(SingleNodeShutdownMetadata.Type.values()), node1, node2);
-        client().execute(PutShutdownNodeAction.INSTANCE, request).get();
-        if (request.getType() != SingleNodeShutdownMetadata.Type.RESTART) {
-            ensureGreen("index1");
-        } else {
+        if (randomBoolean()) {
+            // A RESTART marker shouldn't cause a reset of failures
+            final var request = createRequest(randomFrom(SingleNodeShutdownMetadata.Type.RESTART), node1, null);
+            client().execute(PutShutdownNodeAction.INSTANCE, request).get();
             ensureRed("index1");
             var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             var shard = state.routingTable().index("index1").shard(0).primaryShard();
@@ -191,6 +199,19 @@ public class AllocationFailuresResetOnShutdownIT extends ESIntegTestCase {
             assertNotNull(shard.unassignedInfo());
             assertThat(shard.unassignedInfo().failedAllocations(), equalTo(maxAttempts));
         }
+
+        // A non-RESTART node shutdown should reset the counter and allow more relocation retries
+        final var request = createRequest(
+            randomFrom(
+                SingleNodeShutdownMetadata.Type.REPLACE,
+                SingleNodeShutdownMetadata.Type.SIGTERM,
+                SingleNodeShutdownMetadata.Type.REMOVE
+            ),
+            node1,
+            node2
+        );
+        client().execute(PutShutdownNodeAction.INSTANCE, request).get();
+        ensureGreen("index1");
     }
 
     public void testResetAllocationFailuresOnNodeShutdownRemovalOfExistingNode() throws Exception {

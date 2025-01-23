@@ -65,7 +65,6 @@ public class TransportUpdateDataFrameAnalyticsAction extends TransportMasterNode
             threadPool,
             actionFilters,
             UpdateDataFrameAnalyticsAction.Request::new,
-            indexNameExpressionResolver,
             PutDataFrameAnalyticsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

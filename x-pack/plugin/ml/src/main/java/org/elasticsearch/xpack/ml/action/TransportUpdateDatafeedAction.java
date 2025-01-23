@@ -48,7 +48,6 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
             threadPool,
             actionFilters,
             UpdateDatafeedAction.Request::new,
-            indexNameExpressionResolver,
             PutDatafeedAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

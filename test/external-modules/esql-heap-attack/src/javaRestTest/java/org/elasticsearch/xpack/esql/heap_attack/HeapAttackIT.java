@@ -631,40 +631,46 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testLookupExplosion() throws IOException {
         int sensorDataCount = 7500;
         int lookupEntries = 10000;
-        Map<?, ?> map = responseAsMap(lookupExplosion(sensorDataCount, lookupEntries));
+        Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
     }
 
     public void testLookupExplosionManyMatches() throws IOException {
-        assertCircuitBreaks(() -> lookupExplosion(8500, 10000));
+        assertCircuitBreaks(() -> {
+            Map<?, ?> result = lookupExplosion(8500, 10000);
+            logger.error("should have failed but got {}", result);
+        });
     }
 
-    private Response lookupExplosion(int sensorDataCount, int lookupEntries) throws IOException {
+    private Map<?, ?> lookupExplosion(int sensorDataCount, int lookupEntries) throws IOException {
         initSensorData(sensorDataCount, 1);
         initSensorLookup(lookupEntries, 1, i -> "73.9857 40.7484");
         StringBuilder query = startQuery();
         query.append("FROM sensor_data | LOOKUP JOIN sensor_lookup ON id | STATS COUNT(*)\"}");
-        return query(query.toString(), null);
+        return responseAsMap(query(query.toString(), null));
     }
 
     public void testEnrichExplosion() throws IOException {
         int sensorDataCount = 1000;
         int lookupEntries = 100;
-        Map<?, ?> map = responseAsMap(enrichExplosion(sensorDataCount, lookupEntries));
+        Map<?, ?> map = enrichExplosion(sensorDataCount, lookupEntries);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount))));
     }
 
     public void testEnrichExplosionManyMatches() throws IOException {
-        assertCircuitBreaks(() -> enrichExplosion(1000, 10000));
+        assertCircuitBreaks(() -> {
+            Map<?, ?> result = enrichExplosion(3000, 10000);
+            logger.error("should have failed but got {}", result);
+        });
     }
 
-    private Response enrichExplosion(int sensorDataCount, int lookupEntries) throws IOException {
+    private Map<?, ?> enrichExplosion(int sensorDataCount, int lookupEntries) throws IOException {
         initSensorData(sensorDataCount, 1);
         initSensorEnrich(lookupEntries, 1, i -> "73.9857 40.7484");
         try {
             StringBuilder query = startQuery();
             query.append("FROM sensor_data | ENRICH sensor ON id | STATS COUNT(*)\"}");
-            return query(query.toString(), null);
+            return responseAsMap(query(query.toString(), null));
         } finally {
             Request delete = new Request("DELETE", "/_enrich/policy/sensor");
             assertMap(responseAsMap(client().performRequest(delete)), matchesMap().entry("acknowledged", true));

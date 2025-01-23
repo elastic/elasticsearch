@@ -2587,7 +2587,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testMapExpressionAsFunctionArgument() {
-        assumeTrue("MapExpression require snapshot build", EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled());
         LogicalPlan plan = analyze("""
             from test
             | EVAL l = log_with_base_in_map(languages, {"base":2.0})

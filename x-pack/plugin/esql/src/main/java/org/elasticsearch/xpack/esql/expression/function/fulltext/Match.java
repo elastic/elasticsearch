@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -312,7 +311,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
     }
 
     private TypeResolution resolveOptions() {
-        if (options() != null && EsqlCapabilities.Cap.MATCH_FUNCTION_OPTIONS.isEnabled()) {
+        if (options() != null) {
             TypeResolution resolution = isNotNull(options(), sourceText(), THIRD);
             if (resolution.unresolved()) {
                 return resolution;
@@ -347,7 +346,7 @@ public class Match extends FullTextFunction implements PostOptimizationVerificat
         // Match is lenient by default to avoid failing on incompatible types
         matchOptions.put(LENIENT_FIELD.getPreferredName(), true);
 
-        if (options() == null || EsqlCapabilities.Cap.MATCH_FUNCTION_OPTIONS.isEnabled() == false) {
+        if (options() == null) {
             return matchOptions;
         }
 

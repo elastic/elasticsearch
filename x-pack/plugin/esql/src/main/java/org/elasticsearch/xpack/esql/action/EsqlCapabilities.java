@@ -743,12 +743,12 @@ public class EsqlCapabilities {
         /**
          * Support named argument for function in map format.
          */
-        OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION(Build.current().isSnapshot()),
+        OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION,
 
         /**
          * Support match options in match function
          */
-        MATCH_FUNCTION_OPTIONS(Build.current().isSnapshot());
+        MATCH_FUNCTION_OPTIONS;
 
         private final boolean enabled;
 

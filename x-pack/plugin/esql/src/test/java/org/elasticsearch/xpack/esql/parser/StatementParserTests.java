@@ -2362,10 +2362,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentInMap() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         // functions can be scalar, grouping and aggregation
         // functions can be in eval/where/stats/sort/dissect/grok commands, commands in snapshot are not covered
         // positive
@@ -2603,10 +2599,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentWithCaseSensitiveKeys() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         LinkedHashMap<String, Object> expectedMap1 = new LinkedHashMap<>(3);
         expectedMap1.put("option", "string");
         expectedMap1.put("Option", 1);
@@ -2648,10 +2640,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMultipleNamedFunctionArgumentsNotAllowed() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "41"),
             Map.entry("where {}", "38"),
@@ -2676,10 +2664,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentNotInMap() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "38"),
             Map.entry("where {}", "35"),
@@ -2704,10 +2688,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentNotConstant() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String[]> commands = Map.ofEntries(
             Map.entry("eval x = {}", new String[] { "31", "35" }),
             Map.entry("where {}", new String[] { "28", "32" }),
@@ -2740,10 +2720,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentEmptyMap() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "30"),
             Map.entry("where {}", "27"),
@@ -2768,10 +2744,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentMapWithNULL() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),
@@ -2798,10 +2770,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentMapWithEmptyKey() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),
@@ -2837,10 +2805,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentMapWithDuplicatedKey() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),
@@ -2867,10 +2831,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentInInvalidPositions() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         // negative, named arguments are not supported outside of a functionExpression where booleanExpression or indexPattern is supported
         String map = "{\"option1\":\"string\", \"option2\":1}";
 
@@ -2900,10 +2860,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentWithUnsupportedNamedParameterTypes() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),

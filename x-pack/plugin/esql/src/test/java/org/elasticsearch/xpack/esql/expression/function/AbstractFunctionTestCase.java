@@ -1123,11 +1123,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             .replace("$UPPER_NAME$", name.toUpperCase(Locale.ROOT))
             .replace("$PREVIEW_CALLOUT$", preview ? PREVIEW_CALLOUT : "");
         if (hasFunctionOptions) {
-            rendered += "ifeval::[\"{release-state}\"==\"unreleased\"]\n"
-                + "//include::../optionalFunctionParams/"
-                + name
-                + ".asciidoc[]\n"
-                + "endif::[]\n";
+            rendered += "include::../optionalFunctionParams/" + name + ".asciidoc[]\n";
         }
         if (hasExamples) {
             rendered += "include::../examples/" + name + ".asciidoc[]\n";

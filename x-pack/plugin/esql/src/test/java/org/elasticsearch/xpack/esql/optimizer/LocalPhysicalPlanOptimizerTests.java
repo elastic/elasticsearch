@@ -202,6 +202,14 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(stat.query(), is(nullValue()));
     }
 
+    public void test() {
+        var plan = plannerOptimizer.plan("""
+            from test | eval s = emp_no + 2""");
+        var stat = queryStatsFor(plan);
+        assertThat(stat.type(), is(StatsType.COUNT));
+        assertThat(stat.query(), is(nullValue()));
+    }
+
     /**
      * Expects
      * LimitExec[1000[INTEGER]]
@@ -1580,8 +1588,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testMatchOptionsPushDown() {
-        assumeTrue("Match options are not available", EsqlCapabilities.Cap.MATCH_FUNCTION_OPTIONS.isEnabled());
-
         String query = """
             from test
             | where match(first_name, "Anna", {"fuzziness": "AUTO", "prefix_length": 3, "max_expansions": 10,

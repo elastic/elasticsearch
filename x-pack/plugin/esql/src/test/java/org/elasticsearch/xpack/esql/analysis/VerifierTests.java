@@ -1998,7 +1998,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testInvalidMapOption() {
-        assumeTrue("MapExpression require snapshot build", EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled());
         // invalid key
         assertEquals(
             "1:22: Invalid option key in [log_with_base_in_map(languages, {\"base\":2.0, \"invalidOption\":true})], "
@@ -2019,8 +2018,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchOptions() {
-        assumeTrue("Match options are not available", EsqlCapabilities.Cap.MATCH_FUNCTION_OPTIONS.isEnabled());
-
         // Check positive cases
         query("FROM test | WHERE match(first_name, \"Jean\", {\"analyzer\": \"standard\"})");
         query("FROM test | WHERE match(first_name, \"Jean\", {\"boost\": 2.1})");

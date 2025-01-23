@@ -183,6 +183,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
@@ -1222,7 +1223,25 @@ public class MachineLearning extends Plugin
 
         MlAutoUpdateService mlAutoUpdateService = new MlAutoUpdateService(
             threadPool,
-            List.of(new DatafeedConfigAutoUpdater(datafeedConfigProvider, indexNameExpressionResolver))
+            List.of(
+                new DatafeedConfigAutoUpdater(datafeedConfigProvider, indexNameExpressionResolver),
+                new MlIndexRollover(
+                    List.of(
+                        new MlIndexRollover.IndexPatternAndAlias(
+                            AnomalyDetectorsIndex.jobStateIndexPattern(),
+                            AnomalyDetectorsIndex.jobStateIndexWriteAlias()
+                        ),
+                        new MlIndexRollover.IndexPatternAndAlias(MlStatsIndex.indexPattern(), MlStatsIndex.writeAlias()),
+                        new MlIndexRollover.IndexPatternAndAlias(AnnotationIndex.INDEX_PATTERN, AnnotationIndex.WRITE_ALIAS_NAME)
+                        // TODO notifications = https://github.com/elastic/elasticsearch/pull/120064
+                        // TODO anomaly results
+                        // TODO .ml-inference-XXXXXX - requires alias
+                        // TODO .ml-inference-native-XXXXXX - requires alias (index added in 8.0)
+                    ),
+                    indexNameExpressionResolver,
+                    client
+                )
+            )
         );
         clusterService.addListener(mlAutoUpdateService);
         // this object registers as a license state listener, and is never removed, so there's no need to retain another reference to it
@@ -2025,6 +2044,9 @@ public class MachineLearning extends Plugin
         new AssociatedIndexDescriptor(MlStatsIndex.indexPattern(), "ML stats index"),
         new AssociatedIndexDescriptor(".ml-notifications*", "ML notifications indices"),
         new AssociatedIndexDescriptor(".ml-annotations*", "ML annotations indices")
+        // TODO should the inference indices be included here?
+        // new AssociatedIndexDescriptor(".ml-inference-*", "ML Data Frame Analytics")
+        // new AssociatedIndexDescriptor(".ml-inference-native*", "ML indices for trained models")
     );
 
     @Override

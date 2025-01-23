@@ -75,6 +75,7 @@ import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -83,6 +84,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -132,12 +134,15 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.rest.TestFeatureService.ALL_FEATURES;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -2529,5 +2534,47 @@ public abstract class ESRestTestCase extends ESTestCase {
         final var request = new Request(method.name(), endpoint);
         addXContentBody(request, body);
         return request;
+    }
+
+    protected static MapMatcher getResultMatcher(boolean includeMetadata, boolean includePartial) {
+        MapMatcher mapMatcher = matchesMap();
+        if (includeMetadata) {
+            mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
+        }
+        // Older version may not have is_partial
+        if (includePartial) {
+            mapMatcher = mapMatcher.entry("is_partial", false);
+        }
+        return mapMatcher;
+    }
+
+    /**
+     * Create empty result matcher from result, taking into account all metadata items.
+     */
+    protected static MapMatcher getResultMatcher(Map<String, Object> result) {
+        return getResultMatcher(result.containsKey("took"), result.containsKey("is_partial"));
+    }
+
+    /**
+     * Match result columns and values, with default matchers for metadata.
+     */
+    protected static void assertResultMap(Map<String, Object> result, Matcher<?> columnMatcher, Matcher<?> valuesMatcher) {
+        assertMap(result, getResultMatcher(result).entry("columns", columnMatcher).entry("values", valuesMatcher));
+    }
+
+    protected static void assertResultMap(Map<String, Object> result, Object columnMatcher, Object valuesMatcher) {
+        assertMap(result, getResultMatcher(result).entry("columns", columnMatcher).entry("values", valuesMatcher));
+    }
+
+    /**
+     * Match result columns and values, with default matchers for metadata.
+     */
+    protected static void assertResultMap(
+        Map<String, Object> result,
+        MapMatcher mapMatcher,
+        Matcher<?> columnMatcher,
+        Matcher<?> valuesMatcher
+    ) {
+        assertMap(result, mapMatcher.entry("columns", columnMatcher).entry("values", valuesMatcher));
     }
 }

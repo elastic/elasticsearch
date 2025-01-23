@@ -251,12 +251,6 @@ public class MlIndexRolloverTests extends ESTestCase {
         verifyNoMoreInteractions(client);
     }
 
-    public void testIsCompatibleIndexVersion() {
-        assertTrue(MlIndexRollover.isCompatibleIndexVersion(IndexVersion.current()));
-        assertTrue(MlIndexRollover.isCompatibleIndexVersion(IndexVersions.MINIMUM_COMPATIBLE));
-        assertFalse(MlIndexRollover.isCompatibleIndexVersion(IndexVersions.MINIMUM_READONLY_COMPATIBLE));
-    }
-
     @SuppressWarnings("unchecked")
     private Client mockClientWithRolloverAndAlias() {
         var client = mock(Client.class);

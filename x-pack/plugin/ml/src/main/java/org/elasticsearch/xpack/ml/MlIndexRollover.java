@@ -21,7 +21,6 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -136,7 +135,8 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
         }
 
         String latestIndex = MlIndexAndAlias.latestIndex(concreteIndices);
-        boolean isCompatibleIndexVersion = isCompatibleIndexVersion(clusterState.metadata().index(latestIndex).getCreationVersion());
+        // Indices created before 8.0 are read only in 9
+        boolean isCompatibleIndexVersion = clusterState.metadata().index(latestIndex).getCreationVersion().onOrAfter(IndexVersions.V_8_0_0);
         boolean hasAlias = clusterState.getMetadata().hasAlias(alias);
 
         if (isCompatibleIndexVersion && hasAlias) {
@@ -165,12 +165,5 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
         client.admin().indices().rolloverIndex(new RolloverRequest(alias, null), listener.delegateFailure((l, response) -> {
             l.onResponse(Boolean.TRUE);
         }));
-    }
-
-    /**
-     * True if the version is read *and* write compatible not just read only compatible
-     */
-    static boolean isCompatibleIndexVersion(IndexVersion version) {
-        return version.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE);
     }
 }

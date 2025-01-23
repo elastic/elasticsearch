@@ -17,6 +17,7 @@ import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.hamcrest.Matcher;
 
 import java.util.List;

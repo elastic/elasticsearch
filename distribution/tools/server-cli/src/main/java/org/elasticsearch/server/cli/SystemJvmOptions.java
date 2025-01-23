@@ -171,8 +171,8 @@ final class SystemJvmOptions {
             throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
         }
         // We instrument classes in these modules to call the bridge. Because the bridge gets patched
-        // into java.base, we must export the bridge from java.base to these modules.
-        String modulesContainingEntitlementInstrumentation = "java.logging";
+        // into java.base, we must export the bridge from java.base to these modules, as a comma-separated list
+        String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming";
         return Stream.of(
             "-Des.entitlements.enabled=true",
             "-XX:+EnableDynamicAgentLoading",

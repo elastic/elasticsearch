@@ -21,9 +21,11 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -34,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.scalar.map.LogWithBaseInMap;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -112,7 +115,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS, IndexMode.STANDARD), limit.child());
+        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, idx.indexNameWithModes(), NO_FIELDS), limit.child());
     }
 
     public void testFailOnUnresolvedIndex() {
@@ -130,7 +133,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS, IndexMode.STANDARD), limit.child());
+        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, idx.indexNameWithModes(), NO_FIELDS), limit.child());
     }
 
     public void testAttributeResolution() {
@@ -2068,7 +2071,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(project.projections().stream().map(Object::toString).toList(), hasItem(matchesRegex("languages\\{f}#\\d+ AS int#\\d+")));
 
         var esRelation = as(project.child(), EsRelation.class);
-        assertThat(esRelation.index().name(), equalTo("test"));
+        assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // Lookup's output looks sensible too
         assertMap(
@@ -2580,8 +2583,53 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(enrich.policy().getMatchField(), "language_code");
         var eval = as(enrich.child(), Eval.class);
         var esRelation = as(eval.child(), EsRelation.class);
-        assertEquals(esRelation.index().name(), "test");
+        assertEquals(esRelation.indexPattern(), "test");
+    }
 
+    public void testMapExpressionAsFunctionArgument() {
+        assumeTrue("MapExpression require snapshot build", EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled());
+        LogicalPlan plan = analyze("""
+            from test
+            | EVAL l = log_with_base_in_map(languages, {"base":2.0})
+            | KEEP l
+            """, "mapping-default.json");
+        Limit limit = as(plan, Limit.class);
+        EsqlProject proj = as(limit.child(), EsqlProject.class);
+        List<? extends NamedExpression> fields = proj.projections();
+        assertEquals(1, fields.size());
+        ReferenceAttribute ra = as(fields.get(0), ReferenceAttribute.class);
+        assertEquals("l", ra.name());
+        assertEquals(DataType.DOUBLE, ra.dataType());
+        Eval eval = as(proj.child(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        Alias a = as(eval.fields().get(0), Alias.class);
+        LogWithBaseInMap l = as(a.child(), LogWithBaseInMap.class);
+        MapExpression me = as(l.base(), MapExpression.class);
+        assertEquals(1, me.entryExpressions().size());
+        EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
+        assertEquals(new Literal(EMPTY, "base", DataType.KEYWORD), ee.key());
+        assertEquals(new Literal(EMPTY, 2.0, DataType.DOUBLE), ee.value());
+        assertEquals(DataType.DOUBLE, ee.dataType());
+        EsRelation esRelation = as(eval.child(), EsRelation.class);
+        assertEquals(esRelation.indexPattern(), "test");
+    }
+
+    private void verifyMapExpression(MapExpression me) {
+        Literal option1 = new Literal(EMPTY, "option1", DataType.KEYWORD);
+        Literal value1 = new Literal(EMPTY, "value1", DataType.KEYWORD);
+        Literal option2 = new Literal(EMPTY, "option2", DataType.KEYWORD);
+        Literal value2 = new Literal(EMPTY, List.of(1, 2, 3), DataType.INTEGER);
+
+        assertEquals(2, me.entryExpressions().size());
+        EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
+        assertEquals(option1, ee.key());
+        assertEquals(value1, ee.value());
+        assertEquals(value1.dataType(), ee.dataType());
+
+        ee = as(me.entryExpressions().get(1), EntryExpression.class);
+        assertEquals(option2, ee.key());
+        assertEquals(value2, ee.value());
+        assertEquals(value2.dataType(), ee.dataType());
     }
 
     private void verifyUnsupported(String query, String errorMessage) {
@@ -2644,7 +2692,6 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(plan, instanceOf(EsRelation.class));
         EsRelation esRelation = (EsRelation) plan;
         assertThat(esRelation.output(), equalTo(NO_FIELDS));
-        assertTrue(esRelation.index().mapping().isEmpty());
     }
 
     @Override

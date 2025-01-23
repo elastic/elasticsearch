@@ -306,6 +306,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         DelegateStubDataExtractor delegateStubDataExtractor = new DelegateStubDataExtractor(batches);
         when(dataExtractor.hasNext()).thenAnswer(a -> delegateStubDataExtractor.hasNext());
         when(dataExtractor.next()).thenAnswer(a -> delegateStubDataExtractor.next());
+        when(dataExtractor.createRow(any(SearchHit.class))).thenAnswer(a -> delegateStubDataExtractor.makeRow(a.getArgument(0)));
     }
 
     private static SearchHit newHit(String json) {
@@ -340,19 +341,32 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
 
     private static class DelegateStubDataExtractor {
 
-        private final List<List<DataFrameDataExtractor.Row>> batches;
+        private final List<SearchHit[]> batches;
+        private final Map<SearchHit, DataFrameDataExtractor.Row> rows = new HashMap<>();
         private int batchIndex;
 
-        private DelegateStubDataExtractor(List<List<DataFrameDataExtractor.Row>> batches) {
-            this.batches = batches;
+        private DelegateStubDataExtractor(List<List<DataFrameDataExtractor.Row>> rows) {
+            batches = new ArrayList<>(rows.size());
+            for (List<DataFrameDataExtractor.Row> batch : rows) {
+                List<SearchHit> batchHits = new ArrayList<>(batch.size());
+                for (DataFrameDataExtractor.Row row : batch) {
+                    this.rows.put(row.getHit(), row);
+                    batchHits.add(row.getHit());
+                }
+                batches.add(batchHits.toArray(new SearchHit[0]));
+            }
         }
 
         public boolean hasNext() {
             return batchIndex < batches.size();
         }
 
-        public Optional<List<DataFrameDataExtractor.Row>> next() {
+        public Optional<SearchHit[]> next() {
             return Optional.of(batches.get(batchIndex++));
+        }
+
+        public DataFrameDataExtractor.Row makeRow(SearchHit hit) {
+            return rows.get(hit);
         }
     }
 }

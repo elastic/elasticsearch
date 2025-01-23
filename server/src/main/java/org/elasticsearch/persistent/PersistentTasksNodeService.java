@@ -18,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.tasks.Task;
@@ -310,7 +311,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
             taskInProgress.getAllocationId(),
             originalException,
             null,
-            null,
+            TimeValue.THIRTY_SECONDS /* TODO should this be longer? infinite? */,
             new ActionListener<>() {
                 @Override
                 public void onResponse(PersistentTask<?> persistentTask) {
@@ -346,7 +347,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         if (task.markAsCancelled()) {
             // Cancel the local task using the task manager
             String reason = "task has been removed, cancelling locally";
-            persistentTasksService.sendCancelRequest(task.getId(), reason, null, new ActionListener<>() {
+            persistentTasksService.sendCancelRequest(task.getId(), reason, new ActionListener<>() {
                 @Override
                 public void onResponse(ListTasksResponse cancelTasksResponse) {
                     logger.trace(

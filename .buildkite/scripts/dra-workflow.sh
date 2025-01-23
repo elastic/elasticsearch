@@ -22,6 +22,7 @@ if [[ "$BRANCH" == "main" ]]; then
 fi
 
 ES_VERSION=$(grep elasticsearch build-tools-internal/version.properties | sed "s/elasticsearch *= *//g")
+BASE_VERSION="$ES_VERSION"
 echo "ES_VERSION=$ES_VERSION"
 
 VERSION_SUFFIX=""
@@ -75,7 +76,7 @@ PATH="$PATH:${JAVA_HOME}/bin" # Required by the following script
 if [[ -z "${VERSION_QUALIFIER:-}" ]]; then
 x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier="$VERSION_SUFFIX"
 else
-x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier="$VERSION_QUALIFIER"
+x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier="-$VERSION_QUALIFIER"
 fi
 
 # we regenerate this file as part of the release manager invocation
@@ -104,7 +105,7 @@ docker run --rm \
   --commit "$BUILDKITE_COMMIT" \
   --workflow "$WORKFLOW" \
   --qualifier "${VERSION_QUALIFIER:-}" \
-  --version "$ES_VERSION" \
+  --version "$BASE_VERSION" \
   --artifact-set main \
   --dependency "beats:https://artifacts-${WORKFLOW}.elastic.co/beats/${BEATS_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json" \
   --dependency "ml-cpp:https://artifacts-${WORKFLOW}.elastic.co/ml-cpp/${ML_CPP_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json"

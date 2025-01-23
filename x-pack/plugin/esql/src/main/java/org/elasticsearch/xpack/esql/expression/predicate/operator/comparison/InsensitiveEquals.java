@@ -16,12 +16,21 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
+
+import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
 
 public class InsensitiveEquals extends InsensitiveBinaryComparison {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -85,5 +94,39 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
             return null;
         }
         return process(leftVal, rightVal);
+    }
+
+    @Override
+    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+        return pushdownPredicates.isPushableFieldAttribute(left()) && right().foldable();
+    }
+
+    @Override
+    public Query asQuery(TranslatorHandler handler) {
+        checkInsensitiveComparison();
+        return translate();
+    }
+
+    private void checkInsensitiveComparison() {
+        Check.isTrue(
+            right().foldable(),
+            "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
+            right().sourceLocation().getLineNumber(),
+            right().sourceLocation().getColumnNumber(),
+            Expressions.name(right()),
+            symbol()
+        );
+    }
+
+    private Query translate() {
+        TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(left());
+        BytesRef value = BytesRefs.toBytesRef(valueOf(FoldContext.small() /* TODO remove me */, right()));
+        String name = LucenePushdownPredicates.pushableAttributeName(attribute);
+        return new TermQuery(source(), name, value.utf8ToString(), true);
+    }
+
+    @Override
+    public Expression singleValueField() {
+        return left();
     }
 }

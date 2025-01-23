@@ -91,35 +91,32 @@ public class CrossClustersUsageTelemetryIT extends AbstractCrossClustersUsageTel
         assertThat(telemetry.getSuccessCount(), equalTo(0L));
         assertThat(telemetry.getByRemoteCluster().size(), equalTo(0));
 
-        // One remote is skipped, one is not
+        // Errors from both remotes
         telemetry = getTelemetryFromFailedQuery("from logs-*,c*:no_such_index | stats sum (v)");
 
         assertThat(telemetry.getTotalCount(), equalTo(1L));
         assertThat(telemetry.getSuccessCount(), equalTo(0L));
-        assertThat(telemetry.getByRemoteCluster().size(), equalTo(1));
+        assertThat(telemetry.getByRemoteCluster().size(), equalTo(0));
         assertThat(telemetry.getRemotesPerSearchAvg(), equalTo(2.0));
         assertThat(telemetry.getRemotesPerSearchMax(), equalTo(2L));
-        assertThat(telemetry.getSearchCountWithSkippedRemotes(), equalTo(1L));
+        assertThat(telemetry.getSearchCountWithSkippedRemotes(), equalTo(0L));
         Map<String, Long> expectedFailure = Map.of(CCSUsageTelemetry.Result.NOT_FOUND.getName(), 1L);
         assertThat(telemetry.getFailureReasons(), equalTo(expectedFailure));
-        // cluster-b should be skipped
-        assertThat(telemetry.getByRemoteCluster().get(REMOTE2).getCount(), equalTo(0L));
-        assertThat(telemetry.getByRemoteCluster().get(REMOTE2).getSkippedCount(), equalTo(1L));
 
         // this is only for cluster-a so no skipped remotes
         telemetry = getTelemetryFromFailedQuery("from logs-*,cluster-a:no_such_index | stats sum (v)");
         assertThat(telemetry.getTotalCount(), equalTo(2L));
         assertThat(telemetry.getSuccessCount(), equalTo(0L));
-        assertThat(telemetry.getByRemoteCluster().size(), equalTo(1));
+        assertThat(telemetry.getByRemoteCluster().size(), equalTo(0));
         assertThat(telemetry.getRemotesPerSearchAvg(), equalTo(2.0));
         assertThat(telemetry.getRemotesPerSearchMax(), equalTo(2L));
-        assertThat(telemetry.getSearchCountWithSkippedRemotes(), equalTo(1L));
+        assertThat(telemetry.getSearchCountWithSkippedRemotes(), equalTo(0L));
         expectedFailure = Map.of(CCSUsageTelemetry.Result.NOT_FOUND.getName(), 2L);
         assertThat(telemetry.getFailureReasons(), equalTo(expectedFailure));
-        assertThat(telemetry.getByRemoteCluster().size(), equalTo(1));
+        assertThat(telemetry.getByRemoteCluster().size(), equalTo(0));
     }
 
-    // TODO: enable when skip-up patch is merged
+    // TODO: enable when skip-un patch is merged
     // public void testSkipAllRemotes() throws Exception {
     // var telemetry = getTelemetryFromQuery("from logs-*,c*:no_such_index | stats sum (v)", "unknown");
     //

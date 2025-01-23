@@ -11,6 +11,8 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.test.RandomBlock;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -18,6 +20,7 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.data.BlockValueAsserter.assertBlockValues;
+import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
 
 public class BlockBuilderCopyFromTests extends ESTestCase {
     @ParametersFactory
@@ -82,7 +85,7 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
         BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
         Block.Builder builder = elementType.newBlockBuilder(smallSize, blockFactory);
         builder.copyFrom(block, 0, smallSize);
-        assertBlockValues(builder.build(), BasicBlockTests.valuesAtPositions(block, 0, smallSize));
+        assertBlockValues(builder.build(), valuesAtPositions(block, 0, smallSize));
     }
 
     private void assertEvens(Block block) {
@@ -100,15 +103,14 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
                 default -> throw new IllegalArgumentException();
             }
 
-            expected.add(BasicBlockTests.valuesAtPositions(block, i, i + 1).get(0));
+            expected.add(valuesAtPositions(block, i, i + 1).get(0));
         }
         assertBlockValues(builder.build(), expected);
     }
 
     private Block randomBlock() {
         int positionCount = randomIntBetween(1, 16 * 1024);
-        return BasicBlockTests.randomBlock(elementType, positionCount, nullAllowed, minValuesPerPosition, maxValuesPerPosition, 0, 0)
-            .block();
+        return RandomBlock.randomBlock(elementType, positionCount, nullAllowed, minValuesPerPosition, maxValuesPerPosition, 0, 0).block();
     }
 
     private Block randomFilteredBlock() {

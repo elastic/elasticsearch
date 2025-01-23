@@ -90,7 +90,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
                 // If the index is empty, return the unchanged document
                 // If the enrich key does not exist in the index, throw an error
                 // If no documents match the key, return the unchanged document
-                if (searchHits.size() < 1) {
+                if (searchHits.isEmpty()) {
                     handler.accept(ingestDocument, null);
                     return;
                 }

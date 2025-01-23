@@ -65,7 +65,6 @@ public class TransportGetJobModelSnapshotsUpgradeStatsAction extends TransportMa
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

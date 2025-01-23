@@ -13,6 +13,7 @@ module org.elasticsearch.entitlement {
     requires java.instrument;
     requires org.elasticsearch.base;
     requires jdk.attach;
+    requires java.net.http;
 
     requires static org.elasticsearch.entitlement.bridge; // At runtime, this will be in java.base
 

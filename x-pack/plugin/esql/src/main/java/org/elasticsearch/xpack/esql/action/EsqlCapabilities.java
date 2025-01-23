@@ -193,6 +193,11 @@ public class EsqlCapabilities {
         FN_SUBSTRING_EMPTY_NULL,
 
         /**
+         * Fixes on function {@code ROUND} that avoid it throwing exceptions on runtime for unsigned long cases.
+         */
+        FN_ROUND_UL_FIXES,
+
+        /**
          * All functions that take TEXT should never emit TEXT, only KEYWORD. #114334
          */
         FUNCTIONS_NEVER_EMIT_TEXT,
@@ -686,6 +691,16 @@ public class EsqlCapabilities {
         JOIN_LOOKUP_V11(Build.current().isSnapshot()),
 
         /**
+         * LOOKUP JOIN with TEXT fields on the right (right side of the join) (#119473)
+         */
+        LOOKUP_JOIN_TEXT(Build.current().isSnapshot()),
+
+        /**
+         * LOOKUP JOIN without MV matching (https://github.com/elastic/elasticsearch/issues/118780)
+         */
+        JOIN_LOOKUP_SKIP_MV(JOIN_LOOKUP_V11.isEnabled()),
+
+        /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054
          */
         FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER,
@@ -703,7 +718,7 @@ public class EsqlCapabilities {
         /**
          * Support the "METADATA _score" directive to enable _score column.
          */
-        METADATA_SCORE(Build.current().isSnapshot()),
+        METADATA_SCORE,
 
         /**
          * Term function
@@ -728,7 +743,12 @@ public class EsqlCapabilities {
         /**
          * Change field caps response for semantic_text fields to be reported as text
          */
-        SEMANTIC_TEXT_FIELD_CAPS;
+        SEMANTIC_TEXT_FIELD_CAPS,
+
+        /**
+         * Support named argument for function in map format.
+         */
+        OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

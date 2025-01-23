@@ -1,0 +1,5 @@
+pr: 120192
+summary: Extend `TranslationAware` to all pushable expressions
+area: ES|QL
+type: enhancement
+issues: []

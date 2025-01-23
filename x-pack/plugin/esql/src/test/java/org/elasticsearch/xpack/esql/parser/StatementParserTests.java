@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -21,8 +22,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -33,6 +32,8 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
@@ -64,6 +65,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -2357,5 +2359,584 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "FROM test [METADATA _index] | STATS count(*)",
             "line 1:11: mismatched input '[' expecting {<EOF>, '|', ',', 'metadata'}"
         );
+    }
+
+    public void testNamedFunctionArgumentInMap() {
+        assumeTrue(
+            "named function arguments require snapshot build",
+            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
+        );
+        // functions can be scalar, grouping and aggregation
+        // functions can be in eval/where/stats/sort/dissect/grok commands, commands in snapshot are not covered
+        // positive
+        // In eval and where clause as function arguments
+        LinkedHashMap<String, Object> expectedMap1 = new LinkedHashMap<>(4);
+        expectedMap1.put("option1", "string");
+        expectedMap1.put("option2", 1);
+        expectedMap1.put("option3", List.of(2.0, 3.0, 4.0));
+        expectedMap1.put("option4", List.of(true, false));
+        LinkedHashMap<String, Object> expectedMap2 = new LinkedHashMap<>(4);
+        expectedMap2.put("option1", List.of("string1", "string2"));
+        expectedMap2.put("option2", List.of(1, 2, 3));
+        expectedMap2.put("option3", 2.0);
+        expectedMap2.put("option4", true);
+        LinkedHashMap<String, Object> expectedMap3 = new LinkedHashMap<>(4);
+        expectedMap3.put("option1", "string");
+        expectedMap3.put("option2", 2.0);
+        expectedMap3.put("option3", List.of(1, 2, 3));
+        expectedMap3.put("option4", List.of(true, false));
+
+        assertEquals(
+            new Filter(
+                EMPTY,
+                new Eval(
+                    EMPTY,
+                    relation("test"),
+                    List.of(
+                        new Alias(
+                            EMPTY,
+                            "x",
+                            function(
+                                "fn1",
+                                List.of(attribute("f1"), new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap1))
+                            )
+                        )
+                    )
+                ),
+                new Equals(
+                    EMPTY,
+                    attribute("y"),
+                    function("fn2", List.of(new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap2)))
+                )
+            ),
+            statement("""
+                from test
+                | eval x = fn1(f1, "testString", {"option1":"string","option2":1,"option3":[2.0,3.0,4.0],"option4":[true,false]})
+                | where y == fn2("testString", {"option1":["string1","string2"],"option2":[1,2,3],"option3":2.0,"option4":true})
+                """)
+        );
+
+        // In stats, by and sort as function arguments
+        assertEquals(
+            new OrderBy(
+                EMPTY,
+                new Aggregate(
+                    EMPTY,
+                    relation("test"),
+                    Aggregate.AggregateType.STANDARD,
+                    List.of(
+                        new Alias(
+                            EMPTY,
+                            "fn2(f3, {\"option1\":[\"string1\",\"string2\"],\"option2\":[1,2,3],\"option3\":2.0,\"option4\":true})",
+                            function("fn2", List.of(attribute("f3"), mapExpression(expectedMap2)))
+                        )
+                    ),
+                    List.of(
+                        new Alias(EMPTY, "x", function("fn1", List.of(attribute("f1"), attribute("f2"), mapExpression(expectedMap1)))),
+                        attribute("fn2(f3, {\"option1\":[\"string1\",\"string2\"],\"option2\":[1,2,3],\"option3\":2.0,\"option4\":true})")
+                    )
+                ),
+                List.of(
+                    new Order(
+                        EMPTY,
+                        function("fn3", List.of(attribute("f4"), mapExpression(expectedMap3))),
+                        Order.OrderDirection.ASC,
+                        Order.NullsPosition.LAST
+                    )
+                )
+            ),
+            statement("""
+                from test
+                | stats x = fn1(f1, f2, {"option1":"string","option2":1,"option3":[2.0,3.0,4.0],"option4":[true,false]})
+                  by fn2(f3, {"option1":["string1","string2"],"option2":[1,2,3],"option3":2.0,"option4":true})
+                | sort fn3(f4, {"option1":"string","option2":2.0,"option3":[1,2,3],"option4":[true,false]})
+                """)
+        );
+
+        // In dissect and grok as function arguments
+        LogicalPlan plan = statement("""
+            from test
+            | dissect fn1(f1, f2, {"option1":"string", "option2":1,"option3":[2.0,3.0,4.0],"option4":[true,false]}) "%{bar}"
+            | grok fn2(f3, {"option1":["string1","string2"],"option2":[1,2,3],"option3":2.0,"option4":true}) "%{WORD:foo}"
+            """);
+        Grok grok = as(plan, Grok.class);
+        assertEquals(function("fn2", List.of(attribute("f3"), mapExpression(expectedMap2))), grok.input());
+        assertEquals("%{WORD:foo}", grok.parser().pattern());
+        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
+        Dissect dissect = as(grok.child(), Dissect.class);
+        assertEquals(function("fn1", List.of(attribute("f1"), attribute("f2"), mapExpression(expectedMap1))), dissect.input());
+        assertEquals("%{bar}", dissect.parser().pattern());
+        assertEquals("", dissect.parser().appendSeparator());
+        assertEquals(List.of(referenceAttribute("bar", KEYWORD)), dissect.extractedFields());
+        UnresolvedRelation ur = as(dissect.child(), UnresolvedRelation.class);
+        assertEquals(ur, relation("test"));
+
+        // map entry values provided in named parameter, arrays are not supported by named parameters yet
+        assertEquals(
+            new Filter(
+                EMPTY,
+                new Eval(
+                    EMPTY,
+                    relation("test"),
+                    List.of(
+                        new Alias(
+                            EMPTY,
+                            "x",
+                            function(
+                                "fn1",
+                                List.of(attribute("f1"), new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap1))
+                            )
+                        )
+                    )
+                ),
+                new Equals(
+                    EMPTY,
+                    attribute("y"),
+                    function("fn2", List.of(new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap2)))
+                )
+            ),
+            statement(
+                """
+                    from test
+                    | eval x = ?fn1(?n1, ?n2, {"option1":?n3,"option2":?n4,"option3":[2.0,3.0,4.0],"option4":[true,false]})
+                    | where y == ?fn2(?n2, {"option1":["string1","string2"],"option2":[1,2,3],"option3":?n5,"option4":?n6})
+                    """,
+                new QueryParams(
+                    List.of(
+                        paramAsIdentifier("fn1", "fn1"),
+                        paramAsIdentifier("fn2", "fn2"),
+                        paramAsIdentifier("n1", "f1"),
+                        paramAsConstant("n2", "testString"),
+                        paramAsConstant("n3", "string"),
+                        paramAsConstant("n4", 1),
+                        paramAsConstant("n5", 2.0),
+                        paramAsConstant("n6", true)
+                    )
+                )
+            )
+        );
+
+        assertEquals(
+            new OrderBy(
+                EMPTY,
+                new Aggregate(
+                    EMPTY,
+                    relation("test"),
+                    Aggregate.AggregateType.STANDARD,
+                    List.of(
+                        new Alias(
+                            EMPTY,
+                            "?fn2(?n7, {\"option1\":[\"string1\",\"string2\"],\"option2\":[1,2,3],\"option3\":?n5,\"option4\":?n6})",
+                            function("fn2", List.of(attribute("f3"), mapExpression(expectedMap2)))
+                        )
+                    ),
+                    List.of(
+                        new Alias(EMPTY, "x", function("fn1", List.of(attribute("f1"), attribute("f2"), mapExpression(expectedMap1)))),
+                        attribute("?fn2(?n7, {\"option1\":[\"string1\",\"string2\"],\"option2\":[1,2,3],\"option3\":?n5,\"option4\":?n6})")
+                    )
+                ),
+                List.of(
+                    new Order(
+                        EMPTY,
+                        function("fn3", List.of(attribute("f4"), mapExpression(expectedMap3))),
+                        Order.OrderDirection.ASC,
+                        Order.NullsPosition.LAST
+                    )
+                )
+            ),
+            statement(
+                """
+                    from test
+                    | stats x = ?fn1(?n1, ?n2, {"option1":?n3,"option2":?n4,"option3":[2.0,3.0,4.0],"option4":[true,false]})
+                      by ?fn2(?n7, {"option1":["string1","string2"],"option2":[1,2,3],"option3":?n5,"option4":?n6})
+                    | sort ?fn3(?n8, {"option1":?n3,"option2":?n5,"option3":[1,2,3],"option4":[true,false]})
+                    """,
+                new QueryParams(
+                    List.of(
+                        paramAsIdentifier("fn1", "fn1"),
+                        paramAsIdentifier("fn2", "fn2"),
+                        paramAsIdentifier("fn3", "fn3"),
+                        paramAsIdentifier("n1", "f1"),
+                        paramAsIdentifier("n2", "f2"),
+                        paramAsConstant("n3", "string"),
+                        paramAsConstant("n4", 1),
+                        paramAsConstant("n5", 2.0),
+                        paramAsConstant("n6", true),
+                        paramAsIdentifier("n7", "f3"),
+                        paramAsIdentifier("n8", "f4")
+                    )
+                )
+            )
+        );
+
+        plan = statement(
+            """
+                from test
+                | dissect ?fn1(?n1, ?n2, {"option1":?n3,"option2":?n4,"option3":[2.0,3.0,4.0],"option4":[true,false]}) "%{bar}"
+                | grok ?fn2(?n7, {"option1":["string1","string2"],"option2":[1,2,3],"option3":?n5,"option4":?n6}) "%{WORD:foo}"
+                """,
+            new QueryParams(
+                List.of(
+                    paramAsIdentifier("fn1", "fn1"),
+                    paramAsIdentifier("fn2", "fn2"),
+                    paramAsIdentifier("n1", "f1"),
+                    paramAsIdentifier("n2", "f2"),
+                    paramAsConstant("n3", "string"),
+                    paramAsConstant("n4", 1),
+                    paramAsConstant("n5", 2.0),
+                    paramAsConstant("n6", true),
+                    paramAsIdentifier("n7", "f3")
+                )
+            )
+        );
+        grok = as(plan, Grok.class);
+        assertEquals(function("fn2", List.of(attribute("f3"), mapExpression(expectedMap2))), grok.input());
+        assertEquals("%{WORD:foo}", grok.parser().pattern());
+        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
+        dissect = as(grok.child(), Dissect.class);
+        assertEquals(function("fn1", List.of(attribute("f1"), attribute("f2"), mapExpression(expectedMap1))), dissect.input());
+        assertEquals("%{bar}", dissect.parser().pattern());
+        assertEquals("", dissect.parser().appendSeparator());
+        assertEquals(List.of(referenceAttribute("bar", KEYWORD)), dissect.extractedFields());
+        ur = as(dissect.child(), UnresolvedRelation.class);
+        assertEquals(ur, relation("test"));
+    }
+
+    public void testNamedFunctionArgumentWithCaseSensitiveKeys() {
+        assumeTrue(
+            "named function arguments require snapshot build",
+            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
+        );
+        LinkedHashMap<String, Object> expectedMap1 = new LinkedHashMap<>(3);
+        expectedMap1.put("option", "string");
+        expectedMap1.put("Option", 1);
+        expectedMap1.put("oPtion", List.of(2.0, 3.0, 4.0));
+        LinkedHashMap<String, Object> expectedMap2 = new LinkedHashMap<>(3);
+        expectedMap2.put("option", List.of("string1", "string2"));
+        expectedMap2.put("Option", List.of(1, 2, 3));
+        expectedMap2.put("oPtion", 2.0);
+
+        assertEquals(
+            new Filter(
+                EMPTY,
+                new Eval(
+                    EMPTY,
+                    relation("test"),
+                    List.of(
+                        new Alias(
+                            EMPTY,
+                            "x",
+                            function(
+                                "fn1",
+                                List.of(attribute("f1"), new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap1))
+                            )
+                        )
+                    )
+                ),
+                new Equals(
+                    EMPTY,
+                    attribute("y"),
+                    function("fn2", List.of(new Literal(EMPTY, "testString", KEYWORD), mapExpression(expectedMap2)))
+                )
+            ),
+            statement("""
+                from test
+                | eval x = fn1(f1, "testString", {"option":"string","Option":1,"oPtion":[2.0,3.0,4.0]})
+                | where y == fn2("testString", {"option":["string1","string2"],"Option":[1,2,3],"oPtion":2.0})
+                """)
+        );
+    }
+
+    public void testMultipleNamedFunctionArgumentsNotAllowed() {
+        assumeTrue(
+            "named function arguments require snapshot build",
+            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
+        );
+        Map<String, String> commands = Map.ofEntries(
+            Map.entry("eval x = {}", "41"),
+            Map.entry("where {}", "38"),
+            Map.entry("stats {}", "38"),
+            Map.entry("stats agg() by {}", "47"),
+            Map.entry("sort {}", "37"),
+            Map.entry("dissect {} \"%{bar}\"", "40"),
+            Map.entry("grok {} \"%{WORD:foo}\"", "37")
+        );
+
+        for (Map.Entry<String, String> command : commands.entrySet()) {
+            String cmd = command.getKey();
+            String error = command.getValue();
+            String errorMessage = cmd.startsWith("dissect") || cmd.startsWith("grok")
+                ? "mismatched input ',' expecting ')'"
+                : "no viable alternative at input 'fn(f1,";
+            expectError(
+                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option\":1}, {\"option\":2})"),
+                LoggerMessageFormat.format(null, "line 1:{}: {}", error, errorMessage)
+            );
+        }
+    }
+
+    public void testNamedFunctionArgumentNotInMap() {
+        assumeTrue(
+            "named function arguments require snapshot build",
+            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
+        );
+        Map<String, String> commands = Map.ofEntries(
+            Map.entry("eval x = {}", "38"),
+            Map.entry("where {}", "35"),
+            Map.entry("stats {}", "35"),
+            Map.entry("stats agg() by {}", "44"),
+            Map.entry("sort {}", "34"),
+            Map.entry("dissect {} \"%{bar}\"", "37"),
+            Map.entry("grok {} \"%{WORD:foo}\"", "34")
+        );
+
+        for (Map.Entry<String, String> command : commands.entrySet()) {
+            String cmd = command.getKey();
+            String error = command.getValue();
+            String errorMessage = cmd.startsWith("dissect") || cmd.startsWith("grok")
+                ? "extraneous input ':' expecting {',', ')'}"
+                : "no viable alternative at input 'fn(f1, \"option1\":'";
+            expectError(
+                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, \"option1\":\"string\")"),
+                LoggerMessageFormat.format(null, "line 1:{}: {}", error, errorMessage)
+            );
+        }
+    }
+
+    public void testNamedFunctionArgumentNotConstant() {
+        assumeTrue(
+            "named function arguments require snapshot build",
+            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
+        );
+        Map<String, String[]> commands = Map.ofEntries(
+            Map.entry("eval x = {}", new String[] { "31", "35" }),
+            Map.entry("where {}", new String[] { "28", "32" }),
+            Map.entry("stats {}", new String[] { "28", "32" }),
+            Map.entry("stats agg() by {}", new String[] { "37", "41" }),
+            Map.entry("sort {}", new String[] { "27", "31" }),
+            Map.entry("dissect {} \"%{bar}\"", new String[] { "30", "34" }),
+            Map.entry("grok {} \"%{WORD:foo}\"", new String[] { "27", "31" })
+        );
+
+        for (Map.Entry<String, String[]> command : commands.entrySet()) {
+            String cmd = command.getKey();
+            String error1 = command.getValue()[0];
+            String error2 = command.getValue()[1];
+            String errorMessage1 = cmd.startsWith("dissect") || cmd.startsWith("grok")
+                ? "mismatched input '1' expecting QUOTED_STRING"
+                : "no viable alternative at input 'fn(f1, { 1'";
+            String errorMessage2 = cmd.startsWith("dissect") || cmd.startsWith("grok")
+                ? "mismatched input 'string' expecting {QUOTED_STRING"
+                : "no viable alternative at input 'fn(f1, {";
+            expectError(
+                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, { 1:\"string\" })"),
+                LoggerMessageFormat.format(null, "line 1:{}: {}", error1, errorMessage1)
+            );
+            expectError(
+                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, { \"1\":string })"),
+                LoggerMessageFormat.format(null, "line 1:{}: {}", error2, errorMessage2)
+            );
+        }
+    }
+
+    public void testNamedFunctionArgumentEmptyMap() {
+        assumeTrue(
+            "named function arguments require snapshot build",
+            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
+        );
+        Map<String, String> commands = Map.ofEntries(
+            Map.entry("eval x = {}", "30"),
+            Map.entry("where {}", "27"),
+            Map.entry("stats {}", "27"),
+            Map.entry("stats agg() by {}", "36"),
+            Map.entry("sort {}", "26"),
+            Map.entry("dissect {} \"%{bar}\"", "29"),
+            Map.entry("grok {} \"%{WORD:foo}\"", "26")
+        );
+
+        for (Map.Entry<String, String> command : commands.entrySet()) {
+            String cmd = command.getKey();
+            String error = command.getValue();
+            String errorMessage = cmd.startsWith("dissect") || cmd.startsWith("grok")
+                ? "mismatched input '}' expecting QUOTED_STRING"
+                : "no viable alternative at input 'fn(f1, {}'";
+            expectError(
+                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {}})"),
+                LoggerMessageFormat.format(null, "line 1:{}: {}", error, errorMessage)
+            );
+        }
+    }
+
+    public void testNamedFunctionArgumentMapWithNULL() {
+        assumeTrue(
+            "named function arguments require snapshot build",
+            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
+        );
+        Map<String, String> commands = Map.ofEntries(
+            Map.entry("eval x = {}", "29"),
+            Map.entry("where {}", "26"),
+            Map.entry("stats {}", "26"),
+            Map.entry("stats agg() by {}", "35"),
+            Map.entry("sort {}", "25"),
+            Map.entry("dissect {} \"%{bar}\"", "28"),
+            Map.entry("grok {} \"%{WORD:foo}\"", "25")
+        );
+
+        for (Map.Entry<String, String> command : commands.entrySet()) {
+            String cmd = command.getKey();
+            String error = command.getValue();
+            expectError(
+                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option\":null})"),
+                LoggerMessageFormat.format(
+                    null,
+                    "line 1:{}: {}",
+                    error,
+                    "Invalid named function argument [\"option\":null], NULL is not supported"
+                )
+            );
+        }
+    }
+
+    public void testNamedFunctionArgumentMapWithEmptyKey() {
+        assumeTrue(
+            "named function arguments require snapshot build",
+            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
+        );
+        Map<String, String> commands = Map.ofEntries(
+            Map.entry("eval x = {}", "29"),
+            Map.entry("where {}", "26"),
+            Map.entry("stats {}", "26"),
+            Map.entry("stats agg() by {}", "35"),
+            Map.entry("sort {}", "25"),
+            Map.entry("dissect {} \"%{bar}\"", "28"),
+            Map.entry("grok {} \"%{WORD:foo}\"", "25")
+        );
+
+        for (Map.Entry<String, String> command : commands.entrySet()) {
+            String cmd = command.getKey();
+            String error = command.getValue();
+            expectError(
+                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"\":1})"),
+                LoggerMessageFormat.format(
+                    null,
+                    "line 1:{}: {}",
+                    error,
+                    "Invalid named function argument [\"\":1], empty key is not supported"
+                )
+            );
+            expectError(
+                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"  \":1})"),
+                LoggerMessageFormat.format(
+                    null,
+                    "line 1:{}: {}",
+                    error,
+                    "Invalid named function argument [\"  \":1], empty key is not supported"
+                )
+            );
+        }
+    }
+
+    public void testNamedFunctionArgumentMapWithDuplicatedKey() {
+        assumeTrue(
+            "named function arguments require snapshot build",
+            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
+        );
+        Map<String, String> commands = Map.ofEntries(
+            Map.entry("eval x = {}", "29"),
+            Map.entry("where {}", "26"),
+            Map.entry("stats {}", "26"),
+            Map.entry("stats agg() by {}", "35"),
+            Map.entry("sort {}", "25"),
+            Map.entry("dissect {} \"%{bar}\"", "28"),
+            Map.entry("grok {} \"%{WORD:foo}\"", "25")
+        );
+
+        for (Map.Entry<String, String> command : commands.entrySet()) {
+            String cmd = command.getKey();
+            String error = command.getValue();
+            expectError(
+                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"dup\":1,\"dup\":2})"),
+                LoggerMessageFormat.format(
+                    null,
+                    "line 1:{}: {}",
+                    error,
+                    "Duplicated function arguments with the same name [dup] is not supported"
+                )
+            );
+        }
+    }
+
+    public void testNamedFunctionArgumentInInvalidPositions() {
+        assumeTrue(
+            "named function arguments require snapshot build",
+            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
+        );
+        // negative, named arguments are not supported outside of a functionExpression where booleanExpression or indexPattern is supported
+        String map = "{\"option1\":\"string\", \"option2\":1}";
+
+        Map<String, String> commands = Map.ofEntries(
+            Map.entry("from {}", "line 1:7: mismatched input '\"option1\"' expecting {<EOF>, '|', ',', 'metadata'}"),
+            Map.entry("row x = {}", "line 1:9: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
+            Map.entry("eval x = {}", "line 1:22: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
+            Map.entry("where x > {}", "line 1:23: no viable alternative at input 'x > {'"),
+            Map.entry("stats agg() by {}", "line 1:28: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
+            Map.entry("sort {}", "line 1:18: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
+            Map.entry("keep {}", "line 1:18: token recognition error at: '{'"),
+            Map.entry("drop {}", "line 1:18: token recognition error at: '{'"),
+            Map.entry("rename a as {}", "line 1:25: token recognition error at: '{'"),
+            Map.entry("mv_expand {}", "line 1:23: token recognition error at: '{'"),
+            Map.entry("limit {}", "line 1:19: mismatched input '{' expecting INTEGER_LITERAL"),
+            Map.entry("enrich idx2 on f1 with f2 = {}", "line 1:41: token recognition error at: '{'"),
+            Map.entry("dissect {} \"%{bar}\"", "line 1:21: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
+            Map.entry("grok {} \"%{WORD:foo}\"", "line 1:18: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL")
+        );
+
+        for (Map.Entry<String, String> command : commands.entrySet()) {
+            String cmd = command.getKey();
+            String errorMessage = command.getValue();
+            String from = cmd.startsWith("row") || cmd.startsWith("from") ? "" : "from test | ";
+            expectError(LoggerMessageFormat.format(null, from + cmd, map), errorMessage);
+        }
+    }
+
+    public void testNamedFunctionArgumentWithUnsupportedNamedParameterTypes() {
+        assumeTrue(
+            "named function arguments require snapshot build",
+            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
+        );
+        Map<String, String> commands = Map.ofEntries(
+            Map.entry("eval x = {}", "29"),
+            Map.entry("where {}", "26"),
+            Map.entry("stats {}", "26"),
+            Map.entry("stats agg() by {}", "35"),
+            Map.entry("sort {}", "25"),
+            Map.entry("dissect {} \"%{bar}\"", "28"),
+            Map.entry("grok {} \"%{WORD:foo}\"", "25")
+        );
+
+        for (Map.Entry<String, String> command : commands.entrySet()) {
+            String cmd = command.getKey();
+            String error = command.getValue();
+            expectError(
+                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option1\":?n1})"),
+                List.of(paramAsIdentifier("n1", "v1")),
+                LoggerMessageFormat.format(
+                    null,
+                    "line 1:{}: {}",
+                    error,
+                    "Invalid named function argument [\"option1\":?n1], only constant value is supported"
+                )
+            );
+            expectError(
+                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option1\":?n1})"),
+                List.of(paramAsPattern("n1", "v1")),
+                LoggerMessageFormat.format(
+                    null,
+                    "line 1:{}: {}",
+                    error,
+                    "Invalid named function argument [\"option1\":?n1], only constant value is supported"
+                )
+            );
+        }
     }
 }

@@ -52,8 +52,8 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
      */
     private boolean localIndicesRequested = false;
     private IndicesOptions indicesOptions;
-    private final TimeValue DEFAULT_HANDSHAKE_TIMEOUT = TimeValue.timeValueSeconds(9);
     private TimeValue timeout;
+    private final long DEFAULT_HANDSHAKE_TIMEOUT = 9;
 
     // true if the user did not provide any index expression - they only want cluster level info, not index matching
     private final boolean clusterInfoOnly;
@@ -211,10 +211,8 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
 
     public void setTimeout(String timeout) {
         this.timeout = TimeValue.parseTimeValue(timeout, "timeout");
-        // The default handshake timeout.
-        // Cap the max value to 9s even if user specifies a value > 9s as distrib code defaults to 9s.
-        if (this.timeout.getSeconds() > 9) {
-            this.timeout = DEFAULT_HANDSHAKE_TIMEOUT;
+        if (this.timeout.getSeconds() > DEFAULT_HANDSHAKE_TIMEOUT) {
+            throw new IllegalArgumentException("Max timeout for _resolve/cluster is " + DEFAULT_HANDSHAKE_TIMEOUT + " seconds");
         }
     }
 

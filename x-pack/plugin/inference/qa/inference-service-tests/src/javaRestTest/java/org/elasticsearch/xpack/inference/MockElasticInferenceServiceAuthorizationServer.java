@@ -31,7 +31,7 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
                 "models": [
                     {
                       "model_name": "model-a",
-                      "task_types": ["embedding/text/sparse", "chat/completion"]
+                      "task_types": ["embed/text/sparse", "chat"]
                     }
                 ]
             }

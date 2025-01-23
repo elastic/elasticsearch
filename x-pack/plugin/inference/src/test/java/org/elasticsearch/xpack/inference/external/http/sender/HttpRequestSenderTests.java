@@ -150,7 +150,7 @@ public class HttpRequestSenderTests extends ESTestCase {
                     "models": [
                         {
                           "model_name": "model-a",
-                          "task_types": ["embedding/text/sparse", "chat/completion"]
+                          "task_types": ["embed/text/sparse", "chat"]
                         }
                     ]
                 }

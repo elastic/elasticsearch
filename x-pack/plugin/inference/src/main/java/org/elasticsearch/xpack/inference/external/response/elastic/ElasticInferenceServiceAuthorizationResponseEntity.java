@@ -40,9 +40,9 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
 
     public static final String NAME = "elastic_inference_service_auth_results";
     private static final Map<String, TaskType> ELASTIC_INFERENCE_SERVICE_TASK_TYPE_MAPPING = Map.of(
-        "embedding/text/sparse",
+        "embed/text/sparse",
         TaskType.SPARSE_EMBEDDING,
-        "chat/completion",
+        "chat",
         TaskType.CHAT_COMPLETION
     );
 

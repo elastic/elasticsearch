@@ -110,7 +110,7 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
                     "models": [
                         {
                           "invalid-field": "model-a",
-                          "task-types": ["embedding/text/sparse", "chat/completion"]
+                          "task-types": ["embed/text/sparse", "chat"]
                         }
                     ]
                 }
@@ -160,7 +160,7 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
                     "models": [
                         {
                           "model_name": "model-a",
-                          "task_types": ["embedding/text/sparse", "chat/completion"]
+                          "task_types": ["embed/text/sparse", "chat"]
                         }
                     ]
                 }

@@ -55,7 +55,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -251,9 +250,7 @@ public class ComputeService {
                             exchangeSource,
                             cancelQueryOnFailure,
                             localListener.acquireCompute().map(r -> {
-                                if (execInfo.isCrossClusterSearch() && execInfo.clusterAliases().contains(LOCAL_CLUSTER)) {
-                                    localClusterWasInterrupted.set(execInfo.isPartial());
-                                }
+                                localClusterWasInterrupted.set(execInfo.isPartial());
                                 localResponse.set(r);
                                 return r.getProfiles();
                             })
@@ -282,7 +279,6 @@ public class ComputeService {
     }
 
     private void updateExecutionInfo(EsqlExecutionInfo executionInfo, String clusterAlias, ComputeResponse resp) {
-        TimeValue tookOnCluster;
         Function<EsqlExecutionInfo.Cluster.Status, EsqlExecutionInfo.Cluster.Status> runningToSuccess = status -> {
             if (status == EsqlExecutionInfo.Cluster.Status.RUNNING) {
                 return executionInfo.isPartial() ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
@@ -291,32 +287,25 @@ public class ComputeService {
             }
         };
         if (resp.getTook() != null) {
-            TimeValue remoteExecutionTime = resp.getTook();
-            final long planningTime;
-            if (clusterAlias.equals(LOCAL_CLUSTER)) {
-                planningTime = 0L;
-            } else {
-                planningTime = executionInfo.planningTookTime().nanos();
-            }
-            tookOnCluster = new TimeValue(planningTime + remoteExecutionTime.nanos(), TimeUnit.NANOSECONDS);
-            executionInfo.swapCluster(clusterAlias, (k, v) -> {
-                return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(runningToSuccess.apply(v.getStatus()))
-                    .setTook(tookOnCluster)
+            var tookTime = TimeValue.timeValueNanos(executionInfo.planningTookTime().nanos() + resp.getTook().nanos());
+            executionInfo.swapCluster(
+                clusterAlias,
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(runningToSuccess.apply(v.getStatus()))
+                    .setTook(tookTime)
                     .setTotalShards(resp.getTotalShards())
                     .setSuccessfulShards(resp.getSuccessfulShards())
                     .setSkippedShards(resp.getSkippedShards())
                     .setFailedShards(resp.getFailedShards())
-                    .build();
-            });
+                    .build()
+            );
         } else {
             // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
             // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
-            long remoteTook = System.nanoTime() - executionInfo.getRelativeStartNanos();
-            tookOnCluster = new TimeValue(remoteTook, TimeUnit.NANOSECONDS);
+            var tookTime = TimeValue.timeValueNanos(System.nanoTime() - executionInfo.getRelativeStartNanos());
             executionInfo.swapCluster(
                 clusterAlias,
                 (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(runningToSuccess.apply(v.getStatus()))
-                    .setTook(tookOnCluster)
+                    .setTook(tookTime)
                     .build()
             );
         }

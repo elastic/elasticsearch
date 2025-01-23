@@ -93,7 +93,8 @@ public class ConnectorIndexService {
     private final Client clientWithOrigin;
 
     // TODO use proper version IDs (see org/elasticsearch/xpack/application/rules/QueryRulesIndexService.java)
-    // TODO if this version is updated, a test should be added to javaRestTest/java/org/elasticsearch/xpack/application/FullClusterRestartIT.java
+    // TODO if this version is updated, a test should be added to
+    // javaRestTest/java/org/elasticsearch/xpack/application/FullClusterRestartIT.java
     private static final int CONNECTORS_INDEX_VERSION = 1;
     // TODO rename to CONNECTOR_ALIAS_NAME
     public static final String CONNECTOR_INDEX_NAME = ".elastic-connectors";

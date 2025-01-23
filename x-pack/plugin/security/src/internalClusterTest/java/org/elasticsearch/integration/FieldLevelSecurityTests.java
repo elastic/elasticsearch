@@ -976,13 +976,15 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                     .add(prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
                     .add(prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery())),
                 response -> {
+                    Map<String, Object> source0 = response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap();
+                    Map<String, Object> source1 = response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap();
                     assertFalse(response.getResponses()[0].isFailure());
                     assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
-                    assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(1));
-                    assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field2"), is("value2"));
+                    assertThat(source0.size(), is(1));
+                    assertThat(source0.get("field2"), is("value2"));
                     assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value, is(1L));
-                    assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(1));
-                    assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field2"), is("value2"));
+                    assertThat(source1.size(), is(1));
+                    assertThat(source1.get("field2"), is("value2"));
                 }
             );
         }
@@ -1104,15 +1106,17 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                     .add(prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
                     .add(prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery())),
                 response -> {
+                    Map<String, Object> source0 = response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap();
+                    Map<String, Object> source1 = response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap();
                     assertFalse(response.getResponses()[0].isFailure());
                     assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
-                    assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
-                    assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
-                    assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field2"), is("value2"));
+                    assertThat(source0.size(), is(2));
+                    assertThat(source0.get("field1"), is("value1"));
+                    assertThat(source0.get("field2"), is("value2"));
                     assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value, is(1L));
-                    assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
-                    assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
-                    assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field2"), is("value2"));
+                    assertThat(source1.size(), is(2));
+                    assertThat(source1.get("field1"), is("value1"));
+                    assertThat(source1.get("field2"), is("value2"));
                 }
             );
         }
@@ -1571,8 +1575,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("test"),
             response -> {
-                assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
-                assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1").toString(), equalTo("value1"));
+                Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+                assertThat(source.size(), equalTo(1));
+                assertThat(source.get("field1").toString(), equalTo("value1"));
             }
         );
 
@@ -1581,8 +1586,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareSearch("test"),
             response -> {
-                assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
-                assertThat(response.getHits().getAt(0).getSourceAsMap().get("field2").toString(), equalTo("value2"));
+                Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+                assertThat(source.size(), equalTo(1));
+                assertThat(source.get("field2").toString(), equalTo("value2"));
             }
         );
 

@@ -1,0 +1,5 @@
+pr: 120505
+summary: "[Deprecation API] Refactor resource deprecation checkers and add new resources"
+area: Indices APIs
+type: enhancement
+issues: []

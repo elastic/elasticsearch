@@ -79,7 +79,7 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
         withDatafeed(datafeedWithRewrite2, true);
 
         DatafeedConfigAutoUpdater updater = new DatafeedConfigAutoUpdater(provider, indexNameExpressionResolver);
-        updater.runUpdate();
+        updater.runUpdate(mock(ClusterState.class));
 
         verify(provider, times(1)).updateDatefeedConfig(
             eq(datafeedWithRewrite1),
@@ -120,7 +120,7 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
         }).when(provider).updateDatefeedConfig(eq(datafeedWithRewriteFailure), any(), any(), any(), any());
 
         DatafeedConfigAutoUpdater updater = new DatafeedConfigAutoUpdater(provider, indexNameExpressionResolver);
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class, updater::runUpdate);
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> updater.runUpdate(mock(ClusterState.class)));
         assertThat(ex.getMessage(), equalTo("some datafeeds failed being upgraded."));
         assertThat(ex.getSuppressed().length, equalTo(1));
         assertThat(ex.getSuppressed()[0].getMessage(), equalTo("Failed to update datafeed " + datafeedWithRewriteFailure));
@@ -155,7 +155,7 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
         withDatafeed(datafeedWithoutRewrite2, false);
 
         DatafeedConfigAutoUpdater updater = new DatafeedConfigAutoUpdater(provider, indexNameExpressionResolver);
-        updater.runUpdate();
+        updater.runUpdate(mock(ClusterState.class));
 
         verify(provider, times(0)).updateDatefeedConfig(any(), any(DatafeedUpdate.class), eq(Collections.emptyMap()), any(), any());
     }

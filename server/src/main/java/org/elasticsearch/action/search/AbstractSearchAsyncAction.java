@@ -50,8 +50,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -70,22 +68,14 @@ import static org.elasticsearch.core.Strings.format;
  */
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends AsyncSearchContext<Result> {
     static final float DEFAULT_INDEX_BOOST = 1.0f;
-    private final Logger logger;
-    private final SearchTransportService searchTransportService;
-    private final Executor executor;
+    protected final Logger logger;
 
-    /**
-     * Used by subclasses to resolve node ids to DiscoveryNodes.
-     **/
-    private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
-    private final SearchTask task;
     private final long clusterStateVersion;
     private final TransportVersion minTransportVersion;
     private final Map<String, AliasFilter> aliasFilter;
     private final Map<String, Float> concreteIndexBoosts;
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
     private final Object shardFailuresMutex = new Object();
-    private final AtomicInteger successfulOps = new AtomicInteger();
     private final SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
 
@@ -108,7 +98,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final int maxConcurrentRequestsPerNode;
     private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
     private final boolean throttleConcurrentRequests;
-    private final AtomicBoolean requestCancelled = new AtomicBoolean();
 
     // protected for tests
     protected final String name;
@@ -132,7 +121,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         int maxConcurrentRequestsPerNode,
         SearchResponse.Clusters clusters
     ) {
-        super(request, resultConsumer, namedWriteableRegistry, listener);
+        super(request, resultConsumer, namedWriteableRegistry, listener, task, searchTransportService, executor, nodeIdToConnection);
         this.name = name;
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
         final List<SearchShardIterator> iterators = new ArrayList<>();
@@ -156,10 +145,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.throttleConcurrentRequests = maxConcurrentRequestsPerNode < shardsIts.size();
         this.timeProvider = timeProvider;
         this.logger = logger;
-        this.searchTransportService = searchTransportService;
-        this.executor = executor;
-        this.task = task;
-        this.nodeIdToConnection = nodeIdToConnection;
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.clusterStateVersion = clusterState.version();
         this.minTransportVersion = clusterState.getMinTransportVersion();
@@ -307,7 +292,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             public void innerOnResponse(Result result) {
                 try {
                     releasable.close();
-                    onShardResult(result, shardIt);
+                    onShardResult(result);
                 } catch (Exception exc) {
                     onShardFailure(shardIndex, shard, shardIt, exc);
                 }
@@ -409,14 +394,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     clusterStateVersion
                 );
             }
-            try {
-                nextPhase.run();
-            } catch (RuntimeException e) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug(() -> format("Failed to execute [%s] while moving to [%s] phase", request, nextPhase.getName()), e);
-                }
-                onPhaseFailure(nextPhase.getName(), "", e);
-            }
+            executePhase(nextPhase);
         }
     }
 
@@ -514,16 +492,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     /**
      * Executed once for every successful shard level request.
      * @param result the result returned form the shard
-     * @param shardIt the shard iterator
      */
-    protected void onShardResult(Result result, SearchShardIterator shardIt) {
+    protected void onShardResult(Result result) {
         assert result.getShardIndex() != -1 : "shard index is not set";
         assert result.getSearchShardTarget() != null : "search shard target must not be null";
         if (hasShardResponse == false) {
             hasShardResponse = true;
         }
         if (logger.isTraceEnabled()) {
-            logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);
+            logger.trace("got first-phase result from {}", result.getSearchShardTarget());
         }
         results.consumeResult(result, () -> onShardResultConsumed(result));
     }
@@ -549,13 +526,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if ((int) OUTSTANDING_SHARDS.getAndAdd(this, -1) == 1) {
             onPhaseDone();
         }
-    }
-
-    /**
-      * Returns the currently executing search task
-    */
-    public final SearchTask getTask() {
-        return task;
     }
 
     /**
@@ -652,7 +622,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     /**
      * Executed once all shard results have been received and processed
      * @see #onShardFailure(int, SearchShardTarget, Exception)
-     * @see #onShardResult(SearchPhaseResult, SearchShardIterator)
+     * @see #onShardResult(SearchPhaseResult)
      */
     private void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
         executeNextPhase(name, this::getNextPhase);
@@ -665,13 +635,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     @Override
     public final Transport.Connection getConnection(String clusterAlias, String nodeId) {
         return nodeIdToConnection.apply(clusterAlias, nodeId);
-    }
-
-    /**
-     * Returns the {@link SearchTransportService} to send shard request to other nodes
-     */
-    public SearchTransportService getSearchTransport() {
-        return searchTransportService;
     }
 
     public final void execute(Runnable command) {

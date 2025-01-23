@@ -26,7 +26,13 @@ import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.core.Strings.format;
 
 public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
 
@@ -45,16 +51,38 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
     // protected for tests
     protected final List<Releasable> releasables = new ArrayList<>();
 
+    protected final AtomicBoolean requestCancelled = new AtomicBoolean();
+
+    protected final SearchTask task;
+
+    protected final AtomicInteger successfulOps = new AtomicInteger();
+
+    protected final SearchTransportService searchTransportService;
+    protected final Executor executor;
+
+    /**
+     * Used by subclasses to resolve node ids to DiscoveryNodes.
+     **/
+    protected final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
+
     protected AsyncSearchContext(
         SearchRequest request,
         SearchPhaseResults<Result> results,
         NamedWriteableRegistry namedWriteableRegistry,
-        ActionListener<SearchResponse> listener
+        ActionListener<SearchResponse> listener,
+        SearchTask task,
+        SearchTransportService searchTransportService,
+        Executor executor,
+        BiFunction<String, String, Transport.Connection> nodeIdToConnection
     ) {
         this.request = request;
         this.results = results;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.listener = ActionListener.runAfter(listener, () -> Releasables.close(releasables));
+        this.task = task;
+        this.searchTransportService = searchTransportService;
+        this.executor = executor;
+        this.nodeIdToConnection = nodeIdToConnection;
         ;
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
@@ -92,9 +120,19 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
 
     abstract void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<? extends SearchPhaseResult> queryResults);
 
-    abstract SearchTransportService getSearchTransport();
+    /**
+     * Returns the {@link SearchTransportService} to send shard request to other nodes
+     */
+    public SearchTransportService getSearchTransport() {
+        return searchTransportService;
+    }
 
-    abstract SearchTask getTask();
+    /**
+     * Returns the currently executing search task
+     */
+    public final SearchTask getTask() {
+        return task;
+    }
 
     abstract void onPhaseFailure(String phase, String msg, Throwable cause);
 
@@ -147,4 +185,16 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
     public boolean isPartOfPointInTime(ShardSearchContextId contextId) {
         return isPartOfPIT(namedWriteableRegistry, request, contextId);
     }
+
+    protected final void executePhase(SearchPhase phase) {
+        try {
+            phase.run();
+        } catch (Exception e) {
+            if (logger.isDebugEnabled()) {
+                logger.debug(() -> format("Failed to execute [%s] while moving to [%s] phase", request, phase.getName()), e);
+            }
+            onPhaseFailure(phase.getName(), "", e);
+        }
+    }
+
 }

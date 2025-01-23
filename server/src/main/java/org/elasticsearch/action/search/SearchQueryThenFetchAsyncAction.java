@@ -98,27 +98,17 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
 
     private static final Logger logger = LogManager.getLogger(SearchQueryThenFetchAsyncAction.class);
 
-    private final SearchTransportService searchTransportService;
-    private final Executor executor;
-
-    /**
-     * Used by subclasses to resolve node ids to DiscoveryNodes.
-     **/
-    private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
-    private final SearchTask task;
     private final TransportVersion minNodeVersion;
     private final Map<String, AliasFilter> aliasFilter;
     private final Map<String, Float> concreteIndexBoosts;
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
     private final Object shardFailuresMutex = new Object();
-    private final AtomicInteger successfulOps;
     private final TransportSearchAction.SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
 
     protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
     protected final GroupShardsIterator<SearchShardIterator> shardsIts;
     private final SearchShardIterator[] shardIterators;
-    private final AtomicBoolean requestCancelled = new AtomicBoolean();
 
     private static final VarHandle OUTSTANDING_SHARDS;
 
@@ -158,7 +148,7 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
         SearchResponse.Clusters clusters,
         Client client
     ) {
-        super(request, resultConsumer, namedWriteableRegistry, listener);
+        super(request, resultConsumer, namedWriteableRegistry, listener, task, searchTransportService, executor, nodeIdToConnection);
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
         final List<SearchShardIterator> iterators = new ArrayList<>();
         for (final SearchShardIterator iterator : shardsIts) {
@@ -169,7 +159,7 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
             }
         }
         this.toSkipShardsIts = new GroupShardsIterator<>(toSkipIterators);
-        this.successfulOps = new AtomicInteger(toSkipIterators.size());
+        this.successfulOps.setRelease(toSkipIterators.size());
         this.shardsIts = new GroupShardsIterator<>(iterators);
 
         this.shardIterators = iterators.toArray(new SearchShardIterator[0]);
@@ -179,10 +169,6 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
         // consistent between two requests that target the same shards.
         Arrays.sort(shardIterators);
         this.timeProvider = timeProvider;
-        this.searchTransportService = searchTransportService;
-        this.executor = executor;
-        this.task = task;
-        this.nodeIdToConnection = nodeIdToConnection;
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.minNodeVersion = clusterState.getMinTransportVersion();
         this.aliasFilter = aliasFilter;
@@ -253,16 +239,6 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
             }
             ActionListener.respondAndRelease(listener, buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
         }
-    }
-
-    @Override
-    public SearchTransportService getSearchTransport() {
-        return searchTransportService;
-    }
-
-    @Override
-    public SearchTask getTask() {
-        return task;
     }
 
     private SearchResponse buildSearchResponse(
@@ -917,17 +893,6 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
                 );
             }
             executePhase(nextPhase);
-        }
-    }
-
-    private void executePhase(SearchPhase phase) {
-        try {
-            phase.run();
-        } catch (Exception e) {
-            if (logger.isDebugEnabled()) {
-                logger.debug(() -> format("Failed to execute [%s] while moving to [%s] phase", request, phase.getName()), e);
-            }
-            onPhaseFailure(phase.getName(), "", e);
         }
     }
 

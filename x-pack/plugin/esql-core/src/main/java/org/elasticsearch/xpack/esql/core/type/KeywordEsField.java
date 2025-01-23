@@ -25,6 +25,8 @@ public class KeywordEsField extends EsField {
 
     private final int precision;
     private final boolean normalized;
+    // If the field is unmapped, attempt to read it from source.
+    private final boolean readFromSource;
 
     public KeywordEsField(String name) {
         this(name, Collections.emptyMap(), true, Short.MAX_VALUE, false);
@@ -42,7 +44,7 @@ public class KeywordEsField extends EsField {
         boolean normalized,
         boolean isAlias
     ) {
-        this(name, KEYWORD, properties, hasDocValues, precision, normalized, isAlias);
+        this(name, KEYWORD, properties, hasDocValues, precision, normalized, isAlias, false);
     }
 
     protected KeywordEsField(
@@ -52,11 +54,13 @@ public class KeywordEsField extends EsField {
         boolean hasDocValues,
         int precision,
         boolean normalized,
-        boolean isAlias
+        boolean isAlias,
+        boolean readFromSource
     ) {
         super(name, esDataType, properties, hasDocValues, isAlias);
         this.precision = precision;
         this.normalized = normalized;
+        this.readFromSource = readFromSource;
     }
 
     public KeywordEsField(StreamInput in) throws IOException {
@@ -66,6 +70,7 @@ public class KeywordEsField extends EsField {
             in.readImmutableMap(EsField::readFrom),
             in.readBoolean(),
             in.readInt(),
+            in.readBoolean(),
             in.readBoolean(),
             in.readBoolean()
         );
@@ -91,6 +96,14 @@ public class KeywordEsField extends EsField {
 
     public boolean getNormalized() {
         return normalized;
+    }
+
+    public KeywordEsField withReadFromSource() {
+        return new KeywordEsField(getName(), getDataType(), getProperties(), isAggregatable(), precision, normalized, isAlias(), true);
+    }
+
+    public boolean getReadFromSource() {
+        return readFromSource;
     }
 
     @Override

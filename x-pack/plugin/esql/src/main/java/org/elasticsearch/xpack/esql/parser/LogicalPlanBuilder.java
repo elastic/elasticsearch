@@ -290,7 +290,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         var source = source(ctx);
         return input -> {
             if (input instanceof EsRelation || input instanceof UnresolvedRelation) {
-                return new Insist(source, visitIdentifier(ctx.identifier()), input);
+                return new Insist(source, new UnresolvedAttribute(source, visitIdentifier(ctx.identifier())), input);
             }
             throw new ParsingException(source, "INSIST command can only be applied on top of a FROM command.");
         };

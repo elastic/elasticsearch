@@ -6,30 +6,23 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedEsField;
-import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.OptionalInt;
 
 public class Insist extends UnaryPlan {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "INSIST", Insist::new);
 
-    private final String insistIdentifier;
+    private final UnresolvedAttribute insistIdentifier;
 
-    public Insist(Source source, String insistIdentifier, LogicalPlan child) {
+    public Insist(Source source, UnresolvedAttribute insistIdentifier, LogicalPlan child) {
         super(source, child);
         this.insistIdentifier = insistIdentifier;
     }
@@ -46,15 +39,11 @@ public class Insist extends UnaryPlan {
 
     private List<Attribute> computeOutput() {
         var result = new ArrayList<>(child().output());
-        OptionalInt index = CollectionUtils.findIndex(child().output(), c -> c.name().equals(insistIdentifier));
-        index.ifPresentOrElse(i -> {
-            var field = ((FieldAttribute) child().output().get(i)).field();
-            result.set(i, new FieldAttribute(source(), insistIdentifier, PotentiallyUnmappedEsField.fromField(field)));
-        }, () -> result.add(new FieldAttribute(source(), insistIdentifier, PotentiallyUnmappedEsField.fromStandalone(insistIdentifier))));
+        result.add(insistIdentifier);
         return result;
     }
 
-    public String getInsistIdentifier() {
+    public UnresolvedAttribute getInsistIdentifier() {
         return insistIdentifier;
     }
 
@@ -80,23 +69,16 @@ public class Insist extends UnaryPlan {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeString(insistIdentifier);
-        out.writeNamedWriteable(child());
-    }
-
-    private Insist(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readString(), in.readNamedWriteable(LogicalPlan.class));
+        throw new UnsupportedOperationException("doesn't escape the node");
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("doesn't escape the node");
     }
 
     @Override
     public int hashCode() {
-
         return Objects.hash(super.hashCode(), Objects.hashCode(insistIdentifier));
     }
 

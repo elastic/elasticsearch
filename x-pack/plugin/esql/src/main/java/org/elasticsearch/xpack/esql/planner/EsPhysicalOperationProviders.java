@@ -32,7 +32,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -50,10 +49,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -66,7 +62,6 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperat
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -131,63 +126,65 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     private BlockLoader getBlockLoaderFor(int shardId, Attribute attr, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
         DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
         var isUnmapped = shardContext.fieldType(getFieldName(attr)) == null;
-        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedEsField uf) {
-            shardContext = new DefaultShardContextForUnmappedField(shardContext, uf);
-        }
-
-        boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
-        BlockLoader blockLoader = shardContext.blockLoader(getFieldName(attr), isUnsupported, fieldExtractPreference);
-        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedEsField uf) {
-            if (isUnmapped && uf.getState() instanceof PotentiallyUnmappedEsField.MultiType mt) {
-                return new TypeConvertingBlockLoader(blockLoader, (AbstractConvertFunction) mt.conversionFromKeyword());
-            }
-            if (uf.getState() instanceof PotentiallyUnmappedEsField.SimpleResolution sr) {
-                return new TypeConvertingBlockLoader(
-                    blockLoader,
-                    (AbstractConvertFunction) (isUnmapped ? sr.unmappedConversion() : sr.mappedConversion())
-                );
-            }
-        }
-        var unionTypes = findUnionTypes(attr);
-        if (unionTypes != null) {
-            String indexName = shardContext.ctx.index().getName();
-            Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
-            return conversion == null
-                ? BlockLoader.CONSTANT_NULLS
-                : new TypeConvertingBlockLoader(blockLoader, (AbstractConvertFunction) conversion);
-        }
-        return blockLoader;
+        throw new AssertionError("TODO(gal)");
+        // if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedEsField uf) {
+        // shardContext = new DefaultShardContextForUnmappedField(shardContext, uf);
+        // }
+        //
+        // boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
+        // BlockLoader blockLoader = shardContext.blockLoader(getFieldName(attr), isUnsupported, fieldExtractPreference);
+        // if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedEsField uf) {
+        // if (isUnmapped && uf.getState() instanceof PotentiallyUnmappedEsField.MultiType mt) {
+        // return new TypeConvertingBlockLoader(blockLoader, (AbstractConvertFunction) mt.conversionFromKeyword());
+        // }
+        // if (uf.getState() instanceof PotentiallyUnmappedEsField.SimpleResolution sr) {
+        // return new TypeConvertingBlockLoader(
+        // blockLoader,
+        // (AbstractConvertFunction) (isUnmapped ? sr.unmappedConversion() : sr.mappedConversion())
+        // );
+        // }
+        // }
+        // var unionTypes = findUnionTypes(attr);
+        // if (unionTypes != null) {
+        // String indexName = shardContext.ctx.index().getName();
+        // Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
+        // return conversion == null
+        // ? BlockLoader.CONSTANT_NULLS
+        // : new TypeConvertingBlockLoader(blockLoader, (AbstractConvertFunction) conversion);
+        // }
+        // return blockLoader;
     }
 
     /** A hack to pretend an unmapped field still exists. */
-    private static class DefaultShardContextForUnmappedField extends DefaultShardContext {
-        private final PotentiallyUnmappedEsField unmappedEsField;
-
-        DefaultShardContextForUnmappedField(DefaultShardContext ctx, PotentiallyUnmappedEsField unmappedEsField) {
-            super(ctx.index, ctx.ctx, ctx.aliasFilter);
-            this.unmappedEsField = unmappedEsField;
-        }
-
-        @Override
-        protected MappedFieldType fieldType(String name) {
-            var superResult = super.fieldType(name);
-            return superResult == null && name.equals(unmappedEsField.getName())
-                ? new KeywordFieldMapper.KeywordFieldType(name, false /* isIndexed */, false /* hasDocValues */, Map.of() /* meta */)
-                : superResult;
-        }
-    }
+    // private static class DefaultShardContextForUnmappedField extends DefaultShardContext {
+    // private final PotentiallyUnmappedEsField unmappedEsField;
+    //
+    // DefaultShardContextForUnmappedField(DefaultShardContext ctx, PotentiallyUnmappedEsField unmappedEsField) {
+    // super(ctx.index, ctx.ctx, ctx.aliasFilter);
+    // this.unmappedEsField = unmappedEsField;
+    // }
+    //
+    // @Override
+    // protected MappedFieldType fieldType(String name) {
+    // var superResult = super.fieldType(name);
+    // return superResult == null && name.equals(unmappedEsField.getName())
+    // ? new KeywordFieldMapper.KeywordFieldType(name, false /* isIndexed */, false /* hasDocValues */, Map.of() /* meta */)
+    // : superResult;
+    // }
+    // }
 
     private static @Nullable MultiTypeEsField findUnionTypes(Attribute attr) {
-        if (attr instanceof FieldAttribute fa) {
-            EsField field = fa.field();
-            if (field instanceof PotentiallyUnmappedEsField unmapped
-                && unmapped.getState() instanceof PotentiallyUnmappedEsField.MultiType mt) {
-                return mt.multiTypeEsField();
-            } else if (field instanceof MultiTypeEsField multiTypeEsField) {
-                return multiTypeEsField;
-            }
-        }
-        return null;
+        throw new AssertionError("TODO(gal)");
+        // if (attr instanceof FieldAttribute fa) {
+        // EsField field = fa.field();
+        // if (field instanceof PotentiallyUnmappedEsField unmapped
+        // && unmapped.getState() instanceof PotentiallyUnmappedEsField.MultiType mt) {
+        // return mt.multiTypeEsField();
+        // } else if (field instanceof MultiTypeEsField multiTypeEsField) {
+        // return multiTypeEsField;
+        // }
+        // }
+        // return null;
     }
 
     public Function<org.elasticsearch.compute.lucene.ShardContext, Query> querySupplier(QueryBuilder builder) {

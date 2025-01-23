@@ -88,6 +88,7 @@ public final class RRFRankDoc extends RankDoc {
 
     @Override
     public Explanation explain(Explanation[] sources, String[] queryNames) {
+        assert positions != null && scores != null && rankConstant != null;
         assert sources.length == scores.length;
         int queries = positions.length;
         Explanation[] details = new Explanation[queries];

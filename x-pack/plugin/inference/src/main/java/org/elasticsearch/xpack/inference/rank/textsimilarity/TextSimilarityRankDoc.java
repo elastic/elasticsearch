@@ -47,6 +47,7 @@ public class TextSimilarityRankDoc extends RankDoc {
 
     @Override
     public Explanation explain(Explanation[] sources, String[] queryNames) {
+        assert inferenceId != null && field != null;
         final String queryAlias = queryNames[0] == null ? "" : "[" + queryNames[0] + "]";
         return Explanation.match(
             score,

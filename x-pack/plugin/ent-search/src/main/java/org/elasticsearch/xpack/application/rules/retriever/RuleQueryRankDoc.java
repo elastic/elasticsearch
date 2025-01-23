@@ -53,7 +53,7 @@ public class RuleQueryRankDoc extends RankDoc {
 
     @Override
     public Explanation explain(Explanation[] sources, String[] queryNames) {
-
+        assert rulesetIds != null && matchCriteria != null;
         return Explanation.match(
             score,
             "query rules evaluated rules from rulesets " + rulesetIds + " and match criteria " + matchCriteria,

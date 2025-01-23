@@ -133,7 +133,7 @@ import java.util.stream.IntStream;
 public abstract class AbstractLookupService<R extends AbstractLookupService.Request, T extends AbstractLookupService.TransportRequest> {
     private final String actionName;
     private final ClusterService clusterService;
-    private final CreateShardContext createShardContext;
+    private final LookupShardContextFactory lookupShardContextFactory;
     private final TransportService transportService;
     private final Executor executor;
     private final BigArrays bigArrays;
@@ -152,7 +152,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     AbstractLookupService(
         String actionName,
         ClusterService clusterService,
-        CreateShardContext createShardContext,
+        LookupShardContextFactory lookupShardContextFactory,
         TransportService transportService,
         BigArrays bigArrays,
         BlockFactory blockFactory,
@@ -161,7 +161,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     ) {
         this.actionName = actionName;
         this.clusterService = clusterService;
-        this.createShardContext = createShardContext;
+        this.lookupShardContextFactory = lookupShardContextFactory;
         this.transportService = transportService;
         this.executor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH);
         this.bigArrays = bigArrays;
@@ -327,7 +327,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         final List<Releasable> releasables = new ArrayList<>(6);
         boolean started = false;
         try {
-            LookupShardContext shardContext = createShardContext.create(request.shardId);
+            LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
             releasables.add(shardContext.release);
             final LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(
                 blockFactory.breaker(),
@@ -680,10 +680,10 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     /**
      * Create a {@link LookupShardContext} for a locally allocated {@link ShardId}.
      */
-    public interface CreateShardContext {
+    public interface LookupShardContextFactory {
         LookupShardContext create(ShardId shardId) throws IOException;
 
-        static CreateShardContext fromSearchService(SearchService searchService) {
+        static LookupShardContextFactory fromSearchService(SearchService searchService) {
             return shardId -> {
                 ShardSearchRequest shardSearchRequest = new ShardSearchRequest(shardId, 0, AliasFilter.EMPTY);
                 return LookupShardContext.fromSearchContext(

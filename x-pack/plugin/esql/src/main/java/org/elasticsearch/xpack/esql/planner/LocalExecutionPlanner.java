@@ -598,7 +598,7 @@ public class LocalExecutionPlanner {
                 parentTask,
                 context.queryPragmas().enrichMaxWorkers(),
                 matchConfig.channel(),
-                lookupFromIndexService,
+                ctx -> lookupFromIndexService,
                 matchConfig.type(),
                 indexName,
                 matchConfig.fieldName(),

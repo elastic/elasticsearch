@@ -194,14 +194,13 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
     }
 
     @SuppressWarnings("unchecked")
-    public void testGetAuthorization_OnResponseCalledOnce() throws IllegalStateException {
+    public void testGetAuthorization_OnResponseCalledOnce() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var eisGatewayUrl = getUrl(webServer);
         var logger = mock(Logger.class);
         var authHandler = new ElasticInferenceServiceAuthorizationHandler(eisGatewayUrl, threadPool, logger);
 
         ActionListener<ElasticInferenceServiceAuthorization> listener = mock(ActionListener.class);
-
         String responseJson = """
                 {
                     "models": [
@@ -214,17 +213,18 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        authHandler.getAuthorization(listener, senderFactory.createSender());
-        authHandler.waitForAuthRequestCompletion(TimeValue.timeValueSeconds(1));
+        try (var sender = senderFactory.createSender()) {
+            authHandler.getAuthorization(listener, sender);
+            authHandler.waitForAuthRequestCompletion(TIMEOUT);
 
-        verify(listener, times(1)).onResponse(any());
+            verify(listener, times(1)).onResponse(any());
+            var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
+            verify(logger, times(1)).debug(loggerArgsCaptor.capture());
 
-        var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
-        verify(logger, times(1)).debug(loggerArgsCaptor.capture());
-
-        var message = loggerArgsCaptor.getValue();
-        assertThat(message, is("Retrieving authorization information from the Elastic Inference Service."));
-        verifyNoMoreInteractions(logger);
+            var message = loggerArgsCaptor.getValue();
+            assertThat(message, is("Retrieving authorization information from the Elastic Inference Service."));
+            verifyNoMoreInteractions(logger);
+        }
     }
 
     public void testGetAuthorization_InvalidResponse() throws IOException {
@@ -262,5 +262,4 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
         }
 
     }
-
 }

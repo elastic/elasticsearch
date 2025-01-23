@@ -127,10 +127,10 @@ public class ElasticInferenceServiceAuthorizationHandler {
     void waitForAuthRequestCompletion(TimeValue timeValue) throws IllegalStateException {
         try {
             if (requestCompleteLatch.await(timeValue.getMillis(), TimeUnit.MILLISECONDS) == false) {
-                throw new IllegalStateException("The authorization request did not complete.");
+                throw new IllegalStateException("The wait time has expired for authorization to complete.");
             }
-        } catch (IllegalStateException | InterruptedException e) {
-            logger.warn("Interrupted while waiting for the authorization request to complete", e);
+        } catch (InterruptedException e) {
+            throw new IllegalStateException("Waiting for authorization to complete was interrupted");
         }
     }
 }

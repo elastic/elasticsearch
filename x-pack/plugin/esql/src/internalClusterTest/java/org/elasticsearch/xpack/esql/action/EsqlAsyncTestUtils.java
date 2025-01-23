@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -91,7 +92,8 @@ public final class EsqlAsyncTestUtils {
                 assertNotNull(executionInfo);
                 EsqlExecutionInfo.Cluster clusterInfo = executionInfo.getCluster(clusterName);
                 // the status of the local cluster won't move to SUCCESS until the reduction pipeline is done
-                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterName) && clusterInfo.getTotalShards() > 0) {
+                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterName)
+                    && Objects.requireNonNullElse(clusterInfo.getTotalShards(), 0) > 0) {
                     return;
                 }
                 assertThat(clusterInfo.getStatus(), not(equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING)));

@@ -491,8 +491,8 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        var keepMode = sourceKeepMode().orElseGet(builderParams::indexSourceKeepMode);
-        if (keepMode != SourceKeepMode.NONE) {
+        var keepMode = sourceKeepMode();
+        if (keepMode.isPresent() && keepMode.get() != SourceKeepMode.NONE) {
             return super.syntheticSourceSupport();
         }
 

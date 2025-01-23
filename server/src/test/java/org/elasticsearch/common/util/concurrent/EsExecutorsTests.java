@@ -754,4 +754,112 @@ public class EsExecutorsTests extends ESTestCase {
         executor.execute(shouldBeRejected);
         assertTrue(rejected.get());
     }
+
+    public void testScalingWithEmptyCore() {
+        try (
+            var executor = EsExecutors.newScaling(
+                getTestName(),
+                0,
+                1,
+                0,
+                TimeUnit.SECONDS,
+                true,
+                EsExecutors.daemonThreadFactory(getTestName()),
+                threadContext
+            )
+        ) {
+            class Task extends AbstractRunnable {
+                private int remaining;
+                private final CountDownLatch doneLatch;
+
+                Task(int iterations, CountDownLatch doneLatch) {
+                    this.remaining = iterations;
+                    this.doneLatch = doneLatch;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
+
+                @Override
+                protected void doRun() {
+                    if (--remaining == 0) {
+                        doneLatch.countDown();
+                    } else {
+                        logger.info("--> remaining [{}]", remaining);
+                        new Thread(() -> executor.execute(Task.this)).start();
+                    }
+                }
+            }
+
+            for (int i = 0; i < 100; i++) {
+                logger.info("--> attempt [{}]", i);
+                final var doneLatch = new CountDownLatch(1);
+                executor.execute(new Task(between(1, 1000), doneLatch));
+                safeAwait(doneLatch);
+            }
+        }
+    }
+
+    public void testScalingWithEmptyCoreAndKeepAlive() {
+        try (
+            var executor = EsExecutors.newScaling(
+                getTestName(),
+                0,
+                1,
+                1,
+                TimeUnit.MILLISECONDS,
+                true,
+                EsExecutors.daemonThreadFactory(getTestName()),
+                threadContext
+            )
+        ) {
+            class Task extends AbstractRunnable {
+                private int remaining;
+                private final CountDownLatch doneLatch;
+
+                Task(int iterations, CountDownLatch doneLatch) {
+                    this.remaining = iterations;
+                    this.doneLatch = doneLatch;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
+
+                @Override
+                protected void doRun() {
+                    if (--remaining == 0) {
+                        doneLatch.countDown();
+                    } else {
+                        new Thread(() -> {
+                            final var targetNanoTime = System.nanoTime() + 1_000_000 + between(-10_000, 10_000);
+                            while (System.nanoTime() < targetNanoTime) {
+                                Thread.yield();
+                            }
+                            executor.execute(Task.this);
+                        }).start();
+                    }
+                }
+            }
+
+            for (int i = 0; i < 100; i++) {
+                logger.info("--> attempt [{}]", i);
+                final var doneLatch = new CountDownLatch(1);
+                executor.execute(new Task(between(1, 1000), doneLatch));
+                boolean success = false;
+                try {
+                    safeAwait(doneLatch);
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        logger.info("fail");
+                    }
+                }
+            }
+        }
+    }
+
 }

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -52,8 +53,8 @@ public class StartPersistentTaskAction {
             params = in.readNamedWriteable(PersistentTaskParams.class);
         }
 
-        public Request(String taskId, String taskName, PersistentTaskParams params) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout, String taskId, String taskName, PersistentTaskParams params) {
+            super(masterNodeTimeout);
             this.taskId = taskId;
             this.taskName = taskName;
             this.params = params;

@@ -486,6 +486,9 @@ public class EsExecutors {
             // force queue policy should only be used with a scaling queue
             assert queue instanceof ExecutorScalingQueue;
             try {
+                // If core size is 0, we risk adding the task onto the queue despite the only remaining worker timing out
+                // before the task can be worked on.
+                // Why not use allowCoreThreadTimeOut with core/max size 1 instead?
                 queue.put(task);
             } catch (final InterruptedException e) {
                 assert false : "a scaling queue never blocks so a put to it can never be interrupted";

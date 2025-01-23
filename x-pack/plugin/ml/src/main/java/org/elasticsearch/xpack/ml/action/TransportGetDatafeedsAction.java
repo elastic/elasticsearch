@@ -47,7 +47,6 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
             threadPool,
             actionFilters,
             GetDatafeedsAction.Request::new,
-            indexNameExpressionResolver,
             GetDatafeedsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

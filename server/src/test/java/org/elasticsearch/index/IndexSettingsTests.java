@@ -10,6 +10,7 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -17,7 +18,10 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.hamcrest.Matchers;
@@ -39,6 +43,7 @@ import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_IN
 import static org.elasticsearch.index.IndexSettings.STATELESS_MIN_NON_FAST_REFRESH_INTERVAL;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPER_DYNAMIC_SETTING;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.StringContains.containsString;
@@ -837,6 +842,35 @@ public class IndexSettingsTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newIndexMeta("test", settings));
         assertThat(e.getMessage(), Matchers.containsString("index.time_series.end_time must be larger than index.time_series.start_time"));
+    }
+
+    public void testIndexMapperDynamic() {
+        Settings settings = Settings.builder().put(INDEX_MAPPER_DYNAMIC_SETTING.getKey(), randomBoolean()).build();
+
+        INDEX_MAPPER_DYNAMIC_SETTING.get(settings);
+        assertWarnings(
+            "[index.mapper.dynamic] setting was deprecated in the previous Elasticsearch release and is removed in this release."
+        );
+
+        IndexMetadata idxMetaData = newIndexMeta("test", settings);
+        IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
+            Settings.EMPTY,
+            null,
+            xContentRegistry(),
+            new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            null,
+            MapperMetrics.NOOP
+        );
+        IndexMetadata verifiedMetaData = indexMetadataVerifier.verifyIndexMetadata(
+            idxMetaData,
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE
+        );
+        assertEquals(idxMetaData, verifiedMetaData);
+        assertWarnings(
+            "[index.mapper.dynamic] setting was deprecated in the previous Elasticsearch release and is removed in this release."
+        );
     }
 
     public void testSame() {

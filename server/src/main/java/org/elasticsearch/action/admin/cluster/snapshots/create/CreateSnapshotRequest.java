@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -69,9 +68,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     private String[] indices = EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = DataStream.isFailureStoreFeatureFlagEnabled()
-        ? IndicesOptions.strictExpandHiddenIncludeFailureStore()
-        : IndicesOptions.strictExpandHidden();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandHiddenFailureNoSelectors();
 
     private String[] featureStates = EMPTY_ARRAY;
 

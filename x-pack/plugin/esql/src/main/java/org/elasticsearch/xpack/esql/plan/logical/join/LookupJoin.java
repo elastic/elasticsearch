@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -79,10 +80,36 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
     @Override
     public void postAnalysisVerification(Failures failures) {
         super.postAnalysisVerification(failures);
-        if (right() instanceof EsRelation esr) {
+        right().forEachDown(EsRelation.class, esr -> {
+
+            if (esr.indexMode().equals(IndexMode.LOOKUP)) {
+                var indexNameWithModes = esr.indexNameWithModes();
+                if (indexNameWithModes.size() != 1) {
+                    failures.add(
+                        fail(
+                            esr,
+                            "invalid [{}] resolution in lookup mode to an index in [{}] indices",
+                            esr.indexPattern(),
+                            indexNameWithModes.size()
+                        )
+                    );
+                } else if (indexNameWithModes.values().iterator().next() != IndexMode.LOOKUP) {
+                    failures.add(
+                        fail(
+                            esr,
+                            "invalid [{}] resolution in lookup mode to an index in [{}] mode",
+                            esr.indexPattern(),
+                            indexNameWithModes.values().iterator().next()
+                        )
+                    );
+                }
+
+            }
+
+            // this check is crucial for security: ES|QL would use the concrete indices, so it would bypass the security on the alias
             if (esr.concreteIndices().contains(esr.indexPattern()) == false) {
                 failures.add(fail(this, "Aliases and index patterns are not allowed for LOOKUP JOIN [{}]", esr.indexPattern()));
             }
-        }
+        });
     }
 }

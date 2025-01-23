@@ -564,7 +564,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
         assertThat(respMap.get("values"), equalTo(List.of(List.of(40.0, "sales"))));
 
-        // Aliases are now allowed in LOOKUP JOIN
+        // Aliases are not allowed in LOOKUP JOIN
         var resp2 = expectThrows(
             ResponseException.class,
             () -> runESQLCommand("alias_user1", "ROW x = 31.0 | EVAL value = x | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x, org")
@@ -573,7 +573,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(resp2.getMessage(), containsString("Aliases and index patterns are not allowed for LOOKUP JOIN [lookup-first-alias]"));
         assertThat(resp2.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
 
-        // Aliases are now allowed in LOOKUP JOIN, regardless of alias filters
+        // Aliases are not allowed in LOOKUP JOIN, regardless of alias filters
         resp2 = expectThrows(
             ResponseException.class,
             () -> runESQLCommand("alias_user1", "ROW x = 123.0 | EVAL value = x | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x, org")

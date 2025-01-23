@@ -12,6 +12,7 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.InputStreamReader;
@@ -39,7 +40,7 @@ public class RestUpdateActionIT extends ESIntegTestCase {
         assertThat(response, containsString(sourceEscaped));
 
         // disable source on error
-        request.addParameter("include_source_on_error", "false");
+        request.addParameter(RestUtils.INCLUDE_SOURCE_ON_ERROR_PARAMETER, "false");
         exception = assertThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
         assertThat(

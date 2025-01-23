@@ -142,7 +142,7 @@ public class IndexingStateProcessor implements StateProcessor {
     void persist(String indexOrAlias, BytesReference bytes) throws IOException {
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .requireAlias(AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias));
-        bulkRequest.add(bytes, indexOrAlias, false, XContentType.JSON);
+        bulkRequest.add(bytes, indexOrAlias, XContentType.JSON);
         if (bulkRequest.numberOfActions() > 0) {
             LOGGER.trace("[{}] Persisting job state document: index [{}], length [{}]", jobId, indexOrAlias, bytes.length());
             try {

@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.InputStreamReader;
@@ -40,7 +41,7 @@ public class RestBulkActionIT extends ESIntegTestCase {
         String responseContent = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), UTF_8));
         assertThat(responseContent, containsString(sourceEscaped));
 
-        request.addParameter("include_source_on_error", "false");
+        request.addParameter(RestUtils.INCLUDE_SOURCE_ON_ERROR_PARAMETER, "false");
 
         response = getRestClient().performRequest(request);
         responseContent = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), UTF_8));
@@ -57,7 +58,7 @@ public class RestBulkActionIT extends ESIntegTestCase {
         var sourceEscaped = "{\\\"field\\\": \\\"index\\\",}";
 
         var request = new Request("PUT", "/test_index/_bulk");
-        request.addParameter("include_source_on_error", "false");
+        request.addParameter(RestUtils.INCLUDE_SOURCE_ON_ERROR_PARAMETER, "false");
         request.setJsonEntity(Strings.format("{\"update\":{\"_id\":\"1\"}}\n{\"doc\":%s}}\n", source));
 
         // note: this behavior is not consistent with bulk index actions

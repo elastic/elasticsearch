@@ -29,6 +29,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
@@ -103,7 +104,7 @@ public class RestBulkAction extends BaseRestHandler {
             boolean defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
             bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
             bulkRequest.setRefreshPolicy(request.param("refresh"));
-            bulkRequest.includeSourceOnError(request.paramAsBoolean("include_source_on_error", true));
+            bulkRequest.includeSourceOnError(RestUtils.getIncludeSourceOnError(request));
             ReleasableBytesReference content = request.requiredContent();
 
             try {
@@ -161,7 +162,7 @@ public class RestBulkAction extends BaseRestHandler {
         ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
             this.request = request;
             this.handlerSupplier = handlerSupplier;
-            this.parser = new BulkRequestParser(true, request.paramAsBoolean("include_source_on_error", true), request.getRestApiVersion())
+            this.parser = new BulkRequestParser(true, RestUtils.getIncludeSourceOnError(request), request.getRestApiVersion())
                 .incrementalParser(
                     request.param("index"),
                     request.param("routing"),

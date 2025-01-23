@@ -62,6 +62,16 @@ public class SourceToParse {
         this(id, source, xContentType, routing, Map.of(), true, XContentMeteringParserDecorator.NOOP);
     }
 
+    public SourceToParse(
+        String id,
+        BytesReference source,
+        XContentType xContentType,
+        String routing,
+        Map<String, String> dynamicTemplates
+    ) {
+        this(id, source, xContentType, routing, dynamicTemplates, true, XContentMeteringParserDecorator.NOOP);
+    }
+
     public BytesReference source() {
         return this.source;
     }

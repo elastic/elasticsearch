@@ -539,7 +539,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
 
     private XContentParserConfiguration internalParserConfig() {
         // consume query param lazily so we can report if consumed or not
-        return parserConfig.withIncludeSourceOnError(paramAsBoolean("include_source_on_error", true));
+        return parserConfig.withIncludeSourceOnError(RestUtils.getIncludeSourceOnError(this));
     }
 
     /**

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.external.response.cohere;
 import org.apache.http.HttpResponse;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.inference.results.InferenceByteEmbedding;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -182,10 +184,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        MatcherAssert.assertThat(
-            parsedResults.embeddings(),
-            is(List.of(new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(new byte[] { (byte) -1, (byte) 0 })))
-        );
+        MatcherAssert.assertThat(parsedResults.embeddings(), is(List.of(new InferenceByteEmbedding(new byte[] { (byte) -1, (byte) 0 }))));
     }
 
     public void testFromResponse_ParsesBytes() throws IOException {
@@ -220,10 +219,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        MatcherAssert.assertThat(
-            parsedResults.embeddings(),
-            is(List.of(new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(new byte[] { (byte) -1, (byte) 0 })))
-        );
+        MatcherAssert.assertThat(parsedResults.embeddings(), is(List.of(new InferenceByteEmbedding(new byte[] { (byte) -1, (byte) 0 }))));
     }
 
     public void testFromResponse_ParsesBytes_FromBinaryEmbeddingsEntry() throws IOException {
@@ -256,20 +252,14 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             }
             """;
 
-        InferenceTextEmbeddingByteResults parsedResults = (InferenceTextEmbeddingByteResults) CohereEmbeddingsResponseEntity.fromResponse(
+        InferenceTextEmbeddingBitResults parsedResults = (InferenceTextEmbeddingBitResults) CohereEmbeddingsResponseEntity.fromResponse(
             mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
         MatcherAssert.assertThat(
             parsedResults.embeddings(),
-            is(
-                List.of(
-                    new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(
-                        new byte[] { (byte) -55, (byte) 74, (byte) 101, (byte) 67, (byte) 83 }
-                    )
-                )
-            )
+            is(List.of(new InferenceByteEmbedding(new byte[] { (byte) -55, (byte) 74, (byte) 101, (byte) 67, (byte) 83 })))
         );
     }
 
@@ -402,7 +392,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             }
             """;
 
-        InferenceTextEmbeddingByteResults parsedResults = (InferenceTextEmbeddingByteResults) CohereEmbeddingsResponseEntity.fromResponse(
+        InferenceTextEmbeddingBitResults parsedResults = (InferenceTextEmbeddingBitResults) CohereEmbeddingsResponseEntity.fromResponse(
             mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
@@ -411,12 +401,8 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             parsedResults.embeddings(),
             is(
                 List.of(
-                    new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(
-                        new byte[] { (byte) -55, (byte) 74, (byte) 101, (byte) 67 }
-                    ),
-                    new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(
-                        new byte[] { (byte) 34, (byte) -64, (byte) 97, (byte) 65, (byte) -42 }
-                    )
+                    new InferenceByteEmbedding(new byte[] { (byte) -55, (byte) 74, (byte) 101, (byte) 67 }),
+                    new InferenceByteEmbedding(new byte[] { (byte) 34, (byte) -64, (byte) 97, (byte) 65, (byte) -42 })
                 )
             )
         );

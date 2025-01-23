@@ -41,7 +41,6 @@ tasks.named("yamlRestTest").configure {
     '^data_stream/lifecycle/*/*',
     '^data_stream/10_basic/Get data stream and check DSL and ILM information',
     '^data_stream/40_supported_apis/Verify shard stores api', // uses _shard_stores API
-    '^data_stream/130_migrate_to_data_stream/*',
     '^health/10_basic/*',
     '^health/40_diagnosis/*',
     '^indices.blocks/*/*',

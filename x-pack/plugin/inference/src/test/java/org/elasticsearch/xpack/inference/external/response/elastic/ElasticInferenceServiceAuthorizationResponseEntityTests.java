@@ -17,20 +17,19 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 
-
 public class ElasticInferenceServiceAuthorizationResponseEntityTests extends ESTestCase {
 
     public void testParseAllFields() throws IOException {
         String json = """
-            {
-                "models": [
-                    {
-                        "model_name": "test_model",
-                        "task_types": ["embedding/text/sparse", "chat/completion"]
-                    }
-                ]
-            }
-        """;
+                {
+                    "models": [
+                        {
+                            "model_name": "test_model",
+                            "task_types": ["embed/text/sparse", "chat"]
+                        }
+                    ]
+                }
+            """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, json)) {
             var entity = ElasticInferenceServiceAuthorizationResponseEntity.PARSER.apply(parser, null);
@@ -47,13 +46,12 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
         }
     }
 
-
     public void testParsing_EmptyModels() throws IOException {
         String json = """
-            {
-                "models": []
-            }
-        """;
+                {
+                    "models": []
+                }
+            """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, json)) {
             var entity = ElasticInferenceServiceAuthorizationResponseEntity.PARSER.apply(parser, null);

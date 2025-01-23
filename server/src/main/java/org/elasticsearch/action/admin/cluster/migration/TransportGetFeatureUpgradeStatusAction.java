@@ -78,7 +78,6 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             GetFeatureUpgradeStatusRequest::new,
-            indexNameExpressionResolver,
             GetFeatureUpgradeStatusResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

@@ -165,7 +165,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             threadPool,
             actionFilters,
             DownsampleAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);

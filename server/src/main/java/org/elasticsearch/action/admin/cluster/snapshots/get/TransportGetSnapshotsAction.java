@@ -123,7 +123,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             threadPool,
             actionFilters,
             GetSnapshotsRequest::new,
-            indexNameExpressionResolver,
             GetSnapshotsResponse::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT) // see [NOTE ON THREADING]
         );

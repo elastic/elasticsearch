@@ -121,7 +121,12 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     }
 
     /**
-     * Copy the values in {@code block} at {@code position}.
+     * Copy the values in {@code block} at {@code position}. If this position
+     * has a single value, this'll copy a single value. If this positions has
+     * many values, it'll copy all of them. If this is {@code null}, then it'll
+     * copy the {@code null}.
+     * @param scratch Scratch string used to prevent allocation. Share this
+                      between many calls to this function.
      * <p>
      *     Note that there isn't a version of this method on {@link Block.Builder} that takes
      *     {@link Block}. That'd be quite slow, running position by position. And it's important

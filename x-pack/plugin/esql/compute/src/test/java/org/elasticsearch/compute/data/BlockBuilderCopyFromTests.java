@@ -100,7 +100,7 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
                 case FLOAT -> ((FloatBlockBuilder) builder).copyFrom((FloatBlock) block, i);
                 case INT -> ((IntBlockBuilder) builder).copyFrom((IntBlock) block, i);
                 case LONG -> ((LongBlockBuilder) builder).copyFrom((LongBlock) block, i);
-                default -> throw new IllegalArgumentException();
+                default -> throw new IllegalArgumentException("unsupported type: " + elementType);
             }
 
             expected.add(valuesAtPositions(block, i, i + 1).get(0));

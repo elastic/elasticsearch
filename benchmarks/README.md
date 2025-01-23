@@ -130,7 +130,7 @@ gradlew -p benchmarks/ run --args 'LongKeyedBucketOrdsBenchmark.multiBucket -pro
 ```
 
 Note: As of January 2025 the latest release of async profiler doesn't work
-      with out JDK but the nightly is fine.
+      with our JDK but the nightly is fine.
 
 If you are on Mac, this'll warn you that you downloaded the shared library from
 the internet. You'll need to go to settings and allow it to run.

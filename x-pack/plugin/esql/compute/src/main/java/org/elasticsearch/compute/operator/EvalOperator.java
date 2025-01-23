@@ -99,14 +99,15 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
                 @Override
                 public String toString() {
-                    return "ConstantNull";
+                    return CONSTANT_NULL_NAME;
                 }
             };
         }
 
         @Override
         public String toString() {
-            return "ConstantNull";
+            return CONSTANT_NULL_NAME;
         }
     };
+    private static final String CONSTANT_NULL_NAME = "ConstantNull";
 }

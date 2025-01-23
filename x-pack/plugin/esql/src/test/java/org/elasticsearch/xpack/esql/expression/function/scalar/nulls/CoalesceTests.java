@@ -12,13 +12,14 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -266,8 +267,12 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
     }
 
     /**
-     * Inserts random non-null garbage <strong>around</strong> the expected data
-     * and runs
+     * Inserts random non-null garbage <strong>around</strong> the expected data and runs COALESCE.
+     * <p>
+     *     This is important for catching the case where your value is null, but the rest of the block
+     *     isn't null. An off-by-one error in the evaluators can break this in a way that the standard
+     *     tests weren't catching and this does.
+     * </p>
      */
     public void testEvaluateWithGarbage() {
         DriverContext context = driverContext();
@@ -275,38 +280,48 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
         int positions = between(2, 1024);
         List<TestCaseSupplier.TypedData> data = testCase.getData();
         Page onePositionPage = row(testCase.getDataValues());
-        Block[] manyPositionsBlocks = new Block[Math.toIntExact(data.stream().filter(d -> d.isForceLiteral() == false).count())];
+        Block[] blocks = new Block[Math.toIntExact(data.stream().filter(d -> d.isForceLiteral() == false).count())];
         int realPosition = between(0, positions - 1);
         try {
-            int b = 0;
+            int blocksIndex = 0;
             for (TestCaseSupplier.TypedData d : data) {
-                ElementType elementType = PlannerUtils.toElementType(d.type());
-                try (Block.Builder builder = elementType.newBlockBuilder(positions, context.blockFactory())) {
-                    for (int p = 0; p < positions; p++) {
-                        if (p == realPosition) {
-                            builder.copyFrom(onePositionPage.getBlock(b), 0, 1);
-                        } else {
-                            builder.copyFrom(
-                                BlockUtils.constantBlock(TestBlockFactory.getNonBreakingInstance(), randomLiteral(d.type()).value(), 1),
-                                0,
-                                1
-                            );
-                        }
-                    }
-                    manyPositionsBlocks[b] = builder.build();
-                }
-                b++;
+                blocks[blocksIndex] = blockWithRandomGarbage(
+                    context.blockFactory(),
+                    d.type(),
+                    onePositionPage.getBlock(blocksIndex),
+                    positions,
+                    realPosition
+                );
+                blocksIndex++;
             }
             try (
                 EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(context);
-                Block block = eval.eval(new Page(positions, manyPositionsBlocks))
+                Block block = eval.eval(new Page(positions, blocks))
             ) {
                 assertThat(block.getPositionCount(), is(positions));
                 assertThat(toJavaObjectUnsignedLongAware(block, realPosition), testCase.getMatcher());
                 assertThat("evaluates to tracked block", block.blockFactory(), sameInstance(context.blockFactory()));
             }
         } finally {
-            Releasables.close(onePositionPage::releaseBlocks, Releasables.wrap(manyPositionsBlocks));
+            Releasables.close(onePositionPage::releaseBlocks, Releasables.wrap(blocks));
+        }
+    }
+
+    private Block blockWithRandomGarbage(
+        BlockFactory blockFactory,
+        DataType type,
+        Block singlePositionBlock,
+        int totalPositions,
+        int insertLocation
+    ) {
+        try (Block.Builder builder = PlannerUtils.toElementType(type).newBlockBuilder(totalPositions, blockFactory)) {
+            for (int p = 0; p < totalPositions; p++) {
+                Block copyFrom = p == insertLocation
+                    ? singlePositionBlock
+                    : BlockUtils.constantBlock(TestBlockFactory.getNonBreakingInstance(), randomLiteral(type).value(), 1);
+                builder.copyFrom(copyFrom, 0, 1);
+            }
+            return builder.build();
         }
     }
 }

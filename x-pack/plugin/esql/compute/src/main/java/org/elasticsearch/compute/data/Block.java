@@ -281,7 +281,8 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
          * Copy the values in {@code block} from {@code beginInclusive} to
          * {@code endExclusive} into this builder.
          * <p>
-         *     For single position copies see {@link IntBlockBuilder#copyFrom(IntBlock, int)},
+         *     For single position copies use the faster
+         *     {@link IntBlockBuilder#copyFrom(IntBlock, int)},
          *     {@link LongBlockBuilder#copyFrom(LongBlock, int)}, etc.
          * </p>
          */

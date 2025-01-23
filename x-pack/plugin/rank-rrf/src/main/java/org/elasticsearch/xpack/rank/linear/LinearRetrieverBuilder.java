@@ -134,7 +134,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             ? null
             : Arrays.stream(normalizers).map(ScoreNormalizer::getName).toArray(String[]::new);
         for (int result = 0; result < rankResults.size(); result++) {
-            final ScoreNormalizer normalizer = normalizers == null ? IdentityScoreNormalizer.INSTANCE : normalizers[result];
+            final ScoreNormalizer normalizer = normalizers == null || normalizers[result] == null ? IdentityScoreNormalizer.INSTANCE : normalizers[result];
             ScoreDoc[] originalScoreDocs = rankResults.get(result);
             ScoreDoc[] normalizedScoreDocs = normalizer.normalizeScores(originalScoreDocs);
             for (int scoreDocIndex = 0; scoreDocIndex < normalizedScoreDocs.length; scoreDocIndex++) {
@@ -158,7 +158,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                         final float docScore = false == Float.isNaN(normalizedScoreDocs[finalScoreIndex].score)
                             ? normalizedScoreDocs[finalScoreIndex].score
                             : DEFAULT_SCORE;
-                        final float weight = weights == null ? DEFAULT_WEIGHT : weights[finalResult];
+                        final float weight = weights == null || Float.isNaN(weights[finalResult]) ? DEFAULT_WEIGHT : weights[finalResult];
                         value.normalizedScores[finalResult] = normalizedScoreDocs[finalScoreIndex].score;
                         value.score += weight * docScore;
                         return value;

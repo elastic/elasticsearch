@@ -212,13 +212,13 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
                     ]
                 }
             """;
-
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
         authHandler.getAuthorization(listener, senderFactory.createSender());
-        authHandler.waitForAuthRequestCompletion(TIMEOUT);
+        authHandler.waitForAuthRequestCompletion(TimeValue.timeValueSeconds(1));
 
         verify(listener, times(1)).onResponse(any());
+
         var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
         verify(logger, times(1)).debug(loggerArgsCaptor.capture());
 

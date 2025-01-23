@@ -480,7 +480,7 @@ class Elasticsearch {
         return new Environment(builder.build(), configDir);
     }
 
-    private static Map<String, Set<String>> findPluginsWithNativeAccess(Map<String, Policy> policies) {
+    static Map<String, Set<String>> findPluginsWithNativeAccess(Map<String, Policy> policies) {
         Map<String, Set<String>> pluginsWithNativeAccess = new HashMap<>();
         for (var kv : policies.entrySet()) {
             for (var scope : kv.getValue().scopes()) {

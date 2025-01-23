@@ -16,4 +16,8 @@ public class NativeAccessUtil {
     public static void enableNativeAccess(ModuleLayer.Controller controller, Module module) {
         controller.enableNativeAccess(module);
     }
+
+    public static boolean isNativeAccessEnabled(Module module) {
+        return module.isNativeAccessEnabled();
+    }
 }

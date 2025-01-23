@@ -14,4 +14,8 @@ public class NativeAccessUtil {
      * Enables native access for the provided module. No-op for JDK 21 or before.
      */
     public static void enableNativeAccess(ModuleLayer.Controller controller, Module module) {}
+
+    public static boolean isNativeAccessEnabled(Module module) {
+        return true;
+    }
 }

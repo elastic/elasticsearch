@@ -28,6 +28,7 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
@@ -45,7 +46,11 @@ public class PluginsLoaderTests extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(PluginsLoaderTests.class);
 
     static PluginsLoader newPluginsLoader(Settings settings) {
-        return PluginsLoader.createPluginsLoader(null, TestEnvironment.newEnvironment(settings).pluginsFile(), false);
+        return PluginsLoader.createPluginsLoader(
+            Set.of(),
+            PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsFile()),
+            false
+        );
     }
 
     public void testToModuleName() {

@@ -60,6 +60,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -77,7 +78,7 @@ public class ScriptScoreBenchmark {
     private final PluginsService pluginsService = new PluginsService(
         Settings.EMPTY,
         null,
-        PluginsLoader.createPluginsLoader(null, Path.of(System.getProperty("plugins.dir")))
+        PluginsLoader.createPluginsLoader(Set.of(), PluginsLoader.loadPluginsBundles(Path.of(System.getProperty("plugins.dir"))))
     );
     private final ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, pluginsService.filterPlugins(ScriptPlugin.class).toList());
 

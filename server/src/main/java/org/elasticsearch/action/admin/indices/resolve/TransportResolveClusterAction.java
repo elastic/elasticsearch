@@ -59,6 +59,8 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
         ResolveClusterActionResponse::new
     );
 
+    private static final String DUMMY_INDEX_FOR_OLDER_CLUSTERS = "*:dummy*";
+
     private final Executor searchCoordinationExecutor;
     private final ClusterService clusterService;
     private final RemoteClusterService remoteClusterService;
@@ -94,10 +96,39 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
         assert task instanceof CancellableTask;
         final CancellableTask resolveClusterTask = (CancellableTask) task;
         ClusterState clusterState = clusterService.state();
-        Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(), request.indices());
-        OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
         Map<String, ResolveClusterInfo> clusterInfoMap = new ConcurrentHashMap<>();
+        Map<String, OriginalIndices> remoteClusterIndices;
+        if (request.clusterInfoOnly()) {
+            if (request.queryingCluster()) {
+                /*
+                 * User does not want to check whether an index expression matches, so we use the "*:dummy*" index pattern to
+                 * 1) determine all the local configured remote cluster and
+                 * 2) for older clusters that do not understand the new clusterInfoOnly setting (or for even older clusters
+                 *    where we need to fall back to using _resolve/index), we have to provide an index expression so use dummy*
+                 *    and then ignore the matching_indices value that comes back from those remotes. This is preferable to sending
+                 *    just "*" since that could be an expensive operation on clusters with thousands of indices/aliases/datastreams
+                 */
+                String[] dummyIndexExpr = new String[] { DUMMY_INDEX_FOR_OLDER_CLUSTERS };
+                remoteClusterIndices = remoteClusterService.groupIndices(IndicesOptions.DEFAULT, dummyIndexExpr, false);
+                if (remoteClusterIndices.isEmpty()) {
+                    // no remote clusters are configured on the primary "querying" cluster
+                    listener.onResponse(new ResolveClusterActionResponse(Map.of()));
+                    return;
+                }
+            } else {
+                // on remote if clusterInfoOnly is requested, don't bother with index expression matching
+                ResolveClusterInfo resolveClusterInfo = new ResolveClusterInfo(true, false, null, Build.current());
+                clusterInfoMap.put(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, resolveClusterInfo);
+                listener.onResponse(new ResolveClusterActionResponse(clusterInfoMap));
+                return;
+            }
+        } else {
+            remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(), request.indices(), false);
+        }
+
+        OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+
         // add local cluster info if in scope of the index-expression from user
         if (localIndices != null) {
             try {
@@ -142,7 +173,12 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                     searchCoordinationExecutor,
                     RemoteClusterService.DisconnectedStrategy.FAIL_IF_DISCONNECTED
                 );
-                var remoteRequest = new ResolveClusterActionRequest(originalIndices.indices(), request.indicesOptions());
+                var remoteRequest = new ResolveClusterActionRequest(
+                    originalIndices.indices(),
+                    request.indicesOptions(),
+                    request.clusterInfoOnly(),
+                    false
+                );
                 // allow cancellation requests to propagate to remote clusters
                 remoteRequest.setParentTask(clusterService.localNode().getId(), task.getId());
 
@@ -155,7 +191,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                         }
                         ResolveClusterInfo info = response.getResolveClusterInfo().get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
                         if (info != null) {
-                            clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(info, skipUnavailable));
+                            clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(info, skipUnavailable, request.clusterInfoOnly()));
                         }
                         if (resolveClusterTask.isCancelled()) {
                             releaseResourcesOnCancel(clusterInfoMap);
@@ -196,28 +232,13 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                                     originalIndices.indices(),
                                     originalIndices.indicesOptions()
                                 );
-                                ActionListener<ResolveIndexAction.Response> resolveIndexActionListener = new ActionListener<>() {
-                                    @Override
-                                    public void onResponse(ResolveIndexAction.Response response) {
-                                        boolean matchingIndices = response.getIndices().size() > 0
-                                            || response.getAliases().size() > 0
-                                            || response.getDataStreams().size() > 0;
-                                        clusterInfoMap.put(
-                                            clusterAlias,
-                                            new ResolveClusterInfo(true, skipUnavailable, matchingIndices, null)
-                                        );
-                                    }
-
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        Throwable cause = ExceptionsHelper.unwrapCause(e);
-                                        clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable, cause.toString()));
-                                        logger.warn(
-                                            () -> Strings.format("Failure from _resolve/cluster lookup against cluster %s: ", clusterAlias),
-                                            e
-                                        );
-                                    }
-                                };
+                                ActionListener<ResolveIndexAction.Response> resolveIndexActionListener = createResolveIndexActionListener(
+                                    clusterAlias,
+                                    request.clusterInfoOnly(),
+                                    skipUnavailable,
+                                    clusterInfoMap,
+                                    resolveClusterTask
+                                );
                                 remoteClusterClient.execute(
                                     ResolveIndexAction.REMOTE_TYPE,
                                     resolveIndexRequest,
@@ -238,7 +259,73 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                             releaseResourcesOnCancel(clusterInfoMap);
                         }
                     }
+
+                    /**
+                     * Create an ActionListener to handle responses from calls when falling back to use the resolve/index
+                     * endpoint from older clusters that don't have the resolve/cluster endpoint.
+                     */
+                    private static ActionListener<ResolveIndexAction.Response> createResolveIndexActionListener(
+                        String clusterAlias,
+                        boolean clusterInfoOnly,
+                        boolean skipUnavailable,
+                        Map<String, ResolveClusterInfo> clusterInfoMap,
+                        CancellableTask resolveClusterTask
+                    ) {
+                        return new ActionListener<>() {
+                            @Override
+                            public void onResponse(ResolveIndexAction.Response response) {
+                                if (resolveClusterTask.isCancelled()) {
+                                    releaseResourcesOnCancel(clusterInfoMap);
+                                    return;
+                                }
+
+                                Boolean matchingIndices = null;
+                                if (clusterInfoOnly == false) {
+                                    matchingIndices = response.getIndices().size() > 0
+                                        || response.getAliases().size() > 0
+                                        || response.getDataStreams().size() > 0;
+                                }
+                                clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(true, skipUnavailable, matchingIndices, null));
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                if (resolveClusterTask.isCancelled()) {
+                                    releaseResourcesOnCancel(clusterInfoMap);
+                                    return;
+                                }
+
+                                ResolveClusterInfo resolveClusterInfo;
+                                if (ExceptionsHelper.isRemoteUnavailableException((e))) {
+                                    resolveClusterInfo = new ResolveClusterInfo(false, skipUnavailable);
+                                } else if (ExceptionsHelper.unwrap(
+                                    e,
+                                    ElasticsearchSecurityException.class
+                                ) instanceof ElasticsearchSecurityException ese) {
+                                    /*
+                                     * some ElasticsearchSecurityExceptions come from the local cluster security interceptor after you've
+                                     * issued the client.execute call but before any call went to the remote cluster, so with an
+                                     * ElasticsearchSecurityException you can't tell whether the remote cluster is available or not, so mark
+                                     * it as connected=false
+                                     */
+                                    resolveClusterInfo = new ResolveClusterInfo(false, skipUnavailable, ese.getMessage());
+                                } else if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class) instanceof IndexNotFoundException ie) {
+                                    resolveClusterInfo = new ResolveClusterInfo(true, skipUnavailable, ie.getMessage());
+                                } else {
+                                    // not clear what the error is here, so be safe and mark the cluster as not connected
+                                    String errorMessage = ExceptionsHelper.unwrapCause(e).getMessage();
+                                    resolveClusterInfo = new ResolveClusterInfo(false, skipUnavailable, errorMessage);
+                                    logger.warn(
+                                        () -> Strings.format("Failure from _resolve/index lookup against cluster %s: ", clusterAlias),
+                                        e
+                                    );
+                                }
+                                clusterInfoMap.put(clusterAlias, resolveClusterInfo);
+                            }
+                        };
+                    }
                 };
+
                 remoteClusterClient.execute(
                     TransportResolveClusterAction.REMOTE_TYPE,
                     remoteRequest,

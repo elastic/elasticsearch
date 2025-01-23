@@ -386,7 +386,10 @@ public class EsqlCapabilities {
          * Support running date format function on nanosecond dates
          */
         DATE_NANOS_DATE_FORMAT(),
-
+        /**
+         * support date diff function on date nanos type, and mixed nanos/millis
+         */
+        DATE_NANOS_DATE_DIFF(),
         /**
          * DATE_PARSE supports reading timezones
          */

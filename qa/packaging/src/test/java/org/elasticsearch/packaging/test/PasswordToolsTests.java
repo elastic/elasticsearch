@@ -169,6 +169,7 @@ public class PasswordToolsTests extends PackagingTestCase {
                     } catch (InterruptedException interrupted) {
                         Thread.currentThread().interrupt();
                         failure.addSuppressed(interrupted);
+                        throw failure;
                     }
                 } else {
                     throw e;

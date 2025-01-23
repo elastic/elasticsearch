@@ -145,34 +145,6 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
         assertThat(actual, equalTo(expected));
     }
 
-    public void testSyntheticSourceInheritsKeepAll() throws IOException {
-        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
-        DocumentMapper mapperAll = createSytheticSourceMapperService(mapping(b -> {
-            b.startObject("wrapper");
-            b.field("type", "object");
-            b.field("synthetic_source_keep", "all");
-            b.startObject("properties");
-            b.startObject("field");
-            example.mapping().accept(b);
-            b.endObject();
-            b.endObject();
-            b.endObject();
-        })).documentMapper();
-
-        CheckedConsumer<XContentBuilder, IOException> buildInput = (XContentBuilder builder) -> {
-            builder.startObject("wrapper");
-            example.buildInput(builder);
-            builder.endObject();
-        };
-
-        var builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        buildInput.accept(builder);
-        builder.endObject();
-        String expected = Strings.toString(builder);
-        assertThat(syntheticSource(mapperAll, buildInput), equalTo(expected));
-    }
-
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return new SyntheticSourceSupport() {

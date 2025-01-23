@@ -44,6 +44,18 @@ public record IbmWatsonxRerankRequestEntity( String query, List<String> inputs, 
         builder.endArray();
         builder.field(PROJECT_ID_FIELD, projectId);
 
+        builder.startObject("parameters");
+        {
+            builder.startObject("return_options");
+            {
+                if (taskSettings.getDoesReturnDocuments() != null) {
+                    builder.field("inputs", taskSettings.getDoesReturnDocuments());
+                }
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+
         builder.endObject();
 
         return builder;

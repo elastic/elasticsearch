@@ -38,40 +38,39 @@ public class IbmWatsonxRankedResponseEntity {
      *
      * For a request like:
      *     "model": "rerank-english-v2.0",
-     *     "query": "What is the capital of the United States?",
+     *     "query": "database",
      *     "return_documents": true,
      *     "top_n": 3,
-     *     "documents": ["Carson City is the capital city of the American state of Nevada.",
-     *                   "The Commonwealth of the Northern Mariana ... Its capital is Saipan.",
-     *                   "Washington, D.C. (also known as simply Washington or D.C., ... It is a federal district.",
-     *                   "Capital punishment (the death penalty) ... As of 2017, capital punishment is legal in 30 of the 50 states."]
+     *     "input": ["greenland", "google","john", "mysql","potter", "grammar"]
      * <p>
      *  The response will look like (without whitespace):
      *     {
-     *     "id": "1983d114-a6e8-4940-b121-eb4ac3f6f703",
-     *     "results": [
-     *         {
-     *             "document": {
-     *                 "text": "Washington, D.C.  is the capital of the United States. It is a federal district."
-     *             },
-     *             "index": 2,
-     *             "relevance_score": 0.98005307
-     *         },
-     *         {
-     *             "document": {
-     *                 "text": "Capital punishment (the death penalty) As of 2017, capital punishment is legal in 30 of the 50 states."
-     *             },
-     *             "index": 3,
-     *             "relevance_score": 0.27904198
-     *         },
-     *         {
-     *             "document": {
-     *                 "text": "Carson City is the capital city of the American state of Nevada."
-     *             },
-     *             "index": 0,
-     *             "relevance_score": 0.10194652
-     *         }
-     *     ],
+     *     "rerank": [
+     *       {
+     *         "index": 3,
+     *         "relevance_score": 0.7989932
+     *       },
+     *       {
+     *         "index": 5,
+     *         "relevance_score": 0.61281824
+     *       },
+     *       {
+     *         "index": 1,
+     *         "relevance_score": 0.5762553
+     *       },
+     *       {
+     *         "index": 4,
+     *         "relevance_score": 0.47395563
+     *       },
+     *       {
+     *         "index": 0,
+     *         "relevance_score": 0.4338926
+     *       },
+     *       {
+     *         "index": 2,
+     *         "relevance_score": 0.42638257
+     *       }
+     *   ],
      *     "meta": {
      *         "api_version": {
      *             "version": "1"
@@ -128,7 +127,7 @@ public class IbmWatsonxRankedResponseEntity {
                         score = parser.floatValue();
                         parser.nextToken(); // move to next FIELD_NAME or END_OBJECT
                         break;
-                    case "document":
+                    case "input":
                         parser.nextToken(); // move to START_OBJECT; document text is wrapped in an object
                         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
                         do {

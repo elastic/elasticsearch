@@ -76,7 +76,7 @@ import static org.elasticsearch.common.lucene.Lucene.KEYWORD_ANALYZER;
  * 2 for each key (one per document), a <code>counted_terms</code> aggregation on a <code>counted_keyword</code> field will consider
  * the actual count and report a count of 3 for each key.</p>
  *
- * <p>Only regular source is supported; synthetic source won't work.</p>
+ * <p>Synthetic source is fully supported.</p>
  */
 public class CountedKeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "counted_keyword";

@@ -43,6 +43,9 @@ public class CohereEmbeddingsResponseEntity {
         toLowerCase(CohereEmbeddingType.FLOAT),
         CohereEmbeddingsResponseEntity::parseFloatEmbeddingsArray,
         toLowerCase(CohereEmbeddingType.INT8),
+        CohereEmbeddingsResponseEntity::parseByteEmbeddingsArray,
+        toLowerCase(CohereEmbeddingType.BINARY),
+        // Cohere returns array of binary embeddings encoded as bytes with int8 precision so we can reuse the byte parser
         CohereEmbeddingsResponseEntity::parseByteEmbeddingsArray
     );
     private static final String VALID_EMBEDDING_TYPES_STRING = supportedEmbeddingTypes();

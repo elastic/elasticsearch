@@ -99,6 +99,11 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
 
         var clusterStateObserver = new ClusterStateObserver(clusterService, request.getTimeout(), logger, threadPool.getThreadContext());
 
+        if (isIndexBlockedForRefresh(request.shardId().getIndexName(), clusterStateObserver.setAndGetObservedState()) == false) {
+            listener.onResponse(null);
+            return;
+        }
+
         clusterStateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {

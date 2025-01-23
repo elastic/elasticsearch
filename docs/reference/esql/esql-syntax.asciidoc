@@ -205,8 +205,6 @@ POST /_query
 FROM library
 | EVAL year = DATE_EXTRACT("year", release_date)
 | WHERE page_count > ? AND match(author, ?, {"minimum_should_match": ?})
-| STATS count = COUNT(*) by year
-| WHERE count > ?
 | LIMIT 5
 """,
 "params": [300, "Frank Herbert", 2]

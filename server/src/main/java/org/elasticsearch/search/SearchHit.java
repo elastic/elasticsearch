@@ -470,22 +470,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             throw new ElasticsearchParseException("failed to convert source to a json string");
         }
     }
-    //
-    // /**
-    // * The source of the document as a map (can be {@code null}).The result
-    // * gets cached after the first call.
-    // */
-    // public Map<String, Object> getSourceAsMap() {
-    // assert hasReferences();
-    // if (sourceAsMap != null) {
-    // return sourceAsMap;
-    // }
-    // if (source == null) {
-    // return null;
-    // }
-    // sourceAsMap = Source.fromBytes(source).source();
-    // return sourceAsMap;
-    // }
 
     /**
      * The source of the document as a map (can be {@code null}). This method is expected

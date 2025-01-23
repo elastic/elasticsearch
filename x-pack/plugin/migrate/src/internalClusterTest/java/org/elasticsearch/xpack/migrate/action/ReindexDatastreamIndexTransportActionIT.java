@@ -87,6 +87,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         var destIndex = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
         indicesAdmin().create(new CreateIndexRequest(destIndex)).actionGet();
         indexDocs(destIndex, 10);
+        indicesAdmin().refresh(new RefreshRequest(destIndex)).actionGet();
         assertHitCount(prepareSearch(destIndex).setSize(0), 10);
 
         // call reindex
@@ -329,7 +330,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             var indexRequest = new IndexRequest(sourceIndex);
             indexRequest.source("{ \"foo1\": \"cheese\" }", XContentType.JSON);
             client().index(indexRequest).actionGet();
-            indicesAdmin().refresh(new RefreshRequest(sourceIndex)).actionGet();
         }
 
         // call reindex
@@ -420,7 +420,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             indexRequest.source(TSDB_DOC.replace("$time", formatInstant(time)), XContentType.JSON);
             var indexResponse = client().index(indexRequest).actionGet();
             backingIndexName = indexResponse.getIndex();
-            indicesAdmin().refresh(new RefreshRequest(backingIndexName)).actionGet();
         }
 
         var sourceSettings = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(backingIndexName))
@@ -480,7 +479,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         }
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
         assertThat(bulkResponse.getItems().length, equalTo(numDocs));
-        indicesAdmin().refresh(new RefreshRequest(index)).actionGet();
     }
 
     private static String formatInstant(Instant instant) {

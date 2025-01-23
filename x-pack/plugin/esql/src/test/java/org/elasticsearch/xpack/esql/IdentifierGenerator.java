@@ -45,6 +45,15 @@ public class IdentifierGenerator {
         }
         if (canAdd(Features.WILDCARD_PATTERN, features)) {
             index.append('*');
+        } else if (canAdd(Features.DATE_MATH, features)) {
+            // https://www.elastic.co/guide/en/elasticsearch/reference/8.17/api-conventions.html#api-date-math-index-names
+            index.insert(0, "<");
+            index.append("-{now/");
+            index.append(ESTestCase.randomFrom("d", "M", "M-1M"));
+            if (ESTestCase.randomBoolean()) {
+                index.append("{").append(ESTestCase.randomFrom("yyyy.MM", "yyyy.MM.dd")).append("}");
+            }
+            index.append("}>");
         }
 
         var pattern = maybeQuote(index.toString());
@@ -64,6 +73,7 @@ public class IdentifierGenerator {
     public enum Features implements Feature {
         CROSS_CLUSTER,
         WILDCARD_PATTERN,
+        DATE_MATH,
         HIDDEN_INDEX
     }
 

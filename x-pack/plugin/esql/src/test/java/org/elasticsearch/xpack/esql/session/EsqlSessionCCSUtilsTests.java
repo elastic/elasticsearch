@@ -220,17 +220,22 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
         final String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
         final String remote1Alias = "remote1";
         final String remote2Alias = "remote2";
-        // all clusters present in EsIndex, so no updates to EsqlExecutionInfo should happen
+
+        // all clusters had matching indices from field-caps call, so no updates to EsqlExecutionInfo should happen
         {
             EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
-            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
-            executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", false));
+            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", randomBoolean()));
+            executionInfo.swapCluster(
+                remote2Alias,
+                (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", randomBoolean())
+            );
 
             EsIndex esIndex = new EsIndex(
-                "logs*,remote1:*,remote2:mylogs1,remote2:mylogs2,remote2:logs*",
+                "logs*,remote1:*,remote2:mylogs1,remote2:mylogs2,remote2:logs*", // original user-provided index expression
                 randomMapping(),
                 Map.of(
+                    // resolved indices from field-caps (all clusters represented)
                     "logs-a",
                     IndexMode.STANDARD,
                     "remote1:logs-a",
@@ -261,17 +266,22 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
             assertClusterStatusAndShardCounts(remote2Cluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
         }
 
-        // remote1 is missing from EsIndex info, so it should be updated and marked as SKIPPED with 0 total shards, 0 took time, etc.
+        // remote1 had no matching indices from field-caps call, it was not marked as unavailable, so it should be updated and
+        // marked as SKIPPED with 0 total shards, 0 took time, etc.
         {
             EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
-            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
-            executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", false));
+            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", randomBoolean()));
+            executionInfo.swapCluster(
+                remote2Alias,
+                (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", randomBoolean())
+            );
 
             EsIndex esIndex = new EsIndex(
-                "logs*,remote2:mylogs1,remote2:mylogs2,remote2:logs*",
+                "logs*,remote2:mylogs1,remote2:mylogs2,remote2:logs*",  // original user-provided index expression
                 randomMapping(),
                 Map.of(
+                    // resolved indices from field-caps (none from remote1)
                     "logs-a",
                     IndexMode.STANDARD,
                     "remote2:mylogs1",
@@ -282,7 +292,8 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
                     IndexMode.STANDARD
                 )
             );
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of());
+            Map<String, FieldCapabilitiesFailure> unavailableClusters = Map.of();
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), unavailableClusters);
 
             EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
@@ -304,21 +315,27 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
             assertClusterStatusAndShardCounts(remote2Cluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
         }
 
-        // all remotes are missing from EsIndex info, so they should be updated and marked as SKIPPED with 0 total shards, 0 took time, etc.
+        // No remotes had matching indices from field-caps call: 1) remote1 because it was unavailable, 2) remote2 was available,
+        // but had no matching indices and since no concrete indices were requested, no VerificationException is thrown and is just
+        // marked as SKIPPED
         {
             EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
-            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
-            executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", true));
+            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", randomBoolean()));
+            executionInfo.swapCluster(
+                remote2Alias,
+                (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1*,mylogs2*,logs*", randomBoolean())
+            );
 
             EsIndex esIndex = new EsIndex(
-                "logs*,remote2:mylogs1,remote2:mylogs2,remote2:logs*",
+                "logs*,remote2:mylogs1*,remote2:mylogs2*,remote2:logs*", // original user-provided index expression
                 randomMapping(),
-                Map.of("logs-a", IndexMode.STANDARD)
+                Map.of("logs-a", IndexMode.STANDARD) // resolved indices from field-caps (none from either remote)
             );
             // remote1 is unavailable
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of(remote1Alias, failure));
+            Map<String, FieldCapabilitiesFailure> unavailableClusters = Map.of(remote1Alias, failure);
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), unavailableClusters);
 
             EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
@@ -333,7 +350,7 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
             assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(remote2Alias);
-            assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1,mylogs2,logs*"));
+            assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1*,mylogs2*,logs*"));
             assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
             assertThat(remote2Cluster.getTook().millis(), equalTo(0L));
             assertThat(remote2Cluster.getTotalShards(), equalTo(0));
@@ -342,27 +359,76 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
             assertThat(remote2Cluster.getFailedShards(), equalTo(0));
         }
 
-        // all remotes are missing from EsIndex info. Since one is configured with skip_unavailable=false,
-        // an exception should be thrown
+        // No remotes had matching indices from field-caps call: 1) remote1 because it was unavailable, 2) remote2 was available,
+        // but had no matching indices and since a concrete index was requested, a VerificationException is thrown
         {
             EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*"));
-            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
-            executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", false));
+            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", randomBoolean()));
+            executionInfo.swapCluster(
+                remote2Alias,
+                (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", randomBoolean())
+            );
 
             EsIndex esIndex = new EsIndex(
-                "logs*,remote2:mylogs1,remote2:mylogs2,remote2:logs*",
+                "logs*,remote2:mylogs1,remote2:mylogs2,remote2:logs*",  // original user-provided index expression
                 randomMapping(),
-                Map.of("logs-a", IndexMode.STANDARD)
+                Map.of("logs-a", IndexMode.STANDARD)  // resolved indices from field-caps (none from either remote)
             );
 
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of(remote1Alias, failure));
+            Map<String, FieldCapabilitiesFailure> unavailableClusters = Map.of(remote1Alias, failure);
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), unavailableClusters);
             VerificationException ve = expectThrows(
                 VerificationException.class,
                 () -> EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution)
             );
             assertThat(ve.getDetailedMessage(), containsString("Unknown index [remote2:mylogs1,mylogs2,logs*]"));
+        }
+
+        // test where remote2 is already marked as SKIPPED so no modifications or exceptions should be thrown
+        // (the EsqlSessionCCSUtils.updateExecutionInfoWithUnavailableClusters() method handles that case not the one tested here)
+        {
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
+            executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*"));
+            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", randomBoolean()));
+            // remote2 is already marked as SKIPPED (simulating failed enrich policy lookup due to unavailable cluster)
+            executionInfo.swapCluster(
+                remote2Alias,
+                (k, v) -> new EsqlExecutionInfo.Cluster(
+                    remote2Alias,
+                    "mylogs1*,mylogs2*,logs*",
+                    randomBoolean(),
+                    EsqlExecutionInfo.Cluster.Status.SKIPPED
+                )
+            );
+
+            EsIndex esIndex = new EsIndex(
+                "logs*,remote2:mylogs1,remote2:mylogs2,remote2:logs*",  // original user-provided index expression
+                randomMapping(),
+                Map.of("logs-a", IndexMode.STANDARD)  // resolved indices from field-caps (none from either remote)
+            );
+
+            // remote1 is unavailable
+            var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
+            Map<String, FieldCapabilitiesFailure> unavailableClusters = Map.of(remote1Alias, failure);
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), unavailableClusters);
+
+            EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+
+            EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(localClusterAlias);
+            assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
+            assertClusterStatusAndShardCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
+
+            EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
+            assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
+            // since remote1 is in the unavailable Map (passed to IndexResolution.valid), it's status will not be changed
+            // by updateExecutionInfoWithClustersWithNoMatchingIndices (it is handled in updateExecutionInfoWithUnavailableClusters)
+            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
+
+            EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(remote2Alias);
+            assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1*,mylogs2*,logs*"));
+            assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
         }
     }
 
@@ -600,46 +666,12 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
         }
     }
 
-    public void testMissingIndicesIsFatal() {
-        String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-        String remote1Alias = "remote1";
-        String remote2Alias = "remote2";
-        String remote3Alias = "remote3";
-
-        // scenario 1: cluster is skip_unavailable=true - not fatal
-        {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
-            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "mylogs1,mylogs2,logs*", true));
-            assertThat(EsqlSessionCCSUtils.missingIndicesIsFatal(remote1Alias, executionInfo), equalTo(false));
-        }
-
-        // scenario 2: cluster is local cluster and had no concrete indices - not fatal
-        {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
-            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "mylogs1,mylogs2,logs*", true));
-            assertThat(EsqlSessionCCSUtils.missingIndicesIsFatal(localClusterAlias, executionInfo), equalTo(false));
-        }
-
-        // scenario 3: cluster is local cluster and user specified a concrete index - fatal
-        {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            String localIndexExpr = randomFrom("foo*,logs", "logs", "logs,metrics", "bar*,x*,logs", "logs-1,*x*");
-            executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, localIndexExpr, false));
-            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "mylogs1,mylogs2,logs*", true));
-            assertThat(EsqlSessionCCSUtils.missingIndicesIsFatal(localClusterAlias, executionInfo), equalTo(true));
-        }
-
-        // scenario 4: cluster is skip_unavailable=false - always fatal
-        {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "*", false));
-            String indexExpr = randomFrom("foo*,logs", "logs", "bar*,x*,logs", "logs-1,*x*", "*");
-            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, indexExpr, false));
-            assertThat(EsqlSessionCCSUtils.missingIndicesIsFatal(remote1Alias, executionInfo), equalTo(true));
-        }
-
+    public void testConcreteIndexRequested() {
+        assertThat(EsqlSessionCCSUtils.concreteIndexRequested("logs*"), equalTo(false));
+        assertThat(EsqlSessionCCSUtils.concreteIndexRequested("mylogs1,mylogs2,logs*"), equalTo(true));
+        assertThat(EsqlSessionCCSUtils.concreteIndexRequested("x*,logs"), equalTo(true));
+        assertThat(EsqlSessionCCSUtils.concreteIndexRequested("logs,metrics"), equalTo(true));
+        assertThat(EsqlSessionCCSUtils.concreteIndexRequested("*"), equalTo(false));
     }
 
     public void testCheckForCcsLicense() {

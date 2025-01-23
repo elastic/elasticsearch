@@ -77,7 +77,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     @Override
     protected QueryList queryList(TransportRequest request, SearchExecutionContext context, Block inputBlock, DataType inputDataType) {
-        return termQueryList(context.getFieldType(request.matchField), context, inputBlock, inputDataType);
+        return termQueryList(context.getFieldType(request.matchField), context, inputBlock, inputDataType).onlySingleValues();
     }
 
     @Override

@@ -585,15 +585,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         executeNextPhase(name, this::getNextPhase);
     }
 
-    /**
-     * Returns a connection to the node if connected otherwise and {@link org.elasticsearch.transport.ConnectTransportException} will be
-     * thrown.
-     */
-    @Override
-    public final Transport.Connection getConnection(String clusterAlias, String nodeId) {
-        return nodeIdToConnection.apply(clusterAlias, nodeId);
-    }
-
     public final void execute(Runnable command) {
         executor.execute(command);
     }

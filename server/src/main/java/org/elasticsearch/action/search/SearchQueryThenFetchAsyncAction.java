@@ -733,11 +733,6 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
         );
     }
 
-    @Override
-    public final Transport.Connection getConnection(String clusterAlias, String nodeId) {
-        return nodeIdToConnection.apply(clusterAlias, nodeId);
-    }
-
     private void onShardFailure(final int shardIndex, SearchShardTarget shard, final SearchShardIterator shardIt, Exception e) {
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard

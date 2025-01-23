@@ -174,7 +174,9 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
 
     abstract void onShardFailure(int shardIndex, SearchShardTarget shard, Exception e);
 
-    abstract Transport.Connection getConnection(String clusterAlias, String nodeId);
+    public final Transport.Connection getConnection(String clusterAlias, String nodeId) {
+        return nodeIdToConnection.apply(clusterAlias, nodeId);
+    }
 
     abstract OriginalIndices getOriginalIndices(int shardIndex);
 

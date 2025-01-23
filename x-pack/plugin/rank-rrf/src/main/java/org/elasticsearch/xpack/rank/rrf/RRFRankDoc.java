@@ -144,10 +144,10 @@ public final class RRFRankDoc extends RankDoc {
             out.writeOptionalFloatArray(scores);
             out.writeOptionalVInt(rankConstant);
         } else {
-            out.writeIntArray(positions);
-            out.writeFloatArray(scores);
+            out.writeIntArray(positions == null ? new int[0] : positions);
+            out.writeFloatArray(scores == null ? new float[0] : scores);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeVInt(rankConstant);
+                out.writeVInt(rankConstant == null ? DEFAULT_RANK_CONSTANT : rankConstant);
             }
         }
     }

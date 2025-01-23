@@ -70,8 +70,8 @@ public class RuleQueryRankDoc extends RankDoc {
                 out.writeGenericMap(matchCriteria);
             }
         } else {
-            out.writeStringCollection(rulesetIds);
-            out.writeGenericMap(matchCriteria);
+            out.writeStringCollection(rulesetIds == null ? Collections.emptyList() : rulesetIds);
+            out.writeGenericMap(matchCriteria == null ? Collections.emptyMap() : matchCriteria);
         }
     }
 

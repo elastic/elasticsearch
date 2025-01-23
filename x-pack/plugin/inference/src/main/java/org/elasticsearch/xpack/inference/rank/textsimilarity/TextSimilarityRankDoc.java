@@ -66,8 +66,8 @@ public class TextSimilarityRankDoc extends RankDoc {
             out.writeOptionalString(inferenceId);
             out.writeOptionalString(field);
         } else {
-            out.writeString(inferenceId);
-            out.writeString(field);
+            out.writeString(inferenceId == null ? "" : inferenceId);
+            out.writeString(field == null ? "" : field);
         }
     }
 

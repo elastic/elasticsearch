@@ -33,8 +33,6 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoField;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.EsqlConverter.STRING_TO_CHRONO_FIELD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLong;
@@ -74,7 +72,11 @@ public class DateExtract extends EsqlConfigurationFunction {
             Refer to https://docs.oracle.com/javase/8/docs/api/java/time/temporal/ChronoField.html[java.time.temporal.ChronoField]
             for a description of these values.\n
             If `null`, the function returns `null`.""") Expression chronoFieldExp,
-        @Param(name = "date", type = {"date", "date_nanos"}, description = "Date expression. If `null`, the function returns `null`.") Expression field,
+        @Param(
+            name = "date",
+            type = { "date", "date_nanos" },
+            description = "Date expression. If `null`, the function returns `null`."
+        ) Expression field,
         Configuration configuration
     ) {
         super(source, List.of(chronoFieldExp, field), configuration);

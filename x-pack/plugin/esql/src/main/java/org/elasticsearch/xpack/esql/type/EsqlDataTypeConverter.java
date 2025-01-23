@@ -494,7 +494,6 @@ public class EsqlDataTypeConverter {
         return DateUtils.toInstant(dateNanos).atZone(zone).getLong(chronoField);
     }
 
-
     /**
      * The following conversions are between String and other data types.
      */

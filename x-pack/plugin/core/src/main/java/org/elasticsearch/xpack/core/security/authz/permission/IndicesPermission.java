@@ -824,15 +824,15 @@ public final class IndicesPermission {
             this.indices = addFailureExclusions(resolveSelectors(roleIndices));
             this.allowRestrictedIndices = allowRestrictedIndices;
             ConcurrentHashMap<String[], Automaton> indexNameAutomatonMemo = new ConcurrentHashMap<>(1);
-            // TODO: need to add NOT name::failures to the indexNameAutomaton
+            // TODO: [Jake] support hasPrivileges
             if (allowRestrictedIndices) {
                 this.indexNameMatcher = StringMatcher.of(indices);
-                this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(indices, k -> Automatons.patterns(indices));
+                this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(roleIndices, k -> Automatons.patterns(roleIndices));
             } else {
                 this.indexNameMatcher = StringMatcher.of(indices).and(name -> restrictedIndices.isRestricted(name) == false);
                 this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(
-                    indices,
-                    k -> Automatons.minusAndMinimize(Automatons.patterns(indices), restrictedIndices.getAutomaton())
+                    roleIndices,
+                    k -> Automatons.minusAndMinimize(Automatons.patterns(roleIndices), restrictedIndices.getAutomaton())
                 );
             }
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);

@@ -85,8 +85,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
     private static final Exception expectedException = new IllegalStateException("hello there");
     private static final String expectedExceptionAsServerSentEvent = """
         {\
-        "error":{"root_cause":[{"type":"illegal_state_exception","reason":"hello there",\
-        "caused_by":{"type":"illegal_state_exception","reason":"hello there"}}],\
+        "error":{"root_cause":[{"type":"illegal_state_exception","reason":"hello there"}],\
         "type":"illegal_state_exception","reason":"hello there"},"status":500\
         }""";
 

@@ -1,0 +1,5 @@
+pr: 120554
+summary: Pass serverless trial status to Inference Service
+area: Inference
+type: enhancement
+issues: []

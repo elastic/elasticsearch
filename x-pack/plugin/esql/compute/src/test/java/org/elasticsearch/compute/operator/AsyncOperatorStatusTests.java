@@ -56,14 +56,14 @@ public class AsyncOperatorStatusTests extends AbstractWireSerializingTestCase<As
     }
 
     public void testToXContent() {
-        var status = new AsyncOperator.Status(100, 50, TimeValue.timeValueSeconds(10).millis());
+        var status = new AsyncOperator.Status(100, 50, TimeValue.timeValueNanos(10).nanos());
         String json = Strings.toString(status, true, true);
         assertThat(json, equalTo("""
             {
+              "process_nanos" : 10,
+              "process_time" : "10nanos",
               "received_pages" : 100,
-              "completed_pages" : 50,
-              "total_time_in_millis" : 10000,
-              "total_time" : "10s"
+              "completed_pages" : 50
             }"""));
     }
 }

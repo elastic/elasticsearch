@@ -180,8 +180,7 @@ public class Mapper {
                 mappedChild,
                 rerank.queryText(),
                 rerank.input(),
-                rerank.inferenceId(),
-                rerank.windowSize()
+                rerank.inferenceId()
             );
         }
 

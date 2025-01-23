@@ -32,28 +32,24 @@ public class RerankExec extends UnaryExec {
 
     private final Expression input;
     private final Expression inferenceId;
-    private final Expression windowSize;
 
     public RerankExec(
         Source source,
         PhysicalPlan child,
         Expression queryText,
         Expression input,
-        Expression inferenceId,
-        Expression windowSize
+        Expression inferenceId
     ) {
         super(source, child);
         this.queryText = queryText;
         this.input = input;
         this.inferenceId = inferenceId;
-        this.windowSize = windowSize;
     }
 
     public RerankExec(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(PhysicalPlan.class),
-            in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class)
@@ -72,10 +68,6 @@ public class RerankExec extends UnaryExec {
         return inferenceId;
     }
 
-    public Expression windowSize() {
-        return windowSize;
-    }
-
     @Override
     public String getWriteableName() {
         return ENTRY.name;
@@ -88,22 +80,21 @@ public class RerankExec extends UnaryExec {
         out.writeNamedWriteable(queryText());
         out.writeNamedWriteable(input());
         out.writeNamedWriteable(inferenceId());
-        out.writeNamedWriteable(windowSize());
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, RerankExec::new, child(), queryText, input, inferenceId, windowSize);
+        return NodeInfo.create(this, RerankExec::new, child(), queryText, input, inferenceId);
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new RerankExec(source(), newChild, queryText, input, inferenceId, windowSize);
+        return new RerankExec(source(), newChild, queryText, input, inferenceId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), queryText, input, inferenceId, windowSize);
+        return Objects.hash(super.hashCode(), queryText, input, inferenceId);
     }
 
     @Override
@@ -115,7 +106,6 @@ public class RerankExec extends UnaryExec {
 
         return Objects.equals(queryText, rerankExec.queryText)
             && Objects.equals(input, rerankExec.input)
-            && Objects.equals(inferenceId, rerankExec.inferenceId)
-            && Objects.equals(windowSize, rerankExec.windowSize);
+            && Objects.equals(inferenceId, rerankExec.inferenceId);
     }
 }

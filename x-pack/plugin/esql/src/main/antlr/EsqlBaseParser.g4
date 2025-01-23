@@ -331,16 +331,9 @@ inlinestatsCommand
     ;
 
 rerankCommand
-    : DEV_RERANK queryText=stringOrParameter ON input=primaryExpression WITH inferenceId=identifierOrParameter (COMMA rerankCommandOptions)*
+    : DEV_RERANK queryText=stringOrParameter ON input=primaryExpression WITH inferenceId=stringOrParameter
     ;
 
-rerankCommandOptions
-    : rerankCommandWindowSize
-    ;
-
-rerankCommandWindowSize
-    : WINDOW_SIZE ASSIGN windowSize=INTEGER_LITERAL
-    ;
 
 joinCommand
     : type=(DEV_JOIN_LOOKUP | DEV_JOIN_LEFT | DEV_JOIN_RIGHT)? DEV_JOIN joinTarget joinCondition

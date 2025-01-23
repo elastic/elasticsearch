@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -679,17 +680,20 @@ public class LocalExecutionPlanner {
 
         ExpressionEvaluator.Factory inputEvaluatorSupplier = EvalMapper.toEvaluator(rerank.input(), source.layout);
 
-        int windowSize;
-        if (rerank.windowSize() instanceof Literal windowSizeLiteral) {
-            windowSize = stringToInt(windowSizeLiteral.value().toString());
-        } else {
-            throw new EsqlIllegalArgumentException("window size only supported with literal values");
-        }
-
-        String inferenceId = ((BytesRef) rerank.inferenceId().fold()).utf8ToString();
+        String inferenceId = rerank.inferenceId().fold().toString();
         String queryText = ((BytesRef) rerank.queryText().fold()).utf8ToString();
 
-        return source.with(new RerankOperator.Factory(inferenceService, inferenceId, queryText, inputEvaluatorSupplier, windowSize, 10), source.layout);
+        int scoreChannel = -1;
+
+        for (Attribute attr: rerank.output()) {
+            if (attr.name().equals(MetadataAttribute.SCORE)) {
+                scoreChannel = source.layout.get(attr.id()).channel();
+            }
+        }
+
+        logger.warn("layout {}", source.layout);
+
+        return source.with(new RerankOperator.Factory(inferenceService, inferenceId, queryText, inputEvaluatorSupplier, scoreChannel, 10), source.layout);
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {

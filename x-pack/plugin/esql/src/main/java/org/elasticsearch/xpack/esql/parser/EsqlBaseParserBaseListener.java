@@ -1081,30 +1081,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterRerankCommandOptions(EsqlBaseParser.RerankCommandOptionsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitRerankCommandOptions(EsqlBaseParser.RerankCommandOptionsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterRerankCommandWindowSize(EsqlBaseParser.RerankCommandWindowSizeContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitRerankCommandWindowSize(EsqlBaseParser.RerankCommandWindowSizeContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterJoinCommand(EsqlBaseParser.JoinCommandContext ctx) { }
   /**
    * {@inheritDoc}

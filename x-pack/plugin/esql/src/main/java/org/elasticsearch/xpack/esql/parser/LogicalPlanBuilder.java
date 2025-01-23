@@ -583,39 +583,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         Literal queryText = visitStringOrParameter(ctx.queryText);
         Expression input = expression(ctx.input);
-        Literal inferenceId = new Literal(source(ctx.inferenceId), visitIdentifierOrParameter(ctx.inferenceId), DataType.KEYWORD);
-        Literal windowSize = visitRerankCommandWindowSize(ctx);
+        Literal inferenceId = new Literal(source(ctx.inferenceId), visitStringOrParameter(ctx.inferenceId), DataType.KEYWORD);
 
-        return p -> new Rerank(source, p, queryText, input, inferenceId, windowSize);
-    }
-
-    public Literal visitRerankCommandWindowSize(EsqlBaseParser.RerankCommandContext ctx) {
-        Literal windowSize = null;
-
-        if (ctx.rerankCommandOptions() != null) {
-            for (var rerankCommandOption : ctx.rerankCommandOptions()) {
-                if (rerankCommandOption.rerankCommandWindowSize() != null) {
-                    if (windowSize != null) {
-                        throw new ParsingException(source(ctx), "window_size can only be set once in the RERANK command");
-                    }
-
-                    windowSize = visitRerankCommandWindowSize(rerankCommandOption.rerankCommandWindowSize());
-                }
-            }
-        }
-
-        return windowSize;
-    }
-
-    @Override
-    public Literal visitRerankCommandWindowSize(EsqlBaseParser.RerankCommandWindowSizeContext ctx) {
-        Source source = source(ctx);
-        int windowSize = stringToInt(ctx.INTEGER_LITERAL().getText());
-
-        if (windowSize < 1) {
-            throw new ParsingException(source, "window_size can not be < 1");
-        }
-
-        return new Literal(source, windowSize, DataType.INTEGER);
+        return p -> new Rerank(source, p, queryText, input, inferenceId);
     }
 }

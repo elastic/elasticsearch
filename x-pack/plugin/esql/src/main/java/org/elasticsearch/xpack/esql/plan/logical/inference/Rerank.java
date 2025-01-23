@@ -12,10 +12,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -26,23 +24,19 @@ import java.util.Objects;
 public class Rerank extends InferencePlan {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Rerank", Rerank::new);
-    private static final Literal DEFAULT_WINDOW_SIZE = new Literal(Source.EMPTY, 20, DataType.INTEGER);
     private final Expression queryText;
     private final Expression input;
-    private final Expression windowSize;
 
-    public Rerank(Source source, LogicalPlan child, Expression queryText, Expression input, Expression inferenceId, Expression windowSize) {
+    public Rerank(Source source, LogicalPlan child, Expression queryText, Expression input, Expression inferenceId) {
         super(source, child, inferenceId);
         this.queryText = queryText;
         this.input = input;
-        this.windowSize = Objects.requireNonNullElse(windowSize, DEFAULT_WINDOW_SIZE);
     }
 
     public Rerank(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
-            in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class)
@@ -56,7 +50,6 @@ public class Rerank extends InferencePlan {
         out.writeNamedWriteable(queryText);
         out.writeNamedWriteable(input);
         out.writeNamedWriteable(inferenceId());
-        out.writeNamedWriteable(windowSize);
     }
 
     public Expression queryText() {
@@ -65,10 +58,6 @@ public class Rerank extends InferencePlan {
 
     public Expression input() {
         return input;
-    }
-
-    public Expression windowSize() {
-        return windowSize;
     }
 
     @Override
@@ -88,17 +77,17 @@ public class Rerank extends InferencePlan {
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Rerank(source(), newChild, queryText, input, inferenceId(), windowSize);
+        return new Rerank(source(), newChild, queryText, input, inferenceId());
     }
 
     @Override
     public boolean expressionsResolved() {
-        return queryText.resolved() && input.resolved() && inferenceId().resolved() && windowSize.resolved();
+        return queryText.resolved() && input.resolved() && inferenceId().resolved();
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Rerank::new, child(), queryText, input, inferenceId(), windowSize);
+        return NodeInfo.create(this, Rerank::new, child(), queryText, input, inferenceId());
     }
 
     @Override
@@ -107,13 +96,11 @@ public class Rerank extends InferencePlan {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         Rerank rerank = (Rerank) o;
-        return Objects.equals(queryText, rerank.queryText)
-            && Objects.equals(input, rerank.input)
-            && Objects.equals(windowSize, rerank.windowSize);
+        return Objects.equals(queryText, rerank.queryText) && Objects.equals(input, rerank.input);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), queryText, input, windowSize);
+        return Objects.hash(super.hashCode(), queryText, input);
     }
 }

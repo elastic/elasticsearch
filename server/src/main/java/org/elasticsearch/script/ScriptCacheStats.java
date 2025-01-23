@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 // This class is deprecated in favor of ScriptStats and ScriptContextStats
 public record ScriptCacheStats(Map<String, ScriptStats> context, ScriptStats general) implements Writeable, ToXContentFragment {
@@ -65,30 +67,28 @@ public record ScriptCacheStats(Map<String, ScriptStats> context, ScriptStats gen
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        Function<ScriptStats, ToXContent> statsFields = s -> (b, p) -> b.field(ScriptStats.Fields.COMPILATIONS, s.getCompilations())
+            .field(ScriptStats.Fields.CACHE_EVICTIONS, s.getCacheEvictions())
+            .field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, s.getCompilationLimitTriggered());
+
         builder.startObject(Fields.SCRIPT_CACHE_STATS);
         builder.startObject(Fields.SUM);
         if (general != null) {
-            builder.field(ScriptStats.Fields.COMPILATIONS, general.getCompilations());
-            builder.field(ScriptStats.Fields.CACHE_EVICTIONS, general.getCacheEvictions());
-            builder.field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, general.getCompilationLimitTriggered());
+            statsFields.apply(general);
             builder.endObject().endObject();
             return builder;
         }
 
-        ScriptStats sum = sum();
-        builder.field(ScriptStats.Fields.COMPILATIONS, sum.getCompilations());
-        builder.field(ScriptStats.Fields.CACHE_EVICTIONS, sum.getCacheEvictions());
-        builder.field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, sum.getCompilationLimitTriggered());
+        statsFields.apply(sum());
         builder.endObject();
 
         builder.startArray(Fields.CONTEXTS);
-        for (String name : context.keySet().stream().sorted().toList()) {
-            ScriptStats stats = context.get(name);
+        for (var it = context.keySet().stream().sorted().iterator(); it.hasNext();) {
+            String name = it.next();
+
             builder.startObject();
             builder.field(Fields.CONTEXT, name);
-            builder.field(ScriptStats.Fields.COMPILATIONS, stats.getCompilations());
-            builder.field(ScriptStats.Fields.CACHE_EVICTIONS, stats.getCacheEvictions());
-            builder.field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, stats.getCompilationLimitTriggered());
+            statsFields.apply(context.get(name));
             builder.endObject();
         }
         builder.endArray();

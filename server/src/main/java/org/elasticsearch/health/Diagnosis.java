@@ -145,29 +145,21 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-        final Iterator<? extends ToXContent> resourcesIterator;
-        if (affectedResources == null) {
-            resourcesIterator = Collections.emptyIterator();
-        } else {
-            resourcesIterator = Iterators.flatMap(affectedResources.iterator(), s -> s.toXContentChunked(outerParams));
-        }
-        return Iterators.concat(Iterators.single((ToXContent) (builder, params) -> {
+        return Iterators.concat(ChunkedToXContentHelper.chunk((builder, params) -> {
             builder.startObject();
             builder.field("id", definition.getUniqueId());
             builder.field("cause", definition.cause);
             builder.field("action", definition.action);
             builder.field("help_url", definition.helpURL);
-
-            if (affectedResources != null && affectedResources.size() > 0) {
-                builder.startObject("affected_resources");
-            }
             return builder;
-        }), resourcesIterator, Iterators.single((builder, params) -> {
-            if (affectedResources != null && affectedResources.size() > 0) {
-                builder.endObject();
-            }
-            builder.endObject();
-            return builder;
-        }));
+        }),
+            affectedResources != null && affectedResources.isEmpty() == false
+                ? ChunkedToXContentHelper.object(
+                    "affected_resources",
+                    Iterators.flatMap(affectedResources.iterator(), s -> s.toXContentChunked(outerParams))
+                )
+                : Collections.emptyIterator(),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 }

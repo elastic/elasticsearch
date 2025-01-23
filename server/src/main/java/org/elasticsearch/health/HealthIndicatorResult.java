@@ -10,6 +10,7 @@
 package org.elasticsearch.health;
 
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -27,13 +28,7 @@ public record HealthIndicatorResult(
 ) implements ChunkedToXContentObject {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-        final Iterator<? extends ToXContent> diagnosisIterator;
-        if (diagnosisList == null) {
-            diagnosisIterator = Collections.emptyIterator();
-        } else {
-            diagnosisIterator = Iterators.flatMap(diagnosisList.iterator(), s -> s.toXContentChunked(outerParams));
-        }
-        return Iterators.concat(Iterators.single((ToXContent) (builder, params) -> {
+        return Iterators.concat(ChunkedToXContentHelper.chunk((builder, params) -> {
             builder.startObject();
             builder.field("status", status.xContentValue());
             builder.field("symptom", symptom);
@@ -43,16 +38,15 @@ public record HealthIndicatorResult(
             if (impacts != null && impacts.isEmpty() == false) {
                 builder.field("impacts", impacts);
             }
-            if (diagnosisList != null && diagnosisList.isEmpty() == false) {
-                builder.startArray("diagnosis");
-            }
             return builder;
-        }), diagnosisIterator, Iterators.single((builder, params) -> {
-            if (diagnosisList != null && diagnosisList.isEmpty() == false) {
-                builder.endArray();
-            }
-            builder.endObject();
-            return builder;
-        }));
+        }),
+            diagnosisList != null && diagnosisList.isEmpty() == false
+                ? ChunkedToXContentHelper.array(
+                    "diagnosis",
+                    Iterators.flatMap(diagnosisList.iterator(), s -> s.toXContentChunked(outerParams))
+                )
+                : Collections.emptyIterator(),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 }

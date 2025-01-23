@@ -119,7 +119,7 @@ Event body:
       indices.get_mapping:
         index: $datastream-backing-index
   - is_true: $datastream-backing-index
-  - match: { .$datastream-backing-index.mappings.properties.body.properties.structured.properties.foo\.bar.type: "keyword" }
+  - match: { .$datastream-backing-index.mappings.properties.body.properties.structured.type: "flattened" }
   - match: { .$datastream-backing-index.mappings.properties.event_name.type: "keyword" }
 ---
 Structured log body:
@@ -134,7 +134,7 @@ Structured log body:
               attributes:
                 service.name: my-service
             body:
-              flattened:
+              structured:
                 foo:
                   bar: baz
   - is_false: errors
@@ -146,7 +146,7 @@ Structured log body:
       indices.get_mapping:
         index: $datastream-backing-index
   - is_true: $datastream-backing-index
-  - match: { .$datastream-backing-index.mappings.properties.body.properties.flattened.type: "flattened" }
+  - match: { .$datastream-backing-index.mappings.properties.body.properties.structured.type: "flattened" }
 ---
 "event.dataset alias must point to data_stream.dataset":
   - do:

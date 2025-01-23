@@ -79,11 +79,19 @@ include::inference-shared.asciidoc[tag=service-settings]
 These settings are specific to the `elser` service.
 --
 
-
 `model_id`:::
 (Required, string)
 The name of the model to use for the {infer} task.
 
+`rate_limit`:::
+(Optional, object)
+By default, the `elastic` service sets the number of requests allowed per minute to `1000`.
+This helps to minimize the number of rate limit errors returned.
+To modify this, set the `requests_per_minute` setting of this object in your service settings:
++
+--
+include::inference-shared.asciidoc[tag=request-per-minute-example]
+--
 
 `task_settings`::
 (Optional, object)

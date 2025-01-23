@@ -238,6 +238,7 @@ retrieved for one or more roles:
     ]
 }
 ----
+// TESTRESPONSE[s/"total": 2/"total" : $body.total/]
 // TEST[continued]
 
 <1> The list of roles that were retrieved for this request
@@ -303,3 +304,4 @@ POST /_security/_query/role
     ]
 }
 ----
+// TESTRESPONSE[s/"total": 2/"total" : $body.total/]

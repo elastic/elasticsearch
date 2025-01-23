@@ -33,11 +33,11 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
 
     public static final String NAME = "templates";
     private static final List<Function<ComposableIndexTemplate, DeprecationIssue>> INDEX_TEMPLATE_CHECKS = List.of(
-        TemplateDeprecationChecker::checkIndexTemplates
+        TemplateDeprecationChecker::checkLegacyTiersInIndexTemplate
     );
     private static final List<Function<ComponentTemplate, DeprecationIssue>> COMPONENT_TEMPLATE_CHECKS = List.of(
         TemplateDeprecationChecker::checkSourceModeInComponentTemplates,
-        TemplateDeprecationChecker::checkComponentTemplates
+        TemplateDeprecationChecker::checkLegacyTiersInComponentTemplates
     );
 
     /**
@@ -73,7 +73,7 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
         return issues.isEmpty() ? Map.of() : issues;
     }
 
-    static DeprecationIssue checkIndexTemplates(ComposableIndexTemplate composableIndexTemplate) {
+    static DeprecationIssue checkLegacyTiersInIndexTemplate(ComposableIndexTemplate composableIndexTemplate) {
         Template template = composableIndexTemplate.template();
         if (template != null) {
             List<String> deprecatedSettings = LegacyTiersDetection.getDeprecatedFilteredAllocationSettings(template.settings());
@@ -115,24 +115,21 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
         return null;
     }
 
-    static DeprecationIssue checkComponentTemplates(ComponentTemplate componentTemplate) {
+    static DeprecationIssue checkLegacyTiersInComponentTemplates(ComponentTemplate componentTemplate) {
         Template template = componentTemplate.template();
-        if (template != null) {
-            List<String> deprecatedSettings = LegacyTiersDetection.getDeprecatedFilteredAllocationSettings(template.settings());
-            if (deprecatedSettings.isEmpty()) {
-                return null;
-            }
-            return new DeprecationIssue(
-                DeprecationIssue.Level.WARNING,
-                DEPRECATION_MESSAGE,
-                DEPRECATION_HELP_URL,
-                "One or more of your component templates is configured with 'index.routing.allocation.*.data' settings. "
-                    + DEPRECATION_COMMON_DETAIL,
-                false,
-                DeprecationIssue.createMetaMapForRemovableSettings(deprecatedSettings)
-            );
+        List<String> deprecatedSettings = LegacyTiersDetection.getDeprecatedFilteredAllocationSettings(template.settings());
+        if (deprecatedSettings.isEmpty()) {
+            return null;
         }
-        return null;
+        return new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            DEPRECATION_MESSAGE,
+            DEPRECATION_HELP_URL,
+            "One or more of your component templates is configured with 'index.routing.allocation.*.data' settings. "
+                + DEPRECATION_COMMON_DETAIL,
+            false,
+            DeprecationIssue.createMetaMapForRemovableSettings(deprecatedSettings)
+        );
     }
 
     @Override

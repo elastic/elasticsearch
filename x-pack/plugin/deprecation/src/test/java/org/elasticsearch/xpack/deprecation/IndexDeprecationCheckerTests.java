@@ -162,7 +162,10 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             false,
             singletonMap("reindex_required", true)
         );
-        Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(clusterState, null);
+        Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
+            clusterState,
+            new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS)
+        );
         assertTrue(issuesByIndex.containsKey("test"));
         assertEquals(List.of(expected), issuesByIndex.get("test"));
     }

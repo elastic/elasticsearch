@@ -19,18 +19,37 @@ import java.util.Set;
 
 import static java.util.stream.Collectors.toMap;
 
-public record EsIndex(String name, Map<String, EsField> mapping, Map<String, IndexMode> indexNameWithModes) implements Writeable {
+public record EsIndex(
+    String name,
+    Map<String, EsField> mapping,
+    Map<String, IndexMode> indexNameWithModes,
+    Set<String> partiallyUnmappedFields
+) implements Writeable {
 
     public EsIndex {
         assert name != null;
         assert mapping != null;
+        assert partiallyUnmappedFields != null;
+    }
+
+    public static EsIndex withStandardIndexMode(String name) {
+        return new EsIndex(name, Map.of(), Map.of(name, IndexMode.STANDARD), Set.of());
+    }
+
+    public static EsIndex emptyIndex(String name) {
+        return new EsIndex(name, Map.of(), Map.of(), Set.of());
+    }
+
+    /** Intended for tests. Returns an index with no partially unmapped fields. */
+    public EsIndex(String name, Map<String, EsField> mapping, Map<String, IndexMode> indexNameWithModes) {
+        this(name, mapping, indexNameWithModes, Set.of());
     }
 
     /**
      * Intended for tests. Returns an index with an empty index mode map.
      */
     public EsIndex(String name, Map<String, EsField> mapping) {
-        this(name, mapping, Map.of());
+        this(name, mapping, Map.of(), Set.of());
     }
 
     public static EsIndex readFrom(StreamInput in) throws IOException {
@@ -45,6 +64,7 @@ public record EsIndex(String name, Map<String, EsField> mapping, Map<String, Ind
             assert indices != null;
             indexNameWithModes = indices.stream().collect(toMap(e -> e, e -> IndexMode.STANDARD));
         }
+        // partially unmapped fields shouldn't pass the node anyway, since they are only used by the Analyzer.
         return new EsIndex(name, mapping, indexNameWithModes);
     }
 
@@ -57,6 +77,7 @@ public record EsIndex(String name, Map<String, EsField> mapping, Map<String, Ind
         } else {
             out.writeGenericValue(indexNameWithModes.keySet());
         }
+        // partially unmapped fields shouldn't pass the node anyway, since they are only used by the Analyzer.
     }
 
     public Set<String> concreteIndices() {
@@ -66,5 +87,9 @@ public record EsIndex(String name, Map<String, EsField> mapping, Map<String, Ind
     @Override
     public String toString() {
         return name;
+    }
+
+    public EsIndex withoutPartiallyMappedFields() {
+        return new EsIndex(name, mapping, indexNameWithModes, Set.of());
     }
 }

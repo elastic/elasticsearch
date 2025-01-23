@@ -358,7 +358,10 @@ public class CsvTests extends ESTestCase {
             .stream()
             .map(ds -> new MappingPerIndex(ds.indexName(), createMappingForIndex(ds)))
             .toList();
-        return IndexResolution.valid(new EsIndex(datasets.indexPattern(), mergeMappings(mappings), indexModes));
+        var mergedMappings = mergeMappings(mappings);
+        return IndexResolution.valid(
+            new EsIndex(datasets.indexPattern(), mergedMappings.mapping, indexModes, mergedMappings.partiallyUnmappedFields)
+        );
     }
 
     private static Map<String, EsField> createMappingForIndex(CsvTestsDataLoader.TestDataset dataset) {
@@ -379,7 +382,10 @@ public class CsvTests extends ESTestCase {
 
     record MappingPerIndex(String index, Map<String, EsField> mapping) {}
 
-    private static Map<String, EsField> mergeMappings(List<MappingPerIndex> mappingsPerIndex) {
+    record MergedResult(Map<String, EsField> mapping, Set<String> partiallyUnmappedFields) {}
+
+    private static MergedResult mergeMappings(List<MappingPerIndex> mappingsPerIndex) {
+        int numberOfIndices = mappingsPerIndex.size();
         Map<String, Map<String, EsField>> columnNamesToFieldByIndices = new HashMap<>();
         for (var mappingPerIndex : mappingsPerIndex) {
             for (var entry : mappingPerIndex.mapping().entrySet()) {
@@ -389,9 +395,15 @@ public class CsvTests extends ESTestCase {
             }
         }
 
-        return columnNamesToFieldByIndices.entrySet()
+        var partiallyUnmappedFields = columnNamesToFieldByIndices.entrySet()
+            .stream()
+            .filter(e -> e.getValue().size() < numberOfIndices)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
+        var mappings = columnNamesToFieldByIndices.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> mergeFields(e.getKey(), e.getValue())));
+        return new MergedResult(mappings, partiallyUnmappedFields);
     }
 
     private static EsField mergeFields(String index, Map<String, EsField> columnNameToField) {

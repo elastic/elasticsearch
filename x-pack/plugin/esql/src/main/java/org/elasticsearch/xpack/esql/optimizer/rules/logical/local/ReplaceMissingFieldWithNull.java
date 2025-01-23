@@ -11,8 +11,11 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -68,27 +71,26 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
 
             for (NamedExpression projection : projections) {
                 // Do not use the attribute name, this can deviate from the field name for union types.
-                if (true) throw new AssertionError("TODO(gal)");
-                // if (projection instanceof FieldAttribute f
-                // && stats.exists(f.fieldName()) == false
-                // && joinAttributes.contains(f) == false
-                // && f.field() instanceof PotentiallyUnmappedEsField == false) {
-                // // TODO: Should do a searchStats lookup for join attributes instead of just ignoring them here
-                // // See TransportSearchShardsAction
-                // DataType dt = f.dataType();
-                // Alias nullAlias = nullLiteral.get(f.dataType());
-                // // save the first field as null (per datatype)
-                // if (nullAlias == null) {
-                // Alias alias = new Alias(f.source(), f.name(), Literal.of(f, null), f.id());
-                // nullLiteral.put(dt, alias);
-                // projection = alias.toAttribute();
-                // }
-                // // otherwise point to it
-                // else {
-                // // since avoids creating field copies
-                // projection = new Alias(f.source(), f.name(), nullAlias.toAttribute(), f.id());
-                // }
-                // }
+                if (projection instanceof FieldAttribute f
+                    && stats.exists(f.fieldName()) == false
+                    && joinAttributes.contains(f) == false
+                    && isReadFromSource(f) == false) {
+                    // TODO: Should do a searchStats lookup for join attributes instead of just ignoring them here
+                    // See TransportSearchShardsAction
+                    DataType dt = f.dataType();
+                    Alias nullAlias = nullLiteral.get(f.dataType());
+                    // save the first field as null (per datatype)
+                    if (nullAlias == null) {
+                        Alias alias = new Alias(f.source(), f.name(), Literal.of(f, null), f.id());
+                        nullLiteral.put(dt, alias);
+                        projection = alias.toAttribute();
+                    }
+                    // otherwise point to it
+                    else {
+                        // since avoids creating field copies
+                        projection = new Alias(f.source(), f.name(), nullAlias.toAttribute(), f.id());
+                    }
+                }
 
                 newProjections.add(projection);
             }
@@ -102,19 +104,20 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
             || plan instanceof OrderBy
             || plan instanceof RegexExtract
             || plan instanceof TopN) {
-                throw new AssertionError("TODO(gal)");
-                // plan = plan.transformExpressionsOnlyUp(
-                // FieldAttribute.class,
-                // // Do not use the attribute name, this can deviate from the field name for union types.
-                // // Also skip fields from lookup indices because we do not have stats for these.
-                // // TODO: We do have stats for lookup indices in case they are being used in the FROM clause; this can be refined.
-                // f -> f.field() instanceof PotentiallyUnmappedEsField || (stats.exists(f.fieldName()) || lookupFields.contains(f))
-                // ? f
-                // : Literal.of(f, null)
-                // );
+                plan = plan.transformExpressionsOnlyUp(
+                    FieldAttribute.class,
+                    // Do not use the attribute name, this can deviate from the field name for union types.
+                    // Also skip fields from lookup indices because we do not have stats for these.
+                    // TODO: We do have stats for lookup indices in case they are being used in the FROM clause; this can be refined.
+                    f -> isReadFromSource(f) || (stats.exists(f.fieldName()) || lookupFields.contains(f)) ? f : Literal.of(f, null)
+                );
             }
 
         return plan;
+    }
+
+    private static boolean isReadFromSource(FieldAttribute fa) {
+        return fa.field() instanceof KeywordEsField kf && kf.isReadUnmappedFromSource();
     }
 
     private AttributeSet joinAttributes(Project project) {

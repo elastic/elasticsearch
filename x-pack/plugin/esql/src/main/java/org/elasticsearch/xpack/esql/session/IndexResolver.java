@@ -92,6 +92,7 @@ public class IndexResolver {
 
     // public for testing only
     public IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
+        var numberOfIndices = fieldCapsResponse.getIndexResponses().size();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         if (fieldCapsResponse.getIndexResponses().isEmpty()) {
             // TODO in follow-on PR, handle the case where remotes were specified with non-existent indices, according to skip_unavailable
@@ -105,6 +106,7 @@ public class IndexResolver {
         String[] names = fieldsCaps.keySet().toArray(new String[0]);
         Arrays.sort(names);
         Map<String, EsField> rootFields = new HashMap<>();
+        Set<String> partiallyUnmappedFields = new HashSet<>();
         for (String name : names) {
             Map<String, EsField> fields = rootFields;
             String fullName = name;
@@ -129,8 +131,9 @@ public class IndexResolver {
             }
             // TODO we're careful to make isAlias match IndexResolver - but do we use it?
 
+            List<IndexFieldCapabilities> fcs = fieldsCaps.get(fullName);
             EsField field = firstUnsupportedParent == null
-                ? createField(fieldCapsResponse, name, fullName, fieldsCaps.get(fullName), isAlias)
+                ? createField(fieldCapsResponse, name, fullName, fcs, isAlias)
                 : new UnsupportedEsField(
                     fullName,
                     firstUnsupportedParent.getOriginalType(),
@@ -138,6 +141,10 @@ public class IndexResolver {
                     new HashMap<>()
                 );
             fields.put(name, field);
+            var isPartiallyUnmapped = fcs.size() < numberOfIndices;
+            if (isPartiallyUnmapped) {
+                partiallyUnmappedFields.add(fullName);
+            }
         }
 
         Map<String, FieldCapabilitiesFailure> unavailableRemotes = EsqlSessionCCSUtils.determineUnavailableRemoteClusters(
@@ -153,11 +160,9 @@ public class IndexResolver {
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             allEmpty &= ir.get().isEmpty();
         }
-        if (allEmpty) {
-            // If all the mappings are empty we return an empty set of resolved indices to line up with QL
-            return IndexResolution.valid(new EsIndex(indexPattern, rootFields, Map.of()), concreteIndices.keySet(), unavailableRemotes);
-        }
-        return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices), concreteIndices.keySet(), unavailableRemotes);
+        // If all the mappings are empty we return an empty set of resolved indices to line up with QL
+        var index = new EsIndex(indexPattern, rootFields, allEmpty ? Map.of() : concreteIndices, partiallyUnmappedFields);
+        return IndexResolution.valid(index, concreteIndices.keySet(), unavailableRemotes);
     }
 
     private static Map<String, List<IndexFieldCapabilities>> collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse) {

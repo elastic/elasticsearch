@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -122,7 +121,7 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
         } else {
             if (concreteIndices().keySet().equals(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))) {
                 String concreteIndex = concreteIndices().get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                new EsIndex(concreteIndex, Map.of(), Map.of(concreteIndex, IndexMode.STANDARD)).writeTo(out);
+                EsIndex.withStandardIndexMode(concreteIndex).writeTo(out);
             } else {
                 throw new IllegalStateException("expected a single concrete enrich index; got " + concreteIndices());
             }

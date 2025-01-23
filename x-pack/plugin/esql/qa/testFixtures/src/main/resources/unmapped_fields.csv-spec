@@ -19,7 +19,7 @@ FROM partial_mapping_sample_data
 2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3!
 ;
 
-fieldIsMappedToNonKeywordButNoCastSingleIndex
+fieldIsMappedToNonKeywordSingleIndex
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data
 | INSIST_🐔 client_ip
@@ -27,52 +27,14 @@ FROM partial_mapping_sample_data
 | SORT @timestamp DESC
 ;
 
-@timestamp:date           |  client_ip:unsupported
-2024-10-23T13:55:01.543Z  |  null
-2024-10-23T13:53:55.832Z  |  null
-2024-10-23T13:52:55.015Z  |  null
-2024-10-23T13:51:54.732Z  |  null
-2024-10-23T13:33:34.937Z  |  null
-2024-10-23T12:27:28.948Z  |  null
-2024-10-23T12:15:03.360Z  |  null
-;
-
-fieldIsMappedToNonKeywordWithCastSingleIndex
-required_capability: unmapped_fields
-FROM partial_mapping_sample_data
-| INSIST_🐔 client_ip
-| EVAL client_ip = client_ip :: IP
-| KEEP @timestamp, client_ip
-| SORT @timestamp DESC
-;
-
-@timestamp:datetime      | client_ip:ip
-2024-10-23T13:55:01.543Z | 173.21.3.15
-2024-10-23T13:53:55.832Z | 173.21.3.15
-2024-10-23T13:52:55.015Z | 173.21.3.15
-2024-10-23T13:51:54.732Z | 173.21.3.15
-2024-10-23T13:33:34.937Z | 173.21.0.5
+@timestamp:date          | client_ip:ip
+2024-10-23T13:55:01.543Z | 173.21.3.15 
+2024-10-23T13:53:55.832Z | 173.21.3.15 
+2024-10-23T13:52:55.015Z | 173.21.3.15 
+2024-10-23T13:51:54.732Z | 173.21.3.15 
+2024-10-23T13:33:34.937Z | 173.21.0.5  
 2024-10-23T12:27:28.948Z | 173.21.2.113
 2024-10-23T12:15:03.360Z | 173.21.2.162
-;
-
-fieldIsMappedToNonKeywordWithCastToDifferentTypeSingleIndex
-required_capability: unmapped_fields
-FROM partial_mapping_sample_data
-| INSIST_🐔 @timestamp
-| EVAL @timestamp = @timestamp :: LONG
-| KEEP @timestamp
-| SORT @timestamp DESC
-;
-
-@timestamp:long
-1729691701543
-1729691635832
-1729691575015
-1729691514732
-1729690414937
-1729686448948
-1729685703360
 ;
 
 fieldIsMappedToKeywordSingleIndex
@@ -83,14 +45,14 @@ FROM partial_mapping_sample_data
 | SORT @timestamp DESC
 ;
 
-@timestamp:datetime      |  message:keyword
-2024-10-23T13:55:01.543Z |  Connected to 10.1.0.1!
-2024-10-23T13:53:55.832Z |  Connection error?
-2024-10-23T13:52:55.015Z |  Connection error?
-2024-10-23T13:51:54.732Z |  Connection error?
-2024-10-23T13:33:34.937Z |  42
-2024-10-23T12:27:28.948Z |  Connected to 10.1.0.2!
-2024-10-23T12:15:03.360Z |  Connected to 10.1.0.3!
+@timestamp:datetime      | message:keyword
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
+2024-10-23T13:53:55.832Z | Connection error?
+2024-10-23T13:52:55.015Z | Connection error?
+2024-10-23T13:51:54.732Z | Connection error?
+2024-10-23T13:33:34.937Z | 42
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2!
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
 ;
 
 fieldDoesNotExistSingleIndex
@@ -127,25 +89,6 @@ FROM partial_mapping_sample_data
 2024-10-23T13:33:34.937Z | 42                     | 43
 2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | Disconnected from 10.1.0.2
 2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | Disconnected from 10.1.0.3
-;
-
-fieldIsUnmappedAndCastSingleIndex
-required_capability: unmapped_fields
-FROM partial_mapping_sample_data
-| INSIST_🐔 unmapped_event_duration
-| EVAL unmapped_event_duration = unmapped_event_duration :: LONG
-| KEEP @timestamp, event_duration, unmapped_event_duration
-| SORT @timestamp DESC
-;
-
-@timestamp:date          | event_duration:long | unmapped_event_duration:long
-2024-10-23T13:55:01.543Z | 1756466             | 1756468
-2024-10-23T13:53:55.832Z | 5033754             | 5033756
-2024-10-23T13:52:55.015Z | 8268152             | 8268154
-2024-10-23T13:51:54.732Z | 725447              | 725449
-2024-10-23T13:33:34.937Z | 1232381             | 1232383
-2024-10-23T12:27:28.948Z | 2764888             | 2764890
-2024-10-23T12:15:03.360Z | 3450232             | 3450234
 ;
 
 fieldIsUnmappedButSourceIsDisabledSingleIndex
@@ -186,7 +129,7 @@ FROM partial_mapping_excluded_source_sample_data
 # Multi index tests #
 #####################
 
-fieldIsDoesNotExistMultiIndex
+fieldDoesNotExistMultiIndex
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data, sample_data
 | INSIST_🐔 foo
@@ -236,82 +179,6 @@ FROM partial_mapping_sample_data, sample_data
 2023-10-23T12:15:03.360Z | Connected to 10.1.0.3  | null
 ;
 
-fieldIsUnmappedAndCastMultiIndex
-required_capability: unmapped_fields
-FROM partial_mapping_sample_data, sample_data
-| INSIST_🐔 unmapped_event_duration
-| EVAL unmapped_event_duration = unmapped_event_duration :: LONG
-| KEEP @timestamp, event_duration, unmapped_event_duration
-| SORT @timestamp DESC
-;
-
-@timestamp:datetime      | event_duration:long | unmapped_event_duration:long
-2024-10-23T13:55:01.543Z | 1756466             | 1756468
-2024-10-23T13:53:55.832Z | 5033754             | 5033756
-2024-10-23T13:52:55.015Z | 8268152             | 8268154
-2024-10-23T13:51:54.732Z | 725447              | 725449
-2024-10-23T13:33:34.937Z | 1232381             | 1232383
-2024-10-23T12:27:28.948Z | 2764888             | 2764890
-2024-10-23T12:15:03.360Z | 3450232             | 3450234
-2023-10-23T13:55:01.543Z | 1756467             | null
-2023-10-23T13:53:55.832Z | 5033755             | null
-2023-10-23T13:52:55.015Z | 8268153             | null
-2023-10-23T13:51:54.732Z | 725448              | null
-2023-10-23T13:33:34.937Z | 1232382             | null
-2023-10-23T12:27:28.948Z | 2764889             | null
-2023-10-23T12:15:03.360Z | 3450233             | null
-;
-
-fieldIsMappedToNonKeywordButNoCastMultiIndex
-required_capability: unmapped_fields
-FROM partial_mapping_sample_data, sample_data
-| INSIST_🐔 client_ip
-| KEEP @timestamp, client_ip
-| SORT @timestamp DESC
-;
-
-@timestamp:datetime      | client_ip:unsupported
-2024-10-23T13:55:01.543Z | null
-2024-10-23T13:53:55.832Z | null
-2024-10-23T13:52:55.015Z | null
-2024-10-23T13:51:54.732Z | null
-2024-10-23T13:33:34.937Z | null
-2024-10-23T12:27:28.948Z | null
-2024-10-23T12:15:03.360Z | null
-2023-10-23T13:55:01.543Z | null
-2023-10-23T13:53:55.832Z | null
-2023-10-23T13:52:55.015Z | null
-2023-10-23T13:51:54.732Z | null
-2023-10-23T13:33:34.937Z | null
-2023-10-23T12:27:28.948Z | null
-2023-10-23T12:15:03.360Z | null
-;
-
-fieldIsMappedToNonKeywordWithCastSingleIndex
-required_capability: unmapped_fields
-FROM partial_mapping_sample_data, sample_data
-| INSIST_🐔 client_ip
-| EVAL client_ip = client_ip :: IP
-| KEEP @timestamp, client_ip
-| SORT @timestamp DESC
-;
-
-@timestamp:datetime      | client_ip:ip
-2024-10-23T13:55:01.543Z | 173.21.3.15
-2024-10-23T13:53:55.832Z | 173.21.3.15
-2024-10-23T13:52:55.015Z | 173.21.3.15
-2024-10-23T13:51:54.732Z | 173.21.3.15
-2024-10-23T13:33:34.937Z | 173.21.0.5
-2024-10-23T12:27:28.948Z | 173.21.2.113
-2024-10-23T12:15:03.360Z | 173.21.2.162
-2023-10-23T13:55:01.543Z | 172.21.3.15
-2023-10-23T13:53:55.832Z | 172.21.3.15
-2023-10-23T13:52:55.015Z | 172.21.3.15
-2023-10-23T13:51:54.732Z | 172.21.3.15
-2023-10-23T13:33:34.937Z | 172.21.0.5
-2023-10-23T12:27:28.948Z | 172.21.2.113
-2023-10-23T12:15:03.360Z | 172.21.2.162
-;
 
 fieldIsMappedToDifferentTypesNoCastMultiIndex
 required_capability: unmapped_fields
@@ -335,32 +202,6 @@ null
 null
 null
 null
-;
-
-fieldIsMappedToDifferentTypesWithCastMultiIndex
-required_capability: unmapped_fields
-FROM sample_data_ts_long, sample_data
-| INSIST_🐔 @timestamp
-| EVAL @timestamp = @timestamp :: DATETIME
-| KEEP @timestamp
-| SORT @timestamp DESC
-;
-
-@timestamp:datetime
-2023-10-23T13:55:01.543Z
-2023-10-23T13:55:01.543Z
-2023-10-23T13:53:55.832Z
-2023-10-23T13:53:55.832Z
-2023-10-23T13:52:55.015Z
-2023-10-23T13:52:55.015Z
-2023-10-23T13:51:54.732Z
-2023-10-23T13:51:54.732Z
-2023-10-23T13:33:34.937Z
-2023-10-23T13:33:34.937Z
-2023-10-23T12:27:28.948Z
-2023-10-23T12:27:28.948Z
-2023-10-23T12:15:03.360Z
-2023-10-23T12:15:03.360Z
 ;
 
 fieldIsUnmappedMultiIndex
@@ -411,58 +252,6 @@ Connected to 10.1.0.2
 Connected to 10.1.0.1!
 Connected to 10.1.0.1
 42
-;
-
-fieldIsPartiallyUnmappedWithCastToOriginalTypeMultiIndex
-required_capability: unmapped_fields
-FROM sample_data, no_mapping_sample_data
-| INSIST_🐔 event_duration
-| EVAL event_duration = event_duration :: LONG
-| KEEP event_duration
-| SORT event_duration DESC
-;
-
-event_duration:long
-8268153
-8268152
-5033755
-5033754
-3450233
-3450232
-2764889
-2764888
-1756467
-1756466
-1232382
-1232381
-725448
-725447
-;
-
-fieldIsPartiallyUnmappedWithCastToDifferentTypeMultiIndex
-required_capability: unmapped_fields
-FROM sample_data, no_mapping_sample_data
-| INSIST_🐔 event_duration
-| EVAL event_duration = event_duration :: DOUBLE
-| KEEP event_duration
-| SORT event_duration DESC
-;
-
-event_duration:double
-8268153.0
-8268152.0
-5033755.0
-5033754.0
-3450233.0
-3450232.0
-2764889.0
-2764888.0
-1756467.0
-1756466.0
-1232382.0
-1232381.0
-725448.0
-725447.0
 ;
 
 fieldIsPartiallyUnmappedPartiallySourceIsDisabledMultiIndex
@@ -516,3 +305,4 @@ FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data
 2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
 2024-10-23T13:55:01.543Z | null
 ;
+

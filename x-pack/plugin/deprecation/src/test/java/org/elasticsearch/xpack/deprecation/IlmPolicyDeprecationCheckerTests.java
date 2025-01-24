@@ -13,6 +13,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
+import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
@@ -102,5 +103,49 @@ public class IlmPolicyDeprecationCheckerTests extends ESTestCase {
         );
         assertThat(issuesByComponentTemplate.get("deprecated-tiers"), hasItem(expected));
         assertThat(issuesByComponentTemplate.containsKey("other-attribute"), is(false));
+    }
+
+    public void testFrozenAction() {
+
+        LifecyclePolicy deprecatedTiersPolicy = new LifecyclePolicy(
+            TimeseriesLifecycleType.INSTANCE,
+            "deprecated-action",
+            Map.of("cold", new Phase("cold", TimeValue.ONE_MINUTE, Map.of(FreezeAction.NAME, FreezeAction.INSTANCE))),
+            Map.of(),
+            randomOptionalBoolean()
+        );
+
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        IndexLifecycleMetadata.TYPE,
+                        new IndexLifecycleMetadata(
+                            Map.of(
+                                "deprecated-action",
+                                new LifecyclePolicyMetadata(
+                                    deprecatedTiersPolicy,
+                                    Map.of(),
+                                    randomNonNegativeLong(),
+                                    randomNonNegativeLong()
+                                )
+                            ),
+                            OperationMode.RUNNING
+                        )
+                    )
+            )
+            .build();
+
+        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(clusterState, null);
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "ILM policy [deprecated-action] contains the action 'freeze' that is deprecated and will be removed in a future version.",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/frozen-indices.html",
+            "This action is already a noop so it can be safely removed, because frozen indices no longer offer any advantages."
+                + " Consider cold or frozen tiers in place of frozen indices.",
+            false,
+            null
+        );
+        assertThat(issuesByComponentTemplate.get("deprecated-action"), hasItem(expected));
     }
 }

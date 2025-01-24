@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
+import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
@@ -32,7 +33,10 @@ import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.containsD
 public class IlmPolicyDeprecationChecker implements ResourceDeprecationChecker {
 
     public static final String NAME = "ilm_policies";
-    private static final List<Function<LifecyclePolicy, DeprecationIssue>> CHECKS = List.of(IlmPolicyDeprecationChecker::checkIlmPolicy);
+    private static final List<Function<LifecyclePolicy, DeprecationIssue>> CHECKS = List.of(
+        IlmPolicyDeprecationChecker::checkLegacyTiers,
+        IlmPolicyDeprecationChecker::checkFrozenAction
+    );
 
     /**
      * @param clusterState The cluster state provided for the checker
@@ -57,7 +61,7 @@ public class IlmPolicyDeprecationChecker implements ResourceDeprecationChecker {
         return issues.isEmpty() ? Map.of() : issues;
     }
 
-    static DeprecationIssue checkIlmPolicy(LifecyclePolicy policy) {
+    static DeprecationIssue checkLegacyTiers(LifecyclePolicy policy) {
         for (Phase phase : policy.getPhases().values()) {
             AllocateAction allocateAction = (AllocateAction) phase.getActions().get(AllocateAction.NAME);
             if (allocateAction != null) {
@@ -73,6 +77,25 @@ public class IlmPolicyDeprecationChecker implements ResourceDeprecationChecker {
                         null
                     );
                 }
+            }
+        }
+        return null;
+    }
+
+    static DeprecationIssue checkFrozenAction(LifecyclePolicy policy) {
+        for (Phase phase : policy.getPhases().values()) {
+            if (phase.getActions().containsKey(FreezeAction.NAME)) {
+                return new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
+                    "ILM policy ["
+                        + policy.getName()
+                        + "] contains the action 'freeze' that is deprecated and will be removed in a future version.",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/frozen-indices.html",
+                    "This action is already a noop so it can be safely removed, because frozen indices no longer offer any advantages."
+                        + " Consider cold or frozen tiers in place of frozen indices.",
+                    false,
+                    null
+                );
             }
         }
         return null;

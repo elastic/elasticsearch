@@ -55,7 +55,7 @@ public class IdentifierGenerator {
             index.append("-{now/");
             index.append(ESTestCase.randomFrom("d", "M", "M-1M"));
             if (ESTestCase.randomBoolean()) {
-                index.append("{").append(ESTestCase.randomFrom("yyyy.MM", "yyyy.MM.dd")).append("}");
+                index.append("{").append(ESTestCase.randomFrom("yyyy.MM", "yyyy.MM.dd", "yyyy.MM.dd|+12:00")).append("}");
             }
             index.append("}>");
         }
@@ -65,6 +65,11 @@ public class IdentifierGenerator {
             var cluster = randomIdentifier();
             pattern = maybeQuote(cluster + ":" + pattern);
         }
+
+        while (pattern.contains("|") && pattern.contains("\"") == false) {
+            pattern = maybeQuote(pattern);
+        }
+
         return pattern;
     }
 

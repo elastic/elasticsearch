@@ -10,12 +10,15 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Objects;
 
-public class TableIdentifier {
+/**
+ * Contains an index pattern together with its {@link Source}. Can also be a comma-separated list, like {@code idx-*,remote:other-idx*}.
+ */
+public class IndexPatternIdentifier {
 
     private final Source source;
     private final String indexPattern;
 
-    public TableIdentifier(Source source, String indexPattern) {
+    public IndexPatternIdentifier(Source source, String indexPattern) {
         this.source = source;
         this.indexPattern = indexPattern;
     }
@@ -39,7 +42,7 @@ public class TableIdentifier {
             return false;
         }
 
-        TableIdentifier other = (TableIdentifier) obj;
+        IndexPatternIdentifier other = (IndexPatternIdentifier) obj;
         return Objects.equals(indexPattern, other.indexPattern);
     }
 

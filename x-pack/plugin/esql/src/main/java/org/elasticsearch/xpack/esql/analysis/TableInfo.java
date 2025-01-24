@@ -7,17 +7,17 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPatternIdentifier;
 
 public class TableInfo {
 
-    private final TableIdentifier id;
+    private final IndexPatternIdentifier id;
 
-    public TableInfo(TableIdentifier id) {
+    public TableInfo(IndexPatternIdentifier id) {
         this.id = id;
     }
 
-    public TableIdentifier id() {
+    public IndexPatternIdentifier id() {
         return id;
     }
 }

@@ -42,7 +42,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPatternIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -2283,12 +2283,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan unresolvedRelation(String index) {
-        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, index), false, List.of(), IndexMode.STANDARD, null, "FROM");
+        return new UnresolvedRelation(EMPTY, new IndexPatternIdentifier(EMPTY, index), false, List.of(), IndexMode.STANDARD, null, "FROM");
     }
 
     private LogicalPlan unresolvedTSRelation(String index) {
         List<Attribute> metadata = List.of(new MetadataAttribute(EMPTY, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false));
-        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, index), false, metadata, IndexMode.TIME_SERIES, null, "FROM TS");
+        return new UnresolvedRelation(
+            EMPTY,
+            new IndexPatternIdentifier(EMPTY, index),
+            false,
+            metadata,
+            IndexMode.TIME_SERIES,
+            null,
+            "FROM TS"
+        );
     }
 
     public void testMetricWithGroupKeyAsAgg() {

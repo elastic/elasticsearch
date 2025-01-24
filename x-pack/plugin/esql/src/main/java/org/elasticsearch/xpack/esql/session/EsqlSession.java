@@ -56,7 +56,7 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPatternIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -373,7 +373,7 @@ public class EsqlSession {
     }
 
     private void preAnalyzeLookupIndex(TableInfo tableInfo, PreAnalysisResult result, ActionListener<PreAnalysisResult> listener) {
-        TableIdentifier table = tableInfo.id();
+        IndexPatternIdentifier table = tableInfo.id();
         Set<String> fieldNames = result.wildcardJoinIndices().contains(table.index()) ? IndexResolver.ALL_FIELDS : result.fieldNames;
         // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
         indexResolver.resolveAsMergedMapping(
@@ -400,7 +400,7 @@ public class EsqlSession {
             // known to be unavailable from the enrich policy API call
             Map<String, Exception> unavailableClusters = result.enrichResolution.getUnavailableClusters();
             TableInfo tableInfo = indices.get(0);
-            TableIdentifier table = tableInfo.id();
+            IndexPatternIdentifier table = tableInfo.id();
 
             Map<String, OriginalIndices> clusterIndices = indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, table.index());
             for (Map.Entry<String, OriginalIndices> entry : clusterIndices.entrySet()) {

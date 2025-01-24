@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPatternIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -98,7 +98,7 @@ public class AnalyzerTests extends ESTestCase {
 
     private static final UnresolvedRelation UNRESOLVED_RELATION = new UnresolvedRelation(
         EMPTY,
-        new TableIdentifier(EMPTY, "idx"),
+        new IndexPatternIdentifier(EMPTY, "idx"),
         false,
         List.of(),
         IndexMode.STANDARD,

@@ -89,6 +89,16 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
     }
 
     @Override
+    public List<QuerySpec<?>> getQueries() {
+        return mlPlugin.getQueries();
+    }
+
+    @Override
+    public List<RescorerSpec<?>> getRescorers() {
+        return mlPlugin.getRescorers();
+    }
+
+    @Override
     public List<AggregationSpec> getAggregations() {
         return mlPlugin.getAggregations();
     }

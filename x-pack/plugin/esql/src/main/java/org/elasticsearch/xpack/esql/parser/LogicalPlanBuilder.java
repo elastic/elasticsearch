@@ -523,9 +523,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         var target = ctx.joinTarget();
+        var rightPattern = visitIndexPattern(List.of(target.index));
+        if (rightPattern.contains(WILDCARD)) {
+            throw new ParsingException(source(target), "invalid index pattern [{}], * is not allowed in LOOKUP JOIN", rightPattern);
+        }
+
         UnresolvedRelation right = new UnresolvedRelation(
             source(target),
-            new TableIdentifier(source(target.index), null, visitIdentifier(target.index)),
+            new TableIdentifier(source(target.index), null, rightPattern),
             false,
             emptyList(),
             IndexMode.LOOKUP,

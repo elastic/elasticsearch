@@ -32,13 +32,7 @@ public class RerankExec extends UnaryExec {
     private final String queryText;
     private final Expression input;
 
-    public RerankExec(
-        Source source,
-        PhysicalPlan child,
-        String inferenceId,
-        String queryText,
-        Expression input
-    ) {
+    public RerankExec(Source source, PhysicalPlan child, String inferenceId, String queryText, Expression input) {
         super(source, child);
         this.queryText = queryText;
         this.input = input;

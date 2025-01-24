@@ -685,7 +685,7 @@ public class LocalExecutionPlanner {
 
         int scoreChannel = -1;
 
-        for (Attribute attr: rerank.output()) {
+        for (Attribute attr : rerank.output()) {
             if (attr.name().equals(MetadataAttribute.SCORE)) {
                 scoreChannel = source.layout.get(attr.id()).channel();
             }
@@ -693,7 +693,10 @@ public class LocalExecutionPlanner {
 
         logger.warn("layout {}", source.layout);
 
-        return source.with(new RerankOperator.Factory(inferenceService, inferenceId, queryText, inputEvaluatorSupplier, scoreChannel, 10), source.layout);
+        return source.with(
+            new RerankOperator.Factory(inferenceService, inferenceId, queryText, inputEvaluatorSupplier, scoreChannel, 10),
+            source.layout
+        );
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {

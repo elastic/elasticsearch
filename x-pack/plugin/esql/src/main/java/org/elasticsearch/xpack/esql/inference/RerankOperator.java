@@ -30,10 +30,25 @@ public class RerankOperator extends AsyncOperator {
 
     private static final Logger logger = LogManager.getLogger(RerankOperator.class);
 
-    public record Factory(InferenceService inferenceService, String inferenceId, String queryText, EvalOperator.ExpressionEvaluator.Factory inputEvaluatorFactory, int scoreChannel, int maxOutstandingRequests) implements OperatorFactory {
+    public record Factory(
+        InferenceService inferenceService,
+        String inferenceId,
+        String queryText,
+        EvalOperator.ExpressionEvaluator.Factory inputEvaluatorFactory,
+        int scoreChannel,
+        int maxOutstandingRequests
+    ) implements OperatorFactory {
         @Override
         public RerankOperator get(DriverContext driverContext) {
-            return new RerankOperator(inferenceService, inferenceId, queryText, inputEvaluatorFactory.get(driverContext), scoreChannel, driverContext, maxOutstandingRequests);
+            return new RerankOperator(
+                inferenceService,
+                inferenceId,
+                queryText,
+                inputEvaluatorFactory.get(driverContext),
+                scoreChannel,
+                driverContext,
+                maxOutstandingRequests
+            );
         }
 
         @Override
@@ -49,8 +64,15 @@ public class RerankOperator extends AsyncOperator {
     private final EvalOperator.ExpressionEvaluator inputEvaluator;
     private final int scoreChannel;
 
-
-    public RerankOperator(InferenceService inferenceService, String inferenceId, String queryText, EvalOperator.ExpressionEvaluator inputEvaluator, int scoreChannel, DriverContext driverContext, int maxOutstandingRequests) {
+    public RerankOperator(
+        InferenceService inferenceService,
+        String inferenceId,
+        String queryText,
+        EvalOperator.ExpressionEvaluator inputEvaluator,
+        int scoreChannel,
+        DriverContext driverContext,
+        int maxOutstandingRequests
+    ) {
         super(driverContext, maxOutstandingRequests);
         this.inferenceService = inferenceService;
         this.blockFactory = driverContext.blockFactory();
@@ -62,11 +84,15 @@ public class RerankOperator extends AsyncOperator {
 
     @Override
     protected void performAsync(Page inputPage, ActionListener<Page> listener) {
-        logger.debug("Reranking operator called with inferenceId=[{}], queryText=[{}] with page of size [{}]", inferenceId, queryText, inputPage.getPositionCount());
-        inferenceService.infer(buildInferenceRequest(inputPage), ActionListener.wrap(
-            (inferenceResponse) -> { listener.onResponse(buildOutput(inputPage, inferenceResponse));},
-            listener::onFailure)
+        logger.debug(
+            "Reranking operator called with inferenceId=[{}], queryText=[{}] with page of size [{}]",
+            inferenceId,
+            queryText,
+            inputPage.getPositionCount()
         );
+        inferenceService.infer(buildInferenceRequest(inputPage), ActionListener.wrap((inferenceResponse) -> {
+            listener.onResponse(buildOutput(inputPage, inferenceResponse));
+        }, listener::onFailure));
     }
 
     @Override
@@ -76,8 +102,9 @@ public class RerankOperator extends AsyncOperator {
 
     private void performInference(Page inputPage, ActionListener<Page> listener) {
         // Moved to the InferenceOperator?
-        inferenceService.infer(buildInferenceRequest(inputPage), ActionListener.wrap(
-            (inferenceResponse) -> { listener.onResponse(buildOutput(inputPage, inferenceResponse));}, listener::onFailure));
+        inferenceService.infer(buildInferenceRequest(inputPage), ActionListener.wrap((inferenceResponse) -> {
+            listener.onResponse(buildOutput(inputPage, inferenceResponse));
+        }, listener::onFailure));
     }
 
     private Page buildOutput(Page inputPage, InferenceAction.Response inferenceResponse) {
@@ -97,7 +124,7 @@ public class RerankOperator extends AsyncOperator {
         }
 
         if (inferenceResponse.getResults() instanceof RankedDocsResults rankedDocsResults) {
-            for (var rankedDoc: rankedDocsResults.getRankedDocs()) {
+            for (var rankedDoc : rankedDocsResults.getRankedDocs()) {
                 for (int b = 0; b < blockCount; b++) {
                     if (b == scoreChannel) {
                         if (blocksBuilders[b] instanceof DoubleBlock.Builder scoreBlockBuilder) {
@@ -112,7 +139,13 @@ public class RerankOperator extends AsyncOperator {
             return new Page(Block.Builder.buildAll(blocksBuilders));
         }
 
-        throw new IllegalStateException("Inference result has wrong type. Got [" + inferenceResponse.getResults().getClass() + "] while expecting [" + RankedDocsResults.class + "]");
+        throw new IllegalStateException(
+            "Inference result has wrong type. Got ["
+                + inferenceResponse.getResults().getClass()
+                + "] while expecting ["
+                + RankedDocsResults.class
+                + "]"
+        );
     }
 
     private InferenceAction.Request buildInferenceRequest(Page inputPage) {
@@ -128,9 +161,6 @@ public class RerankOperator extends AsyncOperator {
             }
         }
 
-        return InferenceAction.Request.builder(inferenceId, TaskType.RERANK)
-            .setInput(List.of(inputs))
-            .setQuery(queryText)
-            .build();
+        return InferenceAction.Request.builder(inferenceId, TaskType.RERANK).setInput(List.of(inputs)).setQuery(queryText).build();
     }
 }

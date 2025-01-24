@@ -108,16 +108,16 @@ public class ComputeService {
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
 
     public ComputeService(
-            SearchService searchService,
-            TransportService transportService,
-            ExchangeService exchangeService,
-            EnrichLookupService enrichLookupService,
-            LookupFromIndexService lookupFromIndexService,
-            ClusterService clusterService,
-            ThreadPool threadPool,
-            BigArrays bigArrays,
-            InferenceService inferenceService,
-            BlockFactory blockFactory
+        SearchService searchService,
+        TransportService transportService,
+        ExchangeService exchangeService,
+        EnrichLookupService enrichLookupService,
+        LookupFromIndexService lookupFromIndexService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        InferenceService inferenceService,
+        BlockFactory blockFactory
     ) {
         this.searchService = searchService;
         this.transportService = transportService;

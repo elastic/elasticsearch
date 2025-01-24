@@ -33,13 +33,7 @@ public class RerankExec extends UnaryExec {
     private final Expression input;
     private final Expression inferenceId;
 
-    public RerankExec(
-        Source source,
-        PhysicalPlan child,
-        Expression queryText,
-        Expression input,
-        Expression inferenceId
-    ) {
+    public RerankExec(Source source, PhysicalPlan child, Expression queryText, Expression input, Expression inferenceId) {
         super(source, child);
         this.queryText = queryText;
         this.input = input;

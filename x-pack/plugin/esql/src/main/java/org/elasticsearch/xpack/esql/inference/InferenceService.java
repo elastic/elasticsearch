@@ -33,10 +33,11 @@ public class InferenceService {
         String inferenceId = inferencePlan.inferenceId().fold().toString();
         TaskType taskType = inferencePlan.taskType();
 
-        client.execute(GetInferenceModelAction.INSTANCE, new GetInferenceModelAction.Request(inferenceId, taskType), ActionListener.wrap(
-            response -> listener.onResponse(new InferenceResolution(inferenceId, taskType)),
-            listener::onFailure
-        ));
+        client.execute(
+            GetInferenceModelAction.INSTANCE,
+            new GetInferenceModelAction.Request(inferenceId, taskType),
+            ActionListener.wrap(response -> listener.onResponse(new InferenceResolution(inferenceId, taskType)), listener::onFailure)
+        );
     }
 
     public void infer(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {

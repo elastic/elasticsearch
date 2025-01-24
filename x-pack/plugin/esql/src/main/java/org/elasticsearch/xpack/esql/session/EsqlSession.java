@@ -335,7 +335,7 @@ public class EsqlSession {
         }
 
         // Analyzing inference plan so we can detect an invalid inferenceId early
-        for (InferencePlan inferencePlan: preAnalysis.inferences) {
+        for (InferencePlan inferencePlan : preAnalysis.inferences) {
             listener = listener.andThen((l, preAnalysisResult) -> { preAnalyzeInferencePlan(inferencePlan, preAnalysisResult, l); });
         }
 
@@ -393,7 +393,11 @@ public class EsqlSession {
         // TODO: Verify that the resolved index actually has indexMode: "lookup"
     }
 
-    private void preAnalyzeInferencePlan(InferencePlan inferencePlan, PreAnalysisResult result, ActionListener<PreAnalysisResult> listener) {
+    private void preAnalyzeInferencePlan(
+        InferencePlan inferencePlan,
+        PreAnalysisResult result,
+        ActionListener<PreAnalysisResult> listener
+    ) {
         inferenceService.resolveInference(inferencePlan, listener.map(result::addInferenceResolution));
     }
 
@@ -728,11 +732,25 @@ public class EsqlSession {
         }
 
         PreAnalysisResult withEnrichResolution(EnrichResolution newEnrichResolution) {
-            return new PreAnalysisResult(indices(), lookupIndices(), newEnrichResolution, fieldNames(), wildcardJoinIndices(), inferenceResolutions());
+            return new PreAnalysisResult(
+                indices(),
+                lookupIndices(),
+                newEnrichResolution,
+                fieldNames(),
+                wildcardJoinIndices(),
+                inferenceResolutions()
+            );
         }
 
         PreAnalysisResult withIndexResolution(IndexResolution newIndexResolution) {
-            return new PreAnalysisResult(newIndexResolution, lookupIndices(), enrichResolution(), fieldNames(), wildcardJoinIndices(), inferenceResolutions());
+            return new PreAnalysisResult(
+                newIndexResolution,
+                lookupIndices(),
+                enrichResolution(),
+                fieldNames(),
+                wildcardJoinIndices(),
+                inferenceResolutions()
+            );
         }
 
         PreAnalysisResult addLookupIndexResolution(String index, IndexResolution newIndexResolution) {
@@ -746,11 +764,25 @@ public class EsqlSession {
         }
 
         PreAnalysisResult withFieldNames(Set<String> newFields) {
-            return new PreAnalysisResult(indices(), lookupIndices(), enrichResolution(), newFields, wildcardJoinIndices(), inferenceResolutions());
+            return new PreAnalysisResult(
+                indices(),
+                lookupIndices(),
+                enrichResolution(),
+                newFields,
+                wildcardJoinIndices(),
+                inferenceResolutions()
+            );
         }
 
         public PreAnalysisResult withWildcardJoinIndices(Set<String> wildcardJoinIndices) {
-            return new PreAnalysisResult(indices(), lookupIndices(), enrichResolution(), fieldNames(), wildcardJoinIndices, inferenceResolutions());
+            return new PreAnalysisResult(
+                indices(),
+                lookupIndices(),
+                enrichResolution(),
+                fieldNames(),
+                wildcardJoinIndices,
+                inferenceResolutions()
+            );
         }
     }
 }

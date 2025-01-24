@@ -117,7 +117,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         if (connection.getClusterCredentials() == null) {
             deprecationLogger.critical(
                 DeprecationCategory.SECURITY,
-                "cross_cluster_access_without_credentials",
+                "remote_cluster_access_without_credentials-" + connection.getClusterAlias(),
                 "The remote cluster connection to [{}] is using deprecated certificated based security model. "
                     + "The certificate based security model is deprecated and will be removed in a future major version. "
                     + "Migrate remote cluster from certificate to API key based security model.",

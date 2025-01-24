@@ -58,8 +58,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
             docValues = NO_VALUES;
             return null;
         }
-        BinaryDocValues oDv = DocValues.getBinary(reader, offsetsFieldName);
-        if (oDv == null && docIdsInLeaf != null && docIdsInLeaf.length > 1) {
+        if (offsetsFieldName == null && docIdsInLeaf != null && docIdsInLeaf.length > 1) {
             /*
              * The singleton optimization is mostly about looking up ordinals
              * in sorted order and doesn't buy anything if there is only a single
@@ -72,6 +71,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
                 return loader;
             }
         }
+        BinaryDocValues oDv = offsetsFieldName != null ? DocValues.getBinary(reader, offsetsFieldName) : null;
         if (oDv != null) {
             OffsetDocValuesLoader loader = new OffsetDocValuesLoader(dv, oDv);
             docValues = loader;

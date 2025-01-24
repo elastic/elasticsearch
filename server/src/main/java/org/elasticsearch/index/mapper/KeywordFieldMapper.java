@@ -1001,8 +1001,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         // TODO: remove later
+        logger.info("id=" + context.id());
+        logger.info("fieldName=" + fullPath());
         logger.info("values=" + arrayOffsets);
         logger.info("offsetToOrd=" + Arrays.toString(offsetToOrd));
+
+        if (context.doc().getField(offsetsFieldMapper.fullPath()) != null) {
+            assert false;
+        }
 
         try (var streamOutput = new BytesStreamOutput()) {
             // TODO: optimize
@@ -1025,6 +1031,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 if (value == null) {
                     value = fieldType().nullValue;
                 }
+                // TODO: handle json null
                 boolean indexed = indexValue(context, value);
                 if (indexed) {
                     int nextOffset = numberOfOffsets++;

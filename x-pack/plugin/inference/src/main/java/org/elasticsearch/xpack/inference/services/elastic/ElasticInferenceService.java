@@ -87,7 +87,6 @@ public class ElasticInferenceService extends SenderService {
 
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
     private Configuration configuration;
-    // private EnumSet<TaskType> enabledTaskTypes;
     private final AtomicReference<EnumSet<TaskType>> enabledTaskTypesRef = new AtomicReference<>(EnumSet.noneOf(TaskType.class));
     private final ModelRegistry modelRegistry;
     private final ElasticInferenceServiceAuthorizationHandler authorizationHandler;
@@ -123,6 +122,7 @@ public class ElasticInferenceService extends SenderService {
             authorizationHandler.getAuthorization(listener, getSender());
         } catch (Exception e) {
             // we don't need to do anything if there was a failure, everything is disabled by default
+            authorizationCompletedLatch.countDown();
         }
     }
 

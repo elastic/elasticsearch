@@ -113,6 +113,7 @@ public class ElasticInferenceServiceAuthorizationHandler {
             sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_TIMEOUT, newListener);
         } catch (Exception e) {
             logger.warn(Strings.format("Retrieving the authorization information encountered an exception: %s", e));
+            requestCompleteLatch.countDown();
         }
     }
 
@@ -124,6 +125,7 @@ public class ElasticInferenceServiceAuthorizationHandler {
         return new TraceContext(traceParent, traceState);
     }
 
+    // Default because should only be used for testing
     void waitForAuthRequestCompletion(TimeValue timeValue) throws IllegalStateException {
         try {
             if (requestCompleteLatch.await(timeValue.getMillis(), TimeUnit.MILLISECONDS) == false) {

@@ -485,6 +485,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                                 e
                             );
                             removeReadOnlyBlockOnReindexFailure(oldIndex, delegate2, e);
+                            delegate2.onFailure(e); // TODO ensure this is correct.
                         }))
                     )
                 );

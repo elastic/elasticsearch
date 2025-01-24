@@ -10,7 +10,6 @@
 package org.elasticsearch.migration;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusAction;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusRequest;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse;
@@ -18,13 +17,13 @@ import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeAction
 import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeRequest;
 import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -38,11 +37,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.migration.AbstractFeatureMigrationIntegTest.TestPlugin.BlockingActionFilter;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
-import org.elasticsearch.test.MockHttpTransport;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.upgrades.SingleFeatureMigrationResult;
 
@@ -85,9 +83,6 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(TestPlugin.class);
         plugins.add(ReindexPlugin.class);
-        plugins.add(MockTransportService.TestPlugin.class);
-        plugins.add(MockHttpTransport.TestPlugin.class); // TODO is this needed?
-        plugins.add(getTestTransportPlugin()); // TODO is this needed?
         return plugins;
     }
 
@@ -271,54 +266,55 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
     public void testIndexBlockIsRemovedWhenAliasRequestFails() throws Exception {
         createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
-        createSystemIndexForDescriptor(INTERNAL_MANAGED);
         ensureGreen();
 
-        // inject a failure when the alias transport action is called.
-        for (var transportService : internalCluster().getInstances(TransportService.class)) {
-            MockTransportService mockTransportService = (MockTransportService) transportService;
-
-            // Try to throw an exception
-            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (request instanceof IndicesAliasesRequest) {
-                    throw new ElasticsearchException("Potato");
-                }
-                if (action.equals(TransportIndicesAliasesAction.NAME)) {
-                    throw new ElasticsearchException("Potato");
-                }
-                connection.sendRequest(requestId, action, request, options);
-            });
-
-            // Try to return a response
-            mockTransportService.addRequestHandlingBehavior(TransportIndicesAliasesAction.NAME, (handler, request, channel, task) -> {
-                if (request instanceof IndicesAliasesRequest) {
-                    throw new ElasticsearchException("Potato");
-                }
-                channel.sendResponse(
-                    IndicesAliasesResponse.build(
-                        List.of(
-                            IndicesAliasesResponse.AliasActionResult.build(
-                                List.of("index"),
-                                new IndicesAliasesRequest.AliasActions(IndicesAliasesRequest.AliasActions.Type.REMOVE),
-                                0
-                            )
-                        )
-                    )
-                );
-            });
+        // Block the alias request to simulate a failure
+        InternalTestCluster internalTestCluster = internalCluster();
+        ActionFilters actionFilters = internalTestCluster.getInstance(ActionFilters.class, internalTestCluster.getMasterName());
+        BlockingActionFilter blockingActionFilter = null;
+        for (ActionFilter filter : actionFilters.filters()) {
+            if (filter instanceof BlockingActionFilter) {
+                blockingActionFilter = (BlockingActionFilter) filter;
+                break;
+            }
         }
+        assertNotNull("BlockingActionFilter should exist", blockingActionFilter);
+        blockingActionFilter.blockActions(TransportIndicesAliasesAction.NAME);
 
+        // Start the migration
         client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT)).get();
 
+        // Wait till the migration fails
         assertBusy(() -> {
             GetFeatureUpgradeStatusResponse statusResp = client().execute(
                 GetFeatureUpgradeStatusAction.INSTANCE,
                 new GetFeatureUpgradeStatusRequest(TEST_REQUEST_TIMEOUT)
             ).get();
             logger.info(Strings.toString(statusResp));
-            assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.MIGRATION_NEEDED));
+            assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR));
         });
 
+        // Get the settings to see if the write block was removed
+        var allsettings = client().admin().indices().prepareGetSettings(INTERNAL_UNMANAGED.getIndexPattern()).get().getIndexToSettings();
+        var internalUnmanagedOldIndexSettings = allsettings.get(".int-unman-old");
+        var writeBlock = internalUnmanagedOldIndexSettings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey());
+        assertThat("Write block on old index should be removed on migration ERROR status", writeBlock, equalTo("false"));
+
+        // Unblock the alias request
+        blockingActionFilter.blockActions();
+
+        // Retry the migration
+        client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT)).get();
+
+        // Ensure that the migration is successful after the alias request is unblocked
+        assertBusy(() -> {
+            GetFeatureUpgradeStatusResponse statusResp = client().execute(
+                GetFeatureUpgradeStatusAction.INSTANCE,
+                new GetFeatureUpgradeStatusRequest(TEST_REQUEST_TIMEOUT)
+            ).get();
+            logger.info(Strings.toString(statusResp));
+            assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
+        });
     }
 
     public void testMigrationWillRunAfterError() throws Exception {

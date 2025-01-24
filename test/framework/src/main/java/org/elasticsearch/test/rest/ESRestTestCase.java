@@ -70,12 +70,12 @@ import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -84,6 +84,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -133,12 +134,15 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.rest.TestFeatureService.ALL_FEATURES;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -1860,10 +1864,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (settings != null && settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
             expectSoftDeletesWarning(request, name);
-        } else if (isSyntheticSourceConfiguredInMapping(mapping)
-            && SourceFieldMapper.onOrAfterDeprecateModeVersion(minimumIndexVersion())) {
-                request.setOptions(expectVersionSpecificWarnings(v -> v.current(SourceFieldMapper.DEPRECATION_WARNING)));
-            }
+        }
         final Response response = client.performRequest(request);
         try (var parser = responseAsParser(response)) {
             return TestResponseParsers.parseCreateIndexResponse(parser);
@@ -1907,52 +1908,16 @@ public abstract class ESRestTestCase extends ESTestCase {
         }));
     }
 
-    @SuppressWarnings("unchecked")
-    protected static boolean isSyntheticSourceConfiguredInMapping(String mapping) {
-        if (mapping == null) {
-            return false;
-        }
-        var mappings = XContentHelper.convertToMap(
-            JsonXContent.jsonXContent,
-            mapping.trim().startsWith("{") ? mapping : '{' + mapping + '}',
-            false
-        );
-        if (mappings.containsKey("_doc")) {
-            mappings = (Map<String, Object>) mappings.get("_doc");
-        }
-        Map<String, Object> sourceMapper = (Map<String, Object>) mappings.get(SourceFieldMapper.NAME);
-        if (sourceMapper == null) {
-            return false;
-        }
-        return sourceMapper.get("mode") != null;
-    }
-
-    @SuppressWarnings("unchecked")
-    protected static boolean isSyntheticSourceConfiguredInTemplate(String template) {
-        if (template == null) {
-            return false;
-        }
-        var values = XContentHelper.convertToMap(JsonXContent.jsonXContent, template, false);
-        for (Object value : values.values()) {
-            Map<String, Object> mappings = (Map<String, Object>) ((Map<String, Object>) value).get("mappings");
-            if (mappings == null) {
-                continue;
-            }
-            Map<String, Object> sourceMapper = (Map<String, Object>) mappings.get(SourceFieldMapper.NAME);
-            if (sourceMapper == null) {
-                continue;
-            }
-            Object mode = sourceMapper.get("mode");
-            if (mode != null) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {
+        return getIndexSettings(index, false);
+    }
+
+    protected static Map<String, Object> getIndexSettings(String index, boolean includeDefaults) throws IOException {
         Request request = new Request("GET", "/" + index + "/_settings");
         request.addParameter("flat_settings", "true");
+        if (includeDefaults) {
+            request.addParameter("include_defaults", "true");
+        }
         Response response = client().performRequest(request);
         try (InputStream is = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(
@@ -2569,5 +2534,47 @@ public abstract class ESRestTestCase extends ESTestCase {
         final var request = new Request(method.name(), endpoint);
         addXContentBody(request, body);
         return request;
+    }
+
+    protected static MapMatcher getResultMatcher(boolean includeMetadata, boolean includePartial) {
+        MapMatcher mapMatcher = matchesMap();
+        if (includeMetadata) {
+            mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
+        }
+        // Older version may not have is_partial
+        if (includePartial) {
+            mapMatcher = mapMatcher.entry("is_partial", false);
+        }
+        return mapMatcher;
+    }
+
+    /**
+     * Create empty result matcher from result, taking into account all metadata items.
+     */
+    protected static MapMatcher getResultMatcher(Map<String, Object> result) {
+        return getResultMatcher(result.containsKey("took"), result.containsKey("is_partial"));
+    }
+
+    /**
+     * Match result columns and values, with default matchers for metadata.
+     */
+    protected static void assertResultMap(Map<String, Object> result, Matcher<?> columnMatcher, Matcher<?> valuesMatcher) {
+        assertMap(result, getResultMatcher(result).entry("columns", columnMatcher).entry("values", valuesMatcher));
+    }
+
+    protected static void assertResultMap(Map<String, Object> result, Object columnMatcher, Object valuesMatcher) {
+        assertMap(result, getResultMatcher(result).entry("columns", columnMatcher).entry("values", valuesMatcher));
+    }
+
+    /**
+     * Match result columns and values, with default matchers for metadata.
+     */
+    protected static void assertResultMap(
+        Map<String, Object> result,
+        MapMatcher mapMatcher,
+        Matcher<?> columnMatcher,
+        Matcher<?> valuesMatcher
+    ) {
+        assertMap(result, mapMatcher.entry("columns", columnMatcher).entry("values", valuesMatcher));
     }
 }

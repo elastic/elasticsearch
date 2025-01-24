@@ -16,8 +16,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
-class FileAccessTree {
+final class FileAccessTree {
     static final FileAccessTree EMPTY = new FileAccessTree(List.of());
 
     private final String[] readPaths;
@@ -73,5 +74,17 @@ class FileAccessTree {
             return path.startsWith(maybeParent);
         }
         return ndx >= 0;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        FileAccessTree that = (FileAccessTree) o;
+        return Objects.deepEquals(readPaths, that.readPaths) && Objects.deepEquals(writePaths, that.writePaths);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(Arrays.hashCode(readPaths), Arrays.hashCode(writePaths));
     }
 }

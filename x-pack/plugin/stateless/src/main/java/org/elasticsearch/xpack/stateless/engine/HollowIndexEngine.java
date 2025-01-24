@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 
 import org.apache.lucene.index.DirectoryReader;
@@ -42,10 +43,12 @@ import java.util.function.Function;
 public class HollowIndexEngine extends ReadOnlyEngine {
 
     private final StatelessCommitService statelessCommitService;
+    private final HollowShardsService hollowShardsService;
 
-    public HollowIndexEngine(EngineConfig config, StatelessCommitService statelessCommitService) {
+    public HollowIndexEngine(EngineConfig config, StatelessCommitService statelessCommitService, HollowShardsService hollowShardsService) {
         super(config, null, new TranslogStats(), true, Function.identity(), true, true);
         this.statelessCommitService = statelessCommitService;
+        this.hollowShardsService = hollowShardsService;
     }
 
     @Override
@@ -107,5 +110,13 @@ public class HollowIndexEngine extends ReadOnlyEngine {
                 throw new IllegalStateException("Unable to refresh hollow shard", e);
             }
         }
+    }
+
+    @Override
+    public void prepareForEngineReset() throws IOException {
+        hollowShardsService.assertIngestionBlocked(shardId, true, "hollow index engine requires ingestion blocked");
+        logger.debug(() -> "preparing to reset hollow index engine for shard " + shardId);
+        // TODO ES-10386
+        throw new UnsupportedOperationException("reset hollow index engine not yet implemented");
     }
 }

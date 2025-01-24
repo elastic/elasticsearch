@@ -84,12 +84,7 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
             var indexNameWithModes = esr.indexNameWithModes();
             if (indexNameWithModes.size() != 1) {
                 failures.add(
-                    fail(
-                        esr,
-                        "invalid [{}] resolution in lookup mode to an index in [{}] indices",
-                        esr.indexPattern(),
-                        indexNameWithModes.size()
-                    )
+                    fail(esr, "invalid [{}] resolution in lookup mode to [{}] indices", esr.indexPattern(), indexNameWithModes.size())
                 );
             } else if (indexNameWithModes.values().iterator().next() != IndexMode.LOOKUP) {
                 failures.add(

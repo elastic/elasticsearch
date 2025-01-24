@@ -64,7 +64,7 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
             @Override
             public void evaluate() throws Throwable {
                 try {
-                    logger.info("Staring mock EIS gateway");
+                    logger.info("Starting mock EIS gateway");
                     webServer.start();
                     logger.info(Strings.format("Started mock EIS gateway with address: %s", getUrl()));
                 } catch (Exception e) {

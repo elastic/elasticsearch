@@ -1,0 +1,12 @@
+pr: 120813
+summary: Use new semantic text format by default
+area: Relevance
+type: breaking
+issues: []
+breaking:
+  title: Use new semantic text format by default
+  area: Relevance
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

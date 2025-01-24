@@ -4312,9 +4312,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * Calls {@link Engine#prepareForEngineReset()} on the current engine, then closes it, and loads a new engine without
      * doing any translog recovery.
+     *
+     * In general, resetting the engine should be done with care, to consider any in-progress operations and listeners.
+     * At the moment, this is implemented in serverless for a special case that ensures the engine is prepared for reset.
      */
     public void resetEngine() {
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
+        assert waitForEngineOrClosedShardListeners.isDone();
         try {
             final var currentEngine = getEngine();
             currentEngine.prepareForEngineReset();

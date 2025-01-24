@@ -689,10 +689,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 setting.getKey(),
                 (level == Level.WARN) ? "deprecation" : "breaking"
             );
-            return new DeprecationWarning(
-                level,
-                warningMessage
-            );
+            return new DeprecationWarning(level, warningMessage);
         }), Arrays.stream(warnings)).toArray(DeprecationWarning[]::new));
     }
 

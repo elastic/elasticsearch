@@ -36,6 +36,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -52,7 +53,9 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
+import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING;
 import static org.elasticsearch.index.IndexSettings.same;
 
 /**
@@ -337,10 +340,22 @@ public class MetadataUpdateSettingsService {
                 }
             }
 
+            // provides the value of VERIFIED_READ_ONLY_SETTING before block changes
+            final Function<String, Boolean> verifiedReadOnly = indexName ->
+                VERIFIED_READ_ONLY_SETTING.get(currentState.metadata().index(indexName).getSettings());
+
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
             boolean changedBlocks = false;
             for (IndexMetadata.APIBlock block : IndexMetadata.APIBlock.values()) {
-                changedBlocks |= maybeUpdateClusterBlock(actualIndices, blocks, block.block, block.setting, openSettings, metadataBuilder);
+                changedBlocks |= maybeUpdateClusterBlock(
+                    actualIndices,
+                    blocks,
+                    block.block,
+                    block.setting,
+                    openSettings,
+                    metadataBuilder,
+                    verifiedReadOnly
+                );
             }
             changed |= changedBlocks;
 
@@ -449,7 +464,8 @@ public class MetadataUpdateSettingsService {
         ClusterBlock block,
         Setting<Boolean> setting,
         Settings openSettings,
-        Metadata.Builder metadataBuilder
+        Metadata.Builder metadataBuilder,
+        Function<String, Boolean> verifiedReadOnlyBeforeBlockChanges
     ) {
         boolean changed = false;
         if (setting.exists(openSettings)) {
@@ -459,16 +475,34 @@ public class MetadataUpdateSettingsService {
                     if (blocks.hasIndexBlock(index, block) == false) {
                         blocks.addIndexBlock(index, block);
                         changed = true;
+                        if (block.contains(ClusterBlockLevel.WRITE)) {
+                            var isVerifiedReadOnly = verifiedReadOnlyBeforeBlockChanges.apply(index);
+                            if (isVerifiedReadOnly) {
+                                var indexMetadata = metadataBuilder.get(index);
+                                metadataBuilder.put(
+                                    IndexMetadata.builder(indexMetadata)
+                                        .settings(
+                                            Settings.builder()
+                                                .put(indexMetadata.getSettings())
+                                                .put(VERIFIED_READ_ONLY_SETTING.getKey(), true)
+                                        )
+                                );
+                            }
+                        }
                     }
                 } else {
                     if (blocks.hasIndexBlock(index, block)) {
                         blocks.removeIndexBlock(index, block);
                         changed = true;
                         if (block.contains(ClusterBlockLevel.WRITE)) {
-                            IndexMetadata indexMetadata = metadataBuilder.get(index);
-                            Settings.Builder indexSettings = Settings.builder().put(indexMetadata.getSettings());
-                            indexSettings.remove(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey());
-                            metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(indexSettings));
+                            if (blocks.hasIndexBlockLevel(index, ClusterBlockLevel.WRITE) == false) {
+                                var indexMetadata = metadataBuilder.get(index);
+                                var indexSettings = Settings.builder().put(indexMetadata.getSettings());
+                                indexSettings.remove(VERIFIED_READ_ONLY_SETTING.getKey());
+                                metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(indexSettings));
+                            } else if (Assertions.ENABLED) {
+                                assert VERIFIED_READ_ONLY_SETTING.get(metadataBuilder.get(index).getSettings());
+                            }
                         }
                     }
                 }

@@ -507,6 +507,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         });
 
         final SearchSourceBuilder source = original.source();
+        final boolean isExplain = source != null && source.explain() != null && source.explain();
         if (shouldOpenPIT(source)) {
             // disabling shard reordering for request
             original.setPreFilterShardSize(Integer.MAX_VALUE);
@@ -536,7 +537,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else {
             Rewriteable.rewriteAndFetch(
                 original,
-                searchService.getRewriteContext(timeProvider::absoluteStartMillis, resolvedIndices, original.pointInTimeBuilder()),
+                searchService.getRewriteContext(
+                    timeProvider::absoluteStartMillis,
+                    resolvedIndices,
+                    original.pointInTimeBuilder(),
+                    isExplain
+                ),
                 rewriteListener
             );
         }

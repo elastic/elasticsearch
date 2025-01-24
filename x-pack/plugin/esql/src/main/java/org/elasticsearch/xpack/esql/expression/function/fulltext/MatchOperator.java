@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -74,10 +75,25 @@ public class MatchOperator extends AbstractMatchFullTextFunction {
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIX_SERIALIZATION_MATCH_OPERATOR)) {
             queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         }
         return new MatchOperator(source, field, query, queryBuilder);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(field());
+        out.writeNamedWriteable(query());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIX_SERIALIZATION_MATCH_OPERATOR)) {
+            out.writeOptionalNamedWriteable(queryBuilder());
+        }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -88,11 +104,6 @@ public class MatchOperator extends AbstractMatchFullTextFunction {
     @Override
     public String functionName() {
         return ":";
-    }
-
-    @Override
-    public String getWriteableName() {
-        return ENTRY.name;
     }
 
     @Override

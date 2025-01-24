@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -218,6 +219,16 @@ public class Match extends AbstractMatchFullTextFunction implements OptionalArgu
             queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         }
         return new Match(source, field, query, null, queryBuilder);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(field());
+        out.writeNamedWriteable(query());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(queryBuilder());
+        }
     }
 
     @Override

@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -28,7 +26,6 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -99,16 +96,6 @@ public abstract class AbstractMatchFullTextFunction extends FullTextFunction imp
 
     public Expression field() {
         return field;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(field());
-        out.writeNamedWriteable(query());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
-            out.writeOptionalNamedWriteable(queryBuilder());
-        }
     }
 
     @Override

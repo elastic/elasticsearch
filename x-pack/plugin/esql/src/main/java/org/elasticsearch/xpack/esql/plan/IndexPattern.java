@@ -23,7 +23,7 @@ public class IndexPattern {
         this.indexPattern = indexPattern;
     }
 
-    public String index() {
+    public String indexPattern() {
         return indexPattern;
     }
 

@@ -2052,7 +2052,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LogicalPlan from = statement(statement);
         assertThat(from, instanceOf(UnresolvedRelation.class));
         UnresolvedRelation table = (UnresolvedRelation) from;
-        assertThat(table.table().index(), is(string));
+        assertThat(table.indexPattern().indexPattern(), is(string));
     }
 
     private void assertStringAsLookupIndexPattern(String string, String statement) {
@@ -2948,8 +2948,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = statement("FROM " + basePattern + " | " + type + " JOIN " + joinPattern + " ON " + onField);
 
         var join = as(plan, LookupJoin.class);
-        assertThat(as(join.left(), UnresolvedRelation.class).table().index(), equalTo(unquoteIndexPattern(basePattern)));
-        assertThat(as(join.right(), UnresolvedRelation.class).table().index(), equalTo(unquoteIndexPattern(joinPattern)));
+        assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
+        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(joinPattern)));
 
         var joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
         assertThat(joinType.columns(), hasSize(1));

@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.capabilities.MetricsAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -24,7 +24,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
-public class Row extends LeafPlan implements PostAnalysisVerificationAware, MetricsAware {
+public class Row extends LeafPlan implements PostAnalysisVerificationAware, TelemetryAware {
 
     private final List<Alias> fields;
 

@@ -15,7 +15,7 @@ import org.elasticsearch.grok.GrokCaptureConfig;
 import org.elasticsearch.grok.GrokCaptureType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.capabilities.MetricsAware;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class Grok extends RegexExtract implements MetricsAware {
+public class Grok extends RegexExtract implements TelemetryAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Grok", Grok::readFrom);
 
     public record Parser(String pattern, org.elasticsearch.grok.Grok grok) {

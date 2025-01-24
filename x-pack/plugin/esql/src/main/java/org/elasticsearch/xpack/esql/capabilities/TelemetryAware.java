@@ -12,12 +12,12 @@ import java.util.Locale;
 /**
  * Interface for plan nodes that need to be accounted in the statistics
  */
-public interface MetricsAware {
+public interface TelemetryAware {
 
     /**
-     * @return the name of the metric. Only needs to be overwriten if the metric name doesn't match the class name.
+     * @return the label reported in the telemetry data. Only needs to be overwritten if the label doesn't match the class name.
      */
-    default String metricName() {
+    default String telemetryLabel() {
         return getClass().getSimpleName().toUpperCase(Locale.ROOT);
     }
 }

@@ -10,8 +10,8 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.capabilities.MetricsAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -40,7 +40,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.Filter.checkFilterConditionDataType;
 
-public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAware, MetricsAware {
+public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAware, TelemetryAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "Aggregate",
@@ -143,7 +143,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
     }
 
     @Override
-    public String metricName() {
+    public String telemetryLabel() {
         return switch (aggregateType) {
             case STANDARD -> "STATS";
             case METRICS -> "METRICS";

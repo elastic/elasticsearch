@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
-import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
-
 public class AstBuilder extends LogicalPlanBuilder {
-    public AstBuilder(QueryParams params, PlanningMetrics metrics) {
-        super(params, metrics);
+    public AstBuilder(ParsingContext context) {
+        super(context);
     }
 }

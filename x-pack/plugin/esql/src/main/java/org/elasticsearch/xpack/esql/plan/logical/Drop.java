@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.capabilities.MetricsAware;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import java.util.List;
 import java.util.Objects;
 
-public class Drop extends UnaryPlan implements MetricsAware {
+public class Drop extends UnaryPlan implements TelemetryAware {
     private final List<NamedExpression> removals;
 
     public Drop(Source source, LogicalPlan child, List<NamedExpression> removals) {

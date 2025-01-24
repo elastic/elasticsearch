@@ -225,6 +225,7 @@ public class EsqlFunctionRegistry {
     // it has with the alias name associated to the FunctionDefinition instance
     private final Map<String, FunctionDefinition> defs = new LinkedHashMap<>();
     private final Map<String, String> aliases = new HashMap<>();
+    private final Map<Class<? extends Function>, String> names = new HashMap<>();
 
     private SnapshotFunctionRegistry snapshotRegistry = null;
 
@@ -260,12 +261,9 @@ public class EsqlFunctionRegistry {
     }
 
     public String functionName(Class<? extends Function> clazz) {
-        for (FunctionDefinition def : defs.values()) {
-            if (def.clazz() == clazz) {
-                return def.name();
-            }
-        }
-        throw new QlIllegalArgumentException("Cannot find function by class {}", clazz);
+        String name = names.get(clazz);
+        Check.notNull(name, "Cannot find function by class {}", clazz);
+        return name;
     }
 
     public Collection<FunctionDefinition> listFunctions() {
@@ -771,6 +769,14 @@ public class EsqlFunctionRegistry {
                 }
                 aliases.put(alias, f.name());
             }
+            Check.isTrue(
+                names.containsKey(f.clazz()) == false,
+                "function type [{}} is registered twice with names [{}] and [{}]",
+                f.clazz(),
+                names.get(f.clazz()),
+                f.name()
+            );
+            names.put(f.clazz(), f.name());
         }
         // sort the temporary map by key name and add it to the global map of functions
         defs.putAll(

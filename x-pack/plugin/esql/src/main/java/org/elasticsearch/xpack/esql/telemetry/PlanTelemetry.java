@@ -5,9 +5,9 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.stats;
+package org.elasticsearch.xpack.esql.telemetry;
 
-import org.elasticsearch.xpack.esql.capabilities.MetricsAware;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -23,26 +23,26 @@ import static org.elasticsearch.common.Strings.format;
 /**
  * This class is responsible for collecting metrics related to ES|QL planning.
  */
-public class PlanningMetrics {
+public class PlanTelemetry {
     private final EsqlFunctionRegistry functionRegistry;
-    private final Set<MetricsAware> metricsAwares = new HashSet<>();
+    private final Set<TelemetryAware> telemetryAwares = new HashSet<>();
     private final Map<String, Integer> commands = new HashMap<>();
     private final Map<String, Integer> functions = new HashMap<>();
 
-    public PlanningMetrics(EsqlFunctionRegistry functionRegistry) {
+    public PlanTelemetry(EsqlFunctionRegistry functionRegistry) {
         this.functionRegistry = functionRegistry;
     }
 
     private void add(Map<String, Integer> map, String key) {
-        map.compute(key, (k, count) -> count == null ? 1 : count + 1);
+        map.compute(key.toUpperCase(Locale.ROOT), (k, count) -> count == null ? 1 : count + 1);
     }
 
-    public void command(MetricsAware command) {
-        if (metricsAwares.add(command)) {
-            if (command.metricName() == null) {
-                throw new QlIllegalArgumentException(format("MetricsAware [{}] has no metric name", command));
+    public void command(TelemetryAware command) {
+        if (telemetryAwares.add(command)) {
+            if (command.telemetryLabel() == null) {
+                throw new QlIllegalArgumentException(format("TelemetryAware [{}] has no metric name", command));
             }
-            add(commands, command.metricName());
+            add(commands, command.telemetryLabel());
         }
     }
 
@@ -50,13 +50,12 @@ public class PlanningMetrics {
         var functionName = functionRegistry.resolveAlias(name);
         if (functionRegistry.functionExists(functionName)) {
             // The metrics have been collected initially with their uppercase spelling
-            add(functions, functionName.toUpperCase(Locale.ROOT));
+            add(functions, functionName);
         }
     }
 
     public void function(Class<? extends Function> clazz) {
-        var functionName = functionRegistry.functionName(clazz);
-        add(functions, functionName.toUpperCase(Locale.ROOT));
+        add(functions, functionRegistry.functionName(clazz));
     }
 
     public Map<String, Integer> commands() {

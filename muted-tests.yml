@@ -235,8 +235,17 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120668
 - class: org.elasticsearch.xpack.security.authc.ldap.ADLdapUserSearchSessionFactoryTests
   issue: https://github.com/elastic/elasticsearch/issues/119882
-- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedNonModularIT
-  issue: https://github.com/elastic/elasticsearch/issues/120691
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncEnrichStopIT
+  method: testEnrichAfterStop
+  issue: https://github.com/elastic/elasticsearch/issues/120757
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryIT
+  method: testStopQuery
+  issue: https://github.com/elastic/elasticsearch/issues/120767
+- class: org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT
+  issue: https://github.com/elastic/elasticsearch/issues/120772
+- class: org.elasticsearch.action.search.SearchProgressActionListenerIT
+  method: testSearchProgressWithHits
+  issue: https://github.com/elastic/elasticsearch/issues/120671
 
 # Examples:
 #

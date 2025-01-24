@@ -32,6 +32,8 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
+import org.elasticsearch.entitlement.runtime.policy.LoadNativeLibrariesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParserUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
@@ -57,8 +59,12 @@ import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -219,24 +225,27 @@ class Elasticsearch {
         // load the plugin Java modules and layers now for use in entitlements
         var modulesBundles = PluginsLoader.loadModulesBundles(nodeEnv.modulesFile());
         var pluginsBundles = PluginsLoader.loadPluginsBundles(nodeEnv.pluginsFile());
-        var pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles);
-        bootstrap.setPluginsLoader(pluginsLoader);
+
+        final PluginsLoader pluginsLoader;
 
         if (bootstrap.useEntitlements()) {
             LogManager.getLogger(Elasticsearch.class).info("Bootstrapping Entitlements");
 
             var pluginData = Stream.concat(
-                pluginsLoader.moduleBundles()
-                    .stream()
+                modulesBundles.stream()
                     .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
-                pluginsLoader.pluginBundles()
-                    .stream()
+                pluginsBundles.stream()
                     .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
             ).toList();
             var pluginPolicies = PolicyParserUtils.createPluginPolicies(pluginData);
+
+            pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
+
             var pluginsResolver = PluginsResolver.create(pluginsLoader);
             EntitlementBootstrap.bootstrap(pluginPolicies, pluginsResolver::resolveClassToPluginName);
         } else if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
+            // no need to explicitly enable native access for legacy code
+            pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, Map.of());
             // install SM after natives, shutdown hooks, etc.
             LogManager.getLogger(Elasticsearch.class).info("Bootstrapping java SecurityManager");
             org.elasticsearch.bootstrap.Security.configure(
@@ -245,8 +254,12 @@ class Elasticsearch {
                 args.pidFile()
             );
         } else {
+            // TODO: should we throw/interrupt startup in this case?
+            pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, Map.of());
             LogManager.getLogger(Elasticsearch.class).warn("Bootstrapping without any protection");
         }
+
+        bootstrap.setPluginsLoader(pluginsLoader);
     }
 
     private static void ensureInitialized(Class<?>... classes) {
@@ -465,6 +478,19 @@ class Elasticsearch {
             builder.setSecureSettings(secureSettings);
         }
         return new Environment(builder.build(), configDir);
+    }
+
+    static Map<String, Set<String>> findPluginsWithNativeAccess(Map<String, Policy> policies) {
+        Map<String, Set<String>> pluginsWithNativeAccess = new HashMap<>();
+        for (var kv : policies.entrySet()) {
+            for (var scope : kv.getValue().scopes()) {
+                if (scope.entitlements().stream().anyMatch(entitlement -> entitlement instanceof LoadNativeLibrariesEntitlement)) {
+                    var modulesToEnable = pluginsWithNativeAccess.computeIfAbsent(kv.getKey(), k -> new HashSet<>());
+                    modulesToEnable.add(scope.moduleName());
+                }
+            }
+        }
+        return pluginsWithNativeAccess;
     }
 
     // -- instance

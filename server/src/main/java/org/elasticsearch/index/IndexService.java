@@ -812,7 +812,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             scriptService,
             null,
             null,
-            null
+            null,
+            false
         );
     }
 

@@ -84,15 +84,16 @@ WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
 // Once the command has been stabilized, remove the DEV_ prefix and the {}? conditional and move the command to the
 // main section while preserving alphabetical order:
 // MYCOMMAND : 'mycommand' -> ...
-DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
-DEV_LOOKUP :      {this.isDevVersion()}? 'lookup_🐔'      -> pushMode(LOOKUP_MODE);
-DEV_METRICS :     {this.isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
+DEV_CHANGE_POINT : {this.isDevVersion()}? 'change_point'  -> pushMode(CHANGE_POINT_MODE);
+DEV_INLINESTATS :  {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
+DEV_LOOKUP :       {this.isDevVersion()}? 'lookup_🐔'     -> pushMode(LOOKUP_MODE);
+DEV_METRICS :      {this.isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
 // list of all JOIN commands
-DEV_JOIN :        {this.isDevVersion()}? 'join'          -> pushMode(JOIN_MODE);
-DEV_JOIN_FULL :   {this.isDevVersion()}? 'full'          -> pushMode(JOIN_MODE);
-DEV_JOIN_LEFT :   {this.isDevVersion()}? 'left'          -> pushMode(JOIN_MODE);
-DEV_JOIN_RIGHT :  {this.isDevVersion()}? 'right'         -> pushMode(JOIN_MODE);
-DEV_JOIN_LOOKUP : {this.isDevVersion()}? 'lookup'        -> pushMode(JOIN_MODE);
+DEV_JOIN :         {this.isDevVersion()}? 'join'          -> pushMode(JOIN_MODE);
+DEV_JOIN_FULL :    {this.isDevVersion()}? 'full'          -> pushMode(JOIN_MODE);
+DEV_JOIN_LEFT :    {this.isDevVersion()}? 'left'          -> pushMode(JOIN_MODE);
+DEV_JOIN_RIGHT :   {this.isDevVersion()}? 'right'         -> pushMode(JOIN_MODE);
+DEV_JOIN_LOOKUP :  {this.isDevVersion()}? 'lookup'        -> pushMode(JOIN_MODE);
 
 
 //
@@ -639,3 +640,21 @@ CLOSING_METRICS_BY
 CLOSING_METRICS_PIPE
     : PIPE -> type(PIPE), popMode
     ;
+
+///
+/// CHANGE_POINT command
+///
+mode CHANGE_POINT_MODE;
+
+CHANGE_POINT_PIPE : PIPE -> type(PIPE), popMode;
+CHANGE_POINT_ON : ON -> type(ON);
+CHANGE_POINT_AS : AS -> type(AS);
+CHANGE_POINT_DOT: DOT -> type(DOT);
+CHANGE_POINT_COMMA: COMMA -> type(COMMA);
+CHANGE_POINT_QUOTED_IDENTIFIER: QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER);
+CHANGE_POINT_UNQUOTED_IDENTIFIER: UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIER);
+CHANGE_POINT_LINE_COMMENT: LINE_COMMENT -> channel(HIDDEN);
+CHANGE_POINT_MULTILINE_COMMENT: MULTILINE_COMMENT -> channel(HIDDEN);
+CHANGE_POINT_WS: WS -> channel(HIDDEN);
+
+// TODO: CHANGE_POINT_ON, CHANGE_POINT_AS

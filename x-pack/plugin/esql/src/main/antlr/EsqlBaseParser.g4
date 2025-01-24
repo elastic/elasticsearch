@@ -55,6 +55,7 @@ processingCommand
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? joinCommand
+    | {this.isDevVersion()}? changePointCommand
     ;
 
 whereCommand
@@ -337,4 +338,9 @@ joinCondition
 
 joinPredicate
     : valueExpression
+    ;
+
+// TODO: make ON/AS optional
+changePointCommand
+    : DEV_CHANGE_POINT value=qualifiedName ON key=qualifiedName AS targetType=qualifiedName COMMA targetPvalue=qualifiedName
     ;

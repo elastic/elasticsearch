@@ -23,6 +23,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
+import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
 import org.elasticsearch.compute.operator.MvExpandOperator;
@@ -71,6 +72,7 @@ import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -110,7 +112,6 @@ import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.joining;
-import static org.elasticsearch.compute.operator.LimitOperator.Factory;
 import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
@@ -221,6 +222,8 @@ public class LocalExecutionPlanner {
             return planLimit(limit, context);
         } else if (node instanceof MvExpandExec mvExpand) {
             return planMvExpand(mvExpand, context);
+        } else if (node instanceof ChangePointExec changePoint) {
+            return planChangePoint(changePoint, context);
         }
         // source nodes
         else if (node instanceof EsQueryExec esQuery) {
@@ -684,7 +687,7 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limit.child(), context);
-        return source.with(new Factory((Integer) limit.limit().fold(context.foldCtx)), source.layout);
+        return source.with(new LimitOperator.Factory((Integer) limit.limit().fold(context.foldCtx)), source.layout);
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {
@@ -696,6 +699,20 @@ public class LocalExecutionPlanner {
             new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel(), blockSize),
             layout.build()
         );
+    }
+
+    private PhysicalOperation planChangePoint(ChangePointExec changePoint, LocalExecutionPlannerContext context) {
+        // note: mostly copied from "planEval"
+        PhysicalOperation source = plan(changePoint.child(), context);
+        for (Attribute target : List.of(changePoint.targetType(), changePoint.targetPvalue())) {
+            // For now: copy/paste "value" into both type and pvalue field.
+            // TODO: compute actual changepoint
+            var evaluatorSupplier = EvalMapper.toEvaluator(context.foldCtx(), changePoint.value(), source.layout);
+            Layout.Builder layout = source.layout.builder();
+            layout.append(target);
+            source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
+        }
+        return source;
     }
 
     /**

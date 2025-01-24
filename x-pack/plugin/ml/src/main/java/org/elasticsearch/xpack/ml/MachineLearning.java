@@ -183,7 +183,6 @@ import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
-import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
@@ -1231,8 +1230,8 @@ public class MachineLearning extends Plugin
                             AnomalyDetectorsIndex.jobStateIndexPattern(),
                             AnomalyDetectorsIndex.jobStateIndexWriteAlias()
                         ),
-                        new MlIndexRollover.IndexPatternAndAlias(MlStatsIndex.indexPattern(), MlStatsIndex.writeAlias()),
-                        new MlIndexRollover.IndexPatternAndAlias(AnnotationIndex.INDEX_PATTERN, AnnotationIndex.WRITE_ALIAS_NAME)
+                        new MlIndexRollover.IndexPatternAndAlias(MlStatsIndex.indexPattern(), MlStatsIndex.writeAlias())
+                        // .ml-annotations-000001 added in v8.0, no need to update
                         // TODO notifications = https://github.com/elastic/elasticsearch/pull/120064
                         // TODO anomaly results
                         // TODO .ml-inference-XXXXXX - requires alias

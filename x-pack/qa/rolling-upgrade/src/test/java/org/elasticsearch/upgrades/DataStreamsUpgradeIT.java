@@ -9,12 +9,18 @@ package org.elasticsearch.upgrades;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
@@ -283,54 +289,61 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 "index": "%s"
               }
             }""", dataStreamName));
-        Response reindexResponse = client().performRequest(reindexRequest);
-        assertOK(reindexResponse);
-        assertBusy(() -> {
-            Request statusRequest = new Request("GET", "_migration/reindex/" + dataStreamName + "/_status");
-            Response statusResponse = client().performRequest(statusRequest);
-            Map<String, Object> statusResponseMap = XContentHelper.convertToMap(
-                JsonXContent.jsonXContent,
-                statusResponse.getEntity().getContent(),
-                false
-            );
-            assertOK(statusResponse);
-            assertThat(statusResponseMap.get("complete"), equalTo(true));
-            final int originalWriteIndex = 1;
-            if (isOriginalClusterSameMajorVersionAsCurrent()) {
-                assertThat(
-                    statusResponseMap.get("total_indices_in_data_stream"),
-                    equalTo(originalWriteIndex + numRolloversOnOldCluster + explicitRolloverOnNewClusterCount)
+
+        String upgradeUser = "upgrade_user";
+        String upgradeUserPassword = "x-pack-test-password";
+        createRole("upgrade_role", dataStreamName);
+        createUser(upgradeUser, upgradeUserPassword, "upgrade_role");
+        try (RestClient upgradeUserClient = getClient(upgradeUser, upgradeUserPassword)) {
+            Response reindexResponse = upgradeUserClient.performRequest(reindexRequest);
+            assertOK(reindexResponse);
+            assertBusy(() -> {
+                Request statusRequest = new Request("GET", "_migration/reindex/" + dataStreamName + "/_status");
+                Response statusResponse = upgradeUserClient.performRequest(statusRequest);
+                Map<String, Object> statusResponseMap = XContentHelper.convertToMap(
+                    JsonXContent.jsonXContent,
+                    statusResponse.getEntity().getContent(),
+                    false
                 );
-                // If the original cluster was the same as this one, we don't want any indices reindexed:
-                assertThat(statusResponseMap.get("total_indices_requiring_upgrade"), equalTo(0));
-                assertThat(statusResponseMap.get("successes"), equalTo(0));
-            } else {
-                // The number of rollovers that will have happened when we call reindex:
-                final int rolloversPerformedByReindex = explicitRolloverOnNewClusterCount == 0 ? 1 : 0;
-                final int expectedTotalIndicesInDataStream = originalWriteIndex + numRolloversOnOldCluster
-                    + explicitRolloverOnNewClusterCount + rolloversPerformedByReindex;
-                assertThat(statusResponseMap.get("total_indices_in_data_stream"), equalTo(expectedTotalIndicesInDataStream));
-                /*
-                 * total_indices_requiring_upgrade is made up of: (the original write index) + numRolloversOnOldCluster. The number of
-                 * rollovers on the upgraded cluster is irrelevant since those will not be reindexed.
-                 */
-                assertThat(
-                    statusResponseMap.get("total_indices_requiring_upgrade"),
-                    equalTo(originalWriteIndex + numRolloversOnOldCluster - closedOldIndices.size())
-                );
-                assertThat(statusResponseMap.get("successes"), equalTo(numRolloversOnOldCluster + 1 - closedOldIndices.size()));
-                // We expect all the original indices to have been deleted
-                for (String oldIndex : indicesNeedingUpgrade) {
-                    if (closedOldIndices.contains(oldIndex) == false) {
-                        assertThat(indexExists(oldIndex), equalTo(false));
+                assertOK(statusResponse);
+                assertThat(statusResponseMap.get("complete"), equalTo(true));
+                final int originalWriteIndex = 1;
+                if (isOriginalClusterSameMajorVersionAsCurrent()) {
+                    assertThat(
+                        statusResponseMap.get("total_indices_in_data_stream"),
+                        equalTo(originalWriteIndex + numRolloversOnOldCluster + explicitRolloverOnNewClusterCount)
+                    );
+                    // If the original cluster was the same as this one, we don't want any indices reindexed:
+                    assertThat(statusResponseMap.get("total_indices_requiring_upgrade"), equalTo(0));
+                    assertThat(statusResponseMap.get("successes"), equalTo(0));
+                } else {
+                    // The number of rollovers that will have happened when we call reindex:
+                    final int rolloversPerformedByReindex = explicitRolloverOnNewClusterCount == 0 ? 1 : 0;
+                    final int expectedTotalIndicesInDataStream = originalWriteIndex + numRolloversOnOldCluster
+                        + explicitRolloverOnNewClusterCount + rolloversPerformedByReindex;
+                    assertThat(statusResponseMap.get("total_indices_in_data_stream"), equalTo(expectedTotalIndicesInDataStream));
+                    /*
+                     * total_indices_requiring_upgrade is made up of: (the original write index) + numRolloversOnOldCluster. The number of
+                     * rollovers on the upgraded cluster is irrelevant since those will not be reindexed.
+                     */
+                    assertThat(
+                        statusResponseMap.get("total_indices_requiring_upgrade"),
+                        equalTo(originalWriteIndex + numRolloversOnOldCluster - closedOldIndices.size())
+                    );
+                    assertThat(statusResponseMap.get("successes"), equalTo(numRolloversOnOldCluster + 1 - closedOldIndices.size()));
+                    // We expect all the original indices to have been deleted
+                    for (String oldIndex : indicesNeedingUpgrade) {
+                        if (closedOldIndices.contains(oldIndex) == false) {
+                            assertThat(indexExists(oldIndex), equalTo(false));
+                        }
                     }
+                    assertThat(getDataStreamIndices(dataStreamName).size(), equalTo(expectedTotalIndicesInDataStream));
                 }
-                assertThat(getDataStreamIndices(dataStreamName).size(), equalTo(expectedTotalIndicesInDataStream));
-            }
-        }, 60, TimeUnit.SECONDS);
-        Request cancelRequest = new Request("POST", "_migration/reindex/" + dataStreamName + "/_cancel");
-        Response cancelResponse = client().performRequest(cancelRequest);
-        assertOK(cancelResponse);
+            }, 60, TimeUnit.SECONDS);
+            Request cancelRequest = new Request("POST", "_migration/reindex/" + dataStreamName + "/_cancel");
+            Response cancelResponse = upgradeUserClient.performRequest(cancelRequest);
+            assertOK(cancelResponse);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -413,5 +426,25 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         assertOK(rolloverResponse);
         String oldIndexName = (String) entityAsMap(rolloverResponse).get("old_index");
         return oldIndexName;
+    }
+
+    private void createUser(String name, String password, String role) throws IOException {
+        Request request = new Request("PUT", "/_security/user/" + name);
+        request.setJsonEntity("{ \"password\": \"" + password + "\", \"roles\": [ \"" + role + "\"] }");
+        assertOK(adminClient().performRequest(request));
+    }
+
+    private void createRole(String name, String dataStream) throws IOException {
+        Request request = new Request("PUT", "/_security/role/" + name);
+        request.setJsonEntity("{ \"indices\": [ { \"names\" : [ \"" + dataStream + "\"], \"privileges\": [ \"manage\" ] } ] }");
+        assertOK(adminClient().performRequest(request));
+    }
+
+    private RestClient getClient(String user, String passwd) throws IOException {
+        RestClientBuilder builder = RestClient.builder(adminClient().getNodes().toArray(new Node[0]));
+        String token = basicAuthHeaderValue(user, new SecureString(passwd.toCharArray()));
+        configureClient(builder, Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build());
+        builder.setStrictDeprecationMode(true);
+        return builder.build();
     }
 }

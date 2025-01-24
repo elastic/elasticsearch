@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.datastreams;
 
-import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -55,60 +54,24 @@ public class DataStreamsActionUtil {
         String[] names,
         IndicesOptions indicesOptions
     ) {
-        List<ResolvedExpression> abstractionNames = indexNameExpressionResolver.dataStreams(
+        List<ResolvedExpression> resolvedDataStreamExpressions = indexNameExpressionResolver.dataStreams(
             project,
             updateIndicesOptions(indicesOptions),
             names
         );
         SortedMap<String, IndexAbstraction> indicesLookup = project.getIndicesLookup();
 
-        List<String> results = new ArrayList<>(abstractionNames.size());
-        for (ResolvedExpression abstractionName : abstractionNames) {
-            IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName.resource());
+        List<String> results = new ArrayList<>(resolvedDataStreamExpressions.size());
+        for (ResolvedExpression resolvedExpression : resolvedDataStreamExpressions) {
+            IndexAbstraction indexAbstraction = indicesLookup.get(resolvedExpression.resource());
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                selectDataStreamIndicesNames(
-                    (DataStream) indexAbstraction,
-                    IndexComponentSelector.FAILURES.equals(abstractionName.selector()),
-                    results
-                );
-            }
-        }
-        return results;
-    }
-
-    /**
-     * Resolves a list of expressions into data stream names and then collects the concrete indices
-     * that are applicable for those data streams based on the selector provided in the arguments.
-     * @param indexNameExpressionResolver resolver object
-     * @param project Project to query
-     * @param names data stream expressions
-     * @param selector which component indices of the data stream should be returned
-     * @param indicesOptions options for expression resolution
-     * @return A stream of concrete index names that belong to the components specified
-     *         on the data streams returned from the expressions given
-     */
-    public static List<String> resolveConcreteIndexNamesWithSelector(
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ProjectMetadata project,
-        String[] names,
-        IndexComponentSelector selector,
-        IndicesOptions indicesOptions
-    ) {
-        assert indicesOptions.allowSelectors() == false : "If selectors are enabled, use resolveConcreteIndexNames instead";
-        List<String> abstractionNames = indexNameExpressionResolver.dataStreamNames(project, updateIndicesOptions(indicesOptions), names);
-        SortedMap<String, IndexAbstraction> indicesLookup = project.getIndicesLookup();
-
-        List<String> results = new ArrayList<>(abstractionNames.size());
-        for (String abstractionName : abstractionNames) {
-            IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
-            assert indexAbstraction != null;
-            if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                if (selector.shouldIncludeData()) {
-                    selectDataStreamIndicesNames((DataStream) indexAbstraction, false, results);
+                DataStream dataStream = (DataStream) indexAbstraction;
+                if (IndexNameExpressionResolver.shouldIncludeRegularIndices(indicesOptions, resolvedExpression.selector())) {
+                    selectDataStreamIndicesNames(dataStream, false, results);
                 }
-                if (selector.shouldIncludeFailures()) {
-                    selectDataStreamIndicesNames((DataStream) indexAbstraction, true, results);
+                if (IndexNameExpressionResolver.shouldIncludeFailureIndices(indicesOptions, resolvedExpression.selector())) {
+                    selectDataStreamIndicesNames(dataStream, true, results);
                 }
             }
         }

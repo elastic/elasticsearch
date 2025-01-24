@@ -57,7 +57,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
 
     public static final Setting<Float> REINDEX_MAX_REQUESTS_PER_SECOND_SETTING = new Setting<>(
         REINDEX_MAX_REQUESTS_PER_SECOND_KEY,
-        Float.toString(10f),
+        Float.toString(1000f),
         s -> {
             if (s.equals("-1")) {
                 return Float.POSITIVE_INFINITY;
@@ -119,7 +119,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         IndexMetadata sourceIndex = project.metadata().index(sourceIndexName);
         Settings settingsBefore = sourceIndex.getSettings();
 
-        var hasOldVersion = DeprecatedIndexPredicate.getReindexRequiredPredicate(project.metadata());
+        var hasOldVersion = DeprecatedIndexPredicate.getReindexRequiredPredicate(project.metadata(), false);
         if (hasOldVersion.test(sourceIndex.getIndex()) == false) {
             logger.warn(
                 "Migrating index [{}] with version [{}] is unnecessary as its version is not before [{}]",

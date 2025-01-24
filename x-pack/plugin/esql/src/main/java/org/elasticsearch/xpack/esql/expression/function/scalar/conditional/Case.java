@@ -524,6 +524,9 @@ public final class Case extends EsqlScalarFunction {
                 ) {
                     for (int p = 0; p < lhs.getPositionCount(); p++) {
                         if (lhsOrRhs.mask().getBoolean(p)) {
+                            // TODO Copy the per-type specialization that COALESCE has.
+                            // There's also a slowdown because copying from a block checks to see if there are any nulls and that's slow.
+                            // Vectors do not, so this still shows as fairly fast. But not as fast as the per-type unrolling.
                             builder.copyFrom(lhs, p, p + 1);
                         } else {
                             builder.copyFrom(rhs, p, p + 1);

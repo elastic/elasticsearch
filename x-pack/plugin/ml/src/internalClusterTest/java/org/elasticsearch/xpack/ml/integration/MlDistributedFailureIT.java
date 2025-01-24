@@ -311,6 +311,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         }
 
         UpdatePersistentTaskStatusAction.Request updatePersistentTaskStatusRequest = new UpdatePersistentTaskStatusAction.Request(
+            TEST_REQUEST_TIMEOUT,
             task.getId(),
             task.getAllocationId(),
             DatafeedState.STOPPING

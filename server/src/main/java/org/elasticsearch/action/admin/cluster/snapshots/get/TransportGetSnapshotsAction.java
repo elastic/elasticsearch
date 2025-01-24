@@ -721,7 +721,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         void getSnapshotInfo(Repository repository, SnapshotId snapshotId, ActionListener<SnapshotInfo> listener) {
             enqueueTask(listener.delegateFailure((l, ref) -> {
                 if (isCancelledSupplier.getAsBoolean()) {
-                    l.onFailure(new TaskCancelledException("task cancelled"));
+                    try (ref) {
+                        l.onFailure(new TaskCancelledException("task cancelled"));
+                    }
                 } else {
                     repository.getSnapshotInfo(snapshotId, ActionListener.releaseAfter(l, ref));
                 }

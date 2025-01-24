@@ -1,11 +1,11 @@
 pr: 120813
 summary: Change Semantic Text To Act Like A Normal Text Field
-area: Vector Search
+area: Search
 type: breaking
 issues: []
 breaking:
   title: Change Semantic Text To Act Like A Normal Text Field
-  area: Vector Search
+  area: Search
   details:
     The previous semantic_text format used a complex subfield structure in _source to store the embeddings.
     This complicated interactions/integrations with semantic_text fields and _source in general.

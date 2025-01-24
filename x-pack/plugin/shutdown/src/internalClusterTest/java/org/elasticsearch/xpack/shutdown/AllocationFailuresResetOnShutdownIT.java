@@ -54,13 +54,13 @@ public class AllocationFailuresResetOnShutdownIT extends ESIntegTestCase {
         // await all relocation attempts are exhausted
         var maxAttempts = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
         assertBusy(() -> {
-            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            var state = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState();
             var shard = state.routingTable().index("index1").shard(0).primaryShard();
             assertThat(shard, notNullValue());
             assertThat(shard.relocationFailureInfo().failedRelocations(), equalTo(maxAttempts));
         });
         // ensure the shard remain started
-        var stateAfterFailures = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        var stateAfterFailures = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState();
         var shardAfterFailures = stateAfterFailures.routingTable().index("index1").shard(0).primaryShard();
         assertThat(shardAfterFailures, notNullValue());
         assertThat(shardAfterFailures.state(), equalTo(ShardRoutingState.STARTED));
@@ -69,8 +69,8 @@ public class AllocationFailuresResetOnShutdownIT extends ESIntegTestCase {
         if (randomBoolean()) {
             // A RESTART marker shouldn't cause a reset of failures
             final var request = createRequest(SingleNodeShutdownMetadata.Type.RESTART, node1, null);
-            client().execute(PutShutdownNodeAction.INSTANCE, request).get();
-            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            safeGet(client().execute(PutShutdownNodeAction.INSTANCE, request));
+            var state = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState();
             var shard = state.routingTable().index("index1").shard(0).primaryShard();
             assertThat(shard, notNullValue());
             assertThat(shard.relocationFailureInfo().failedRelocations(), equalTo(maxAttempts));
@@ -86,7 +86,7 @@ public class AllocationFailuresResetOnShutdownIT extends ESIntegTestCase {
             node1,
             node2
         );
-        client().execute(PutShutdownNodeAction.INSTANCE, request).get();
+        safeGet(client().execute(PutShutdownNodeAction.INSTANCE, request));
         assertBusy(() -> {
             var stateAfterNodeJoin = internalCluster().clusterService().state();
             var relocatedShard = stateAfterNodeJoin.routingTable().index("index1").shard(0).primaryShard();
@@ -114,30 +114,32 @@ public class AllocationFailuresResetOnShutdownIT extends ESIntegTestCase {
             }));
         // add shutdown to the new node
         final var request = createRequest(randomFrom(SingleNodeShutdownMetadata.Type.values()), node2, randomIdentifier());
-        client().execute(PutShutdownNodeAction.INSTANCE, request).get();
+        safeGet(client().execute(PutShutdownNodeAction.INSTANCE, request));
 
         updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", node1), "index1");
         ensureGreen("index1");
         // await all relocation attempts are exhausted
         var maxAttempts = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
         assertBusy(() -> {
-            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            var state = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState();
             var shard = state.routingTable().index("index1").shard(0).primaryShard();
             assertThat(shard, notNullValue());
             assertThat(shard.relocationFailureInfo().failedRelocations(), equalTo(maxAttempts));
         });
         // ensure the shard remain started
-        var stateAfterFailures = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        var stateAfterFailures = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState();
         var shardAfterFailures = stateAfterFailures.routingTable().index("index1").shard(0).primaryShard();
         assertThat(shardAfterFailures, notNullValue());
         assertThat(shardAfterFailures.state(), equalTo(ShardRoutingState.STARTED));
         assertThat(stateAfterFailures.nodes().get(shardAfterFailures.currentNodeId()).getName(), equalTo(node1));
         failRelocation.set(false);
         // Removing the non-RESTART shutdown marker should reset the counter and allow more relocation retries
-        client().execute(
-            DeleteShutdownNodeAction.INSTANCE,
-            new DeleteShutdownNodeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, getNodeId(node2))
-        ).get();
+        safeGet(
+            client().execute(
+                DeleteShutdownNodeAction.INSTANCE,
+                new DeleteShutdownNodeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, getNodeId(node2))
+            )
+        );
         if (request.getType() != SingleNodeShutdownMetadata.Type.RESTART) {
             assertBusy(() -> {
                 var stateAfterNodeJoin = internalCluster().clusterService().state();
@@ -147,7 +149,7 @@ public class AllocationFailuresResetOnShutdownIT extends ESIntegTestCase {
                 assertThat(stateAfterNodeJoin.nodes().get(relocatedShard.currentNodeId()).getName(), not(equalTo(node1)));
             });
         } else {
-            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            var state = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState();
             var shard = state.routingTable().index("index1").shard(0).primaryShard();
             assertThat(shard, notNullValue());
             assertThat(shard.relocationFailureInfo().failedRelocations(), equalTo(maxAttempts));
@@ -177,7 +179,7 @@ public class AllocationFailuresResetOnShutdownIT extends ESIntegTestCase {
         var maxAttempts = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
         ensureRed("index1");
         {
-            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            var state = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState();
             var index = state.getRoutingTable().index("index1");
             assertNotNull(index);
             var shard = index.shard(0).primaryShard();
@@ -191,9 +193,9 @@ public class AllocationFailuresResetOnShutdownIT extends ESIntegTestCase {
         if (randomBoolean()) {
             // A RESTART marker shouldn't cause a reset of failures
             final var request = createRequest(randomFrom(SingleNodeShutdownMetadata.Type.RESTART), node1, null);
-            client().execute(PutShutdownNodeAction.INSTANCE, request).get();
+            safeGet(client().execute(PutShutdownNodeAction.INSTANCE, request));
             ensureRed("index1");
-            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            var state = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState();
             var shard = state.routingTable().index("index1").shard(0).primaryShard();
             assertThat(shard, notNullValue());
             assertNotNull(shard.unassignedInfo());
@@ -210,7 +212,7 @@ public class AllocationFailuresResetOnShutdownIT extends ESIntegTestCase {
             node1,
             node2
         );
-        client().execute(PutShutdownNodeAction.INSTANCE, request).get();
+        safeGet(client().execute(PutShutdownNodeAction.INSTANCE, request));
         ensureGreen("index1");
     }
 
@@ -231,7 +233,7 @@ public class AllocationFailuresResetOnShutdownIT extends ESIntegTestCase {
             }));
 
         final var request = createRequest(randomFrom(SingleNodeShutdownMetadata.Type.values()), node1, node2);
-        client().execute(PutShutdownNodeAction.INSTANCE, request).get();
+        safeGet(client().execute(PutShutdownNodeAction.INSTANCE, request));
 
         prepareCreate("index1", indexSettings(1, 0)).execute();
 
@@ -239,7 +241,7 @@ public class AllocationFailuresResetOnShutdownIT extends ESIntegTestCase {
         var maxAttempts = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
         ensureRed("index1");
         {
-            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            var state = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState();
             var shard = state.getRoutingTable().index("index1").shard(0).primaryShard();
             assertNotNull(shard);
             assertNotNull(shard.unassignedInfo());
@@ -249,16 +251,18 @@ public class AllocationFailuresResetOnShutdownIT extends ESIntegTestCase {
         failAllocation.set(false);
 
         // A none-RESTART node shutdown should reset the counter and allow more allocation retries
-        client().execute(
-            DeleteShutdownNodeAction.INSTANCE,
-            new DeleteShutdownNodeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, getNodeId(node1))
-        ).get();
+        safeGet(
+            client().execute(
+                DeleteShutdownNodeAction.INSTANCE,
+                new DeleteShutdownNodeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, getNodeId(node1))
+            )
+        );
 
         if (request.getType() != SingleNodeShutdownMetadata.Type.RESTART) {
             ensureGreen("index1");
         } else {
             ensureRed("index1");
-            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            var state = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState();
             var shard = state.routingTable().index("index1").shard(0).primaryShard();
             assertThat(shard, notNullValue());
             assertNotNull(shard.unassignedInfo());

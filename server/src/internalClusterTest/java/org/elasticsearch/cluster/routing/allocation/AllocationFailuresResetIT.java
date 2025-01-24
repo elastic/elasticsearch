@@ -61,7 +61,7 @@ public class AllocationFailuresResetIT extends ESIntegTestCase {
     private void awaitShardAllocMaxRetries() throws Exception {
         var maxRetries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(internalCluster().getDefaultSettings());
         assertBusy(() -> {
-            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            var state = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState();
             var index = state.getRoutingTable().index(INDEX);
             assertNotNull(index);
             var shard = index.shard(SHARD).primaryShard();
@@ -74,7 +74,7 @@ public class AllocationFailuresResetIT extends ESIntegTestCase {
 
     private void awaitShardAllocSucceed() throws Exception {
         assertBusy(() -> {
-            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            var state = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState();
             var index = state.getRoutingTable().index(INDEX);
             assertNotNull(index);
             var shard = index.shard(SHARD).primaryShard();
@@ -125,13 +125,13 @@ public class AllocationFailuresResetIT extends ESIntegTestCase {
         // await all relocation attempts are exhausted
         var maxAttempts = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
         assertBusy(() -> {
-            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            var state = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState();
             var shard = state.routingTable().index(INDEX).shard(SHARD).primaryShard();
             assertThat(shard, notNullValue());
             assertThat(shard.relocationFailureInfo().failedRelocations(), equalTo(maxAttempts));
         });
         // ensure the shard remain started
-        var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        var state = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState();
         var shard = state.routingTable().index(INDEX).shard(SHARD).primaryShard();
         assertThat(shard, notNullValue());
         assertThat(shard.state(), equalTo(ShardRoutingState.STARTED));

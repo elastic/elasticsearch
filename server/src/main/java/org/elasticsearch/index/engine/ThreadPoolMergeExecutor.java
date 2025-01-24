@@ -42,7 +42,7 @@ public class ThreadPoolMergeExecutor {
             MergeTask mergeTask2 = tpms2.peekMergeTaskToExecute();
             if (mergeTask1 == null && mergeTask2 == null) {
                 // arbitrary order between schedulers that cannot run any merge right now
-                return System.identityHashCode(mergeTask1) - System.identityHashCode(mergeTask2);
+                return System.identityHashCode(tpms1) - System.identityHashCode(tpms2);
             } else if (mergeTask1 == null) {
                 // "merge task 2" can run because "merge scheduler 1" cannot run any merges
                 return 1;

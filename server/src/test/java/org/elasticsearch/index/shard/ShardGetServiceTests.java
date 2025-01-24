@@ -92,7 +92,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             """;
         boolean noSource = randomBoolean();
         String sourceOptions = noSource ? "\"enabled\": false" : randomBoolean() ? "\"excludes\": [\"fo*\"]" : "\"includes\": [\"ba*\"]";
-        runGetFromTranslogWithOptions(docToIndex, sourceOptions, noSource ? "" : "{\"bar\":\"bar\"}", "\"text\"", "foo", false);
+        runGetFromTranslogWithOptions(docToIndex, sourceOptions, null, noSource ? "" : "{\"bar\":\"bar\"}", "\"text\"", "foo", false);
     }
 
     public void testGetFromTranslogWithLongSourceMappingOptionsAndStoredFields() throws IOException {
@@ -101,7 +101,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             """;
         boolean noSource = randomBoolean();
         String sourceOptions = noSource ? "\"enabled\": false" : randomBoolean() ? "\"excludes\": [\"fo*\"]" : "\"includes\": [\"ba*\"]";
-        runGetFromTranslogWithOptions(docToIndex, sourceOptions, noSource ? "" : "{\"bar\":42}", "\"long\"", 7L, false);
+        runGetFromTranslogWithOptions(docToIndex, sourceOptions, null, noSource ? "" : "{\"bar\":42}", "\"long\"", 7L, false);
     }
 
     public void testGetFromTranslogWithSyntheticSource() throws IOException {
@@ -110,10 +110,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             """;
         String expectedFetchedSource = """
             {"bar":42,"foo":7}""";
-        String sourceOptions = """
-            "mode": "synthetic"
-            """;
-        runGetFromTranslogWithOptions(docToIndex, sourceOptions, expectedFetchedSource, "\"long\"", 7L, true);
+        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        runGetFromTranslogWithOptions(docToIndex, "", settings, expectedFetchedSource, "\"long\"", 7L, true);
     }
 
     public void testGetFromTranslogWithDenseVector() throws IOException {
@@ -127,12 +125,13 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 "foo": "foo"
             }
             """, Arrays.toString(vector));
-        runGetFromTranslogWithOptions(docToIndex, "\"enabled\": true", docToIndex, "\"text\"", "foo", "\"dense_vector\"", false);
+        runGetFromTranslogWithOptions(docToIndex, "\"enabled\": true", null, docToIndex, "\"text\"", "foo", "\"dense_vector\"", false);
     }
 
     private void runGetFromTranslogWithOptions(
         String docToIndex,
         String sourceOptions,
+        Settings settings,
         String expectedResult,
         String fieldType,
         Object expectedFooVal,
@@ -141,6 +140,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         runGetFromTranslogWithOptions(
             docToIndex,
             sourceOptions,
+            settings,
             expectedResult,
             fieldType,
             expectedFooVal,
@@ -152,28 +152,30 @@ public class ShardGetServiceTests extends IndexShardTestCase {
     private void runGetFromTranslogWithOptions(
         String docToIndex,
         String sourceOptions,
+        Settings additionalSettings,
         String expectedResult,
         String fieldTypeFoo,
         Object expectedFooVal,
         String fieldTypeBar,
         boolean sourceOnlyFetchCreatesInMemoryReader
     ) throws IOException {
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping(Strings.format("""
-                {
-                  "properties": {
-                    "foo": {
-                      "type": %s,
-                      "store": true
-                    },
-                    "bar": { "type": %s }
-                  },
-                  "_source": { %s }
-                  }
-                }""", fieldTypeFoo, fieldTypeBar, sourceOptions))
-            .settings(indexSettings(IndexVersion.current(), 1, 1))
-            .primaryTerm(0, 1)
-            .build();
+
+        var indexSettingsBuilder = indexSettings(IndexVersion.current(), 1, 1);
+        if (additionalSettings != null) {
+            indexSettingsBuilder.put(additionalSettings);
+        }
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping(Strings.format("""
+            {
+              "properties": {
+                "foo": {
+                  "type": %s,
+                  "store": true
+                },
+                "bar": { "type": %s }
+              },
+              "_source": { %s }
+              }
+            }""", fieldTypeFoo, fieldTypeBar, sourceOptions)).settings(indexSettingsBuilder).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, EngineTestCase.randomReaderWrapper());
         recoverShardFromStore(primary);
         LongSupplier translogInMemorySegmentCount = ((InternalEngine) primary.getEngine()).translogInMemorySegmentsCount::get;

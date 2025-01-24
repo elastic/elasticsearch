@@ -13,12 +13,12 @@ import java.util.Objects;
 /**
  * Contains an index pattern together with its {@link Source}. Can also be a comma-separated list, like {@code idx-*,remote:other-idx*}.
  */
-public class IndexPatternIdentifier {
+public class IndexPattern {
 
     private final Source source;
     private final String indexPattern;
 
-    public IndexPatternIdentifier(Source source, String indexPattern) {
+    public IndexPattern(Source source, String indexPattern) {
         this.source = source;
         this.indexPattern = indexPattern;
     }
@@ -42,7 +42,7 @@ public class IndexPatternIdentifier {
             return false;
         }
 
-        IndexPatternIdentifier other = (IndexPatternIdentifier) obj;
+        IndexPattern other = (IndexPattern) obj;
         return Objects.equals(indexPattern, other.indexPattern);
     }
 

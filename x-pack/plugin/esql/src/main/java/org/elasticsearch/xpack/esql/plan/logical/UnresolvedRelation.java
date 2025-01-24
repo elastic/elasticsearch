@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.IndexPatternIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 
 import java.util.Collections;
 import java.util.List;
@@ -22,7 +22,7 @@ import static java.util.Collections.singletonList;
 
 public class UnresolvedRelation extends LeafPlan implements Unresolvable {
 
-    private final IndexPatternIdentifier table;
+    private final IndexPattern table;
     private final boolean frozen;
     private final List<Attribute> metadataFields;
     /*
@@ -40,7 +40,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
 
     public UnresolvedRelation(
         Source source,
-        IndexPatternIdentifier table,
+        IndexPattern table,
         boolean frozen,
         List<Attribute> metadataFields,
         IndexMode indexMode,
@@ -71,7 +71,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
         return NodeInfo.create(this, UnresolvedRelation::new, table, frozen, metadataFields, indexMode, unresolvedMsg, commandName);
     }
 
-    public IndexPatternIdentifier table() {
+    public IndexPattern table() {
         return table;
     }
 

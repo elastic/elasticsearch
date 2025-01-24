@@ -95,6 +95,7 @@ public class DeprecationChecks {
 
     static List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(
         IndexDeprecationChecks::oldIndicesCheck,
+        IndexDeprecationChecks::ignoredOldIndicesCheck,
         IndexDeprecationChecks::translogRetentionSettingCheck,
         IndexDeprecationChecks::checkIndexDataPath,
         IndexDeprecationChecks::storeTypeSettingCheck,
@@ -103,7 +104,8 @@ public class DeprecationChecks {
     );
 
     static List<BiFunction<DataStream, ClusterState, DeprecationIssue>> DATA_STREAM_CHECKS = List.of(
-        DataStreamDeprecationChecks::oldIndicesCheck
+        DataStreamDeprecationChecks::oldIndicesCheck,
+        DataStreamDeprecationChecks::ignoredOldIndicesCheck
     );
 
     /**

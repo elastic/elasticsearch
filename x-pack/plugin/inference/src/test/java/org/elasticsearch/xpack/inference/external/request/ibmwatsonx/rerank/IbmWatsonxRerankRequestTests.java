@@ -9,13 +9,10 @@ package org.elasticsearch.xpack.inference.external.request.ibmwatsonx.rerank;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxRerankRequest;
-import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModelTests;
 
@@ -43,7 +40,7 @@ public class IbmWatsonxRerankRequestTests extends ESTestCase {
         var apiVersion = "2023-05-04";
         var apiKey = "api_key";
         var query = "database";
-        List<String> input = List.of("greenland", "google","john", "mysql","potter", "grammar");
+        List<String> input = List.of("greenland", "google", "john", "mysql", "potter", "grammar");
 
         var request = createRequest(model, projectId, uri, apiVersion, apiKey, query, input);
         var httpRequest = request.createHttpRequest();
@@ -60,20 +57,24 @@ public class IbmWatsonxRerankRequestTests extends ESTestCase {
             requestMap,
             is(
 
-                Map.of("project_id", "project_id", "model_id", "model", "inputs",
-                    List.of(Map.of("text", "greenland"),
+                Map.of(
+                    "project_id",
+                    "project_id",
+                    "model_id",
+                    "model",
+                    "inputs",
+                    List.of(
+                        Map.of("text", "greenland"),
                         Map.of("text", "google"),
                         Map.of("text", "john"),
                         Map.of("text", "mysql"),
                         Map.of("text", "potter"),
                         Map.of("text", "grammar")
                     ),
-                    "query", "database",
+                    "query",
+                    "database",
                     "parameters",
-                    Map.of("return_options",
-                        Map.of("top_n", 2,
-                            "inputs", true),
-                        "truncate_input_tokens", 100)
+                    Map.of("return_options", Map.of("top_n", 2, "inputs", true), "truncate_input_tokens", 100)
                 )
             )
         );
@@ -90,11 +91,7 @@ public class IbmWatsonxRerankRequestTests extends ESTestCase {
     ) {
         var embeddingsModel = IbmWatsonxRerankModelTests.createModel(model, projectId, uri, apiVersion, apiKey);
 
-        return new IbmWatsonxRerankWithoutAuthRequest(
-            query,
-            input,
-            embeddingsModel
-        );
+        return new IbmWatsonxRerankWithoutAuthRequest(query, input, embeddingsModel);
     }
 
     private static class IbmWatsonxRerankWithoutAuthRequest extends IbmWatsonxRerankRequest {

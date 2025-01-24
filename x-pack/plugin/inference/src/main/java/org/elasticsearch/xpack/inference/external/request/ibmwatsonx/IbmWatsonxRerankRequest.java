@@ -57,12 +57,14 @@ public class IbmWatsonxRerankRequest implements IbmWatsonxRequest {
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(
-                new IbmWatsonxRerankRequestEntity(query,
+                new IbmWatsonxRerankRequestEntity(
+                    query,
                     input,
                     taskSettings,
                     model.getServiceSettings().modelId(),
-                    model.getServiceSettings().projectId())).
-                getBytes(StandardCharsets.UTF_8)
+                    model.getServiceSettings().projectId()
+                )
+            ).getBytes(StandardCharsets.UTF_8)
         );
 
         httpPost.setEntity(byteEntity);
@@ -92,15 +94,15 @@ public class IbmWatsonxRerankRequest implements IbmWatsonxRequest {
         return this; // TODO?
     }
 
-    public String getQuery(){
+    public String getQuery() {
         return query;
     }
 
-    public List<String> getInput(){
+    public List<String> getInput() {
         return input;
     }
 
-    public IbmWatsonxRerankModel getModel(){
+    public IbmWatsonxRerankModel getModel() {
         return model;
     }
 

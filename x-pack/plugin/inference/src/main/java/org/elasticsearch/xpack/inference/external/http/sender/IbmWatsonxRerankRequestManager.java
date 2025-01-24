@@ -17,20 +17,21 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.ibmwatsonx.IbmWatsonxResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxRerankRequest;
 import org.elasticsearch.xpack.inference.external.response.ibmwatsonx.IbmWatsonxRankedResponseEntity;
-
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
 
 import java.util.Objects;
 import java.util.function.Supplier;
-
 
 public class IbmWatsonxRerankRequestManager extends IbmWatsonxRequestManager {
     private static final Logger logger = LogManager.getLogger(IbmWatsonxRerankRequestManager.class);
     private static final ResponseHandler HANDLER = createIbmWatsonxResponseHandler();
 
     private static ResponseHandler createIbmWatsonxResponseHandler() {
-        return new IbmWatsonxResponseHandler("ibm watsonx rerank",
-            (request, response) -> IbmWatsonxRankedResponseEntity.fromResponse(response), false);
+        return new IbmWatsonxResponseHandler(
+            "ibm watsonx rerank",
+            (request, response) -> IbmWatsonxRankedResponseEntity.fromResponse(response),
+            false
+        );
     }
 
     public static IbmWatsonxRerankRequestManager of(IbmWatsonxRerankModel model, ThreadPool threadPool) {

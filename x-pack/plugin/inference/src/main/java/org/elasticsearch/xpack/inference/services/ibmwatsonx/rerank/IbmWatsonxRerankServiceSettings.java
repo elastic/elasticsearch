@@ -92,11 +92,13 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
         return 10;
     }
 
-    public IbmWatsonxRerankServiceSettings(@Nullable URI uri,
-                                           String apiVersion,
-                                           @Nullable String modelId,
-                                           String projectId,
-                                           @Nullable RateLimitSettings rateLimitSettings) {
+    public IbmWatsonxRerankServiceSettings(
+        @Nullable URI uri,
+        String apiVersion,
+        @Nullable String modelId,
+        String projectId,
+        @Nullable RateLimitSettings rateLimitSettings
+    ) {
         this.uri = uri;
         this.apiVersion = apiVersion;
         this.projectId = projectId;
@@ -167,7 +169,6 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
         }
 
         builder.field(PROJECT_ID, projectId);
-
 
         rateLimitSettings.toXContent(builder, params);
 

@@ -41,8 +41,8 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -139,13 +139,15 @@ public class IbmWatsonxService extends SenderService {
                 secretSettings,
                 context
             );
-            case RERANK -> new IbmWatsonxRerankModel(inferenceEntityId,
+            case RERANK -> new IbmWatsonxRerankModel(
+                inferenceEntityId,
                 taskType,
                 NAME,
                 serviceSettings,
                 taskSettings,
                 secretSettings,
-                context);
+                context
+            );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
     }

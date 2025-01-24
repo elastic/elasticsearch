@@ -15,8 +15,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public record IbmWatsonxRerankRequestEntity( String query, List<String> inputs, IbmWatsonxRerankTaskSettings taskSettings, String modelId, String projectId)
-    implements ToXContentObject {
+public record IbmWatsonxRerankRequestEntity(
+    String query,
+    List<String> inputs,
+    IbmWatsonxRerankTaskSettings taskSettings,
+    String modelId,
+    String projectId
+) implements ToXContentObject {
 
     private static final String INPUTS_FIELD = "inputs";
     private static final String QUERY_FIELD = "query";

@@ -28,7 +28,6 @@ import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmW
 import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.TEXT;
 import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.V1;
 
-
 public class IbmWatsonxRerankModel extends IbmWatsonxModel {
     public static IbmWatsonxRerankModel of(IbmWatsonxRerankModel model, Map<String, Object> taskSettings) {
         var requestTaskSettings = IbmWatsonxRerankTaskSettings.fromMap(taskSettings);
@@ -92,13 +91,14 @@ public class IbmWatsonxRerankModel extends IbmWatsonxModel {
     public URI uri() {
         URI uri;
         try {
-            uri = buildUri(this.getServiceSettings().uri().toString(),this.getServiceSettings().apiVersion());
+            uri = buildUri(this.getServiceSettings().uri().toString(), this.getServiceSettings().apiVersion());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
 
         return uri;
     }
+
     /**
      * Accepts a visitor to create an executable action. The returned action will not return documents in the response.
      * @param visitor _
@@ -110,8 +110,6 @@ public class IbmWatsonxRerankModel extends IbmWatsonxModel {
     public ExecutableAction accept(IbmWatsonxActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
         return visitor.create(this, taskSettings);
     }
-
-
 
     public static URI buildUri(String uri, String apiVersion) throws URISyntaxException {
         return new URIBuilder().setScheme("https")

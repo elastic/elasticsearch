@@ -15,13 +15,7 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.net.URI;
 
 public class IbmWatsonxRerankModelTests extends ESTestCase {
-    public static IbmWatsonxRerankModel createModel(
-        String model,
-        String projectId,
-        URI uri,
-        String apiVersion,
-        String apiKey
-    ) {
+    public static IbmWatsonxRerankModel createModel(String model, String projectId, URI uri, String apiVersion, String apiKey) {
         return new IbmWatsonxRerankModel(
             "id",
             TaskType.RERANK,

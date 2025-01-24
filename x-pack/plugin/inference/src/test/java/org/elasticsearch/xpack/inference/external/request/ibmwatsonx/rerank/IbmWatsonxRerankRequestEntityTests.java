@@ -23,11 +23,13 @@ import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhi
 public class IbmWatsonxRerankRequestEntityTests extends ESTestCase {
     public void testXContent_Request() throws IOException {
         IbmWatsonxRerankTaskSettings taskSettings = new IbmWatsonxRerankTaskSettings(5, true, 100);
-        var entity = new IbmWatsonxRerankRequestEntity("database",
-            List.of("greenland", "google","john", "mysql","potter", "grammar"),
+        var entity = new IbmWatsonxRerankRequestEntity(
+            "database",
+            List.of("greenland", "google", "john", "mysql", "potter", "grammar"),
             taskSettings,
             "model",
-            "project_id");
+            "project_id"
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);

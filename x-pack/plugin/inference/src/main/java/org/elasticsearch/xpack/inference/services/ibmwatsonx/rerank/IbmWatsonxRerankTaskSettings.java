@@ -27,7 +27,6 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 
-
 public class IbmWatsonxRerankTaskSettings implements TaskSettings {
 
     public static final String NAME = "ibm_watsonx_rerank_task_settings";
@@ -73,8 +72,10 @@ public class IbmWatsonxRerankTaskSettings implements TaskSettings {
      * @param requestTaskSettings the settings passed in within the task_settings field of the request
      * @return a constructed {@link IbmWatsonxRerankTaskSettings}
      */
-    public static IbmWatsonxRerankTaskSettings of(IbmWatsonxRerankTaskSettings originalSettings,
-                                                  IbmWatsonxRerankTaskSettings requestTaskSettings) {
+    public static IbmWatsonxRerankTaskSettings of(
+        IbmWatsonxRerankTaskSettings originalSettings,
+        IbmWatsonxRerankTaskSettings requestTaskSettings
+    ) {
         return new IbmWatsonxRerankTaskSettings(
             requestTaskSettings.getTopNDocumentsOnly() != null
                 ? requestTaskSettings.getTopNDocumentsOnly()

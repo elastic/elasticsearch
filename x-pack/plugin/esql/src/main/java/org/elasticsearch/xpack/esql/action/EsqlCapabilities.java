@@ -629,7 +629,12 @@ public class EsqlCapabilities {
         /**
          * Support named argument for function in map format.
          */
-        OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION(Build.current().isSnapshot());
+        OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Disabled support for index aliases in lookup joins
+         */
+        LOOKUP_JOIN_NO_ALIASES(JOIN_LOOKUP_V12.isEnabled());
 
         private final boolean enabled;
 

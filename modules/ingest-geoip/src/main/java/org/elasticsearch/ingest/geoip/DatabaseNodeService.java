@@ -104,6 +104,9 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
     private final ClusterService clusterService;
     private IngestService ingestService;
 
+    // this reference is set and updated in checkDatabases below
+    private volatile GeoIpTaskState taskState = GeoIpTaskState.EMPTY;
+
     private final ConcurrentMap<String, DatabaseReaderLazyLoader> databases = new ConcurrentHashMap<>();
 
     DatabaseNodeService(
@@ -185,12 +188,13 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         ClusterState currentState = clusterService.state();
         assert currentState != null;
 
-        GeoIpTaskState state = getGeoIpTaskState(currentState);
-        if (state == null) {
+        if (taskState == null) {
             return true;
         }
 
-        GeoIpTaskState.Metadata metadata = state.getDatabases().get(databaseFile);
+        // use the cached taskState reference to figure out if this database is valid
+        GeoIpTaskState.Metadata metadata = taskState.getDatabases().get(databaseFile);
+
         // we never remove metadata from cluster state, if metadata is null we deal with built-in database, which is always valid
         if (metadata == null) {
             return true;
@@ -298,6 +302,9 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                 // Note: an empty state will purge stale entries in databases map
                 taskState = GeoIpTaskState.EMPTY;
             }
+            // update the cached taskState reference to reflect this current information for future isValid checks
+            this.taskState = taskState;
+
             validMetadatas.addAll(
                 taskState.getDatabases()
                     .entrySet()

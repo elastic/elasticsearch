@@ -428,28 +428,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return suppliers;
     }
 
-    public static List<TestCaseSupplier> forBinaryNotCastingWithMapParams(
-        String name,
-        String lhsName,
-        String rhsName,
-        BinaryOperator<Object> expected,
-        DataType expectedType,
-        List<TypedDataSupplier> lhsSuppliers,
-        List<TypedDataSupplier> rhsSuppliers,
-        List<String> warnings,
-        boolean symmetric
-    ) {
-        return forBinaryNotCasting(
-            expected,
-            expectedType,
-            lhsSuppliers,
-            rhsSuppliers,
-            equalTo(name + "[" + lhsName + "=Attribute[channel=0], " + rhsName + "=Attribute[channel=1]]"),
-            (lhs, rhs) -> warnings,
-            symmetric
-        );
-    }
-
     public static List<TestCaseSupplier> forBinaryNotCasting(
         String name,
         String lhsName,

@@ -241,6 +241,13 @@ public class Metadata {
     }
 
     /**
+     * Get the value associated with {@param key}, otherwise return {@param defaultValue}
+     */
+    public Object getOrDefault(String key, Object defaultValue) {
+        return map.getOrDefault(key, defaultValue);
+    }
+
+    /**
      * Remove the mapping associated with {@param key}
      * @throws IllegalArgumentException if {@link #isAvailable(String)} is false or the key cannot be removed.
      */

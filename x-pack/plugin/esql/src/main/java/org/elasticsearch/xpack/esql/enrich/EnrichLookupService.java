@@ -8,10 +8,16 @@
 package org.elasticsearch.xpack.esql.enrich;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
@@ -23,9 +29,20 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -36,6 +53,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * {@link EnrichLookupService} performs enrich lookup for a given input page.
@@ -88,11 +106,6 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             case "geo_match" -> QueryList.geoShapeQueryList(fieldType, context, inputBlock);
             default -> throw new EsqlIllegalArgumentException("illegal match type " + request.matchType);
         };
-    }
-
-    @Override
-    protected String getRequiredPrivilege() {
-        return ClusterPrivilegeResolver.MONITOR_ENRICH.name();
     }
 
     @Override
@@ -269,5 +282,71 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
                 Releasables.closeExpectNoException(page::releaseBlocks);
             }
         }
+    }
+
+    @Override
+    protected void sendChildRequest(
+        CancellableTask parentTask,
+        ActionListener<List<Page>> delegate,
+        DiscoveryNode targetNode,
+        TransportRequest transportRequest
+    ) {
+        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+        ActionListener<List<Page>> listener = ContextPreservingActionListener.wrapPreservingContext(delegate, threadContext);
+        hasEnrichPrivilege(listener.delegateFailureAndWrap((l, ignored) -> {
+            // Since we just checked the needed privileges
+            // we can access the index regardless of the user/role that is executing the query
+            try (ThreadContext.StoredContext unused = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
+                super.sendChildRequest(parentTask, l, targetNode, transportRequest);
+            }
+        }));
+    }
+
+    protected void hasEnrichPrivilege(ActionListener<Void> outListener) {
+        final Settings settings = clusterService.getSettings();
+        String privilegeName = ClusterPrivilegeResolver.MONITOR_ENRICH.name();
+        if (privilegeName == null
+            || settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) == false
+            || XPackSettings.SECURITY_ENABLED.get(settings) == false) {
+            outListener.onResponse(null);
+            return;
+        }
+        final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+        final User user = securityContext.getUser();
+        if (user == null) {
+            outListener.onFailure(new IllegalStateException("missing or unable to read authentication info on request"));
+            return;
+        }
+        HasPrivilegesRequest request = new HasPrivilegesRequest();
+        request.username(user.principal());
+        request.clusterPrivileges(privilegeName);
+        request.indexPrivileges(new RoleDescriptor.IndicesPrivileges[0]);
+        request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
+        ActionListener<HasPrivilegesResponse> listener = outListener.delegateFailureAndWrap((l, resp) -> {
+            if (resp.isCompleteMatch()) {
+                l.onResponse(null);
+                return;
+            }
+            String detailed = resp.getClusterPrivileges()
+                .entrySet()
+                .stream()
+                .filter(e -> e.getValue() == false)
+                .map(e -> "privilege [" + e.getKey() + "] is missing")
+                .collect(Collectors.joining(", "));
+            String message = "user ["
+                + user.principal()
+                + "] doesn't have "
+                + "sufficient privileges to perform enrich lookup: "
+                + detailed;
+            l.onFailure(Exceptions.authorizationError(message));
+        });
+        transportService.sendRequest(
+            transportService.getLocalNode(),
+            HasPrivilegesAction.NAME,
+            request,
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(listener, HasPrivilegesResponse::new, executor)
+        );
     }
 }

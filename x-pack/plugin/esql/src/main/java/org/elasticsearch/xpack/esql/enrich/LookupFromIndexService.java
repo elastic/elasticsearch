@@ -90,11 +90,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         return new LookupResponse(in, blockFactory);
     }
 
-    @Override
-    protected String getRequiredPrivilege() {
-        return null;
-    }
-
     public static class Request extends AbstractLookupService.Request {
         private final String matchField;
 

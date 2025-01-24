@@ -137,7 +137,7 @@ teardown:
               blocks.write: true
               blocks.read: true
   - do:
-      migrate.create_from:
+      indices.create_from:
         source: "source-index-1"
         dest: "dest-index-1"
         body:

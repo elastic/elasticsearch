@@ -15,6 +15,10 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -55,7 +59,8 @@ public record SemanticTextField(
     String fieldName,
     @Nullable List<String> originalValues,
     InferenceResult inference,
-    XContentType contentType
+    XContentType contentType,
+    @Nullable ChunkingSettings chunkingSettings
 ) implements ToXContentObject {
 
     static final String TEXT_FIELD = "text";
@@ -69,6 +74,16 @@ public record SemanticTextField(
     static final String CHUNKED_START_OFFSET_FIELD = "start_offset";
     static final String CHUNKED_END_OFFSET_FIELD = "end_offset";
     static final String MODEL_SETTINGS_FIELD = "model_settings";
+    static final String TASK_TYPE_FIELD = "task_type";
+    static final String DIMENSIONS_FIELD = "dimensions";
+    static final String SIMILARITY_FIELD = "similarity";
+    static final String ELEMENT_TYPE_FIELD = "element_type";
+    // Chunking settings
+    static final String CHUNKING_SETTINGS_FIELD = "chunking_settings";
+    static final String STRATEGY_FIELD = "strategy";
+    static final String MAX_CHUNK_SIZE_FIELD = "max_chunk_size";
+    static final String OVERLAP_FIELD = "overlap";
+    static final String SENTENCE_OVERLAP_FIELD = "sentence_overlap";
 
     public record InferenceResult(String inferenceId, MinimalServiceSettings modelSettings, Map<String, List<Chunk>> chunks) {}
 
@@ -135,6 +150,10 @@ public record SemanticTextField(
         builder.startObject(INFERENCE_FIELD);
         builder.field(INFERENCE_ID_FIELD, inference.inferenceId);
         builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings);
+        if (chunkingSettings != null) {
+            builder.field(CHUNKING_SETTINGS_FIELD, chunkingSettings);
+        }
+
         if (useLegacyFormat) {
             builder.startArray(CHUNKS_FIELD);
         } else {
@@ -189,7 +208,8 @@ public record SemanticTextField(
                 context.fieldName(),
                 originalValues,
                 (InferenceResult) args[1],
-                context.xContentType()
+                context.xContentType(),
+                (ChunkingSettings) args[2]
             );
         });
 
@@ -212,9 +232,39 @@ public record SemanticTextField(
         }
     );
 
+    private static final ConstructingObjectParser<ModelSettings, Void> MODEL_SETTINGS_PARSER = new ConstructingObjectParser<>(
+        MODEL_SETTINGS_FIELD,
+        true,
+        args -> {
+            TaskType taskType = TaskType.fromString((String) args[0]);
+            Integer dimensions = (Integer) args[1];
+            SimilarityMeasure similarity = args[2] == null ? null : SimilarityMeasure.fromString((String) args[2]);
+            DenseVectorFieldMapper.ElementType elementType = args[3] == null
+                ? null
+                : DenseVectorFieldMapper.ElementType.fromString((String) args[3]);
+            return new ModelSettings(taskType, dimensions, similarity, elementType);
+        }
+    );
+
+    private static final ConstructingObjectParser<Map<String, Object>, Void> CHUNKING_SETTINGS_PARSER = new ConstructingObjectParser<>(
+        CHUNKING_SETTINGS_FIELD,
+        true,
+        args -> {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = (Map<String, Object>) args[0];
+            return map;
+        }
+    );
+
     static {
         SEMANTIC_TEXT_FIELD_PARSER.declareStringArray(optionalConstructorArg(), new ParseField(TEXT_FIELD));
         SEMANTIC_TEXT_FIELD_PARSER.declareObject(constructorArg(), INFERENCE_RESULT_PARSER, new ParseField(INFERENCE_FIELD));
+        SEMANTIC_TEXT_FIELD_PARSER.declareObjectOrNull(
+            optionalConstructorArg(),
+            (p, c) -> CHUNKING_SETTINGS_PARSER.parse(p, null),
+            null,
+            new ParseField(CHUNKING_SETTINGS_FIELD)
+        );
 
         INFERENCE_RESULT_PARSER.declareString(constructorArg(), new ParseField(INFERENCE_ID_FIELD));
         INFERENCE_RESULT_PARSER.declareObjectOrNull(

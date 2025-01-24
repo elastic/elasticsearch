@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InvertableType;
@@ -34,7 +33,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -73,13 +71,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
@@ -385,9 +380,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             var sourceKeepMode = this.sourceKeepMode.orElse(indexSourceKeepMode);
             BinaryFieldMapper offsetsFieldMapper;
             if (context.isSourceSynthetic()
+                && sourceKeepMode == SourceKeepMode.ARRAYS
                 && fieldtype.stored() == false
                 && copyTo.copyToFields().isEmpty()
-                && sourceKeepMode == SourceKeepMode.ARRAYS) {
+                && multiFieldsBuilder.hasMultiFields() == false) {
                 // Skip stored, we will be synthesizing from stored fields, no point to keep track of the offsets
                 // Skip copy_to, supporting that requires more work. However, copy_to usage is rare in metrics and logging use cases
 
@@ -949,29 +945,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                 throwIndexingWithScriptParam();
             }
 
-            String fieldName = context.parser().currentName();
             if (context.parser().currentToken() == XContentParser.Token.START_ARRAY) {
-                SortedMap<String, List<Integer>> arrayOffsetsByField = new TreeMap<>();
-                int numberOfOffsets = parseArray(context, arrayOffsetsByField);
-                processOffsets(context, arrayOffsetsByField, numberOfOffsets);
-
-                if (builderParams.multiFields().iterator().hasNext()) {
-                    for (String value : arrayOffsetsByField.keySet()) {
-                        var valueParser = new ValueXContentParser(
-                            context.parser().getTokenLocation(),
-                            value,
-                            fieldName,
-                            XContentParser.Token.VALUE_STRING
-                        );
-                        doParseMultiFields(context.switchParser(valueParser));
-                    }
-                }
+                parseArray(context);
             } else if (context.parser().currentToken().isValue() || context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
                 final String value = context.parser().textOrNull();
                 indexValue(context, value == null ? fieldType().nullValue : value);
-                if (builderParams.multiFields().iterator().hasNext()) {
-                    doParseMultiFields(context);
-                }
             } else {
                 throw new IllegalArgumentException("Encountered unexpected token [" + context.parser().currentToken() + "].");
             }
@@ -985,46 +963,12 @@ public final class KeywordFieldMapper extends FieldMapper {
         indexValue(context, value == null ? fieldType().nullValue : value);
     }
 
-    private void processOffsets(DocumentParserContext context, SortedMap<String, List<Integer>> arrayOffsets, int numberOfOffsets)
-        throws IOException {
-        if (arrayOffsets == null || arrayOffsets.isEmpty()) {
-            return;
-        }
-
-        int ord = 0;
-        int[] offsetToOrd = new int[numberOfOffsets];
-        for (var entry : arrayOffsets.entrySet()) {
-            for (var offsetAndLevel : entry.getValue()) {
-                offsetToOrd[offsetAndLevel] = ord;
-            }
-            ord++;
-        }
-
-        // TODO: remove later
-        logger.info("id=" + context.id());
-        logger.info("fieldName=" + fullPath());
-        logger.info("values=" + arrayOffsets);
-        logger.info("offsetToOrd=" + Arrays.toString(offsetToOrd));
-
-        if (context.doc().getField(offsetsFieldMapper.fullPath()) != null) {
-            assert false;
-        }
-
-        try (var streamOutput = new BytesStreamOutput()) {
-            // TODO: optimize
-            // This array allows to retain the original ordering of the leaf array and duplicate values.
-            streamOutput.writeVIntArray(offsetToOrd);
-            context.doc().add(new BinaryDocValuesField(offsetsFieldMapper.fullPath(), streamOutput.bytes().toBytesRef()));
-        }
-    }
-
-    private int parseArray(DocumentParserContext context, SortedMap<String, List<Integer>> arrayOffsets) throws IOException {
-        int numberOfOffsets = 0;
+    private void parseArray(DocumentParserContext context) throws IOException {
         XContentParser parser = context.parser();
         while (true) {
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.END_ARRAY) {
-                return numberOfOffsets;
+                return;
             }
             if (token.isValue() || token == XContentParser.Token.VALUE_NULL) {
                 String value = context.parser().textOrNull();
@@ -1034,12 +978,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 // TODO: handle json null
                 boolean indexed = indexValue(context, value);
                 if (indexed) {
-                    int nextOffset = numberOfOffsets++;
-                    var offsets = arrayOffsets.computeIfAbsent(value, s -> new ArrayList<>());
-                    offsets.add(nextOffset);
+                    context.recordOffset(offsetsFieldMapper.fullPath(), value);
                 }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                numberOfOffsets += parseArray(context, arrayOffsets);
             } else {
                 throw new IllegalArgumentException("Encountered unexpected token [" + token + "].");
             }

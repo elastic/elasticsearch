@@ -82,13 +82,9 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         if (preservesExactSource()) {
             out = in;
         } else {
-            var syntheticSourceOutputList = Stream.concat(validValues.stream(), ignoredValues.stream()).toList();
-            if (syntheticSourceOutputList.size() == 1
-                && (store || (ignoreAbove != null && syntheticSourceOutputList.get(0).length() > ignoreAbove))) {
-                out = syntheticSourceOutputList.get(0);
-            } else {
-                out = syntheticSourceOutputList;
-            }
+            var validValuesInCorrectOrder = store ? validValues : outputFromDocValues;
+            var syntheticSourceOutputList = Stream.concat(validValuesInCorrectOrder.stream(), ignoredValues.stream()).toList();
+            out = syntheticSourceOutputList.size() == 1 ? syntheticSourceOutputList.get(0) : syntheticSourceOutputList;
         }
 
         List<String> loadBlock;

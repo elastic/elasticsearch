@@ -1,16 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xpack.logsdb.qa.matchers.source;
+package org.elasticsearch.logsdb.datageneration.matchers.source;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.logsdb.datageneration.matchers.MatchResult;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.logsdb.qa.matchers.MatchResult;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -20,8 +22,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.logsdb.qa.matchers.Messages.formatErrorMessage;
-import static org.elasticsearch.xpack.logsdb.qa.matchers.Messages.prettyPrintCollections;
+import static org.elasticsearch.logsdb.datageneration.matchers.Messages.formatErrorMessage;
+import static org.elasticsearch.logsdb.datageneration.matchers.Messages.prettyPrintCollections;
 
 interface FieldSpecificMatcher {
     MatchResult match(List<Object> actual, List<Object> expected, Map<String, Object> actualMapping, Map<String, Object> expectedMapping);
@@ -115,40 +117,39 @@ interface FieldSpecificMatcher {
             }
 
             assert scalingFactor instanceof Number;
-            var expectedNormalized = normalizeExpected(expected, ((Number) scalingFactor).doubleValue());
-            var actualNormalized = normalizeActual(actual);
-
-            return actualNormalized.equals(expectedNormalized)
-                ? MatchResult.match()
-                : MatchResult.noMatch(
-                    formatErrorMessage(
-                        actualMappings,
-                        actualSettings,
-                        expectedMappings,
-                        expectedSettings,
-                        "Values of type [scaled_float] don't match after normalization, normalized "
-                            + prettyPrintCollections(actualNormalized, expectedNormalized)
-                    )
-                );
-        }
-
-        private static Set<Double> normalizeExpected(List<Object> values, double scalingFactor) {
-            if (values == null) {
-                return Set.of();
+            double scalingFactorDouble = ((Number) scalingFactor).doubleValue();
+            // It is possible that we receive a mix of reduced precision values and original values.
+            // F.e. in case of `synthetic_source_keep: "arrays"` in nested objects only arrays are preserved as is
+            // and therefore any singleton values have reduced precision.
+            // Therefore, we need to match either an exact value or a normalized value.
+            var expectedNormalized = normalizeValues(expected);
+            var actualNormalized = normalizeValues(actual);
+            for (var expectedValue : expectedNormalized) {
+                if (actualNormalized.contains(expectedValue) == false
+                    && actualNormalized.contains(encodeDecodeWithPrecisionLoss(expectedValue, scalingFactorDouble)) == false) {
+                    return MatchResult.noMatch(
+                        formatErrorMessage(
+                            actualMappings,
+                            actualSettings,
+                            expectedMappings,
+                            expectedSettings,
+                            "Values of type [scaled_float] don't match after normalization, normalized "
+                                + prettyPrintCollections(actualNormalized, expectedNormalized)
+                        )
+                    );
+                }
             }
 
-            return values.stream()
-                .filter(Objects::nonNull)
-                .map(ScaledFloatMatcher::toDouble)
-                // Based on logic in ScaledFloatFieldMapper
-                .map(v -> {
-                    var encoded = Math.round(v * scalingFactor);
-                    return encoded / scalingFactor;
-                })
-                .collect(Collectors.toSet());
+            return MatchResult.match();
         }
 
-        private static Set<Double> normalizeActual(List<Object> values) {
+        private Double encodeDecodeWithPrecisionLoss(double value, double scalingFactor) {
+            // Based on logic in ScaledFloatFieldMapper
+            var encoded = Math.round(value * scalingFactor);
+            return encoded / scalingFactor;
+        }
+
+        private static Set<Double> normalizeValues(List<Object> values) {
             if (values == null) {
                 return Set.of();
             }

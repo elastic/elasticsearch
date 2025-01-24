@@ -40,6 +40,9 @@
             "id": {
               "type": "keyword"
             },
+            "name": {
+              "type": "keyword"
+            },
             "type": {
               "type": "keyword"
             }
@@ -175,9 +178,6 @@
                   "ignore_malformed": true
                 },
                 "tags": {
-                  "type": "keyword"
-                },
-                "name": {
                   "type": "keyword"
                 },
                 "machine": {

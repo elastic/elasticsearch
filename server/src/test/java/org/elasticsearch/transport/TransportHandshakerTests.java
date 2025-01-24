@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -39,7 +38,6 @@ public class TransportHandshakerTests extends ESTestCase {
     private TestThreadPool threadPool;
     private TransportHandshaker.HandshakeRequestSender requestSender;
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     private static final TransportVersion HANDSHAKE_REQUEST_VERSION = TransportHandshaker.V8_HANDSHAKE_VERSION;
 
     @Override
@@ -166,7 +164,6 @@ public class TransportHandshakerTests extends ESTestCase {
         assertEquals(TransportVersion.current(), response.getTransportVersion());
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // v7 handshakes are not supported in v9
     public void testReadV7HandshakeRequest() throws IOException {
         final var transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
 
@@ -187,7 +184,6 @@ public class TransportHandshakerTests extends ESTestCase {
         assertEquals(transportVersion.toReleaseVersion(), handshakeRequest.releaseVersion);
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // v7 handshakes are not supported in v9
     public void testReadV7HandshakeResponse() throws IOException {
         final var transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
 

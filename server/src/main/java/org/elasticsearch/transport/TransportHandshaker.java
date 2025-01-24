@@ -20,7 +20,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.EOFException;
@@ -297,7 +296,6 @@ final class TransportHandshaker {
             this.releaseVersion = Objects.requireNonNull(releaseVersion);
         }
 
-        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remainingMessage == null is invalid in v9
         HandshakeRequest(StreamInput streamInput) throws IOException {
             super(streamInput);
             BytesReference remainingMessage;

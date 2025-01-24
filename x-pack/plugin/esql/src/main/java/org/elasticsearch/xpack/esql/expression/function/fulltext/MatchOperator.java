@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -23,7 +26,7 @@ import java.util.List;
 /**
  * This class performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MatchQuery} using an operator.
  */
-public class MatchOperator extends Match {
+public class MatchOperator extends AbstractMatchFullTextFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -60,15 +63,11 @@ public class MatchOperator extends Match {
             description = "Value to find in the provided field."
         ) Expression matchQuery
     ) {
-        super(source, field, matchQuery);
+        this(source, field, matchQuery, null);
     }
 
-    private static Match readFrom(StreamInput in) throws IOException {
-        Source source = Source.readFrom((PlanStreamInput) in);
-        Expression field = in.readNamedWriteable(Expression.class);
-        Expression query = in.readNamedWriteable(Expression.class);
-
-        return new MatchOperator(source, field, query);
+    private MatchOperator(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder) {
+        super(source, matchQuery, List.of(field, matchQuery), queryBuilder, field);
     }
 
     @Override
@@ -84,6 +83,27 @@ public class MatchOperator extends Match {
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    private static MatchOperator readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression query = in.readNamedWriteable(Expression.class);
+        QueryBuilder queryBuilder = null;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+            queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+        }
+        return new MatchOperator(source, field, query, queryBuilder);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(field());
+        out.writeNamedWriteable(query());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(queryBuilder());
+        }
     }
 
     @Override

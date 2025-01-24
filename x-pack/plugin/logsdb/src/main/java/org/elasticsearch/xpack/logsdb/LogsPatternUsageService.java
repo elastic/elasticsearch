@@ -27,8 +27,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
- * A component that check in the background whether there are data streams that match log-*-* pattern and if so records this as persistent
- * setting in cluster state. If logs-*-* data stream usage has been found then this component will no longer in the background.
+ * A component that checks in the background whether there are data streams that match log-*-* pattern and if so records this as persistent
+ * setting in cluster state. If logs-*-* data stream usage has been found then this component will no longer run in the background.
  */
 final class LogsPatternUsageService implements LocalNodeMasterListener {
 

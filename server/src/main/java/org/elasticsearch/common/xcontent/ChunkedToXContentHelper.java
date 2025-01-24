@@ -73,10 +73,6 @@ public enum ChunkedToXContentHelper {
         return Iterators.single((b, p) -> b.field(name, value));
     }
 
-    public static Iterator<ToXContent> field(String name, double value) {
-        return Iterators.single((b, p) -> b.field(name, value));
-    }
-
     public static Iterator<ToXContent> field(String name, String value) {
         return Iterators.single((b, p) -> b.field(name, value));
     }
@@ -131,6 +127,13 @@ public enum ChunkedToXContentHelper {
      */
     public static Iterator<ToXContent> array(String name, Iterator<? extends ChunkedToXContentObject> contents, ToXContent.Params params) {
         return Iterators.concat(startArray(name), Iterators.flatMap(contents, c -> c.toXContentChunked(params)), endArray());
+    }
+
+    /**
+     * Defines an object named {@code name}, with the contents set by {@code iterator}
+     */
+    public static Iterator<ToXContent> object(Iterator<? extends ToXContent> iterator) {
+        return Iterators.concat(startObject(), iterator, endObject());
     }
 
     /**

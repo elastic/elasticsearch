@@ -16,7 +16,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
@@ -158,7 +157,9 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
     // except we need to emit the error as SSE
     private ChunkedToXContent errorChunk(Throwable t) {
         var status = ExceptionsHelper.status(t);
-        return params -> Iterators.concat(ChunkedToXContentHelper.startObject(), ChunkedToXContentHelper.chunk((b, p) -> {
+        return params -> ChunkedToXContentHelper.chunk((b, p) -> {
+            b.startObject();
+
             // Render the exception with a simple message
             if (channel.detailedErrorsEnabled() == false) {
                 String message = "No ElasticsearchException found";
@@ -194,8 +195,11 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
                 b.endArray();
             }
             ElasticsearchException.generateThrowableXContent(b, errorParams, t);
+            b.endObject();
+
+            b.field("status", status.getStatus());
             return b.endObject();
-        }), ChunkedToXContentHelper.field("status", status.getStatus()), ChunkedToXContentHelper.endObject());
+        });
     }
 
     private void requestNextChunk(ActionListener<ChunkedRestResponseBodyPart> listener) {

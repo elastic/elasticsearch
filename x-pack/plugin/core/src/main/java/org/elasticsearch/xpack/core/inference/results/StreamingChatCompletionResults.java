@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Flow;
 
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResults.COMPLETION;
 
 /**
@@ -82,11 +83,7 @@ public record StreamingChatCompletionResults(Flow.Publisher<? extends ChunkedToX
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-            return Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.field(RESULT, delta),
-                ChunkedToXContentHelper.endObject()
-            );
+            return ChunkedToXContentHelper.object(chunk((b, p) -> b.field(RESULT, delta)));
         }
     }
 }

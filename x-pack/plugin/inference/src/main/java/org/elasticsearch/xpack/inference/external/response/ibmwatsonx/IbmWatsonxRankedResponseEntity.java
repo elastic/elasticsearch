@@ -71,14 +71,7 @@ public class IbmWatsonxRankedResponseEntity {
      *         "relevance_score": 0.42638257
      *       }
      *   ],
-     *     "meta": {
-     *         "api_version": {
-     *             "version": "1"
-     *         },
-     *         "billed_units": {
-     *             "search_units": 1
-     *         }
-     *     }
+     *   }
      *
      * @param response the http response from ibm watsonx
      * @return the parsed response

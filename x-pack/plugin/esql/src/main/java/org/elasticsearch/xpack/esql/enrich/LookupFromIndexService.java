@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -78,10 +79,19 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     @Override
-    protected QueryList queryList(TransportRequest request, SearchExecutionContext context, Block inputBlock, DataType inputDataType) {
+    protected QueryList queryList(
+        TransportRequest request,
+        SearchExecutionContext context,
+        Block inputBlock,
+        DataType inputDataType,
+        Warnings warnings
+    ) {
         MappedFieldType fieldType = context.getFieldType(request.matchField);
         validateTypes(request.inputDataType, fieldType);
-        return termQueryList(fieldType, context, inputBlock, inputDataType).onlySingleValues();
+        return termQueryList(fieldType, context, inputBlock, inputDataType).onlySingleValues(
+            warnings,
+            "LOOKUP JOIN encountered multi-value"
+        );
     }
 
     @Override

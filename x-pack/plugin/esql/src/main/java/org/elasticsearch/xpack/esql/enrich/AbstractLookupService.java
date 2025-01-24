@@ -189,7 +189,13 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     /**
      * Build a list of queries to perform inside the actual lookup.
      */
-    protected abstract QueryList queryList(T request, SearchExecutionContext context, Block inputBlock, DataType inputDataType);
+    protected abstract QueryList queryList(
+        T request,
+        SearchExecutionContext context,
+        Block inputBlock,
+        DataType inputDataType,
+        Warnings warnings
+    );
 
     /**
      * Build the response.
@@ -363,13 +369,13 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 }
             }
             releasables.add(finishPages);
-            QueryList queryList = queryList(request, shardContext.executionContext, inputBlock, request.inputDataType);
             var warnings = Warnings.createWarnings(
                 DriverContext.WarningsMode.COLLECT,
                 request.source.source().getLineNumber(),
                 request.source.source().getColumnNumber(),
                 request.source.text()
             );
+            QueryList queryList = queryList(request, shardContext.executionContext, inputBlock, request.inputDataType, warnings);
             var queryOperator = new EnrichQuerySourceOperator(
                 driverContext.blockFactory(),
                 EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,

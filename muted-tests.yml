@@ -222,24 +222,27 @@ tests:
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
   method: testInvalidJSON
   issue: https://github.com/elastic/elasticsearch/issues/120482
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/120497
 - class: org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeToCharProcessorTests
   issue: https://github.com/elastic/elasticsearch/issues/120575
-- class: org.elasticsearch.discovery.ec2.DiscoveryEc2KeystoreCredentialsIT
-  issue: https://github.com/elastic/elasticsearch/issues/120576
-- class: org.elasticsearch.discovery.ec2.DiscoveryEc2KeystoreSessionCredentialsIT
-  issue: https://github.com/elastic/elasticsearch/issues/120577
-- class: org.elasticsearch.discovery.ec2.DiscoveryEc2SystemPropertyCredentialsIT
-  issue: https://github.com/elastic/elasticsearch/issues/120578
-- class: org.elasticsearch.discovery.ec2.DiscoveryEc2EnvironmentVariableCredentialsIT
-  issue: https://github.com/elastic/elasticsearch/issues/120579
 - class: org.elasticsearch.action.search.SearchProgressActionListenerIT
   method: testSearchProgressWithHitsAndAggs
   issue: https://github.com/elastic/elasticsearch/issues/120583
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
-  method: testEnrichExplosionManyMatches
-  issue: https://github.com/elastic/elasticsearch/issues/120587
+- class: org.elasticsearch.index.reindex.BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests
+  method: testReindex
+  issue: https://github.com/elastic/elasticsearch/issues/120605
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testMultipleInferencesTriggeringDownloadAndDeploy
+  issue: https://github.com/elastic/elasticsearch/issues/120668
+- class: org.elasticsearch.xpack.security.authc.ldap.ADLdapUserSearchSessionFactoryTests
+  issue: https://github.com/elastic/elasticsearch/issues/119882
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncEnrichStopIT
+  method: testEnrichAfterStop
+  issue: https://github.com/elastic/elasticsearch/issues/120757
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryIT
+  method: testStopQuery
+  issue: https://github.com/elastic/elasticsearch/issues/120767
+- class: org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT
+  issue: https://github.com/elastic/elasticsearch/issues/120772
 
 # Examples:
 #

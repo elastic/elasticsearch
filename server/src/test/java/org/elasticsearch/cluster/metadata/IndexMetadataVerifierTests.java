@@ -142,11 +142,12 @@ public class IndexMetadataVerifierTests extends ESTestCase {
 
     public void testReadOnlyVersionCompatibility() {
         var service = getIndexMetadataVerifier();
+        var randomBlock = randomFrom(IndexMetadata.SETTING_BLOCKS_WRITE, IndexMetadata.SETTING_READ_ONLY);
         {
             var idxMetadata = newIndexMeta(
                 "legacy",
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
+                    .put(randomBlock, randomBoolean())
                     .put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), randomBoolean())
                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(6080099))
                     .build()
@@ -179,7 +180,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
             var idxMetadata = newIndexMeta(
                 "regular",
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
+                    .put(randomBlock, true)
                     .put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true)
                     .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
                     .build()
@@ -192,7 +193,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                 settings.put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), randomBoolean());
             }
             if (randomBoolean()) {
-                settings.put(IndexMetadata.SETTING_BLOCKS_WRITE, false);
+                settings.put(randomBlock, false);
             }
 
             var idxMetadata = newIndexMeta("regular-no-write-block", settings.build());
@@ -221,7 +222,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                 settings.put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), false);
             }
             if (randomBoolean()) {
-                settings.put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean());
+                settings.put(randomBlock, randomBoolean());
             }
 
             var idxMetadata = newIndexMeta("regular-not-read-only-verified", settings.build());

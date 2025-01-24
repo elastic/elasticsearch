@@ -174,7 +174,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final int ignoreAboveDefault;
         private final IndexSortConfig indexSortConfig;
         private final IndexMode indexMode;
-        private final IndexSettings indexSettings;
         private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> toType(m).indexOptions);
         private final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(
@@ -226,8 +225,16 @@ public final class KeywordFieldMapper extends FieldMapper {
                 scriptCompiler,
                 ignoreAboveDefault,
                 new IndexSettings(
-                    IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).build(),
-                    Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreatedVersion).build()
+                    IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE)
+                        .settings(
+                            Settings.builder()
+                                .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreatedVersion)
+                                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                                .build()
+                        )
+                        .build(),
+                    Settings.EMPTY
                 )
             );
         }
@@ -274,7 +281,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                 });
             this.indexSortConfig = indexSettings.getIndexSortConfig();
             this.indexMode = indexSettings.getMode();
-            this.indexSettings = indexSettings;
         }
 
         public Builder(String name, IndexVersion indexCreatedVersion) {
@@ -421,7 +427,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                 buildFieldType(context, fieldtype),
                 builderParams(this, context),
                 context.isSourceSynthetic(),
-                indexSettings,
                 this
             );
         }
@@ -961,11 +966,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private final IndexAnalyzers indexAnalyzers;
     private final int ignoreAboveDefault;
-    private final int ignoreAbove;
-    private final IndexSortConfig indexSortConfig;
-    private final IndexMode indexMode;
-
-    private final IndexSettings indexSettings;
 
     private KeywordFieldMapper(
         String simpleName,
@@ -973,7 +973,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         KeywordFieldType mappedFieldType,
         BuilderParams builderParams,
         boolean isSyntheticSource,
-        IndexSettings indexSettings,
         Builder builder
     ) {
         super(simpleName, mappedFieldType, builderParams);
@@ -990,10 +989,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.isSyntheticSource = isSyntheticSource;
         this.ignoreAboveDefault = builder.ignoreAboveDefault;
-        this.ignoreAbove = builder.ignoreAbove.getValue();
-        this.indexSortConfig = builder.indexSortConfig;
-        this.indexMode = builder.indexMode;
-        this.indexSettings = builder.indexSettings;
     }
 
     @Override
@@ -1111,7 +1106,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexAnalyzers, scriptCompiler, ignoreAboveDefault, indexSettings).dimension(
+        return new Builder(leafName(), indexAnalyzers, scriptCompiler, ignoreAboveDefault, indexCreatedVersion).dimension(
             fieldType().isDimension()
         ).init(this);
     }

@@ -75,6 +75,12 @@ public class ThreadPoolMergeExecutor {
         }
     }
 
+    public synchronized void unregisterMergeScheduler(ThreadPoolMergeScheduler threadPoolMergeScheduler) {
+        if (registeredMergeSchedulers.remove(threadPoolMergeScheduler) == false) {
+            throw new IllegalStateException("cannot unregister if the scheduler has not been registered");
+        }
+    }
+
     public synchronized void updateMergeScheduler(
         ThreadPoolMergeScheduler threadPoolMergeScheduler,
         Consumer<ThreadPoolMergeScheduler> updater

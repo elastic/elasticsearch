@@ -438,6 +438,13 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         super.message(message);
     }
 
+    /** Close this MergeScheduler. */
+    @Override
+    public void close() throws IOException {
+        super.close();
+        threadPoolMergeExecutor.unregisterMergeScheduler(this);
+    }
+
     private static double nsToSec(long ns) {
         return ns / (double) TimeUnit.SECONDS.toNanos(1);
     }

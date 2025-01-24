@@ -106,15 +106,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         } else {
             StringBuilder message = new StringBuilder();
             int i = 0;
+            int line = -1;
+            int charPositionInLine = -1;
 
             while (errors.hasNext()) {
+                ParsingException e = errors.next();
                 if (i > 0) {
                     message.append("; ");
+                    message.append(e.getMessage());
+                } else {
+                    // line and column numbers are the associated with the first error
+                    line = e.getLineNumber();
+                    charPositionInLine = e.getColumnNumber();
+                    message.append(e.getErrorMessage());
                 }
-                message.append(errors.next().getMessage());
                 i++;
             }
-            throw new ParsingException(message.toString());
+            throw new ParsingException(line, charPositionInLine, message.toString());
         }
     }
 

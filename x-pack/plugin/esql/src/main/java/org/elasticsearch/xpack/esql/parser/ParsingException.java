@@ -37,6 +37,12 @@ public class ParsingException extends EsqlClientException {
         this.charPositionInLine = source.source().getColumnNumber();
     }
 
+    public ParsingException(int line, int charPositionInLine, String message, Object... args) {
+        super(message, args);
+        this.line = line;
+        this.charPositionInLine = charPositionInLine;
+    }
+
     public int getLineNumber() {
         return line;
     }

@@ -29,7 +29,7 @@ public class IdentifierGenerator {
      * Generates a random valid index pattern.
      * You may force list of features to be included or excluded using the arguments, eg {@code randomIndexPattern(PATTERN, not(HIDDEN))}.
      * Identifier could be an index or alias. It might be hidden or remote or use a pattern.
-     * See @link <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params">valid index patterns</a>
+     * See @link https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params
      */
     public static String randomIndexPattern(Feature... features) {
         var validFirstCharacters = "abcdefghijklmnopqrstuvwxyz0123456789!'$^&";

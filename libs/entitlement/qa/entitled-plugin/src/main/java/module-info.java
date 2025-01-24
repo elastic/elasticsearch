@@ -11,5 +11,6 @@ module org.elasticsearch.entitlement.qa.entitled {
     requires org.elasticsearch.server;
     requires org.elasticsearch.entitlement;
     requires org.elasticsearch.logging;
+
     exports org.elasticsearch.entitlement.qa.entitled; // Must be unqualified so non-modular IT tests can call us
 }

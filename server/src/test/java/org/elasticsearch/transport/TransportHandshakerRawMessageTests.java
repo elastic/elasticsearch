@@ -19,8 +19,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.UpdateForV10;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
@@ -38,7 +36,6 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove support for v7 handshakes in v9
     public void testV7Handshake() throws Exception {
         final BytesRef handshakeRequestBytes;
         final var requestId = randomNonNegativeLong();
@@ -88,7 +85,6 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
         }
     }
 
-    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // remove support for v8 handshakes in v10
     public void testV8Handshake() throws Exception {
         final BytesRef handshakeRequestBytes;
         final var requestId = randomNonNegativeLong();
@@ -140,7 +136,6 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
         }
     }
 
-    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // remove support for v9 handshakes in v11
     public void testV9Handshake() throws Exception {
         final BytesRef handshakeRequestBytes;
         final var requestId = randomNonNegativeLong();

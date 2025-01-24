@@ -957,7 +957,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ReaderContext readerContext = findReaderContext(request.contextId(), request);
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
-        rewriteAndFetchShardRequest(readerContext.indexShard(),  shardSearchRequest, listener.delegateFailure((l, rewritten) -> {
+        rewriteAndFetchShardRequest(readerContext.indexShard(), shardSearchRequest, listener.delegateFailure((l, rewritten) -> {
             runAsync(getExecutor(readerContext.indexShard()), () -> {
                 try (SearchContext searchContext = createContext(readerContext, rewritten, task, ResultsType.FETCH, false)) {
                     if (request.lastEmittedDoc() != null) {

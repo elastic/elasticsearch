@@ -44,7 +44,7 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
@@ -139,7 +139,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         entry("is_null", IsNull.class),
         entry("is_not_null", IsNotNull.class),
         // Match operator is both a function and an operator
-        entry("match_operator", Match.class)
+        entry("match_operator", MatchOperator.class)
     );
 
     private static EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry().snapshotRegistry();
@@ -823,12 +823,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (System.getProperty("generateDocs") == null) {
             return;
         }
-        String rendered = buildSignatureSvg(functionName());
+        String name = functionName();
+        String rendered = buildSignatureSvg(name);
         if (rendered == null) {
             LogManager.getLogger(getTestClass()).info("Skipping rendering signature because the function isn't registered");
         } else {
             LogManager.getLogger(getTestClass()).info("Writing function signature");
-            writeToTempDir("signature", rendered, "svg");
+            writeToTempDir("signature", name, "svg", rendered);
         }
     }
 
@@ -890,10 +891,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     @AfterClass
     public static void renderDocs() throws IOException {
+        renderDocs(functionName());
+    }
+
+    protected static void renderDocs(String name) throws IOException {
         if (System.getProperty("generateDocs") == null) {
             return;
         }
-        String name = functionName();
         if (binaryOperator(name) != null || unaryOperator(name) != null || searchOperator(name) != null || likeOrInOperator(name)) {
             renderDocsForOperators(name);
             return;
@@ -922,12 +926,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     description.isAggregation()
                 );
             }
-            renderTypes(description.args());
-            renderParametersList(description.argNames(), description.argDescriptions());
+            renderTypes(name, description.args());
+            renderParametersList(name, description.argNames(), description.argDescriptions());
             FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
-            renderDescription(description.description(), info.detailedDescription(), info.note());
-            boolean hasExamples = renderExamples(info);
-            boolean hasAppendix = renderAppendix(info.appendix());
+            renderDescription(name, description.description(), info.detailedDescription(), info.note());
+            boolean hasExamples = renderExamples(name, info);
+            boolean hasAppendix = renderAppendix(name, info.appendix());
             renderFullLayout(name, info.preview(), hasExamples, hasAppendix);
             renderKibanaInlineDocs(name, info);
             renderKibanaFunctionDefinition(name, info, description.args(), description.variadic());
@@ -944,7 +948,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             + "may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview "
             + "are not subject to the support SLA of official GA features.\"]\n";
 
-    private static void renderTypes(List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
+    private static void renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
         StringBuilder header = new StringBuilder();
         List<String> argNames = args.stream().map(EsqlFunctionRegistry.ArgSignature::name).toList();
         for (String arg : argNames) {
@@ -984,11 +988,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             [%header.monospaced.styled,format=dsv,separator=|]
             |===
             """ + header + "\n" + table.stream().collect(Collectors.joining("\n")) + "\n|===\n";
-        LogManager.getLogger(getTestClass()).info("Writing function types for [{}]:\n{}", functionName(), rendered);
-        writeToTempDir("types", rendered, "asciidoc");
+        LogManager.getLogger(getTestClass()).info("Writing function types for [{}]:\n{}", name, rendered);
+        writeToTempDir("types", name, "asciidoc", rendered);
     }
 
-    private static void renderParametersList(List<String> argNames, List<String> argDescriptions) throws IOException {
+    private static void renderParametersList(String name, List<String> argNames, List<String> argDescriptions) throws IOException {
         StringBuilder builder = new StringBuilder();
         builder.append(DOCS_WARNING);
         builder.append("*Parameters*\n");
@@ -996,11 +1000,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             builder.append("\n`").append(argNames.get(a)).append("`::\n").append(argDescriptions.get(a)).append('\n');
         }
         String rendered = builder.toString();
-        LogManager.getLogger(getTestClass()).info("Writing parameters for [{}]:\n{}", functionName(), rendered);
-        writeToTempDir("parameters", rendered, "asciidoc");
+        LogManager.getLogger(getTestClass()).info("Writing parameters for [{}]:\n{}", name, rendered);
+        writeToTempDir("parameters", name, "asciidoc", rendered);
     }
 
-    private static void renderDescription(String description, String detailedDescription, String note) throws IOException {
+    private static void renderDescription(String name, String description, String detailedDescription, String note) throws IOException {
         String rendered = DOCS_WARNING + """
             *Description*
 
@@ -1013,11 +1017,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (Strings.isNullOrEmpty(note) == false) {
             rendered += "\nNOTE: " + note + "\n";
         }
-        LogManager.getLogger(getTestClass()).info("Writing description for [{}]:\n{}", functionName(), rendered);
-        writeToTempDir("description", rendered, "asciidoc");
+        LogManager.getLogger(getTestClass()).info("Writing description for [{}]:\n{}", name, rendered);
+        writeToTempDir("description", name, "asciidoc", rendered);
     }
 
-    private static boolean renderExamples(FunctionInfo info) throws IOException {
+    private static boolean renderExamples(String name, FunctionInfo info) throws IOException {
         if (info == null || info.examples().length == 0) {
             return false;
         }
@@ -1051,20 +1055,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         builder.append('\n');
         String rendered = builder.toString();
-        LogManager.getLogger(getTestClass()).info("Writing examples for [{}]:\n{}", functionName(), rendered);
-        writeToTempDir("examples", rendered, "asciidoc");
+        LogManager.getLogger(getTestClass()).info("Writing examples for [{}]:\n{}", name, rendered);
+        writeToTempDir("examples", name, "asciidoc", rendered);
         return true;
     }
 
-    private static boolean renderAppendix(String appendix) throws IOException {
+    private static boolean renderAppendix(String name, String appendix) throws IOException {
         if (appendix.isEmpty()) {
             return false;
         }
 
         String rendered = DOCS_WARNING + appendix + "\n";
 
-        LogManager.getLogger(getTestClass()).info("Writing appendix for [{}]:\n{}", functionName(), rendered);
-        writeToTempDir("appendix", rendered, "asciidoc");
+        LogManager.getLogger(getTestClass()).info("Writing appendix for [{}]:\n{}", name, rendered);
+        writeToTempDir("appendix", name, "asciidoc", rendered);
         return true;
     }
 
@@ -1091,11 +1095,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (hasAppendix) {
             rendered += "include::../appendix/" + name + ".asciidoc[]\n";
         }
-        LogManager.getLogger(getTestClass()).info("Writing layout for [{}]:\n{}", functionName(), rendered);
-        writeToTempDir("layout", rendered, "asciidoc");
+        LogManager.getLogger(getTestClass()).info("Writing layout for [{}]:\n{}", name, rendered);
+        writeToTempDir("layout", name, "asciidoc", rendered);
     }
 
-    private static Constructor<?> constructorWithFunctionInfo(Class<?> clazz) {
+    protected static Constructor<?> constructorWithFunctionInfo(Class<?> clazz) {
         for (Constructor<?> ctor : clazz.getConstructors()) {
             FunctionInfo functionInfo = ctor.getAnnotation(FunctionInfo.class);
             if (functionInfo != null) {
@@ -1110,6 +1114,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assert ctor != null;
         FunctionInfo functionInfo = ctor.getAnnotation(FunctionInfo.class);
         assert functionInfo != null;
+        renderDocsForOperators(name, ctor, functionInfo);
+    }
+
+    protected static void renderDocsForOperators(String name, Constructor<?> ctor, FunctionInfo functionInfo) throws IOException {
         renderKibanaInlineDocs(name, functionInfo);
 
         var params = ctor.getParameters();
@@ -1127,7 +1135,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
         }
         renderKibanaFunctionDefinition(name, functionInfo, args, likeOrInOperator(name));
-        renderTypes(args);
+        renderTypes(name, args);
     }
 
     private static void renderKibanaInlineDocs(String name, FunctionInfo info) throws IOException {
@@ -1151,8 +1159,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             builder.append("Note: ").append(removeAsciidocLinks(info.note())).append("\n");
         }
         String rendered = builder.toString();
-        LogManager.getLogger(getTestClass()).info("Writing kibana inline docs for [{}]:\n{}", functionName(), rendered);
-        writeToTempDir("kibana/docs", rendered, "md");
+        LogManager.getLogger(getTestClass()).info("Writing kibana inline docs for [{}]:\n{}", name, rendered);
+        writeToTempDir("kibana/docs", name, "md", rendered);
     }
 
     private static void renderKibanaFunctionDefinition(
@@ -1244,8 +1252,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         builder.field("snapshot_only", EsqlFunctionRegistry.isSnapshotOnly(name));
 
         String rendered = Strings.toString(builder.endObject());
-        LogManager.getLogger(getTestClass()).info("Writing kibana function definition for [{}]:\n{}", functionName(), rendered);
-        writeToTempDir("kibana/definition", rendered, "json");
+        LogManager.getLogger(getTestClass()).info("Writing kibana function definition for [{}]:\n{}", name, rendered);
+        writeToTempDir("kibana/definition", name, "json", rendered);
     }
 
     private static String removeAsciidocLinks(String asciidoc) {
@@ -1340,7 +1348,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * If this tests is for a like or rlike operator return true, otherwise return {@code null}.
      */
     private static boolean likeOrInOperator(String name) {
-        return name.equalsIgnoreCase("rlike") || name.equalsIgnoreCase("like") || name.equalsIgnoreCase("in");
+        return switch (name.toLowerCase(Locale.ENGLISH)) {
+            case "rlike", "like", "in", "not_rlike", "not_like", "not_in" -> true;
+            default -> false;
+        };
     }
 
     /**
@@ -1350,11 +1361,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * don't have write permission to the docs.
      * </p>
      */
-    private static void writeToTempDir(String subdir, String str, String extension) throws IOException {
+    private static void writeToTempDir(String subdir, String name, String extension, String str) throws IOException {
         // We have to write to a tempdir because it's all test are allowed to write to. Gradle can move them.
         Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("functions").resolve(subdir);
         Files.createDirectories(dir);
-        Path file = dir.resolve(functionName() + "." + extension);
+        Path file = dir.resolve(name + "." + extension);
         Files.writeString(file, str);
         LogManager.getLogger(getTestClass()).info("Wrote to file: {}", file);
     }

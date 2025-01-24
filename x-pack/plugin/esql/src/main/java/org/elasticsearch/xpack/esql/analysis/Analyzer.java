@@ -237,39 +237,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             EsIndex esIndex = indexResolution.get();
 
-            if (plan.indexMode().equals(IndexMode.LOOKUP)) {
-                String indexResolutionMessage = null;
-
-                var indexNameWithModes = esIndex.indexNameWithModes();
-                if (indexNameWithModes.size() != 1) {
-                    indexResolutionMessage = "invalid ["
-                        + table
-                        + "] resolution in lookup mode to ["
-                        + indexNameWithModes.size()
-                        + "] indices";
-                } else if (indexNameWithModes.values().iterator().next() != IndexMode.LOOKUP) {
-                    indexResolutionMessage = "invalid ["
-                        + table
-                        + "] resolution in lookup mode to an index in ["
-                        + indexNameWithModes.values().iterator().next()
-                        + "] mode";
-                }
-
-                if (indexResolutionMessage != null) {
-                    return new UnresolvedRelation(
-                        plan.source(),
-                        plan.table(),
-                        plan.frozen(),
-                        plan.metadataFields(),
-                        plan.indexMode(),
-                        indexResolutionMessage,
-                        plan.commandName()
-                    );
-                }
-            }
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
-            return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes, plan.indexMode());
+            return new EsRelation(
+                plan.source(),
+                esIndex.name(),
+                plan.indexMode(),
+                esIndex.indexNameWithModes(),
+                attributes.isEmpty() ? NO_FIELDS : attributes
+            );
         }
     }
 
@@ -1371,9 +1347,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
                 if (missing.isEmpty() == false) {
-                    List<Attribute> newOutput = new ArrayList<>(esr.output());
-                    newOutput.addAll(missing);
-                    return new EsRelation(esr.source(), esr.index(), newOutput, esr.indexMode(), esr.frozen());
+                    return new EsRelation(
+                        esr.source(),
+                        esr.indexPattern(),
+                        esr.indexMode(),
+                        esr.indexNameWithModes(),
+                        CollectionUtils.combine(esr.output(), missing)
+                    );
                 }
                 return esr;
             });

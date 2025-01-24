@@ -27,6 +27,7 @@ Multivalued fields come back as a JSON array:
 ----
 {
   "took": 28,
+  "is_partial": false,
   "columns": [
     { "name": "a", "type": "long"},
     { "name": "b", "type": "long"}
@@ -78,6 +79,7 @@ And {esql} sees that removal:
 ----
 {
   "took": 28,
+  "is_partial": false,
   "columns": [
     { "name": "a", "type": "long"},
     { "name": "b", "type": "keyword"}
@@ -122,6 +124,7 @@ And {esql} also sees that:
 ----
 {
   "took": 28,
+  "is_partial": false,
   "columns": [
     { "name": "a", "type": "long"},
     { "name": "b", "type": "long"}
@@ -165,6 +168,7 @@ POST /_query
 ----
 {
   "took": 28,
+  "is_partial": false,
   "columns": [
     { "name": "a", "type": "long"},
     { "name": "b", "type": "keyword"}
@@ -198,6 +202,7 @@ POST /_query
 ----
 {
   "took": 28,
+  "is_partial": false,
   "columns": [
     { "name": "a", "type": "long"},
   ],
@@ -241,6 +246,7 @@ POST /_query
 ----
 {
   "took": 28,
+  "is_partial": false,
   "columns": [
     { "name": "a",   "type": "long"},
     { "name": "b",   "type": "long"},
@@ -278,6 +284,7 @@ POST /_query
 ----
 {
   "took": 28,
+  "is_partial": false,
   "columns": [
     { "name": "a",   "type": "long"},
     { "name": "b",   "type": "long"},

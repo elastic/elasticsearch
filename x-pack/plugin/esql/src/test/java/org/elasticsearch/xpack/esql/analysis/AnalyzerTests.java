@@ -115,7 +115,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS, IndexMode.STANDARD), limit.child());
+        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, idx.indexNameWithModes(), NO_FIELDS), limit.child());
     }
 
     public void testFailOnUnresolvedIndex() {
@@ -133,7 +133,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS, IndexMode.STANDARD), limit.child());
+        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, idx.indexNameWithModes(), NO_FIELDS), limit.child());
     }
 
     public void testAttributeResolution() {
@@ -2071,7 +2071,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(project.projections().stream().map(Object::toString).toList(), hasItem(matchesRegex("languages\\{f}#\\d+ AS int#\\d+")));
 
         var esRelation = as(project.child(), EsRelation.class);
-        assertThat(esRelation.index().name(), equalTo("test"));
+        assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // Lookup's output looks sensible too
         assertMap(
@@ -2143,7 +2143,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLookupJoinUnknownIndex() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         String errorMessage = "Unknown index [foobar]";
         IndexResolution missingLookupIndex = IndexResolution.invalid(errorMessage);
@@ -2172,7 +2172,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLookupJoinUnknownField() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         String query = "FROM test | LOOKUP JOIN languages_lookup ON last_name";
         String errorMessage = "1:45: Unknown column [last_name] in right side of join";
@@ -2195,7 +2195,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testMultipleLookupJoinsGiveDifferentAttributes() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         // The field attributes that get contributed by different LOOKUP JOIN commands must have different name ids,
         // even if they have the same names. Otherwise, things like dependency analysis - like in PruneColumns - cannot work based on
@@ -2225,7 +2225,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLookupJoinIndexMode() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         var indexResolution = AnalyzerTestUtils.expandedDefaultIndexResolution();
         var lookupResolution = AnalyzerTestUtils.defaultLookupResolution();
@@ -2583,7 +2583,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(enrich.policy().getMatchField(), "language_code");
         var eval = as(enrich.child(), Eval.class);
         var esRelation = as(eval.child(), EsRelation.class);
-        assertEquals(esRelation.index().name(), "test");
+        assertEquals(esRelation.indexPattern(), "test");
     }
 
     public void testMapExpressionAsFunctionArgument() {
@@ -2611,7 +2611,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(new Literal(EMPTY, 2.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
         EsRelation esRelation = as(eval.child(), EsRelation.class);
-        assertEquals(esRelation.index().name(), "test");
+        assertEquals(esRelation.indexPattern(), "test");
     }
 
     private void verifyMapExpression(MapExpression me) {
@@ -2692,7 +2692,6 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(plan, instanceOf(EsRelation.class));
         EsRelation esRelation = (EsRelation) plan;
         assertThat(esRelation.output(), equalTo(NO_FIELDS));
-        assertTrue(esRelation.index().mapping().isEmpty());
     }
 
     @Override

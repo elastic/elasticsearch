@@ -46,16 +46,11 @@ class IngestDocMetadata extends Metadata {
     static {
         // there's an optimization here in the overridden isAvailable below, but it only works if the first character of each of these
         // keys starts with an underscore, since we know all the keys up front, though, we can just make sure that's always true
-        validateLeadingUnderscores(PROPERTIES);
-    }
-
-    private static Map<String, FieldProperty<?>> validateLeadingUnderscores(final Map<String, FieldProperty<?>> properties) {
-        for (String key : properties.keySet()) {
+        for (String key : PROPERTIES.keySet()) {
             if (key.charAt(0) != UNDERSCORE) {
                 throw new IllegalArgumentException("IngestDocMetadata keys must begin with an underscore, but found [" + key + "]");
             }
         }
-        return properties;
     }
 
     protected final ZonedDateTime timestamp;
@@ -65,12 +60,7 @@ class IngestDocMetadata extends Metadata {
     }
 
     IngestDocMetadata(Map<String, Object> metadata, ZonedDateTime timestamp) {
-        this(metadata, PROPERTIES, timestamp);
-    }
-
-    IngestDocMetadata(Map<String, Object> metadata, Map<String, FieldProperty<?>> properties, ZonedDateTime timestamp) {
-        // this arity is exposed for tests, so we have to validate the properties map separately if it isn't PROPERTIES itself
-        super(metadata, properties == PROPERTIES ? properties : validateLeadingUnderscores(properties));
+        super(metadata, PROPERTIES);
         this.timestamp = timestamp;
     }
 

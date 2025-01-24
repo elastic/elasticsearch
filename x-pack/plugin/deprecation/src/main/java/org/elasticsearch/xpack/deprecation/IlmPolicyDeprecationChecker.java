@@ -27,7 +27,7 @@ import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATI
 import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.containsDeprecatedFilteredAllocationConfig;
 
 /**
- * Checks the index templates for deprecation warnings.
+ * Checks the ILM policies for deprecation warnings.
  */
 public class IlmPolicyDeprecationChecker implements ResourceDeprecationChecker {
 

@@ -1,5 +1,5 @@
 pr: 120505
-summary: "[Deprecation API] Refactor resource deprecation checkers and add new resources"
+summary: "introduce new categories for deprecated resources in deprecation API"
 area: Indices APIs
 type: enhancement
 issues: []

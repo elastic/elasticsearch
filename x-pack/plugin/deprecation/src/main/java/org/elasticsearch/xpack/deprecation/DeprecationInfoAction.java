@@ -170,12 +170,10 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             if (in.getTransportVersion().before(TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
                 mutableResourceDeprecations.put(IndexDeprecationChecker.NAME, in.readMapOfLists(DeprecationIssue::new));
             }
-            if (in.getTransportVersion().before(TransportVersions.DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK)) {
-                mutableResourceDeprecations.put(DataStreamDeprecationChecker.NAME, Map.of());
-            } else if (in.getTransportVersion()
+            if (in.getTransportVersion()
                 .between(TransportVersions.DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK, TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
-                    mutableResourceDeprecations.put(DataStreamDeprecationChecker.NAME, in.readMapOfLists(DeprecationIssue::new));
-                }
+                mutableResourceDeprecations.put(DataStreamDeprecationChecker.NAME, in.readMapOfLists(DeprecationIssue::new));
+            }
             if (in.getTransportVersion().before(TransportVersions.V_7_11_0)) {
                 List<DeprecationIssue> mlIssues = in.readCollectionAsList(DeprecationIssue::new);
                 pluginSettingsIssues = new HashMap<>();
@@ -184,9 +182,10 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 pluginSettingsIssues = in.readMapOfLists(DeprecationIssue::new);
             }
             if (in.getTransportVersion().onOrAfter(TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
-                mutableResourceDeprecations = in.readMap(in2 -> in2.readMapOfLists(DeprecationIssue::new));
+                resourceDeprecationIssues = in.readMap(in2 -> in2.readMapOfLists(DeprecationIssue::new));
+            } else {
+                resourceDeprecationIssues = Collections.unmodifiableMap(mutableResourceDeprecations);
             }
-            resourceDeprecationIssues = mutableResourceDeprecations;
         }
 
         public Response(

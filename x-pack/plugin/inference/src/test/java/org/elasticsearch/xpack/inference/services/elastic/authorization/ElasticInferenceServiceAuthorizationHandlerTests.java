@@ -31,6 +31,7 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
@@ -77,7 +78,8 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
-            assertTrue(authResponse.enabledTaskTypes().isEmpty());
+            assertTrue(authResponse.getEnabledTaskTypes().isEmpty());
+            assertTrue(authResponse.getEnabledModels().isEmpty());
             assertFalse(authResponse.isEnabled());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
@@ -97,7 +99,8 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
-            assertTrue(authResponse.enabledTaskTypes().isEmpty());
+            assertTrue(authResponse.getEnabledTaskTypes().isEmpty());
+            assertTrue(authResponse.getEnabledModels().isEmpty());
             assertFalse(authResponse.isEnabled());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
@@ -131,7 +134,8 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
-            assertTrue(authResponse.enabledTaskTypes().isEmpty());
+            assertTrue(authResponse.getEnabledTaskTypes().isEmpty());
+            assertTrue(authResponse.getEnabledModels().isEmpty());
             assertFalse(authResponse.isEnabled());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
@@ -181,7 +185,8 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
-            assertThat(authResponse.enabledTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
+            assertThat(authResponse.getEnabledTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
+            assertThat(authResponse.getEnabledModels(), is(Set.of("model-a")));
             assertTrue(authResponse.isEnabled());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);

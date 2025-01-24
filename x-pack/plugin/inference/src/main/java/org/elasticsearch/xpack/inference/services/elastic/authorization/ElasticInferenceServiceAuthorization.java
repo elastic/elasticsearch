@@ -18,6 +18,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * This is a helper class for managing the response from {@link ElasticInferenceServiceAuthorizationHandler}.
+ */
 public class ElasticInferenceServiceAuthorization {
 
     private final Map<TaskType, Set<String>> taskTypeToModels;
@@ -82,10 +85,6 @@ public class ElasticInferenceServiceAuthorization {
         return EnumSet.copyOf(enabledTaskTypes);
     }
 
-    public Map<TaskType, Set<String>> getTaskTypeToModels() {
-        return Map.copyOf(taskTypeToModels);
-    }
-
     /**
      * Returns a new {@link ElasticInferenceServiceAuthorization} object retaining only the specified task types
      * and applicable models that leverage those task types. Any task types not specified in the passed in set will be
@@ -106,5 +105,19 @@ public class ElasticInferenceServiceAuthorization {
         Set<String> newEnabledModels = newTaskTypeToModels.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
 
         return new ElasticInferenceServiceAuthorization(newTaskTypeToModels, newEnabledModels, taskTypes);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        ElasticInferenceServiceAuthorization that = (ElasticInferenceServiceAuthorization) o;
+        return Objects.equals(taskTypeToModels, that.taskTypeToModels)
+            && Objects.equals(enabledTaskTypes, that.enabledTaskTypes)
+            && Objects.equals(enabledModels, that.enabledModels);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(taskTypeToModels, enabledTaskTypes, enabledModels);
     }
 }

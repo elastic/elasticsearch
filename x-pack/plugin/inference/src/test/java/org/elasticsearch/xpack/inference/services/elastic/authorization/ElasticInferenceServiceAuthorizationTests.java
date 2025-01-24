@@ -13,13 +13,19 @@ import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInfere
 
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.is;
 
 public class ElasticInferenceServiceAuthorizationTests extends ESTestCase {
     public static ElasticInferenceServiceAuthorization createEnabledAuth() {
-        return new ElasticInferenceServiceAuthorization(Map.of("model-1", EnumSet.of(TaskType.TEXT_EMBEDDING)));
+        return ElasticInferenceServiceAuthorization.of(
+            new ElasticInferenceServiceAuthorizationResponseEntity(
+                List.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel("model-1", EnumSet.of(TaskType.TEXT_EMBEDDING))
+                )
+            )
+        );
     }
 
     public void testIsEnabled_ReturnsFalse_WithEmptyMap() {
@@ -31,31 +37,40 @@ public class ElasticInferenceServiceAuthorizationTests extends ESTestCase {
             List.of(new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel("model-1", EnumSet.noneOf(TaskType.class)))
         );
         var auth = ElasticInferenceServiceAuthorization.of(response);
-        assertTrue(auth.enabledTaskTypes().isEmpty());
+        assertTrue(auth.getEnabledTaskTypes().isEmpty());
         assertFalse(auth.isEnabled());
     }
 
-    public void testConstructor_WithModelWithoutTaskTypes_ThrowsException() {
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new ElasticInferenceServiceAuthorization(Map.of("model-1", EnumSet.noneOf(TaskType.class)))
-        );
-    }
-
     public void testEnabledTaskTypes_MergesFromSeparateModels() {
-        assertThat(
-            new ElasticInferenceServiceAuthorization(
-                Map.of("model-1", EnumSet.of(TaskType.TEXT_EMBEDDING), "model-2", EnumSet.of(TaskType.SPARSE_EMBEDDING))
-            ).enabledTaskTypes(),
-            is(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING))
+        var auth = ElasticInferenceServiceAuthorization.of(
+            new ElasticInferenceServiceAuthorizationResponseEntity(
+                List.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel("model-1", EnumSet.of(TaskType.TEXT_EMBEDDING)),
+                    new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel("model-2", EnumSet.of(TaskType.SPARSE_EMBEDDING))
+                )
+            )
         );
+        assertThat(auth.getEnabledTaskTypes(), is(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)));
+        assertThat(auth.getEnabledModels(), is(Set.of("model-1", "model-2")));
     }
 
     public void testEnabledTaskTypes_FromSingleEntry() {
-        assertThat(
-            new ElasticInferenceServiceAuthorization(Map.of("model-1", EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)))
-                .enabledTaskTypes(),
-            is(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING))
+        var auth = ElasticInferenceServiceAuthorization.of(
+            new ElasticInferenceServiceAuthorizationResponseEntity(
+                List.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                        "model-1",
+                        EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)
+                    )
+                )
+            )
         );
+
+        assertThat(auth.getEnabledTaskTypes(), is(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)));
+        assertThat(auth.getEnabledModels(), is(Set.of("model-1")));
+    }
+
+    public void testNewLimitToTaskTypes() {
+        fail("TODO");
     }
 }

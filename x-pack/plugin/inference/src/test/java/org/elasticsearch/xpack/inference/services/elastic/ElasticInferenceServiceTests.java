@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
@@ -554,7 +555,16 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     public void testHideFromConfigurationApi_ReturnsTrue_WithModelTaskTypesThatAreNotImplemented() throws Exception {
         try (
             var service = createServiceWithMockSender(
-                new ElasticInferenceServiceAuthorization(Map.of("model-1", EnumSet.of(TaskType.TEXT_EMBEDDING)))
+                ElasticInferenceServiceAuthorization.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(
+                        List.of(
+                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                                "model-1",
+                                EnumSet.of(TaskType.TEXT_EMBEDDING)
+                            )
+                        )
+                    )
+                )
             )
         ) {
             assertTrue(service.hideFromConfigurationApi());
@@ -564,7 +574,16 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     public void testHideFromConfigurationApi_ReturnsFalse_WithAvailableModels() throws Exception {
         try (
             var service = createServiceWithMockSender(
-                new ElasticInferenceServiceAuthorization(Map.of("model-1", EnumSet.of(TaskType.CHAT_COMPLETION)))
+                ElasticInferenceServiceAuthorization.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(
+                        List.of(
+                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                                "model-1",
+                                EnumSet.of(TaskType.CHAT_COMPLETION)
+                            )
+                        )
+                    )
+                )
             )
         ) {
             assertFalse(service.hideFromConfigurationApi());
@@ -574,7 +593,16 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     public void testGetConfiguration() throws Exception {
         try (
             var service = createServiceWithMockSender(
-                new ElasticInferenceServiceAuthorization(Map.of("model-1", EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)))
+                ElasticInferenceServiceAuthorization.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(
+                        List.of(
+                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                                "model-1",
+                                EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)
+                            )
+                        )
+                    )
+                )
             )
         ) {
             String content = XContentHelper.stripWhitespace("""
@@ -685,7 +713,16 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         try (
             var service = createServiceWithMockSender(
                 // this service doesn't yet support text embedding so we should still have no task types
-                new ElasticInferenceServiceAuthorization(Map.of("model-1", EnumSet.of(TaskType.TEXT_EMBEDDING)))
+                ElasticInferenceServiceAuthorization.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(
+                        List.of(
+                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                                "model-1",
+                                EnumSet.of(TaskType.TEXT_EMBEDDING)
+                            )
+                        )
+                    )
+                )
             )
         ) {
             String content = XContentHelper.stripWhitespace("""

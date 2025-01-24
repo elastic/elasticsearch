@@ -2135,19 +2135,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testRerankCommand() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
 
-        var plan = processingCommand("RERANK \"query text\" ON CONCAT(title, description) WITH inferenceID");
+        var plan = processingCommand("RERANK \"query text\" ON CONCAT(title, description) WITH \"inferenceID\"");
         var rerank = as(plan, Rerank.class);
 
         // Checking constant // foldable expressions
-        assertThat(rerank.queryText().fold(), equalTo("query text"));
-        assertThat(rerank.inferenceId().fold(), equalTo("inferenceID"));
-
-        System.out.println(rerank.input().getClass());
-
-        // Default window size is 20
-        assertThat(rerank.windowSize().fold(), equalTo(20));
-
-        // TODO: add more tests (using params, window size, ...).
+        assertThat(rerank.queryText(), equalTo("query text"));
+        assertThat(rerank.inferenceId(), equalTo("inferenceID"));
+        assertThat(rerank.input(), equalTo(function("CONCAT", List.of(attribute("title"), attribute("description")))));
     }
 
     public void testInlineConvertUnsupportedType() {

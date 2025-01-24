@@ -24,10 +24,10 @@ import java.util.Objects;
 public class Rerank extends InferencePlan {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Rerank", Rerank::new);
-    private final Expression queryText;
+    private final String queryText;
     private final Expression input;
 
-    public Rerank(Source source, LogicalPlan child, Expression queryText, Expression input, Expression inferenceId) {
+    public Rerank(Source source, LogicalPlan child, String inferenceId, String queryText, Expression input) {
         super(source, child, inferenceId);
         this.queryText = queryText;
         this.input = input;
@@ -37,22 +37,20 @@ public class Rerank extends InferencePlan {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
+            in.readString(),
+            in.readString(),
             in.readNamedWriteable(Expression.class)
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeNamedWriteable(child());
-        out.writeNamedWriteable(queryText);
+        super.writeTo(out);
+        out.writeString(queryText);
         out.writeNamedWriteable(input);
-        out.writeNamedWriteable(inferenceId());
     }
 
-    public Expression queryText() {
+    public String queryText() {
         return queryText;
     }
 
@@ -77,17 +75,17 @@ public class Rerank extends InferencePlan {
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Rerank(source(), newChild, queryText, input, inferenceId());
+        return new Rerank(source(), newChild, inferenceId(), queryText, input);
     }
 
     @Override
     public boolean expressionsResolved() {
-        return queryText.resolved() && input.resolved() && inferenceId().resolved();
+        return input.resolved();
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Rerank::new, child(), queryText, input, inferenceId());
+        return NodeInfo.create(this, Rerank::new, child(), inferenceId(), queryText, input);
     }
 
     @Override

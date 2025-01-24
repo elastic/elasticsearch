@@ -7,24 +7,32 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.inference;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
+import java.io.IOException;
 import java.util.Objects;
 
 public abstract class InferencePlan extends UnaryPlan {
 
-    private final Expression inferenceId;
+    private final String inferenceId;
 
-    protected InferencePlan(Source source, LogicalPlan child, Expression inferenceId) {
+    protected InferencePlan(Source source, LogicalPlan child, String inferenceId) {
         super(source, child);
         this.inferenceId = inferenceId;
     }
 
-    public Expression inferenceId() {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteable(child());
+        out.writeString(inferenceId());
+    }
+
+    public String inferenceId() {
         return inferenceId;
     }
 

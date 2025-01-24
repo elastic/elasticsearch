@@ -28,12 +28,17 @@ public class RerankExec extends UnaryExec {
         RerankExec::new
     );
 
-    private final Expression queryText;
-
+    private final String inferenceId;
+    private final String queryText;
     private final Expression input;
-    private final Expression inferenceId;
 
-    public RerankExec(Source source, PhysicalPlan child, Expression queryText, Expression input, Expression inferenceId) {
+    public RerankExec(
+        Source source,
+        PhysicalPlan child,
+        String inferenceId,
+        String queryText,
+        Expression input
+    ) {
         super(source, child);
         this.queryText = queryText;
         this.input = input;
@@ -44,22 +49,22 @@ public class RerankExec extends UnaryExec {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(PhysicalPlan.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
+            in.readString(),
+            in.readString(),
             in.readNamedWriteable(Expression.class)
         );
     }
 
-    public Expression queryText() {
+    public String inferenceId() {
+        return inferenceId;
+    }
+
+    public String queryText() {
         return queryText;
     }
 
     public Expression input() {
         return input;
-    }
-
-    public Expression inferenceId() {
-        return inferenceId;
     }
 
     @Override
@@ -71,19 +76,19 @@ public class RerankExec extends UnaryExec {
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
-        out.writeNamedWriteable(queryText());
+        out.writeString(inferenceId());
+        out.writeString(queryText());
         out.writeNamedWriteable(input());
-        out.writeNamedWriteable(inferenceId());
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, RerankExec::new, child(), queryText, input, inferenceId);
+        return NodeInfo.create(this, RerankExec::new, child(), inferenceId, queryText, input);
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new RerankExec(source(), newChild, queryText, input, inferenceId);
+        return new RerankExec(source(), newChild, inferenceId, queryText, input);
     }
 
     @Override

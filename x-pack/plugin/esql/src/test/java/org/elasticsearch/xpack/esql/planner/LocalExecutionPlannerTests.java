@@ -30,6 +30,7 @@ import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -147,6 +148,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             null,
             null,
+            EsqlTestUtils.MOCK_INFERENCE_SERVICE,
             esPhysicalOperationProviders()
         );
     }

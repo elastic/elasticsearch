@@ -581,10 +581,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source, "RERANK is in preview and only available in SNAPSHOT build");
         }
 
-        Literal queryText = visitStringOrParameter(ctx.queryText);
-        Expression input = expression(ctx.input);
-        Literal inferenceId = new Literal(source(ctx.inferenceId), visitStringOrParameter(ctx.inferenceId), DataType.KEYWORD);
-
-        return p -> new Rerank(source, p, queryText, input, inferenceId);
+        return p -> new Rerank(source, p, visitStringOrParameter(ctx.inferenceId).fold().toString(), visitStringOrParameter(ctx.queryText).fold().toString(), expression(ctx.input));
     }
 }

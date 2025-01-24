@@ -30,7 +30,7 @@ public class InferenceService {
     }
 
     public void resolveInference(InferencePlan inferencePlan, ActionListener<InferenceResolution> listener) {
-        String inferenceId = inferencePlan.inferenceId().fold().toString();
+        String inferenceId = inferencePlan.inferenceId();
         TaskType taskType = inferencePlan.taskType();
 
         client.execute(

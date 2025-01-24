@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
@@ -680,8 +679,8 @@ public class LocalExecutionPlanner {
 
         ExpressionEvaluator.Factory inputEvaluatorSupplier = EvalMapper.toEvaluator(rerank.input(), source.layout);
 
-        String inferenceId = rerank.inferenceId().fold().toString();
-        String queryText = ((BytesRef) rerank.queryText().fold()).utf8ToString();
+        String inferenceId = rerank.inferenceId();
+        String queryText = rerank.queryText();
 
         int scoreChannel = -1;
 

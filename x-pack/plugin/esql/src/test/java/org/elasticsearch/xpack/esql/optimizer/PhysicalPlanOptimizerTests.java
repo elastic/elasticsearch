@@ -7562,6 +7562,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             new ExchangeSinkHandler(null, 10, () -> 10),
             null,
             null,
+            EsqlTestUtils.MOCK_INFERENCE_SERVICE,
             new EsPhysicalOperationProviders(List.of(), null)
         );
 

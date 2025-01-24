@@ -506,7 +506,8 @@ public class CsvTests extends ESTestCase {
             TEST_VERIFIER,
             new PlanningMetrics(),
             null,
-            EsqlTestUtils.MOCK_QUERY_BUILDER_RESOLVER
+            EsqlTestUtils.MOCK_QUERY_BUILDER_RESOLVER,
+            EsqlTestUtils.MOCK_INFERENCE_SERVICE
         );
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(testDatasets);
 
@@ -619,6 +620,7 @@ public class CsvTests extends ESTestCase {
             exchangeSink,
             Mockito.mock(EnrichLookupService.class),
             Mockito.mock(LookupFromIndexService.class),
+            EsqlTestUtils.MOCK_INFERENCE_SERVICE,
             physicalOperationProviders
         );
 

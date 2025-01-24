@@ -117,40 +117,38 @@ interface FieldSpecificMatcher {
             }
 
             assert scalingFactor instanceof Number;
-            var expectedNormalized = normalizeExpected(expected, ((Number) scalingFactor).doubleValue());
-            var actualNormalized = normalizeActual(actual);
-
-            return actualNormalized.equals(expectedNormalized)
-                ? MatchResult.match()
-                : MatchResult.noMatch(
-                    formatErrorMessage(
-                        actualMappings,
-                        actualSettings,
-                        expectedMappings,
-                        expectedSettings,
-                        "Values of type [scaled_float] don't match after normalization, normalized "
-                            + prettyPrintCollections(actualNormalized, expectedNormalized)
-                    )
-                );
-        }
-
-        private static Set<Double> normalizeExpected(List<Object> values, double scalingFactor) {
-            if (values == null) {
-                return Set.of();
+            double scalingFactorDouble = ((Number) scalingFactor).doubleValue();
+            // It is possible that we receive a mix of reduced precision values and original values.
+            // F.e. in case of `synthetic_source_keep: "arrays"` in nested objects only arrays are preserved as is
+            // and therefore any singleton values have reduced precision.
+            // Therefore, we need to match either an exact value or a normalized value.
+            var expectedNormalized = normalizeValues(expected);
+            var actualNormalized = normalizeValues(actual);
+            for (var expectedValue : expectedNormalized) {
+                if (actualNormalized.contains(expectedValue) == false && actualNormalized.contains(encodeDecodeWithPrecisionLoss(expectedValue, scalingFactorDouble)) == false) {
+                    return MatchResult.noMatch(
+                        formatErrorMessage(
+                            actualMappings,
+                            actualSettings,
+                            expectedMappings,
+                            expectedSettings,
+                            "Values of type [scaled_float] don't match after normalization, normalized "
+                                + prettyPrintCollections(actualNormalized, expectedNormalized)
+                        )
+                    );
+                }
             }
 
-            return values.stream()
-                .filter(Objects::nonNull)
-                .map(ScaledFloatMatcher::toDouble)
-                // Based on logic in ScaledFloatFieldMapper
-                .map(v -> {
-                    var encoded = Math.round(v * scalingFactor);
-                    return encoded / scalingFactor;
-                })
-                .collect(Collectors.toSet());
+            return MatchResult.match();
         }
 
-        private static Set<Double> normalizeActual(List<Object> values) {
+        private Double encodeDecodeWithPrecisionLoss(double value, double scalingFactor) {
+            // Based on logic in ScaledFloatFieldMapper
+            var encoded = Math.round(value * scalingFactor);
+            return encoded / scalingFactor;
+        }
+
+        private static Set<Double> normalizeValues(List<Object> values) {
             if (values == null) {
                 return Set.of();
             }

@@ -47,8 +47,17 @@ import java.util.Objects;
  */
 @Deprecated
 public class Lucene60Codec extends BWCCodec {
-    private final FieldInfosFormat fieldInfosFormat = wrap(new Lucene60FieldInfosFormat());
-    private final SegmentInfoFormat segmentInfosFormat = wrap(new Lucene50SegmentInfoFormat());
+
+    @Override
+    protected FieldInfosFormat setFieldInfosFormat() {
+        return new Lucene60FieldInfosFormat();
+    }
+
+    @Override
+    protected SegmentInfoFormat setSegmentInfoFormat() {
+        return new Lucene50SegmentInfoFormat();
+    }
+
     private final LiveDocsFormat liveDocsFormat = new Lucene50LiveDocsFormat();
     private final CompoundFormat compoundFormat = new Lucene50CompoundFormat();
     private final StoredFieldsFormat storedFieldsFormat;

@@ -25,6 +25,16 @@ public class BWCCodecTests extends ESTestCase {
     public BWCCodecTests() {
         this.codec = new BWCCodec("WrapperCodec") {
             @Override
+            protected SegmentInfoFormat setSegmentInfoFormat() {
+                return null;
+            }
+
+            @Override
+            protected FieldInfosFormat setFieldInfosFormat() {
+                return null;
+            }
+
+            @Override
             public PostingsFormat postingsFormat() {
                 return null;
             }

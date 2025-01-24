@@ -32,8 +32,16 @@ import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
  */
 public class BWCLucene86Codec extends BWCCodec {
 
-    private final FieldInfosFormat fieldInfosFormat = wrap(new Lucene60FieldInfosFormat());
-    private final SegmentInfoFormat segmentInfosFormat = wrap(new Lucene86SegmentInfoFormat());
+    @Override
+    protected FieldInfosFormat setFieldInfosFormat() {
+        return new Lucene60FieldInfosFormat();
+    }
+
+    @Override
+    protected SegmentInfoFormat setSegmentInfoFormat() {
+        return new Lucene86SegmentInfoFormat();
+    }
+
     private final LiveDocsFormat liveDocsFormat = new Lucene50LiveDocsFormat();
     private final CompoundFormat compoundFormat = new Lucene50CompoundFormat();
     private final PointsFormat pointsFormat = new Lucene86MetadataOnlyPointsFormat();

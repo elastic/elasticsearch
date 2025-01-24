@@ -43,8 +43,13 @@ import java.util.List;
  */
 public abstract class BWCCodec extends Codec {
 
+    protected FieldInfosFormat fieldInfosFormat;
+    protected SegmentInfoFormat segmentInfosFormat;
+
     protected BWCCodec(String name) {
         super(name);
+        this.fieldInfosFormat = wrappedFieldInfosFormat();
+        this.segmentInfosFormat = wrappedSegmentInfoFormat();
     }
 
     protected final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
@@ -69,32 +74,40 @@ public abstract class BWCCodec extends Codec {
         throw new UnsupportedOperationException();
     }
 
-    protected static SegmentInfoFormat wrap(SegmentInfoFormat wrapped) {
+    protected abstract SegmentInfoFormat setSegmentInfoFormat();
+
+    protected final SegmentInfoFormat wrappedSegmentInfoFormat() {
         return new SegmentInfoFormat() {
+            final SegmentInfoFormat wrappedFormat = setSegmentInfoFormat();
+
             @Override
             public SegmentInfo read(Directory directory, String segmentName, byte[] segmentID, IOContext context) throws IOException {
-                return wrap(wrapped.read(directory, segmentName, segmentID, context));
+                return wrap(wrappedFormat.read(directory, segmentName, segmentID, context));
             }
 
             @Override
             public void write(Directory dir, SegmentInfo info, IOContext ioContext) throws IOException {
-                wrapped.write(dir, info, ioContext);
+                wrappedFormat.write(dir, info, ioContext);
             }
         };
     }
 
-    protected static FieldInfosFormat wrap(FieldInfosFormat wrapped) {
+    protected abstract FieldInfosFormat setFieldInfosFormat();
+
+    protected final FieldInfosFormat wrappedFieldInfosFormat() {
         return new FieldInfosFormat() {
+            final FieldInfosFormat wrappedFormat = setFieldInfosFormat();
+
             @Override
             public FieldInfos read(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, IOContext iocontext)
                 throws IOException {
-                return filterFields(wrapped.read(directory, segmentInfo, segmentSuffix, iocontext));
+                return filterFields(wrappedFormat.read(directory, segmentInfo, segmentSuffix, iocontext));
             }
 
             @Override
             public void write(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, FieldInfos infos, IOContext context)
                 throws IOException {
-                wrapped.write(directory, segmentInfo, segmentSuffix, infos, context);
+                wrappedFormat.write(directory, segmentInfo, segmentSuffix, infos, context);
             }
         };
     }

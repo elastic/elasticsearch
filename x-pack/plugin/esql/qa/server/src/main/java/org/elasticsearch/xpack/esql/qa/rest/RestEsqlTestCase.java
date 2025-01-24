@@ -59,7 +59,6 @@ import static java.util.Collections.emptySet;
 import static java.util.Map.entry;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.test.ListMatcher.matchesList;
-import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.ASYNC;
@@ -257,7 +256,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testGetAnswer() throws IOException {
         Map<String, Object> answer = runEsql(requestObjectBuilder().query("row a = 1, b = 2"));
-        assertEquals(3, answer.size());
+        assertEquals(4, answer.size());
         assertThat(((Integer) answer.get("took")).intValue(), greaterThanOrEqualTo(0));
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
@@ -296,21 +295,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8), equalTo("{\"errors\":false}"));
 
         RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | stats min(value)");
-        Map<String, Object> result = runEsql(builder);
-        assertMap(
-            result,
-            matchesMap().entry("values", List.of(List.of(1)))
-                .entry("columns", List.of(Map.of("name", "min(value)", "type", "long")))
-                .entry("took", greaterThanOrEqualTo(0))
-        );
+        assertResultMap(runEsql(builder), List.of(Map.of("name", "min(value)", "type", "long")), List.of(List.of(1)));
 
         builder = requestObjectBuilder().query(fromIndex() + " | stats min(value) by group | sort group, `min(value)`");
-        result = runEsql(builder);
-        assertMap(
-            result,
-            matchesMap().entry("values", List.of(List.of(2, 0), List.of(1, 1)))
-                .entry("columns", List.of(Map.of("name", "min(value)", "type", "long"), Map.of("name", "group", "type", "long")))
-                .entry("took", greaterThanOrEqualTo(0))
+        assertResultMap(
+            runEsql(builder),
+            List.of(Map.of("name", "min(value)", "type", "long"), Map.of("name", "group", "type", "long")),
+            List.of(List.of(2, 0), List.of(1, 1))
         );
     }
 
@@ -569,7 +560,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
         var values = List.of(List.of(3, testIndexName() + "-2", 1, "id-2"), List.of(2, testIndexName() + "-1", 2, "id-1"));
 
-        assertMap(result, matchesMap().entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+        assertResultMap(result, columns, values);
 
         assertThat(deleteIndex(testIndexName() + "-1").isAcknowledged(), is(true)); // clean up
         assertThat(deleteIndex(testIndexName() + "-2").isAcknowledged(), is(true)); // clean up
@@ -867,17 +858,15 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                     .item(499.5)
             );
         }
-        assertMap(
+        assertResultMap(
             result,
-            matchesMap().entry(
-                "columns",
-                matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
-                    .item(matchesMap().entry("name", "test").entry("type", "text"))
-                    .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))
-                    .item(matchesMap().entry("name", "value").entry("type", "long"))
-                    .item(matchesMap().entry("name", "now").entry("type", "date"))
-                    .item(matchesMap().entry("name", "AVG(value)").entry("type", "double"))
-            ).entry("values", values).entry("took", greaterThanOrEqualTo(0))
+            matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
+                .item(matchesMap().entry("name", "test").entry("type", "text"))
+                .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))
+                .item(matchesMap().entry("name", "value").entry("type", "long"))
+                .item(matchesMap().entry("name", "now").entry("type", "date"))
+                .item(matchesMap().entry("name", "AVG(value)").entry("type", "double")),
+            values
         );
     }
 
@@ -893,11 +882,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }).query(fromIndex() + " | STATS SUM(value)");
 
         Map<String, Object> result = runEsql(builder);
-        assertMap(
+        assertResultMap(
             result,
-            matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
-                .entry("values", List.of(List.of(499500)))
-                .entry("took", greaterThanOrEqualTo(0))
+            matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")),
+            List.of(List.of(499500))
         );
     }
 
@@ -912,12 +900,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             b.endObject();
         }).query(fromIndex() + " | WHERE value == 12 | STATS SUM(value)");
         Map<String, Object> result = runEsql(builder);
-        assertMap(
-            result,
-            matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
-                .entry("values", List.of(List.of(12)))
-                .entry("took", greaterThanOrEqualTo(0))
-        );
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")), List.of(List.of(12)));
     }
 
     public void testTopLevelFilterBoolMerged() throws IOException {
@@ -946,11 +929,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 b.endObject();
             }).query(fromIndex() + " | WHERE @timestamp > \"2010-01-01\" | STATS SUM(value)");
             Map<String, Object> result = runEsql(builder);
-            assertMap(
+            assertResultMap(
                 result,
-                matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
-                    .entry("values", List.of(List.of(12)))
-                    .entry("took", greaterThanOrEqualTo(0))
+                matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")),
+                List.of(List.of(12))
             );
         }
     }
@@ -1132,13 +1114,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         for (int i = 0; i < count; i++) {
             values = values.item(matchesList().item("keyword" + i).item(i));
         }
-        assertMap(
+        assertResultMap(
             result,
-            matchesMap().entry(
-                "columns",
-                matchesList().item(matchesMap().entry("name", "keyword").entry("type", "keyword"))
-                    .item(matchesMap().entry("name", "integer").entry("type", "integer"))
-            ).entry("values", values).entry("took", greaterThanOrEqualTo(0)).entry("id", id).entry("is_running", false)
+            getResultMatcher(result).entry("id", id).entry("is_running", false),
+            matchesList().item(matchesMap().entry("name", "keyword").entry("type", "keyword"))
+                .item(matchesMap().entry("name", "integer").entry("type", "integer")),
+            values
         );
 
     }

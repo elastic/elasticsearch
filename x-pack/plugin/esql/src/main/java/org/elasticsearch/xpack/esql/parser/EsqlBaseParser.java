@@ -5627,15 +5627,15 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class JoinTargetContext extends ParserRuleContext {
-    public IdentifierContext index;
+    public IndexPatternContext index;
     public IdentifierContext alias;
-    public List<IdentifierContext> identifier() {
-      return getRuleContexts(IdentifierContext.class);
-    }
-    public IdentifierContext identifier(int i) {
-      return getRuleContext(IdentifierContext.class,i);
+    public IndexPatternContext indexPattern() {
+      return getRuleContext(IndexPatternContext.class,0);
     }
     public TerminalNode AS() { return getToken(EsqlBaseParser.AS, 0); }
+    public IdentifierContext identifier() {
+      return getRuleContext(IdentifierContext.class,0);
+    }
     @SuppressWarnings("this-escape")
     public JoinTargetContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
@@ -5664,7 +5664,7 @@ public class EsqlBaseParser extends ParserConfig {
       enterOuterAlt(_localctx, 1);
       {
       setState(650);
-      ((JoinTargetContext)_localctx).index = identifier();
+      ((JoinTargetContext)_localctx).index = indexPattern();
       setState(653);
       _errHandler.sync(this);
       _la = _input.LA(1);
@@ -6321,7 +6321,7 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0283\u0001\u0000\u0000\u0000\u0284\u0285\u0001\u0000\u0000\u0000\u0285"+
     "\u0286\u0001\u0000\u0000\u0000\u0286\u0287\u0005\u0014\u0000\u0000\u0287"+
     "\u0288\u0003\u0080@\u0000\u0288\u0289\u0003\u0082A\u0000\u0289\u007f\u0001"+
-    "\u0000\u0000\u0000\u028a\u028d\u0003B!\u0000\u028b\u028c\u0005[\u0000"+
+    "\u0000\u0000\u0000\u028a\u028d\u0003(\u0014\u0000\u028b\u028c\u0005[\u0000"+
     "\u0000\u028c\u028e\u0003B!\u0000\u028d\u028b\u0001\u0000\u0000\u0000\u028d"+
     "\u028e\u0001\u0000\u0000\u0000\u028e\u0081\u0001\u0000\u0000\u0000\u028f"+
     "\u0290\u0005_\u0000\u0000\u0290\u0295\u0003\u0084B\u0000\u0291\u0292\u0005"+

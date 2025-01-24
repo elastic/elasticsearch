@@ -58,6 +58,7 @@ public class ThreadPoolMergeExecutor {
     private final ExecutorService executorService;
     private final int maxConcurrentMerges;
     private int currentlyExecutingMergesCount;
+    private int currentlyActiveIOThrottledMergesCount;
 
     public ThreadPoolMergeExecutor(ThreadPool threadPool) {
         this.executorService = threadPool.executor(ThreadPool.Names.MERGE);
@@ -68,13 +69,32 @@ public class ThreadPoolMergeExecutor {
         return targetMBPerSec;
     }
 
+    public synchronized void registerMergeScheduler(ThreadPoolMergeScheduler threadPoolMergeScheduler) {
+        if (registeredMergeSchedulers.add(threadPoolMergeScheduler) == false) {
+            throw new IllegalStateException("cannot register the same scheduler multiple times");
+        }
+    }
+
     public synchronized void updateMergeScheduler(ThreadPoolMergeScheduler threadPoolMergeScheduler,
                                                   Consumer<ThreadPoolMergeScheduler> updater) {
-        registeredMergeSchedulers.remove(threadPoolMergeScheduler);
+        boolean removed = registeredMergeSchedulers.remove(threadPoolMergeScheduler);
+        if (false == removed) {
+            throw new IllegalStateException("Cannot update a merge scheduler that is not registered");
+        }
         currentlyExecutingMergesCount -= threadPoolMergeScheduler.getCurrentlyRunningMergeTasks().size();
+        currentlyActiveIOThrottledMergesCount -= getIOThrottledMergeTasksCount(threadPoolMergeScheduler);
         updater.accept(threadPoolMergeScheduler);
-        registeredMergeSchedulers.add(threadPoolMergeScheduler);
+        boolean added = registeredMergeSchedulers.add(threadPoolMergeScheduler);
+        if (false == added) {
+            throw new IllegalStateException("Found duplicate registered merge scheduler");
+        }
         currentlyExecutingMergesCount += threadPoolMergeScheduler.getCurrentlyRunningMergeTasks().size();
+        currentlyActiveIOThrottledMergesCount += getIOThrottledMergeTasksCount(threadPoolMergeScheduler);
+        double newTargetMBPerSec = maybeUpdateTargetMBPerSec();
+        if (newTargetMBPerSec != targetMBPerSec) {
+            targetMBPerSec = newTargetMBPerSec;
+            threadPoolMergeScheduler.setIORateLimitForAllMergeTasks(newTargetMBPerSec);
+        }
         maybeExecuteNextMerges();
     }
 
@@ -96,5 +116,33 @@ public class ThreadPoolMergeExecutor {
             registeredMergeSchedulers.add(threadPoolMergeScheduler);
             currentlyExecutingMergesCount += threadPoolMergeScheduler.getCurrentlyRunningMergeTasks().size();
         }
+    }
+
+    private int getIOThrottledMergeTasksCount(ThreadPoolMergeScheduler mergeScheduler) {
+        if (mergeScheduler.shouldIOThrottleMergeTasks() == false) {
+            return 0;
+        } else {
+            int count = 0;
+            for (MergeTask runningMergeTask : mergeScheduler.getCurrentlyRunningMergeTasks()) {
+                if (runningMergeTask.supportsIOThrottling()) {
+                    count++;
+                }
+            }
+            for (MergeTask queuedMergeTask : mergeScheduler.getQueuedMergeTasks()) {
+                if (queuedMergeTask.supportsIOThrottling()) {
+                    count++;
+                }
+            }
+            return count;
+        }
+    }
+
+    private double maybeUpdateTargetMBPerSec() {
+        if (currentlyActiveIOThrottledMergesCount < maxConcurrentMerges * 2 && targetMBPerSec > MIN_MERGE_MB_PER_SEC) {
+            return Math.max(MIN_MERGE_MB_PER_SEC, targetMBPerSec / 1.1);
+        } else if (currentlyActiveIOThrottledMergesCount > maxConcurrentMerges * 4 && targetMBPerSec < MAX_MERGE_MB_PER_SEC) {
+            return Math.min(MAX_MERGE_MB_PER_SEC, targetMBPerSec * 1.1);
+        }
+        return targetMBPerSec;
     }
 }

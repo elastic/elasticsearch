@@ -54,6 +54,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final AtomicBoolean shouldThrottleIncomingMerges = new AtomicBoolean();
     // how many {@link MergeTask}s have kicked off (this is used to name them).
     private final AtomicLong mergeTaskCount = new AtomicLong();
+    private int maxThreadCount;
+    private int maxMergeCount;
+    private boolean shouldIOThrottledMergeTasks;
 
     public ThreadPoolMergeScheduler(ShardId shardId, IndexSettings indexSettings, ThreadPoolMergeExecutor threadPoolMergeExecutor) {
         this.shardId = shardId;
@@ -64,10 +67,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             () -> this.config.isAutoThrottle() ? threadPoolMergeExecutor.getTargetMBPerSec() : Double.POSITIVE_INFINITY
         );
         this.threadPoolMergeExecutor = threadPoolMergeExecutor;
-    }
-
-    public List<MergeTask> getCurrentlyRunningMergeTasks() {
-        return currentlyRunningMergeTasks;
+        threadPoolMergeExecutor.registerMergeScheduler(this);
+        refreshConfig();
     }
 
     @Override
@@ -87,13 +88,13 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     @Override
     public void refreshConfig() {
-        // in case max merge count changed
-//        maybeActivateThrottling();
-//        maybeDeactivateThrottling();
-//        // in case max thread count changed (and more merges can be running simultaneously)
-//        while (maybeExecuteNextMerge()) {}
-        // the IO auto-throttled setting change is only honoured for new merges
-        // (existing ones continue with the value of the setting when the merge created (queued))
+        update(() -> {
+            maxThreadCount = config.getMaxThreadCount();
+            maxMergeCount = config.getMaxMergeCount();
+            shouldIOThrottledMergeTasks = config.isAutoThrottle();
+        });
+        maybeActivateThrottling();
+        maybeDeactivateThrottling();
     }
 
     @Override
@@ -129,13 +130,35 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         throw new MergePolicy.MergeException(t);
     }
 
-    private void submitNewMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
-        MergeTask mergeTask = newMergeTask(mergeSource, merge, mergeTrigger);
-        enqueMergeTask(mergeTask);
-        maybeActivateThrottling();
+    boolean shouldIOThrottleMergeTasks() {
+        return shouldIOThrottledMergeTasks;
     }
 
-    public MergeTask peekMergeTaskToExecute() {
+    void setIORateLimitForAllMergeTasks(double mbPerSec) {
+        if (shouldIOThrottledMergeTasks == false) {
+            throw new IllegalArgumentException("scheduler cannot IO throttle merge tasks");
+        }
+        for (MergeTask runningMergeTask : getCurrentlyRunningMergeTasks()) {
+            if (runningMergeTask.supportsIOThrottling()) {
+                runningMergeTask.setIORateLimit(mbPerSec);
+            }
+        }
+        for (MergeTask queuedMergeTask : getQueuedMergeTasks()) {
+            if (queuedMergeTask.supportsIOThrottling()) {
+                queuedMergeTask.setIORateLimit(mbPerSec);
+            }
+        }
+    }
+
+    List<MergeTask> getCurrentlyRunningMergeTasks() {
+        return currentlyRunningMergeTasks;
+    }
+
+    PriorityQueue<MergeTask> getQueuedMergeTasks() {
+        return queuedMergeTasks;
+    }
+
+    MergeTask peekMergeTaskToExecute() {
         if (currentlyRunningMergeTasks.size() >= config.getMaxThreadCount()) {
             // there are already enough concurrent merges per scheduler (per shard) that are currently running
             return null;
@@ -149,7 +172,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         return mergeTask;
     }
 
-    public synchronized MergeTask executeNextMergeTask() {
+    synchronized MergeTask executeNextMergeTask() {
         if (currentlyRunningMergeTasks.size() >= config.getMaxThreadCount()) {
             // there are already enough concurrent merges per scheduler (per shard) that are currently running
             return null;
@@ -164,6 +187,12 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         return mergeTask;
     }
 
+    private void submitNewMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
+        MergeTask mergeTask = newMergeTask(mergeSource, merge, mergeTrigger);
+        enqueMergeTask(mergeTask);
+        maybeActivateThrottling();
+    }
+
     private void mergeDone(MergeTask mergeTask) {
         assert mergeTask.isRunning();
         update(() -> this.currentlyRunningMergeTasks.remove(mergeTask));
@@ -173,7 +202,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private void maybeActivateThrottling() {
         int numRunningMerges = currentlyRunningMergeTasks.size();
         int numQueuedMerges = queuedMergeTasks.size();
-        int configuredMaxMergeCount = config.getMaxMergeCount();
+        int configuredMaxMergeCount = maxThreadCount;
         // both currently running and enqueued count as "active" for throttling purposes
         if (numRunningMerges + numQueuedMerges > configuredMaxMergeCount && shouldThrottleIncomingMerges.getAndSet(true) == false) {
             activateThrottling(numRunningMerges, numQueuedMerges, configuredMaxMergeCount);
@@ -183,7 +212,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private void maybeDeactivateThrottling() {
         int numRunningMerges = currentlyRunningMergeTasks.size();
         int numQueuedMerges = queuedMergeTasks.size();
-        int configuredMaxMergeCount = config.getMaxMergeCount();
+        int configuredMaxMergeCount = maxMergeCount;
         // both currently running and enqueued count as "active" for throttling purposes
         if (numRunningMerges + numQueuedMerges <= configuredMaxMergeCount && shouldThrottleIncomingMerges.getAndSet(false)) {
             deactivateThrottling(numRunningMerges, numQueuedMerges, configuredMaxMergeCount);
@@ -249,21 +278,36 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         private final MergeSource mergeSource;
         private final OnGoingMerge onGoingMerge;
         private final MergeRateLimiter rateLimiter;
-        private final boolean isAutoThrottle;
+        private final boolean supportsIOThrottling;
 
-        MergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, boolean isAutoThrottle, String name) {
+        MergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, boolean supportsIOThrottling, String name) {
             this.name = name;
             this.mergeStartTimeNS = new SetOnce<>();
             this.mergeSource = mergeSource;
             this.onGoingMerge = new OnGoingMerge(merge);
             this.rateLimiter = new MergeRateLimiter(merge.getMergeProgress());
-            this.isAutoThrottle = isAutoThrottle;
+            this.supportsIOThrottling = supportsIOThrottling;
+            // probably redundant, but better be explicit
+            if (this.supportsIOThrottling == false) {
+                this.rateLimiter.setMBPerSec(Double.POSITIVE_INFINITY);
+            }
         }
 
         @Override
         public int compareTo(MergeTask other) {
             // sort smaller merges first, so they are executed before larger ones
             return Long.compare(onGoingMerge.getMerge().estimatedMergeBytes, other.onGoingMerge.getMerge().estimatedMergeBytes);
+        }
+
+        public boolean supportsIOThrottling() {
+            return supportsIOThrottling;
+        }
+
+        public void setIORateLimit(double mbPerSec) {
+            if (supportsIOThrottling == false) {
+                throw new IllegalArgumentException("merge task cannot be IO throttled");
+            }
+            this.rateLimiter.setMBPerSec(mbPerSec);
         }
 
         public boolean isRunning() {

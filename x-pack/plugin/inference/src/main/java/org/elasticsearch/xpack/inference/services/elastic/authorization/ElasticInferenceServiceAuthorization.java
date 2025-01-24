@@ -12,16 +12,17 @@ import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInfere
 
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * Provides a structure for governing which models (if any) a cluster has access to according to the upstream Elastic Inference Service.
- * @param enabledModels a mapping of model ids to a set of {@link TaskType} to indicate which models are available and for which task types
- */
-public record ElasticInferenceServiceAuthorization(Map<String, EnumSet<TaskType>> enabledModels) {
+public class ElasticInferenceServiceAuthorization {
+
+    private final Map<TaskType, Set<String>> taskTypeToModels;
+    private final EnumSet<TaskType> enabledTaskTypes;
+    private final Set<String> enabledModels;
 
     /**
      * Converts an authorization response from Elastic Inference Service into the {@link ElasticInferenceServiceAuthorization} format.
@@ -30,45 +31,80 @@ public record ElasticInferenceServiceAuthorization(Map<String, EnumSet<TaskType>
      * @return a new {@link ElasticInferenceServiceAuthorization}
      */
     public static ElasticInferenceServiceAuthorization of(ElasticInferenceServiceAuthorizationResponseEntity responseEntity) {
-        var enabledModels = new HashMap<String, EnumSet<TaskType>>();
+        var taskTypeToModelsMap = new HashMap<TaskType, Set<String>>();
+        var enabledTaskTypesSet = EnumSet.noneOf(TaskType.class);
+        var enabledModelsSet = new HashSet<String>();
 
         for (var model : responseEntity.getAuthorizedModels()) {
             // if there are no task types we'll ignore the model because it's likely we didn't understand
             // the task type and don't support it anyway
             if (model.taskTypes().isEmpty() == false) {
-                enabledModels.put(model.modelName(), model.taskTypes());
+                for (var taskType : model.taskTypes()) {
+                    taskTypeToModelsMap.merge(taskType, Set.of(model.modelName()), (existingModelIds, newModelIds) -> {
+                        existingModelIds.addAll(newModelIds);
+                        return existingModelIds;
+                    });
+                    enabledTaskTypesSet.add(taskType);
+                }
+                enabledModelsSet.add(model.modelName());
             }
         }
 
-        return new ElasticInferenceServiceAuthorization(enabledModels);
+        return new ElasticInferenceServiceAuthorization(taskTypeToModelsMap, enabledModelsSet, enabledTaskTypesSet);
     }
 
     /**
      * Returns an object indicating that the cluster has no access to Elastic Inference Service.
      */
     public static ElasticInferenceServiceAuthorization newDisabledService() {
-        return new ElasticInferenceServiceAuthorization();
+        return new ElasticInferenceServiceAuthorization(Map.of(), Set.of(), EnumSet.noneOf(TaskType.class));
     }
 
-    public ElasticInferenceServiceAuthorization {
-        Objects.requireNonNull(enabledModels);
-
-        for (var taskTypes : enabledModels.values()) {
-            if (taskTypes.isEmpty()) {
-                throw new IllegalArgumentException("Authorization task types must not be empty");
-            }
-        }
-    }
-
-    private ElasticInferenceServiceAuthorization() {
-        this(Map.of());
+    private ElasticInferenceServiceAuthorization(
+        Map<TaskType, Set<String>> taskTypeToModels,
+        Set<String> enabledModels,
+        EnumSet<TaskType> enabledTaskTypes
+    ) {
+        this.taskTypeToModels = Objects.requireNonNull(taskTypeToModels);
+        this.enabledModels = Objects.requireNonNull(enabledModels);
+        this.enabledTaskTypes = Objects.requireNonNull(enabledTaskTypes);
     }
 
     public boolean isEnabled() {
-        return enabledModels.isEmpty() == false;
+        return enabledModels.isEmpty() == false && taskTypeToModels.isEmpty() == false && enabledTaskTypes.isEmpty() == false;
     }
 
-    public EnumSet<TaskType> enabledTaskTypes() {
-        return enabledModels.values().stream().flatMap(Set::stream).collect(Collectors.toCollection(() -> EnumSet.noneOf(TaskType.class)));
+    public Set<String> getEnabledModels() {
+        return Set.copyOf(enabledModels);
+    }
+
+    public EnumSet<TaskType> getEnabledTaskTypes() {
+        return EnumSet.copyOf(enabledTaskTypes);
+    }
+
+    public Map<TaskType, Set<String>> getTaskTypeToModels() {
+        return Map.copyOf(taskTypeToModels);
+    }
+
+    /**
+     * Returns a new {@link ElasticInferenceServiceAuthorization} object retaining only the specified task types
+     * and applicable models that leverage those task types. Any task types not specified in the passed in set will be
+     * excluded from the returned object. This is essentially an intersection.
+     * @param taskTypes the task types to retain in the newly created object
+     * @return a new object containing models and task types limited to the specified set.
+     */
+    public ElasticInferenceServiceAuthorization newLimitedToTaskTypes(EnumSet<TaskType> taskTypes) {
+        var newTaskTypeToModels = new HashMap<TaskType, Set<String>>();
+
+        for (var taskType : taskTypes) {
+            var models = taskTypeToModels.get(taskType);
+            if (models != null) {
+                newTaskTypeToModels.put(taskType, models);
+            }
+        }
+
+        Set<String> newEnabledModels = newTaskTypeToModels.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+
+        return new ElasticInferenceServiceAuthorization(newTaskTypeToModels, newEnabledModels, taskTypes);
     }
 }

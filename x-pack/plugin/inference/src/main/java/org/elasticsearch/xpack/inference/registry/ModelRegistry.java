@@ -113,6 +113,16 @@ public class ModelRegistry {
     }
 
     /**
+     * Returns true if the provided inference entity id is the same as one of the default
+     * endpoints ids.
+     * @param inferenceEntityId the id to search for
+     * @return true if we find a match and false if not
+     */
+    public boolean matchesDefaultConfigId(String inferenceEntityId) {
+        return idMatchedDefault(inferenceEntityId, defaultConfigIds).isPresent();
+    }
+
+    /**
      * Set the default inference ids provided by the services
      * @param defaultConfigIds The defaults
      */

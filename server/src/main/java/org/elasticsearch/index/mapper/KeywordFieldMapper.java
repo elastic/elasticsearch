@@ -427,6 +427,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             final IndexMode indexMode,
             final String fullFieldName
         ) {
+            if (FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled() == false) {
+                return false;
+            }
             boolean isIndexedAndDocValuesDefault = indexed.isConfigured() || hasDocValues.isConfigured();
             boolean isNotIndexedAndHasDocValues = indexed.getValue() || hasDocValues.getValue() == false;
             boolean isLogsDbMode = IndexMode.LOGSDB.equals(indexMode);

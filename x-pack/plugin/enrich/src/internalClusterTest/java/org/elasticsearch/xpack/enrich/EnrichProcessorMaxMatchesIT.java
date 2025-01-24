@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -26,7 +28,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonSimulatePipelineRequest;
 import static org.elasticsearch.xpack.enrich.AbstractEnrichTestCase.createSourceIndices;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -105,7 +106,7 @@ public class EnrichProcessorMaxMatchesIT extends ESSingleNodeTestCase {
 
         {
             // run a single enrich processor to fill the cache, note that the default max_matches is 1 (so it's not given explicitly here)
-            var simulatePipelineRequest = jsonSimulatePipelineRequest("""
+            var simulatePipelineRequest = new SimulatePipelineRequest(new BytesArray("""
                 {
                   "pipeline": {
                     "processors" : [
@@ -126,7 +127,7 @@ public class EnrichProcessorMaxMatchesIT extends ESSingleNodeTestCase {
                     }
                   ]
                 }
-                """);
+                """), XContentType.JSON);
             var response = clusterAdmin().simulatePipeline(simulatePipelineRequest).actionGet();
             var result = (SimulateDocumentBaseResult) response.getResults().get(0);
             assertThat(result.getFailure(), nullValue());
@@ -136,7 +137,7 @@ public class EnrichProcessorMaxMatchesIT extends ESSingleNodeTestCase {
 
         {
             // run two enrich processors with different max_matches, and see if we still get the right behavior
-            var simulatePipelineRequest = jsonSimulatePipelineRequest("""
+            var simulatePipelineRequest = new SimulatePipelineRequest(new BytesArray("""
                 {
                   "pipeline": {
                     "processors" : [
@@ -165,7 +166,7 @@ public class EnrichProcessorMaxMatchesIT extends ESSingleNodeTestCase {
                     }
                   ]
                 }
-                """);
+                """), XContentType.JSON);
             var response = clusterAdmin().simulatePipeline(simulatePipelineRequest).actionGet();
             var result = (SimulateDocumentBaseResult) response.getResults().get(0);
             assertThat(result.getFailure(), nullValue());

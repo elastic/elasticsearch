@@ -70,7 +70,6 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
             threadPool,
             actionFilters,
             PutJobAction.Request::new,
-            indexNameExpressionResolver,
             PutJobAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

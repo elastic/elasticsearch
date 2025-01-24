@@ -18,6 +18,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.index.query.RankDocsQueryBuilder;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -62,6 +63,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final boolean hasTopDocs;
     private final boolean hasAggs;
     private final boolean performFinalReduce;
+    private final boolean isRankQuery;
 
     private final Consumer<Exception> onPartialMergeFailure;
 
@@ -116,6 +118,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.aggReduceContextBuilder = hasAggs ? controller.getReduceContext(isCanceled, source.aggregations()) : null;
         batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
         topDocsStats = new TopDocsStats(request.resolveTrackTotalHitsUpTo());
+        isRankQuery = source != null && source.query() instanceof RankDocsQueryBuilder;
     }
 
     @Override

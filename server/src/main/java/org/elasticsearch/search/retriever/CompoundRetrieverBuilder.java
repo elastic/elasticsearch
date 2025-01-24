@@ -36,6 +36,7 @@ import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -181,7 +182,8 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                         failures.forEach(ex::addSuppressed);
                         listener.onFailure(ex);
                     } else {
-                        results.set(combineInnerRetrieverResults(topDocs, ctx.isExplain()));
+                        RankDoc[] combinedResults = combineInnerRetrieverResults(topDocs, ctx.isExplain());
+                        results.set(normalizeRankDocs(combinedResults));
                         listener.onResponse(null);
                     }
                 }
@@ -297,6 +299,17 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
 
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
         return sourceBuilder;
+    }
+
+    private RankDoc[] normalizeRankDocs(RankDoc[] rankDocs) {
+        // normalize scores according to
+        // score = max(score, 0) + min(exp(score), 1)
+        // this maps negative numbers to (0, 1) and positive numbers to [1, inf)
+        // which is really useful as we don't want to push down negative scores
+        for (RankDoc rankDoc : rankDocs) {
+            rankDoc.score = (float) (Math.max(rankDoc.score, 0) + Math.min(Math.exp(rankDoc.score), 1));
+        }
+        return rankDocs;
     }
 
     private RankDoc[] getRankDocs(SearchResponse searchResponse) {

@@ -284,7 +284,7 @@ final class TransportHandshaker {
         /**
          * The {@link TransportVersion#current()} of the requesting node.
          */
-        final TransportVersion version;
+        final TransportVersion transportVersion;
 
         /**
          * The {@link Build#version()} of the requesting node, as a {@link String}, for better reporting of handshake failures due to
@@ -292,8 +292,8 @@ final class TransportHandshaker {
          */
         final String releaseVersion;
 
-        HandshakeRequest(TransportVersion version, String releaseVersion) {
-            this.version = Objects.requireNonNull(version);
+        HandshakeRequest(TransportVersion transportVersion, String releaseVersion) {
+            this.transportVersion = Objects.requireNonNull(transportVersion);
             this.releaseVersion = Objects.requireNonNull(releaseVersion);
         }
 
@@ -307,15 +307,15 @@ final class TransportHandshaker {
                 remainingMessage = null;
             }
             if (remainingMessage == null) {
-                version = null;
+                transportVersion = null;
                 releaseVersion = null;
             } else {
                 try (StreamInput messageStreamInput = remainingMessage.streamInput()) {
-                    this.version = TransportVersion.readVersion(messageStreamInput);
+                    this.transportVersion = TransportVersion.readVersion(messageStreamInput);
                     if (streamInput.getTransportVersion().onOrAfter(V9_HANDSHAKE_VERSION)) {
                         this.releaseVersion = messageStreamInput.readString();
                     } else {
-                        this.releaseVersion = this.version.toReleaseVersion();
+                        this.releaseVersion = this.transportVersion.toReleaseVersion();
                     }
                 }
             }
@@ -324,9 +324,9 @@ final class TransportHandshaker {
         @Override
         public void writeTo(StreamOutput streamOutput) throws IOException {
             super.writeTo(streamOutput);
-            assert version != null;
+            assert transportVersion != null;
             try (BytesStreamOutput messageStreamOutput = new BytesStreamOutput(1024)) {
-                TransportVersion.writeVersion(version, messageStreamOutput);
+                TransportVersion.writeVersion(transportVersion, messageStreamOutput);
                 if (streamOutput.getTransportVersion().onOrAfter(V9_HANDSHAKE_VERSION)) {
                     messageStreamOutput.writeString(releaseVersion);
                 } // else we just send the transport version and rely on a best-effort mapping to release versions

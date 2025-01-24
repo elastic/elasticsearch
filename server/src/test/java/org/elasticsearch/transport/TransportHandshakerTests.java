@@ -183,7 +183,7 @@ public class TransportHandshakerTests extends ESTestCase {
         requestBytesStream.setTransportVersion(TransportHandshaker.V7_HANDSHAKE_VERSION);
         final var handshakeRequest = new TransportHandshaker.HandshakeRequest(requestBytesStream);
 
-        assertEquals(transportVersion, handshakeRequest.version);
+        assertEquals(transportVersion, handshakeRequest.transportVersion);
         assertEquals(transportVersion.toReleaseVersion(), handshakeRequest.releaseVersion);
     }
 
@@ -219,7 +219,7 @@ public class TransportHandshakerTests extends ESTestCase {
         requestBytesStream.setTransportVersion(TransportHandshaker.V8_HANDSHAKE_VERSION);
         final var handshakeRequest = new TransportHandshaker.HandshakeRequest(requestBytesStream);
 
-        assertEquals(transportVersion, handshakeRequest.version);
+        assertEquals(transportVersion, handshakeRequest.transportVersion);
         assertEquals(transportVersion.toReleaseVersion(), handshakeRequest.releaseVersion);
     }
 
@@ -256,7 +256,7 @@ public class TransportHandshakerTests extends ESTestCase {
         requestBytesStream.setTransportVersion(TransportHandshaker.V9_HANDSHAKE_VERSION);
         final var handshakeRequest = new TransportHandshaker.HandshakeRequest(requestBytesStream);
 
-        assertEquals(transportVersion, handshakeRequest.version);
+        assertEquals(transportVersion, handshakeRequest.transportVersion);
         assertEquals(releaseVersion, handshakeRequest.releaseVersion);
     }
 

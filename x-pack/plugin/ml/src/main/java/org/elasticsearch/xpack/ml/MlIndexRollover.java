@@ -136,8 +136,9 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
         }
 
         String latestIndex = MlIndexAndAlias.latestIndex(concreteIndices);
-        boolean isCompatibleIndexVersion = isCompatibleIndexVersion(clusterState.metadata().index(latestIndex).getCreationVersion());
-        boolean hasAlias = clusterState.getMetadata().hasAlias(alias);
+        final var project = clusterState.metadata().getProject();
+        boolean isCompatibleIndexVersion = isCompatibleIndexVersion(project.index(latestIndex).getCreationVersion());
+        boolean hasAlias = project.hasAlias(alias);
 
         if (isCompatibleIndexVersion && hasAlias) {
             // v8 index with alias, no action required

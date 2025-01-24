@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lookup_join_text]
+          capabilities: [lookup_join_text, join_lookup_v12]
       reason: "uses LOOKUP JOIN"
   - do:
       indices.create:
@@ -31,7 +31,6 @@ setup:
           settings:
             index:
               mode: lookup
-            number_of_shards: 1
           mappings:
             properties:
               color:
@@ -70,7 +69,7 @@ keyword-keyword:
   - do:
       esql.query:
         body:
-          query: 'FROM test | SORT color | LOOKUP JOIN `test-lookup` ON color.keyword | LIMIT 3'
+          query: 'FROM test | SORT color | LOOKUP JOIN test-lookup ON color.keyword | LIMIT 3'
 
   - length: { columns: 4 }
   - length: { values: 3 }
@@ -91,7 +90,7 @@ text-keyword:
   - do:
       esql.query:
         body:
-          query: 'FROM test | SORT color | RENAME color AS x | EVAL color.keyword = x | LOOKUP JOIN `test-lookup` ON color.keyword | LIMIT 3'
+          query: 'FROM test | SORT color | RENAME color AS x | EVAL color.keyword = x | LOOKUP JOIN test-lookup ON color.keyword | LIMIT 3'
 
   - length: { columns: 5 }
   - length: { values: 3 }
@@ -114,20 +113,20 @@ text-text:
   - do:
       esql.query:
         body:
-          query: 'FROM test | SORT color | LOOKUP JOIN `test-lookup` ON color | LIMIT 3'
+          query: 'FROM test | SORT color | LOOKUP JOIN test-lookup ON color | LIMIT 3'
       catch: "bad_request"
 
   - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "Found 1 problem\nline 1:55: JOIN with right field [color] of type [TEXT] is not supported" }
+  - contains: { error.reason: "Found 1 problem\nline 1:53: JOIN with right field [color] of type [TEXT] is not supported" }
 
 ---
 keyword-text:
   - do:
       esql.query:
         body:
-          query: 'FROM test | SORT color | EVAL color = color.keyword | LOOKUP JOIN `test-lookup` ON color | LIMIT 3'
+          query: 'FROM test | SORT color | EVAL color = color.keyword | LOOKUP JOIN test-lookup ON color | LIMIT 3'
       catch: "bad_request"
 
   - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "Found 1 problem\nline 1:84: JOIN with right field [color] of type [TEXT] is not supported" }
+  - contains: { error.reason: "Found 1 problem\nline 1:82: JOIN with right field [color] of type [TEXT] is not supported" }
 

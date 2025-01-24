@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -23,7 +22,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
@@ -67,15 +65,6 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.support.Exceptions;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -93,7 +82,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
@@ -132,10 +120,10 @@ import java.util.stream.IntStream;
  */
 public abstract class AbstractLookupService<R extends AbstractLookupService.Request, T extends AbstractLookupService.TransportRequest> {
     private final String actionName;
-    private final ClusterService clusterService;
+    protected final ClusterService clusterService;
     private final LookupShardContextFactory lookupShardContextFactory;
-    private final TransportService transportService;
-    private final Executor executor;
+    protected final TransportService transportService;
+    protected final Executor executor;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
@@ -218,97 +206,43 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
      * Perform the actual lookup.
      */
     public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<List<Page>> outListener) {
-        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-        ActionListener<List<Page>> listener = ContextPreservingActionListener.wrapPreservingContext(outListener, threadContext);
-        hasPrivilege(listener.delegateFailureAndWrap((delegate, ignored) -> {
-            ClusterState clusterState = clusterService.state();
-            GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()
-                .searchShards(clusterState, new String[] { request.index }, Map.of(), "_local");
-            if (shardIterators.size() != 1) {
-                delegate.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", request.index));
-                return;
-            }
-            ShardIterator shardIt = shardIterators.get(0);
-            ShardRouting shardRouting = shardIt.nextOrNull();
-            ShardId shardId = shardIt.shardId();
-            if (shardRouting == null) {
-                delegate.onFailure(new UnavailableShardsException(shardId, "target index is not available"));
-                return;
-            }
-            DiscoveryNode targetNode = clusterState.nodes().get(shardRouting.currentNodeId());
-            T transportRequest = transportRequest(request, shardId);
-            // TODO: handle retry and avoid forking for the local lookup
-            try (ThreadContext.StoredContext unused = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
-                transportService.sendChildRequest(
-                    targetNode,
-                    actionName,
-                    transportRequest,
-                    parentTask,
-                    TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(
-                        delegate.map(LookupResponse::takePages),
-                        in -> readLookupResponse(in, blockFactory),
-                        executor
-                    )
-                );
-            }
-        }));
+        ClusterState clusterState = clusterService.state();
+        GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()
+            .searchShards(clusterState, new String[] { request.index }, Map.of(), "_local");
+        if (shardIterators.size() != 1) {
+            outListener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", request.index));
+            return;
+        }
+        ShardIterator shardIt = shardIterators.get(0);
+        ShardRouting shardRouting = shardIt.nextOrNull();
+        ShardId shardId = shardIt.shardId();
+        if (shardRouting == null) {
+            outListener.onFailure(new UnavailableShardsException(shardId, "target index is not available"));
+            return;
+        }
+        DiscoveryNode targetNode = clusterState.nodes().get(shardRouting.currentNodeId());
+        T transportRequest = transportRequest(request, shardId);
+        // TODO: handle retry and avoid forking for the local lookup
+        sendChildRequest(parentTask, outListener, targetNode, transportRequest);
     }
 
-    /**
-     * Get the privilege required to perform the lookup.
-     * <p>
-     *     If null is returned, no privilege check will be performed.
-     * </p>
-     */
-    @Nullable
-    protected abstract String getRequiredPrivilege();
-
-    private void hasPrivilege(ActionListener<Void> outListener) {
-        final Settings settings = clusterService.getSettings();
-        String privilegeName = getRequiredPrivilege();
-        if (privilegeName == null
-            || settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) == false
-            || XPackSettings.SECURITY_ENABLED.get(settings) == false) {
-            outListener.onResponse(null);
-            return;
-        }
-        final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        final User user = securityContext.getUser();
-        if (user == null) {
-            outListener.onFailure(new IllegalStateException("missing or unable to read authentication info on request"));
-            return;
-        }
-        HasPrivilegesRequest request = new HasPrivilegesRequest();
-        request.username(user.principal());
-        request.clusterPrivileges(privilegeName);
-        request.indexPrivileges(new RoleDescriptor.IndicesPrivileges[0]);
-        request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
-        ActionListener<HasPrivilegesResponse> listener = outListener.delegateFailureAndWrap((l, resp) -> {
-            if (resp.isCompleteMatch()) {
-                l.onResponse(null);
-                return;
-            }
-            String detailed = resp.getClusterPrivileges()
-                .entrySet()
-                .stream()
-                .filter(e -> e.getValue() == false)
-                .map(e -> "privilege [" + e.getKey() + "] is missing")
-                .collect(Collectors.joining(", "));
-            String message = "user ["
-                + user.principal()
-                + "] doesn't have "
-                + "sufficient privileges to perform enrich lookup: "
-                + detailed;
-            l.onFailure(Exceptions.authorizationError(message));
-        });
-        transportService.sendRequest(
-            transportService.getLocalNode(),
-            HasPrivilegesAction.NAME,
-            request,
+    protected void sendChildRequest(
+        CancellableTask parentTask,
+        ActionListener<List<Page>> delegate,
+        DiscoveryNode targetNode,
+        T transportRequest
+    ) {
+        transportService.sendChildRequest(
+            targetNode,
+            actionName,
+            transportRequest,
+            parentTask,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener, HasPrivilegesResponse::new, executor)
+            new ActionListenerResponseHandler<>(
+                delegate.map(LookupResponse::takePages),
+                in -> readLookupResponse(in, blockFactory),
+                executor
+            )
         );
     }
 

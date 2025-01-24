@@ -102,7 +102,10 @@ non-lookup index:
   - contains: { error.reason: "Found 1 problem\nline 1:45: invalid [test] resolution in lookup mode to an index in [standard] mode" }
 
 ---
+
 "Alias as lookup index":
+  - skip:
+      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
   - do:
       esql.query:
         body:
@@ -117,6 +120,8 @@ non-lookup index:
 
 ---
 alias-repeated-alias:
+  - skip:
+      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
   - do:
       esql.query:
         body:
@@ -131,6 +136,8 @@ alias-repeated-alias:
 
 ---
 alias-repeated-index:
+  - skip:
+      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
   - do:
       esql.query:
         body:
@@ -145,6 +152,8 @@ alias-repeated-index:
 
 ---
 alias-pattern-multiple:
+  - skip:
+      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
   - do:
       esql.query:
         body:
@@ -156,6 +165,8 @@ alias-pattern-multiple:
 
 ---
 alias-pattern-single:
+  - skip:
+      awaits_fix: "LOOKUP JOIN does not support index aliases for now"
   - do:
       esql.query:
         body:

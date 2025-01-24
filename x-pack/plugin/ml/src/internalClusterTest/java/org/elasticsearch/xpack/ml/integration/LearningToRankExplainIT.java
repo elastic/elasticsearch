@@ -93,7 +93,7 @@ public class LearningToRankExplainIT extends BaseMlIntegTestCase {
                     .setSource(new SearchSourceBuilder().parseXContent(parser, true, Predicates.always()))
                     .setExplain(true),
                 searchResponse -> {
-                    assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(expectedTotalHits));
+                    assertThat(searchResponse.getHits().getTotalHits().value, equalTo(expectedTotalHits));
                     for (int i = 0; i < expectedScores.length; i++) {
                         // Check expected score
                         SearchHit hit = searchResponse.getHits().getHits()[i];

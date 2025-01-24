@@ -239,8 +239,15 @@ public class MrjarPlugin implements Plugin<Project> {
                         // It is a workaround for https://bugs.openjdk.org/browse/JDK-8187591. Once min java is 22, we
                         // can use the SuppressWarnings("preview") in the code using incubating modules and this check
                         // can change to <=
-                        throw new IllegalArgumentException("Found src dir '" + sourcesetName + "' for Java " + version
-                            + " but multi-release jar sourceset should have version " + minJavaVersion + " or greater");
+                        throw new IllegalArgumentException(
+                            "Found src dir '"
+                                + sourcesetName
+                                + "' for Java "
+                                + version
+                                + " but multi-release jar sourceset should have version "
+                                + minJavaVersion
+                                + " or greater"
+                        );
                     }
                     versions.add(version);
                 }

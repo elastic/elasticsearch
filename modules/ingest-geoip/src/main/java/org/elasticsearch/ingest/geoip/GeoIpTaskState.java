@@ -210,10 +210,23 @@ public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWritea
             return Instant.ofEpochMilli(lastCheck).isBefore(now.minus(25, ChronoUnit.DAYS));
         }
 
+        // these constants support the micro optimization below, see that note
+        private static final TimeValue THIRTY_DAYS = TimeValue.timeValueDays(30);
+        private static final long THIRTY_DAYS_MILLIS = THIRTY_DAYS.millis();
+
         public boolean isNewEnough(Settings settings) {
-            final TimeValue valid = settings.getAsTime("ingest.geoip.database_validity", TimeValue.timeValueDays(30));
+            // micro optimization: this looks a little silly, but the expected case is that database_validity is only used in tests.
+            // we run this code on every document, though, so the argument checking and other bits that getAsTime does is enough
+            // to show up in a flame graph.
+            final long valid;
+            if (settings.hasValue("ingest.geoip.database_validity")) {
+                valid = settings.getAsTime("ingest.geoip.database_validity", THIRTY_DAYS).millis();
+            } else {
+                valid = THIRTY_DAYS_MILLIS;
+            }
+
             final Instant now = Instant.ofEpochMilli(System.currentTimeMillis()); // millisecond precision is sufficient (and faster)
-            return Instant.ofEpochMilli(lastCheck).isAfter(now.minus(valid.getMillis(), ChronoUnit.MILLIS));
+            return Instant.ofEpochMilli(lastCheck).isAfter(now.minus(valid, ChronoUnit.MILLIS));
         }
 
         @Override

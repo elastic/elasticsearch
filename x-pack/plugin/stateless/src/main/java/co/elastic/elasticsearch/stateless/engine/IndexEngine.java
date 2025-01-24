@@ -22,6 +22,7 @@ package co.elastic.elasticsearch.stateless.engine;
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.CommitBCCResolver;
+import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.IndexEngineLocalReaderListener;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
@@ -96,6 +97,7 @@ public class IndexEngine extends InternalEngine {
 
     private final TranslogReplicator translogReplicator;
     private final StatelessCommitService statelessCommitService;
+    private final HollowShardsService hollowShardsService;
     private final Function<String, BlobContainer> translogBlobContainer;
     private final RefreshThrottler refreshThrottler;
     private final long mergeForceRefreshSize;
@@ -123,6 +125,7 @@ public class IndexEngine extends InternalEngine {
         TranslogReplicator translogReplicator,
         Function<String, BlobContainer> translogBlobContainer,
         StatelessCommitService statelessCommitService,
+        HollowShardsService hollowShardsService,
         SharedBlobCacheWarmingService cacheWarmingService,
         RefreshThrottler.Factory refreshThrottlerFactory,
         IndexEngineLocalReaderListener localReaderListener,
@@ -135,6 +138,7 @@ public class IndexEngine extends InternalEngine {
             translogReplicator,
             translogBlobContainer,
             statelessCommitService,
+            hollowShardsService,
             cacheWarmingService,
             refreshThrottlerFactory,
             localReaderListener,
@@ -151,6 +155,7 @@ public class IndexEngine extends InternalEngine {
         TranslogReplicator translogReplicator,
         Function<String, BlobContainer> translogBlobContainer,
         StatelessCommitService statelessCommitService,
+        HollowShardsService hollowShardsService,
         SharedBlobCacheWarmingService cacheWarmingService,
         RefreshThrottler.Factory refreshThrottlerFactory,
         IndexEngineLocalReaderListener localReaderListener,
@@ -164,6 +169,7 @@ public class IndexEngine extends InternalEngine {
         this.translogReplicator = translogReplicator;
         this.translogBlobContainer = translogBlobContainer;
         this.statelessCommitService = statelessCommitService;
+        this.hollowShardsService = hollowShardsService;
         this.cacheWarmingService = cacheWarmingService;
         this.refreshThrottler = refreshThrottlerFactory.create(this::doExternalRefresh);
         this.mergeForceRefreshSize = ThreadPoolMergeScheduler.MERGE_FORCE_REFRESH_SIZE.get(config().getIndexSettings().getSettings())
@@ -373,7 +379,7 @@ public class IndexEngine extends InternalEngine {
      * future attempt to generate a next sequence number will throw. To ingest new data, the shard will need to be unhollowed (i.e.,
      * producing a non-hollow blob) with a new engine.
      */
-    public void flushHollow(ActionListener<FlushResult> listener) {
+    protected void flushHollow(ActionListener<FlushResult> listener) {
         if (isLastCommitHollow()) {
             listener.onResponse(NO_FLUSH);
         } else {
@@ -418,6 +424,16 @@ public class IndexEngine extends InternalEngine {
             translogRecoveryStartFile = HOLLOW_TRANSLOG_RECOVERY_START_FILE;
         }
         return Maps.copyMapWithAddedEntry(accumulatorUserData, TRANSLOG_RECOVERY_START_FILE, Long.toString(translogRecoveryStartFile));
+    }
+
+    @Override
+    public void prepareForEngineReset() throws IOException {
+        // We do not need to care about primary term and generation listeners of the engine as these are used only in the search tier.
+        logger.debug(() -> "preparing to reset index engine for shard " + shardId);
+        hollowShardsService.assertIngestionBlocked(shardId, true, "hollowing the index engine requires ingestion blocked");
+        // The primary relocation will wait for the hollowed commit to upload. Even if the flush fails, the engine will be reset to a hollow
+        // engine and either closed (upon a successful relocation) or continue to live and be unhollowed by any lingering or new ingestion.
+        flushHollow(ActionListener.noop());
     }
 
     @Override

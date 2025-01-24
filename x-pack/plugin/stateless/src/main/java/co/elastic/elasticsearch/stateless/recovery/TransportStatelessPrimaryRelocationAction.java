@@ -79,10 +79,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction.TYPE;
@@ -286,23 +284,21 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 final var shardId = indexShard.shardId();
                 if (engine instanceof IndexEngine indexEngine) {
                     if (hollowShardsService.isHollowableIndexShard(indexShard, false)) {
-                        logger.debug(() -> "flushing hollowable shard " + shardId);
+                        // Resetting the IndexEngine hollows the shard and switches to a HollowIndexEngine
+                        logger.debug(() -> "hollowing index engine for shard " + shardId);
                         // The blocker will be removed when the source shard is successfully relocated and closed,
                         // or will remain in place if the relocation fails until the shard is unhollowed.
                         hollowShardsService.installIngestionBlocker(indexShard);
-                        indexEngine.flushHollow(ActionListener.noop());
+                        indexShard.resetEngine();
                     } else {
                         indexEngine.flush(false, true, ActionListener.noop());
                     }
                 } else if (engine instanceof HollowIndexEngine) {
-                    assert ((Supplier<Boolean>) () -> {
-                        AtomicBoolean ingestionBlocked = new AtomicBoolean(false);
-                        hollowShardsService.onIngestion(shardId, () -> {
-                            ingestionBlocked.set(true);
-                            return ActionListener.noop();
-                        });
-                        return ingestionBlocked.get();
-                    }).get() : "no ingestion blocker for hollow shard " + shardId;
+                    hollowShardsService.assertIngestionBlocked(
+                        indexShard.shardId(),
+                        true,
+                        "hollow shard " + shardId + " should have an ingestion blocker"
+                    );
                 }
                 logShardStats("flush after acquiring primary context completed", indexShard, engine);
                 long lastFlushedGeneration = engine.getLastCommittedSegmentInfos().getGeneration();
@@ -393,10 +389,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         try {
                             handoffCompleteListener.onFailure(e);
                             // TODO ES-10573
-                            // In case the source IndexEngine was flushed as hollow, switch to a hollow engine in case of a relocation
-                            // failure and check if there was any lingering ingestion in order to initiate unhollowing which will remove
-                            // the ingestion blocker.
-                            // Alternatively we can discuss about unhollowing the existing IndexEngine and removing the ingestion blocker.
+                            // In case the source IndexEngine was switched to a HollowIndexEngine, check if there was any lingering
+                            // ingestion in order to initiate unhollowing which will remove the ingestion blocker and switch back
+                            // to an IndexEngine.
                         } finally {
                             handoffResultListener.onFailure(e);
                         }

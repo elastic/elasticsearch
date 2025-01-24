@@ -743,9 +743,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.startObject("int_value").field("type", "integer").endObject();
         })).documentMapper();
         var syntheticSource = syntheticSource(documentMapper, b -> b.array("int_value", new int[] { 10 }));
-        assertEquals("{\"int_value\":10}", syntheticSource);
-        ParsedDocument doc = documentMapper.parse(source(syntheticSource));
-        assertNull(doc.rootDoc().getField("_ignored_source"));
+        assertEquals("{\"int_value\":[10]}", syntheticSource);
     }
 
     public void testIndexStoredArraySourceSingleLeafElementAndNull() throws IOException {

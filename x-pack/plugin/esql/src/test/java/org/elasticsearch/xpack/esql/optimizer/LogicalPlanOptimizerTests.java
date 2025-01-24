@@ -6904,6 +6904,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testFunctionNamedParamsAsFunctionArgument() {
         var query = """
+            from test
             | WHERE MATCH(first_name, "Anna Smith", {"minimum_should_match": 2.0})
             """;
         var plan = optimizedPlan(query);
@@ -6913,7 +6914,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         MapExpression me = as(match.options(), MapExpression.class);
         assertEquals(1, me.entryExpressions().size());
         EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
-        assertEquals(new Literal(EMPTY, "minimum_should_match", DataType.KEYWORD), ee.key());
+        BytesRef key = as(ee.key().fold(FoldContext.small()), BytesRef.class);
+        assertEquals("minimum_should_match", key.utf8ToString());
         assertEquals(new Literal(EMPTY, 2.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
     }

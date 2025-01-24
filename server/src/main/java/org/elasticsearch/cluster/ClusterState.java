@@ -47,7 +47,6 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.ToXContent;
@@ -1039,12 +1038,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return builder.build();
     }
 
-    /**
-     * If the cluster state does not contain transport version information, this is the version
-     * that is inferred for all nodes on version 8.8.0 or above.
-     */
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    public static final TransportVersion INFERRED_TRANSPORT_VERSION = TransportVersions.V_8_8_0;
     public static final Version VERSION_INTRODUCING_TRANSPORT_VERSIONS = Version.V_8_8_0;
 
     @Override

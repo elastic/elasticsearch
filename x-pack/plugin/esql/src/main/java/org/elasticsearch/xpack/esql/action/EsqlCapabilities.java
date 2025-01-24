@@ -503,7 +503,10 @@ public class EsqlCapabilities {
          * Support running date format function on nanosecond dates
          */
         DATE_NANOS_DATE_FORMAT(),
-
+        /**
+         * support date diff function on date nanos type, and mixed nanos/millis
+         */
+        DATE_NANOS_DATE_DIFF(),
         /**
          * DATE_PARSE supports reading timezones
          */
@@ -688,7 +691,7 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP_V11(Build.current().isSnapshot()),
+        JOIN_LOOKUP_V12(Build.current().isSnapshot()),
 
         /**
          * LOOKUP JOIN with TEXT fields on the right (right side of the join) (#119473)
@@ -698,7 +701,7 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN without MV matching (https://github.com/elastic/elasticsearch/issues/118780)
          */
-        JOIN_LOOKUP_SKIP_MV(JOIN_LOOKUP_V11.isEnabled()),
+        JOIN_LOOKUP_SKIP_MV(JOIN_LOOKUP_V12.isEnabled()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054
@@ -748,7 +751,12 @@ public class EsqlCapabilities {
         /**
          * Support named argument for function in map format.
          */
-        OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION(Build.current().isSnapshot());
+        OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Disabled support for index aliases in lookup joins
+         */
+        LOOKUP_JOIN_NO_ALIASES(JOIN_LOOKUP_V12.isEnabled());
 
         private final boolean enabled;
 

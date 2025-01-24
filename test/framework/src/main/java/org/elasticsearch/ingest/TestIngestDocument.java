@@ -24,7 +24,7 @@ import java.util.Map;
  */
 public class TestIngestDocument {
     public static final long DEFAULT_VERSION = 12345L;
-    private static String VERSION = IngestDocument.Metadata.VERSION.getFieldName();
+    private static final String VERSION = IngestDocument.Metadata.VERSION.getFieldName();
 
     /**
      * Create an IngestDocument for testing that pass an empty mutable map for ingestMetaata
@@ -70,7 +70,7 @@ public class TestIngestDocument {
 
     /**
      * Create an empty ingest document for testing.
-     *
+     * <p>
      * Adds the required {@code "_version"} metadata key with value {@link #DEFAULT_VERSION}.
      */
     public static IngestDocument emptyIngestDocument() {

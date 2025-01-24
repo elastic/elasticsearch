@@ -6,9 +6,14 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -24,6 +29,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
@@ -66,6 +72,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 assertUpgradedConfigMappings();
                 assertMlLegacyTemplatesDeleted();
                 IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
+                assertLegacyIndicesRollover();
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -235,6 +242,37 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 "boolean",
                 extractValue("mappings.properties.model_plot_config.properties.annotations_enabled.type", indexLevel)
             );
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertLegacyIndicesRollover() throws Exception {
+        if (isOriginalClusterVersionAtLeast(Version.V_8_0_0)) {
+            // not a legacy index
+            return;
+        }
+
+        assertBusy(() -> {
+            RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+            builder.setWarningsHandler(WarningsHandler.PERMISSIVE); // ignore warnings about accessing system index
+            Request getIndices = new Request("GET", ".ml*");
+            getIndices.setOptions(builder);
+            Response getIndicesResponse = client().performRequest(getIndices);
+            assertOK(getIndicesResponse);
+            var asString = EntityUtils.toString(getIndicesResponse.getEntity());
+            // legacy -000001 index is rolled over creating -000002
+            assertThat(asString, containsString(".ml-state-000002"));
+
+            Request getAliases = new Request("GET", "_alias/.ml*");
+            getAliases.setOptions(builder);
+            Response getAliasesResponse = client().performRequest(getAliases);
+
+            // Check the write alias points to the new index
+            Map<String, Object> aliasesMap = entityAsMap(getAliasesResponse);
+            var stateAlias = (Map<String, Object>) aliasesMap.get(".ml-state-000002");
+            assertNotNull(stateAlias);
+            var isHidden = XContentMapValues.extractValue(stateAlias, "aliases", ".ml-state-write", "is_hidden");
+            assertTrue(Boolean.TRUE.equals(isHidden));
         });
     }
 }

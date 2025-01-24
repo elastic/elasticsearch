@@ -201,6 +201,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                     ? executionInfo.tookSoFar().millis()
                     : executionInfo.overallTook().millis();
                 b.field("took", tookInMillis);
+                b.field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), executionInfo.isPartial());
             }
             if (dropNullColumns) {
                 b.append(ResponseXContentUtils.allColumns(columns, "all_columns"))

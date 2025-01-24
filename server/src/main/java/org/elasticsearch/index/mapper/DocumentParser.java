@@ -9,10 +9,12 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -24,6 +26,8 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
@@ -36,6 +40,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -52,6 +57,8 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_
  * A parser for documents
  */
 public final class DocumentParser {
+
+    private static final Logger LOGGER = LogManager.getLogger(DocumentParser.class);
 
     public static final IndexVersion DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
     static final NodeFeature FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE = new NodeFeature(
@@ -148,12 +155,47 @@ public final class DocumentParser {
             }
 
             executeIndexTimeScripts(context);
-
+            processArrayOffsets(context);
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
                 metadataMapper.postParse(context);
             }
         } catch (Exception e) {
             throw wrapInDocumentParsingException(context, e);
+        }
+    }
+
+    private static void processArrayOffsets(DocumentParserContext context) throws IOException {
+        var offsets = context.getOffSetsByField();
+        for (var entry : offsets.entrySet()) {
+            var fieldName = entry.getKey();
+            var offset = entry.getValue();
+            if (offset.valueToOffsets.isEmpty()) {
+                continue;
+            }
+
+            if (offset.currentOffset == 1 && offset.inArray == false) {
+                continue;
+            }
+
+            int ord = 0;
+            int[] offsetToOrd = new int[offset.currentOffset];
+            for (var offsetEntry : offset.valueToOffsets.entrySet()) {
+                for (var offsetAndLevel : offsetEntry.getValue()) {
+                    offsetToOrd[offsetAndLevel] = ord;
+                }
+                ord++;
+            }
+
+            // TODO: remove later
+            LOGGER.info("values=" + offset.valueToOffsets);
+            LOGGER.info("offsetToOrd=" + Arrays.toString(offsetToOrd));
+
+            try (var streamOutput = new BytesStreamOutput()) {
+                // TODO: optimize
+                // This array allows to retain the original ordering of the leaf array and duplicate values.
+                streamOutput.writeVIntArray(offsetToOrd);
+                context.doc().add(new BinaryDocValuesField(fieldName, streamOutput.bytes().toBytesRef()));
+            }
         }
     }
 
@@ -687,7 +729,7 @@ public final class DocumentParser {
 
         // Check if we need to record the array source. This only applies to synthetic source.
         boolean canRemoveSingleLeafElement = false;
-        if (context.canAddIgnoredField()) {
+        if (context.canAddIgnoredField() && (mapper != null && mapper.supportsStoringArraysNatively() == false)) {
             Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
             boolean objectWithFallbackSyntheticSource = false;
             if (mapper instanceof ObjectMapper objectMapper) {
@@ -725,10 +767,13 @@ public final class DocumentParser {
         // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
         // elements from regular source loading that are then skipped from the synthesized array source.
         // To prevent this, we track that parsing sub-context is within array scope.
-        context = context.maybeCloneForArray(mapper);
+        if (mapper != null && mapper.supportsStoringArraysNatively() == false) {
+            context = context.maybeCloneForArray(mapper);
+        }
 
         XContentParser parser = context.parser();
         XContentParser.Token token;
+        context.setInArray(true);
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
                 parseObject(context, lastFieldName);
@@ -743,6 +788,7 @@ public final class DocumentParser {
                 parseValue(context, lastFieldName);
             }
         }
+        context.setInArray(false);
         postProcessDynamicArrayMapping(context, lastFieldName);
     }
 

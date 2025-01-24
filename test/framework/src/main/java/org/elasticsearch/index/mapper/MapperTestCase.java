@@ -1290,7 +1290,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     }
                     SyntheticSourceExample example = support.example(maxValues);
                     expected[i] = example.expected();
-                    iw.addDocument(mapper.parse(source(example::buildInput)).rootDoc());
+                    logger.info("expected[{}]:{}", i, expected[i]);
+                    var sourceToParse = source(example::buildInput);
+                    iw.addDocument(mapper.parse(sourceToParse).rootDoc());
                 }
             }
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
@@ -1722,6 +1724,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         buildInput.accept(builder);
         builder.endObject();
         String expected = Strings.toString(builder);
+        logger.info("expected:\n {}", expected);
         String actual = syntheticSource(mapperAll, buildInput);
         assertThat(actual, equalTo(expected));
     }

@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -238,14 +239,20 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         if (isCrossClusterSearch() == false || clusterInfo.isEmpty()) {
             return Collections.emptyIterator();
         }
+        Map<Cluster.Status, Integer> clusterStatuses = new EnumMap<>(Cluster.Status.class);
+        for (Cluster info : clusterInfo.values()) {
+            clusterStatuses.merge(info.getStatus(), 1, Integer::sum);
+        }
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
-            ChunkedToXContentHelper.field(TOTAL_FIELD.getPreferredName(), clusterInfo.size()),
-            ChunkedToXContentHelper.field(SUCCESSFUL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SUCCESSFUL)),
-            ChunkedToXContentHelper.field(RUNNING_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.RUNNING)),
-            ChunkedToXContentHelper.field(SKIPPED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SKIPPED)),
-            ChunkedToXContentHelper.field(PARTIAL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.PARTIAL)),
-            ChunkedToXContentHelper.field(FAILED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.FAILED)),
+            ChunkedToXContentHelper.chunk(
+                (b, p) -> b.field(TOTAL_FIELD.getPreferredName(), clusterInfo.size())
+                    .field(SUCCESSFUL_FIELD.getPreferredName(), clusterStatuses.getOrDefault(Cluster.Status.SUCCESSFUL, 0))
+                    .field(RUNNING_FIELD.getPreferredName(), clusterStatuses.getOrDefault(Cluster.Status.RUNNING, 0))
+                    .field(SKIPPED_FIELD.getPreferredName(), clusterStatuses.getOrDefault(Cluster.Status.SKIPPED, 0))
+                    .field(PARTIAL_FIELD.getPreferredName(), clusterStatuses.getOrDefault(Cluster.Status.PARTIAL, 0))
+                    .field(FAILED_FIELD.getPreferredName(), clusterStatuses.getOrDefault(Cluster.Status.FAILED, 0))
+            ),
             // each Cluster object defines its own field object name
             ChunkedToXContentHelper.object("details", clusterInfo.values().iterator()),
             ChunkedToXContentHelper.endObject()

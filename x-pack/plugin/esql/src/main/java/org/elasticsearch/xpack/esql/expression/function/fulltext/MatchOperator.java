@@ -7,11 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -24,22 +21,33 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Full text function that performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MatchQuery} .
+ * This class performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MatchQuery} using an operator.
  */
-public class Match extends AbstractMatchFullTextFunction {
+public class MatchOperator extends Match {
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
-
-    private transient Boolean isOperator;
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "MatchOperator",
+        MatchOperator::readFrom
+    );
 
     @FunctionInfo(
         returnType = "boolean",
+        operator = ":",
         preview = true,
-        description = "Performs a <<query-dsl-match-query,match query>> on the specified field. "
-            + "Returns true if the provided query matches the row.",
+        description = """
+            Use the match operator (`:`) to perform a <<query-dsl-match-query,match query>> on the specified field.
+            Using `:` is equivalent to using the `match` query in the Elasticsearch Query DSL.
+
+            The match operator is equivalent to the <<esql-match,match function>>.
+
+            For using the function syntax, or adding <<match-field-params,match query parameters>>, you can use the
+            <<esql-match,match function>>.
+
+            `:` returns true if the provided query matches the row.""",
         examples = { @Example(file = "match-function", tag = "match-with-field") }
     )
-    public Match(
+    public MatchOperator(
         Source source,
         @Param(
             name = "field",
@@ -52,32 +60,25 @@ public class Match extends AbstractMatchFullTextFunction {
             description = "Value to find in the provided field."
         ) Expression matchQuery
     ) {
-        this(source, field, matchQuery, null);
-    }
-
-    public Match(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder) {
-        super(source, matchQuery, List.of(field, matchQuery), queryBuilder, field);
+        super(source, field, matchQuery);
     }
 
     private static Match readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
-        QueryBuilder queryBuilder = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
-            queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        }
-        return new Match(source, field, query, queryBuilder);
+
+        return new MatchOperator(source, field, query);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(field());
-        out.writeNamedWriteable(query());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
-            out.writeOptionalNamedWriteable(queryBuilder());
-        }
+    public String functionType() {
+        return "operator";
+    }
+
+    @Override
+    public String functionName() {
+        return ":";
     }
 
     @Override
@@ -86,12 +87,12 @@ public class Match extends AbstractMatchFullTextFunction {
     }
 
     @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
-        return new Match(source(), newChildren.get(0), newChildren.get(1), queryBuilder());
+    protected NodeInfo<? extends Expression> info() {
+        return NodeInfo.create(this, MatchOperator::new, field(), query());
     }
 
     @Override
-    protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Match::new, field(), query(), queryBuilder());
+    public Expression replaceChildren(List<Expression> newChildren) {
+        return new MatchOperator(source(), newChildren.get(0), newChildren.get(1));
     }
 }

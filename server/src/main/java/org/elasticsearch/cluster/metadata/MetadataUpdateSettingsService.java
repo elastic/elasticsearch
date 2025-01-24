@@ -433,7 +433,7 @@ public class MetadataUpdateSettingsService {
             for (Index readOnlyIndex : readOnlyIndices) {
                 if (blocks.indexBlocked(ClusterBlockLevel.WRITE, readOnlyIndex.getName()) == false) {
                     throw new IllegalArgumentException(
-                        String.format(Locale.ROOT, "Can't remove the `write` level block for read-only compatible index %s", readOnlyIndex)
+                        String.format(Locale.ROOT, "Can't remove the write block on read-only compatible index %s", readOnlyIndex)
                     );
                 }
             }

@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lookup_join_text]
+          capabilities: [lookup_join_text, join_lookup_v11]
       reason: "uses LOOKUP JOIN"
   - do:
       indices.create:
@@ -31,7 +31,6 @@ setup:
           settings:
             index:
               mode: lookup
-            number_of_shards: 1
           mappings:
             properties:
               color:

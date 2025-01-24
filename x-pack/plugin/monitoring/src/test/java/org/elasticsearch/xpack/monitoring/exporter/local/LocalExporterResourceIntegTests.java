@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
@@ -267,15 +268,16 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         Set<String> watchIds = new HashSet<>(Arrays.asList(ClusterAlertsUtil.WATCH_IDS));
         assertResponse(prepareSearch(".watches").setSource(searchSource), response -> {
             for (SearchHit hit : response.getHits().getHits()) {
-                String watchId = ObjectPath.eval("metadata.xpack.watch", hit.getSourceAsMap());
+                Map<String, Object> source = hit.getSourceAsMap();
+                String watchId = ObjectPath.eval("metadata.xpack.watch", source);
                 assertNotNull("Missing watch ID", watchId);
                 assertTrue("found unexpected watch id", watchIds.contains(watchId));
 
-                String version = ObjectPath.eval("metadata.xpack.version_created", hit.getSourceAsMap());
+                String version = ObjectPath.eval("metadata.xpack.version_created", source);
                 assertNotNull("Missing version from returned watch [" + watchId + "]", version);
                 assertTrue(Version.fromId(Integer.parseInt(version)).onOrAfter(Version.fromId(ClusterAlertsUtil.LAST_UPDATED_VERSION)));
 
-                String uuid = ObjectPath.eval("metadata.xpack.cluster_uuid", hit.getSourceAsMap());
+                String uuid = ObjectPath.eval("metadata.xpack.cluster_uuid", source);
                 assertNotNull("Missing cluster uuid", uuid);
                 assertEquals(clusterUUID, uuid);
             }

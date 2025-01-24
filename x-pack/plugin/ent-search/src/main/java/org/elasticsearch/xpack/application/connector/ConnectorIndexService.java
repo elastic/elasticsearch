@@ -10,9 +10,13 @@ package org.elasticsearch.xpack.application.connector;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -31,6 +35,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -57,6 +62,7 @@ import org.elasticsearch.xpack.application.connector.filtering.FilteringValidati
 import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationState;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobIndexService;
+import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -74,6 +80,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.fromXContentBytesConnectorFiltering;
 import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.sortFilteringRulesByOrder;
+import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.CONNECTORS_ALLOWED_PRODUCT_ORIGINS;
 import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.MANAGED_CONNECTOR_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 
@@ -85,13 +92,56 @@ public class ConnectorIndexService {
     // The client to interact with the system index (internal user).
     private final Client clientWithOrigin;
 
-    public static final String CONNECTOR_INDEX_NAME = ConnectorTemplateRegistry.CONNECTOR_INDEX_NAME_PATTERN;
+    // TODO use proper version IDs (see org/elasticsearch/xpack/application/rules/QueryRulesIndexService.java)
+    // TODO if this version is updated, a test should be added to
+    // javaRestTest/java/org/elasticsearch/xpack/application/FullClusterRestartIT.java
+    private static final int CONNECTORS_INDEX_VERSION = 1;
+    // TODO rename to CONNECTOR_ALIAS_NAME
+    public static final String CONNECTOR_INDEX_NAME = ".elastic-connectors";
+    public static final String CONNECTOR_INDEX_PREFIX = ".elastic-connectors-v";
+    public static final String CONNECTOR_CONCRETE_INDEX_NAME = CONNECTOR_INDEX_PREFIX + CONNECTORS_INDEX_VERSION;
+    // The index pattern needs a stricter regex to prevent conflicts with .elastic-connectors-sync-jobs
+
+    public static final String CONNECTOR_INDEX_NAME_PATTERN = CONNECTOR_INDEX_PREFIX + "*";
+
+    private static final String CONNECTORS_MAPPING_VERSION_VARIABLE = "elastic-connectors.version";
+    private static final String CONNECTORS_MAPPING_MANAGED_VERSION_VARIABLE = "elastic-connectors.managed.index.version";
 
     /**
      * @param client A client for executing actions on the connector index
      */
     public ConnectorIndexService(Client client) {
         this.clientWithOrigin = new OriginSettingClient(client, CONNECTORS_ORIGIN);
+    }
+
+    /**
+     * Returns the {@link SystemIndexDescriptor} for the Connector system index.
+     *
+     * @return The {@link SystemIndexDescriptor} for the Connector system index.
+     */
+    public static SystemIndexDescriptor getSystemIndexDescriptor() {
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
+        String templateSource = TemplateUtils.loadTemplate(
+            "/elastic-connectors.json",
+            Version.CURRENT.toString(),
+            CONNECTORS_MAPPING_VERSION_VARIABLE,
+            Map.of(CONNECTORS_MAPPING_MANAGED_VERSION_VARIABLE, Integer.toString(CONNECTORS_INDEX_VERSION))
+        );
+        request.source(templateSource, XContentType.JSON);
+
+        // The index pattern needs a stricter regex to prevent conflicts with .elastic-connectors-sync-jobs
+        return SystemIndexDescriptor.builder()
+            .setIndexPattern(CONNECTOR_INDEX_NAME_PATTERN)
+            .setPrimaryIndex(CONNECTOR_CONCRETE_INDEX_NAME)
+            .setAliasName(CONNECTOR_INDEX_NAME)
+            .setDescription("Search connectors")
+            .setMappings(request.mappings())
+            .setSettings(request.settings())
+            .setOrigin(CONNECTORS_ORIGIN)
+            .setType(SystemIndexDescriptor.Type.EXTERNAL_MANAGED)
+            .setAllowedElasticProductOrigins(CONNECTORS_ALLOWED_PRODUCT_ORIGINS)
+            .setNetNew()
+            .build();
     }
 
     /**
@@ -232,40 +282,71 @@ public class ConnectorIndexService {
     }
 
     /**
-     * Soft deletes the {@link Connector} and optionally removes the related instances of {@link ConnectorSyncJob} in the underlying index.
+     * Deletes the {@link Connector} and optionally removes the related instances of {@link ConnectorSyncJob} in the underlying index.
      *
      * @param connectorId          The id of the {@link Connector}.
+     * @param hardDelete           If set to true, the {@link Connector} is permanently deleted; otherwise, it is soft-deleted.
      * @param shouldDeleteSyncJobs The flag indicating if {@link ConnectorSyncJob} should also be deleted.
      * @param listener             The action listener to invoke on response/failure.
      */
-    public void deleteConnector(String connectorId, boolean shouldDeleteSyncJobs, ActionListener<UpdateResponse> listener) {
+    public void deleteConnector(
+        String connectorId,
+        boolean hardDelete,
+        boolean shouldDeleteSyncJobs,
+        ActionListener<DocWriteResponse> listener
+    ) {
 
         try {
-            // ensure that if connector is soft-deleted, deleting it again results in 404
-            getConnector(connectorId, false, listener.delegateFailure((l, connector) -> {
-                final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).setRefreshPolicy(
-                    WriteRequest.RefreshPolicy.IMMEDIATE
-                )
-                    .doc(
-                        new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
-                            .id(connectorId)
-                            .source(Map.of(Connector.IS_DELETED_FIELD.getPreferredName(), true))
-                    );
-                clientWithOrigin.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, l, (ll, updateResponse) -> {
-                    if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
-                        ll.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
-                        return;
-                    }
-                    if (shouldDeleteSyncJobs) {
-                        new ConnectorSyncJobIndexService(clientWithOrigin).deleteAllSyncJobsByConnectorId(
-                            connectorId,
-                            ll.map(r -> updateResponse)
+            if (hardDelete) {
+                final DeleteRequest deleteRequest = new DeleteRequest(CONNECTOR_INDEX_NAME).id(connectorId)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+                clientWithOrigin.delete(
+                    deleteRequest,
+                    new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (l, deleteResponse) -> {
+                        if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                            l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                            return;
+                        }
+                        if (shouldDeleteSyncJobs) {
+                            new ConnectorSyncJobIndexService(clientWithOrigin).deleteAllSyncJobsByConnectorId(
+                                connectorId,
+                                l.map(r -> deleteResponse)
+                            );
+                        } else {
+                            l.onResponse(deleteResponse);
+                        }
+                    })
+                );
+            } else {
+                getConnector(connectorId, false, listener.delegateFailure((l, connector) -> {
+                    final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).setRefreshPolicy(
+                        WriteRequest.RefreshPolicy.IMMEDIATE
+                    )
+                        .doc(
+                            new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                                .id(connectorId)
+                                .source(Map.of(Connector.IS_DELETED_FIELD.getPreferredName(), true))
                         );
-                    } else {
-                        ll.onResponse(updateResponse);
-                    }
+                    clientWithOrigin.update(
+                        updateRequest,
+                        new DelegatingIndexNotFoundActionListener<>(connectorId, l, (ll, updateResponse) -> {
+                            if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                                ll.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
+                                return;
+                            }
+                            if (shouldDeleteSyncJobs) {
+                                new ConnectorSyncJobIndexService(clientWithOrigin).deleteAllSyncJobsByConnectorId(
+                                    connectorId,
+                                    ll.map(r -> updateResponse)
+                                );
+                            } else {
+                                ll.onResponse(updateResponse);
+                            }
+                        })
+                    );
                 }));
-            }));
+            }
         } catch (Exception e) {
             listener.onFailure(e);
         }

@@ -38,7 +38,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -90,9 +89,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     private static final Logger logger = LogManager.getLogger(KeywordFieldMapper.class);
 
     public static final String CONTENT_TYPE = "keyword";
-
-    static final NodeFeature KEYWORD_DIMENSION_IGNORE_ABOVE = new NodeFeature("mapper.keyword_dimension_ignore_above", true);
-    static final NodeFeature KEYWORD_NORMALIZER_SYNTHETIC_SOURCE = new NodeFeature("mapper.keyword_normalizer_synthetic_source", true);
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE;

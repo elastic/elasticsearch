@@ -19,6 +19,7 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.transport.Transports;
@@ -46,6 +47,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
     /**
      * Creates a new "translog" snapshot from Lucene for reading operations whose seq# in the specified range.
      *
+     * @param mapperService     the mapper service for this index
      * @param engineSearcher    the internal engine searcher which will be taken over if the snapshot is opened successfully
      * @param searchBatchSize   the number of documents should be returned by each search
      * @param fromSeqNo         the min requesting seq# - inclusive
@@ -56,6 +58,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
      * @param indexVersionCreated the version on which this index was created
      */
     public LuceneChangesSnapshot(
+        MapperService mapperService,
         Engine.Searcher engineSearcher,
         int searchBatchSize,
         long fromSeqNo,
@@ -65,7 +68,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         boolean accessStats,
         IndexVersion indexVersionCreated
     ) throws IOException {
-        super(engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats, indexVersionCreated);
+        super(mapperService, engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats, indexVersionCreated);
         this.creationThread = Assertions.ENABLED ? Thread.currentThread() : null;
         this.singleConsumer = singleConsumer;
         this.parallelArray = new ParallelArray(this.searchBatchSize);
@@ -214,20 +217,24 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                 if (leaf.reader() instanceof SequentialStoredFieldsLeafReader) {
                     storedFieldsReader = ((SequentialStoredFieldsLeafReader) leaf.reader()).getSequentialStoredFieldsReader();
                     storedFieldsReaderOrd = leaf.ord;
+                    setNextSourceMetadataReader(leaf);
                 } else {
                     storedFieldsReader = null;
                     storedFieldsReaderOrd = -1;
                 }
             }
         }
+
         if (storedFieldsReader != null) {
             assert singleConsumer : "Sequential access optimization must not be enabled for multiple consumers";
             assert parallelArray.useSequentialStoredFieldsReader;
             assert storedFieldsReaderOrd == leaf.ord : storedFieldsReaderOrd + " != " + leaf.ord;
             storedFieldsReader.document(segmentDocID, fields);
         } else {
+            setNextSourceMetadataReader(leaf);
             leaf.reader().storedFields().document(segmentDocID, fields);
         }
+        final BytesReference source = fields.source() != null ? addSourceMetadata(fields.source(), segmentDocID) : null;
 
         final Translog.Operation op;
         final boolean isTombstone = parallelArray.isTombStone[docIndex];
@@ -241,7 +248,6 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                 op = new Translog.Delete(id, seqNo, primaryTerm, version);
                 assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Delete op but soft_deletes field is not set [" + op + "]";
             } else {
-                final BytesReference source = fields.source();
                 if (source == null) {
                     // TODO: Callers should ask for the range that source should be retained. Thus we should always
                     // check for the existence source once we make peer-recovery to send ops after the local checkpoint.

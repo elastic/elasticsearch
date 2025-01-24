@@ -81,7 +81,7 @@ public class BlockFactory {
      * be adjusted without tripping.
      * @throws CircuitBreakingException if the breaker was put above its limit
      */
-    void adjustBreaker(final long delta) throws CircuitBreakingException {
+    public void adjustBreaker(final long delta) throws CircuitBreakingException {
         // checking breaker means potentially tripping, but it doesn't
         // have to if the delta is negative
         if (delta > 0) {

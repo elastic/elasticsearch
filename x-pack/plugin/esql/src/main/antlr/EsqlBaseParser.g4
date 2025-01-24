@@ -102,11 +102,19 @@ primaryExpression
     ;
 
 functionExpression
-    : functionName LP (ASTERISK | (booleanExpression (COMMA booleanExpression)*))? RP
+    : functionName LP (ASTERISK | (booleanExpression (COMMA booleanExpression)* (COMMA mapExpression)?))? RP
     ;
 
 functionName
     : identifierOrParameter
+    ;
+
+mapExpression
+    : {this.isDevVersion()}? LEFT_BRACES entryExpression (COMMA entryExpression)* RIGHT_BRACES
+    ;
+
+entryExpression
+    : key=string COLON value=constant
     ;
 
 dataType
@@ -143,16 +151,7 @@ indexString
     ;
 
 metadata
-    : metadataOption
-    | deprecated_metadata
-    ;
-
-metadataOption
     : METADATA UNQUOTED_SOURCE (COMMA UNQUOTED_SOURCE)*
-    ;
-
-deprecated_metadata
-    : OPENING_BRACKET metadataOption CLOSING_BRACKET
     ;
 
 metricsCommand
@@ -329,7 +328,7 @@ joinCommand
     ;
 
 joinTarget
-    : index=identifier (AS alias=identifier)?
+    : index=indexPattern (AS alias=identifier)?
     ;
 
 joinCondition

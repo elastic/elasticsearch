@@ -497,7 +497,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final String nodeForRemovalId = internalCluster().getInstance(NodeEnvironment.class, nodeForRemoval).nodeId();
         final var indexName = randomIdentifier();
         createIndexWithContent(indexName, indexSettings(numShards, 0).put(REQUIRE_NODE_NAME_SETTING, nodeForRemoval).build());
-        indexAllShardsToAnEqualOrGreaterMinimumSize(indexName, new ByteSizeValue(2, ByteSizeUnit.KB).getBytes());
+        indexAllShardsToAnEqualOrGreaterMinimumSize(indexName, ByteSizeValue.of(2, ByteSizeUnit.KB).getBytes());
 
         // Start the snapshot with blocking in place on the data node not to allow shard snapshots to finish yet.
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);

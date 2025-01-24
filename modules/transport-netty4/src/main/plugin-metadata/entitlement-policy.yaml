@@ -1,0 +1,6 @@
+io.netty.transport:
+  - inbound_network
+  - outbound_network
+io.netty.common:
+  - inbound_network
+  - outbound_network

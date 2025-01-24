@@ -401,7 +401,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         ParsedDocument parsedDocument = defaultMapper.parse(source(b -> b.field("field", "drm3btev3e86")));
 
         LuceneDocument indexableFields = parsedDocument.rootDoc();
-        assertThat(indexableFields.getFields("field"), hasSize(2));
+        assertThat(indexableFields.getFields("field"), hasSize(1));
         assertThat(indexableFields.getFields("field.analyzed"), containsInAnyOrder(suggestField("drm3btev3e86")));
         // unable to assert about geofield content, covered in a REST test
     }

@@ -204,10 +204,10 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     public static final String SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH = "index.store.snapshot.blob_cache.metadata_files.max_length";
     public static final Setting<ByteSizeValue> SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH_SETTING = new Setting<>(
         SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH,
-        new ByteSizeValue(64L, ByteSizeUnit.KB).getStringRep(),
+        ByteSizeValue.of(64L, ByteSizeUnit.KB).getStringRep(),
         s -> Setting.parseByteSize(
             s,
-            new ByteSizeValue(1L, ByteSizeUnit.KB),
+            ByteSizeValue.of(1L, ByteSizeUnit.KB),
             ByteSizeValue.ofBytes(Long.MAX_VALUE),
             SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH
         ),

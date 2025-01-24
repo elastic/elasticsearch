@@ -140,7 +140,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     }
 
     @Override
-    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
+    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean isExplain) {
         Map<RankDoc.RankKey, LinearRankDoc> docsToRankResults = Maps.newMapWithExpectedSize(rankWindowSize);
         final String[] normalizerNames = Arrays.stream(normalizers).map(ScoreNormalizer::getName).toArray(String[]::new);
         for (int result = 0; result < rankResults.size(); result++) {
@@ -154,14 +154,25 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                     new RankDoc.RankKey(originalScoreDocs[scoreDocIndex].doc, originalScoreDocs[scoreDocIndex].shardIndex),
                     (key, value) -> {
                         if (value == null) {
-                            value = new LinearRankDoc(
-                                originalScoreDocs[finalScoreIndex].doc,
-                                0f,
-                                originalScoreDocs[finalScoreIndex].shardIndex,
-                                weights,
-                                normalizerNames
-                            );
-                            value.normalizedScores = new float[rankResults.size()];
+                            if (isExplain) {
+                                value = new LinearRankDoc(
+                                    originalScoreDocs[finalScoreIndex].doc,
+                                    0f,
+                                    originalScoreDocs[finalScoreIndex].shardIndex,
+                                    weights,
+                                    normalizerNames
+                                );
+                                value.normalizedScores = new float[rankResults.size()];
+                            } else {
+                                value = new LinearRankDoc(
+                                    originalScoreDocs[finalScoreIndex].doc,
+                                    0f,
+                                    originalScoreDocs[finalScoreIndex].shardIndex
+                                );
+                            }
+                        }
+                        if (isExplain) {
+                            value.normalizedScores[finalResult] = normalizedScoreDocs[finalScoreIndex].score;
                         }
                         // if we do not have scores associated with this result set, just ignore its contribution to the final
                         // score computation by setting its score to 0.
@@ -169,7 +180,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                             ? normalizedScoreDocs[finalScoreIndex].score
                             : DEFAULT_SCORE;
                         final float weight = Float.isNaN(weights[finalResult]) ? DEFAULT_WEIGHT : weights[finalResult];
-                        value.normalizedScores[finalResult] = normalizedScoreDocs[finalScoreIndex].score;
                         value.score += weight * docScore;
                         return value;
                     }

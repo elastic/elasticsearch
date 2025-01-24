@@ -31,6 +31,12 @@ public class LinearRankDoc extends RankDoc {
     final String[] normalizers;
     public float[] normalizedScores;
 
+    public LinearRankDoc(int doc, float score, int shardIndex) {
+        super(doc, score, shardIndex);
+        this.weights = null;
+        this.normalizers = null;
+    }
+
     public LinearRankDoc(int doc, float score, int shardIndex, float[] weights, String[] normalizers) {
         super(doc, score, shardIndex);
         this.weights = weights;
@@ -46,7 +52,7 @@ public class LinearRankDoc extends RankDoc {
 
     @Override
     public Explanation explain(Explanation[] sources, String[] queryNames) {
-        assert normalizedScores != null;
+        assert normalizedScores != null && weights != null && normalizers != null;
         assert normalizedScores.length == sources.length;
 
         Explanation[] details = new Explanation[sources.length];

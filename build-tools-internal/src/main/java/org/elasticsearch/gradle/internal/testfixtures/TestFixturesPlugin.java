@@ -122,7 +122,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
         composeExtension.getRemoveContainers().set(true);
         composeExtension.getCaptureContainersOutput()
             .set(EnumSet.of(LogLevel.INFO, LogLevel.DEBUG).contains(project.getGradle().getStartParameter().getLogLevel()));
-        composeExtension.getUseDockerComposeV2().set(true);
+        composeExtension.getUseDockerComposeV2().set(false);
         composeExtension.getExecutable().set(this.providerFactory.provider(() -> {
             String composePath = dockerSupport.get().getDockerAvailability().dockerComposePath();
             LOGGER.debug("Docker Compose path: {}", composePath);

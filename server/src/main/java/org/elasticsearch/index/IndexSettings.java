@@ -353,7 +353,7 @@ public final class IndexSettings {
          * Prevent the translog from growing over 10GB or 20% of the recommended shard size of 50GB. This helps bound the maximum disk usage
          * overhead of translogs.
          */
-        new ByteSizeValue(10, ByteSizeUnit.GB),
+        ByteSizeValue.of(10, ByteSizeUnit.GB),
         /*
          * An empty translog occupies 55 bytes on disk. If the flush threshold is below this, the flush thread
          * can get stuck in an infinite loop as the shouldPeriodicallyFlush can still be true after flushing.
@@ -385,7 +385,7 @@ public final class IndexSettings {
      */
     public static final Setting<ByteSizeValue> INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
         "index.flush_after_merge",
-        new ByteSizeValue(512, ByteSizeUnit.MB),
+        ByteSizeValue.of(512, ByteSizeUnit.MB),
         ByteSizeValue.ZERO, // always flush after merge
         ByteSizeValue.ofBytes(Long.MAX_VALUE), // never flush after merge
         Property.Dynamic,
@@ -398,7 +398,7 @@ public final class IndexSettings {
      */
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
         "index.translog.generation_threshold_size",
-        new ByteSizeValue(64, ByteSizeUnit.MB),
+        ByteSizeValue.of(64, ByteSizeUnit.MB),
         /*
          * An empty translog occupies 55 bytes on disk. If the generation threshold is
          * below this, the flush thread can get stuck in an infinite loop repeatedly
@@ -1431,7 +1431,7 @@ public final class IndexSettings {
         }
         assert onePercentOfTotalDiskSpace > Translog.DEFAULT_HEADER_SIZE_IN_BYTES;
         if (onePercentOfTotalDiskSpace < flushThresholdSize.getBytes()) {
-            return new ByteSizeValue(onePercentOfTotalDiskSpace, ByteSizeUnit.BYTES);
+            return ByteSizeValue.of(onePercentOfTotalDiskSpace, ByteSizeUnit.BYTES);
         } else {
             return flushThresholdSize;
         }

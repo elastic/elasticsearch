@@ -6,7 +6,12 @@
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
@@ -14,6 +19,7 @@ import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
@@ -27,12 +33,14 @@ import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldType;
@@ -388,6 +396,38 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         e = expectThrows(IllegalArgumentException.class, () -> merge(lm, fieldMapping(b -> b.field("type", getFieldName()))));
         assertThat(e.getMessage(), containsString("mapper [field] of type [geo_shape] cannot change strategy from [recursive] to [BKD]"));
         assertFieldWarnings("strategy");
+    }
+
+    public void testGeoShapeLegacyCircle() throws Exception {
+        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+        MapperService mapperService = createMapperService(version, fieldMapping(b -> {
+            b.field("type", getFieldName());
+            b.field("strategy", "recursive");
+            b.field("tree", "geohash");
+        }));
+        assertCriticalWarnings(
+            "Parameter [strategy] is deprecated and will be removed in a future version",
+            "Parameter [tree] is deprecated and will be removed in a future version"
+        );
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            Circle circle = new Circle(30, 50, 77000);
+
+            LuceneDocument doc = mapperService.documentMapper().parse(source(b -> {
+                b.field("field");
+                GeoJson.toXContent(circle, b, null);
+            })).rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader));
+                GeoShapeQueryBuilder queryBuilder = new GeoShapeQueryBuilder("field", new Circle(30, 50, 77000));
+                TopDocs docs = context.searcher().search(queryBuilder.toQuery(context), 1);
+                assertThat(docs.totalHits.value(), equalTo(1L));
+                assertThat(docs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+            }
+        }
     }
 
     private void assertFieldWarnings(String... fieldNames) {

@@ -17,6 +17,8 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 
+import java.util.function.Supplier;
+
 /**
  * An index event listener is the primary extension point for plugins and build-in services
  * to react / listen to per-index and per-shard events. These listeners are registered per-index
@@ -190,4 +192,14 @@ public interface IndexEventListener {
      * @param indexShard the shard that is recovering
      */
     default void afterFilesRestoredFromRepository(IndexShard indexShard) {}
+
+    /**
+     * Called when a single primary permit is acquired for the given shard (see
+     * {@link IndexShard#acquirePrimaryOperationPermit(ActionListener, java.util.concurrent.Executor)}).
+     *
+     * @param indexShard the shard of which a primary permit is requested
+     * @param onPermitAcquiredListenerSupplier call this immediately to get a listener when the permit is acquired. The listener must be
+     *                                         completed in order for the permit to be given to the acquiring operation.
+     */
+    default void onAcquirePrimaryOperationPermit(IndexShard indexShard, Supplier<ActionListener<Void>> onPermitAcquiredListenerSupplier) {}
 }

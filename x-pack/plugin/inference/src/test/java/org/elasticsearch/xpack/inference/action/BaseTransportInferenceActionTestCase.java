@@ -57,10 +57,14 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     private BaseTransportInferenceAction<Request> action;
 
     protected static final String serviceId = "serviceId";
-    protected static final TaskType taskType = TaskType.COMPLETION;
+    protected final TaskType taskType;
     protected static final String inferenceId = "inferenceEntityId";
     protected InferenceServiceRegistry serviceRegistry;
     protected InferenceStats inferenceStats;
+
+    public BaseTransportInferenceActionTestCase(TaskType taskType) {
+        this.taskType = taskType;
+    }
 
     @Before
     public void setUp() throws Exception {
@@ -377,7 +381,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         when(serviceRegistry.getService(any())).thenReturn(Optional.of(service));
     }
 
-    protected void mockValidLicenseState(){
+    protected void mockValidLicenseState() {
         when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(true);
     }
 }

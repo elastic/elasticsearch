@@ -235,6 +235,8 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         } else if (tokens[0].equals(SCORE)) {
             return topHit.getScore();
         } else if (tokens[0].equals(SOURCE)) {
+            // Caching the map might help here but memory usage is a concern for this class
+            // This is dead code, pipeline aggregations do not support _source.field.
             Map<String, Object> sourceAsMap = topHit.getSourceAsMap();
             if (sourceAsMap != null) {
                 Object property = sourceAsMap.get(tokens[1]);

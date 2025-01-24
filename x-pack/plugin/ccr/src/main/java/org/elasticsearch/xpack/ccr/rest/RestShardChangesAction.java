@@ -60,7 +60,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestShardChangesAction extends BaseRestHandler {
 
     private static final long DEFAULT_FROM_SEQ_NO = 0L;
-    private static final ByteSizeValue DEFAULT_MAX_BATCH_SIZE = new ByteSizeValue(32, ByteSizeUnit.MB);
+    private static final ByteSizeValue DEFAULT_MAX_BATCH_SIZE = ByteSizeValue.of(32, ByteSizeUnit.MB);
     private static final TimeValue DEFAULT_POLL_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
     private static final int DEFAULT_MAX_OPERATIONS_COUNT = 1024;
     private static final int DEFAULT_TIMEOUT_SECONDS = 60;

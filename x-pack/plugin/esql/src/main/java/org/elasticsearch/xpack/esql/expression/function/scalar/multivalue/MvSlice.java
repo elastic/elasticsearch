@@ -67,6 +67,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             "ip",
             "keyword",
             "long",
+            "unsigned_long",
             "version" },
         description = """
             Returns a subset of the multivalued field using the start and end index values.
@@ -96,6 +97,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
                 "keyword",
                 "long",
                 "text",
+                "unsigned_long",
                 "version" },
             description = "Multivalue expression. If `null`, the function returns `null`."
         ) Expression field,

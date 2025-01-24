@@ -74,7 +74,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
 
     @BeforeClass
     public static void setUpCacheSettings() {
-        blobCacheMaxLength = pageAligned(new ByteSizeValue(randomLongBetween(64L, 128L), ByteSizeUnit.KB));
+        blobCacheMaxLength = pageAligned(ByteSizeValue.of(randomLongBetween(64L, 128L), ByteSizeUnit.KB));
 
         final Settings.Builder builder = Settings.builder();
         // Align ranges to match the blob cache max length

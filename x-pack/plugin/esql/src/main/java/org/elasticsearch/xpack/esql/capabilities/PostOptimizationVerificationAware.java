@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.capabilities;
 
 import org.elasticsearch.xpack.esql.common.Failures;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 
 /**
  * Interface implemented by expressions that require validation post logical optimization,
@@ -21,13 +20,13 @@ public interface PostOptimizationVerificationAware {
      * {@link Failures} class.
      *
      * <p>
-     *     Example: the {@link Bucket} function, which produces buckets over a numerical or date field, based on a number of literal
+     *     Example: the {@code Bucket} function, which produces buckets over a numerical or date field, based on a number of literal
      *     arguments needs to check if its arguments are all indeed literals. This is how this verification is performed:
      *     <pre>
      *     {@code
      *
      *      @Override
-     *      public void postLogicalOptimizationVerification(Failures failures) {
+     *      public void postOptimizationVerification(Failures failures) {
      *          String operation = sourceText();
      *
      *          failures.add(isFoldable(buckets, operation, SECOND))
@@ -38,5 +37,5 @@ public interface PostOptimizationVerificationAware {
      *     </pre>
      *
      */
-    void postLogicalOptimizationVerification(Failures failures);
+    void postOptimizationVerification(Failures failures);
 }

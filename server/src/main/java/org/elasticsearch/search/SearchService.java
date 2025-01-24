@@ -261,7 +261,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final Setting<ByteSizeValue> MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING = Setting.byteSizeSetting(
         "search.max_async_search_response_size",
-        new ByteSizeValue(10, ByteSizeUnit.MB),
+        ByteSizeValue.of(10, ByteSizeUnit.MB),
         Property.Dynamic,
         Property.NodeScope
     );
@@ -1892,7 +1892,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices, PointInTimeBuilder pit) {
-        return indicesService.getRewriteContext(nowInMillis, resolvedIndices, pit);
+        return getRewriteContext(nowInMillis, resolvedIndices, pit, false);
+    }
+
+    /**
+     * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
+     */
+    public QueryRewriteContext getRewriteContext(
+        LongSupplier nowInMillis,
+        ResolvedIndices resolvedIndices,
+        PointInTimeBuilder pit,
+        final boolean isExplain
+    ) {
+        return indicesService.getRewriteContext(nowInMillis, resolvedIndices, pit, isExplain);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {

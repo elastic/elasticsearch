@@ -200,7 +200,6 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/81941")
     public void testRestartAfterCompletion() throws Exception {
         final String initialId;
         try (SearchResponseIterator it = assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), 0, 2)) {

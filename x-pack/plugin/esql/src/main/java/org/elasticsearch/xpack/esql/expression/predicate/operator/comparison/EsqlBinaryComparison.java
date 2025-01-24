@@ -7,31 +7,64 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
+import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.time.OffsetTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.HOUR_MINUTE_SECOND;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
-public abstract class EsqlBinaryComparison extends BinaryComparison implements EvaluatorMapper {
+public abstract class EsqlBinaryComparison extends BinaryComparison
+    implements
+        EvaluatorMapper,
+        TranslationAware.SingleValueTranslationAware {
 
     private final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap;
 
@@ -287,4 +320,224 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         );
     }
 
+    @Override
+    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+        if (right().foldable()) {
+            if (pushdownPredicates.isPushableFieldAttribute(left())) {
+                return true;
+            }
+            if (LucenePushdownPredicates.isPushableMetadataAttribute(left())) {
+                return this instanceof Equals || this instanceof NotEquals;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * This method is responsible for pushing the ES|QL Binary Comparison operators into Lucene.  It covers:
+     *  <ul>
+     *      <li>{@link Equals}</li>
+     *      <li>{@link NotEquals}</li>
+     *      <li>{@link GreaterThanOrEqual}</li>
+     *      <li>{@link GreaterThan}</li>
+     *      <li>{@link LessThanOrEqual}</li>
+     *      <li>{@link LessThan}</li>
+     *  </ul>
+     *
+     *  In general, we are able to push these down when one of the arguments is a constant (i.e. is foldable).  This class assumes
+     *  that an earlier pass through the query has rearranged things so that the foldable value will be the right hand side
+     *  input to the operation.
+     */
+    @Override
+    public Query asQuery(TranslatorHandler handler) {
+        Check.isTrue(
+            right().foldable(),
+            "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
+            right().sourceLocation().getLineNumber(),
+            right().sourceLocation().getColumnNumber(),
+            Expressions.name(right()),
+            symbol()
+        );
+
+        Query translated = translateOutOfRangeComparisons();
+        return translated != null ? translated : translate(handler);
+    }
+
+    @Override
+    public Expression singleValueField() {
+        return left();
+    }
+
+    private Query translate(TranslatorHandler handler) {
+        TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(left());
+        String name = handler.nameOf(attribute);
+        Object value = valueOf(FoldContext.small() /* TODO remove me */, right());
+        String format = null;
+        boolean isDateLiteralComparison = false;
+
+        // TODO: This type coersion layer is copied directly from the QL counterpart code. It's probably not necessary or desireable
+        // in the ESQL version. We should instead do the type conversions using our casting functions.
+        // for a date constant comparison, we need to use a format for the date, to make sure that the format is the same
+        // no matter the timezone provided by the user
+        if (value instanceof ZonedDateTime || value instanceof OffsetTime) {
+            DateFormatter formatter;
+            if (value instanceof ZonedDateTime) {
+                formatter = DEFAULT_DATE_TIME_FORMATTER;
+                // RangeQueryBuilder accepts an Object as its parameter, but it will call .toString() on the ZonedDateTime instance
+                // which can have a slightly different format depending on the ZoneId used to create the ZonedDateTime
+                // Since RangeQueryBuilder can handle date as String as well, we'll format it as String and provide the format as well.
+                value = formatter.format((ZonedDateTime) value);
+            } else {
+                formatter = HOUR_MINUTE_SECOND;
+                value = formatter.format((OffsetTime) value);
+            }
+            format = formatter.pattern();
+            isDateLiteralComparison = true;
+        } else if (attribute.dataType() == IP && value instanceof BytesRef bytesRef) {
+            value = ipToString(bytesRef);
+        } else if (attribute.dataType() == VERSION) {
+            // VersionStringFieldMapper#indexedValueForSearch() only accepts as input String or BytesRef with the String (i.e. not
+            // encoded) representation of the version as it'll do the encoding itself.
+            if (value instanceof BytesRef bytesRef) {
+                value = versionToString(bytesRef);
+            } else if (value instanceof Version version) {
+                value = versionToString(version);
+            }
+        } else if (attribute.dataType() == UNSIGNED_LONG && value instanceof Long ul) {
+            value = unsignedLongAsNumber(ul);
+        }
+
+        ZoneId zoneId = null;
+        if (DataType.isDateTime(attribute.dataType())) {
+            zoneId = zoneId();
+            value = dateTimeToString((Long) value);
+            format = DEFAULT_DATE_TIME_FORMATTER.pattern();
+        }
+        if (this instanceof GreaterThan) {
+            return new RangeQuery(source(), name, value, false, null, false, format, zoneId);
+        }
+        if (this instanceof GreaterThanOrEqual) {
+            return new RangeQuery(source(), name, value, true, null, false, format, zoneId);
+        }
+        if (this instanceof LessThan) {
+            return new RangeQuery(source(), name, null, false, value, false, format, zoneId);
+        }
+        if (this instanceof LessThanOrEqual) {
+            return new RangeQuery(source(), name, null, false, value, true, format, zoneId);
+        }
+        if (this instanceof Equals || this instanceof NotEquals) {
+            name = LucenePushdownPredicates.pushableAttributeName(attribute);
+
+            Query query;
+            if (isDateLiteralComparison) {
+                // dates equality uses a range query because it's the one that has a "format" parameter
+                query = new RangeQuery(source(), name, value, true, value, true, format, zoneId);
+            } else {
+                query = new TermQuery(source(), name, value);
+            }
+            if (this instanceof NotEquals) {
+                query = new NotQuery(source(), query);
+            }
+            return query;
+        }
+
+        throw new QlIllegalArgumentException(
+            "Don't know how to translate binary comparison [{}] in [{}]",
+            right().nodeString(),
+            toString()
+        );
+    }
+
+    private Query translateOutOfRangeComparisons() {
+        if ((left() instanceof FieldAttribute) == false || left().dataType().isNumeric() == false) {
+            return null;
+        }
+        Object value = valueOf(FoldContext.small() /* TODO remove me */, right());
+
+        // Comparisons with multi-values always return null in ESQL.
+        if (value instanceof List<?>) {
+            return new MatchAll(source()).negate(source());
+        }
+
+        DataType valueType = right().dataType();
+        DataType attributeDataType = left().dataType();
+        if (valueType == UNSIGNED_LONG && value instanceof Long ul) {
+            value = unsignedLongAsNumber(ul);
+        }
+        Number num = (Number) value;
+        if (isInRange(attributeDataType, valueType, num)) {
+            return null;
+        }
+
+        if (Double.isNaN(((Number) value).doubleValue())) {
+            return new MatchAll(source()).negate(source());
+        }
+
+        boolean matchAllOrNone;
+        if (this instanceof GreaterThan || this instanceof GreaterThanOrEqual) {
+            matchAllOrNone = (num.doubleValue() > 0) == false;
+        } else if (this instanceof LessThan || this instanceof LessThanOrEqual) {
+            matchAllOrNone = (num.doubleValue() > 0);
+        } else if (this instanceof Equals) {
+            matchAllOrNone = false;
+        } else if (this instanceof NotEquals) {
+            matchAllOrNone = true;
+        } else {
+            throw new QlIllegalArgumentException("Unknown binary comparison [{}]", toString());
+        }
+
+        return matchAllOrNone ? new MatchAll(source()) : new MatchAll(source()).negate(source());
+    }
+
+    private static final BigDecimal HALF_FLOAT_MAX = BigDecimal.valueOf(65504);
+    private static final BigDecimal UNSIGNED_LONG_MAX = BigDecimal.valueOf(2).pow(64).subtract(BigDecimal.ONE);
+
+    private static boolean isInRange(DataType numericFieldDataType, DataType valueDataType, Number value) {
+        double doubleValue = value.doubleValue();
+        if (Double.isNaN(doubleValue) || Double.isInfinite(doubleValue)) {
+            return false;
+        }
+
+        BigDecimal decimalValue;
+        if (value instanceof BigInteger bigIntValue) {
+            // Unsigned longs may be represented as BigInteger.
+            decimalValue = new BigDecimal(bigIntValue);
+        } else {
+            decimalValue = valueDataType.isRationalNumber() ? BigDecimal.valueOf(doubleValue) : BigDecimal.valueOf(value.longValue());
+        }
+
+        // Determine min/max for dataType. Use BigDecimals as doubles will have rounding errors for long/ulong.
+        BigDecimal minValue;
+        BigDecimal maxValue;
+        if (numericFieldDataType == DataType.BYTE) {
+            minValue = BigDecimal.valueOf(Byte.MIN_VALUE);
+            maxValue = BigDecimal.valueOf(Byte.MAX_VALUE);
+        } else if (numericFieldDataType == DataType.SHORT) {
+            minValue = BigDecimal.valueOf(Short.MIN_VALUE);
+            maxValue = BigDecimal.valueOf(Short.MAX_VALUE);
+        } else if (numericFieldDataType == DataType.INTEGER) {
+            minValue = BigDecimal.valueOf(Integer.MIN_VALUE);
+            maxValue = BigDecimal.valueOf(Integer.MAX_VALUE);
+        } else if (numericFieldDataType == DataType.LONG) {
+            minValue = BigDecimal.valueOf(Long.MIN_VALUE);
+            maxValue = BigDecimal.valueOf(Long.MAX_VALUE);
+        } else if (numericFieldDataType == DataType.UNSIGNED_LONG) {
+            minValue = BigDecimal.ZERO;
+            maxValue = UNSIGNED_LONG_MAX;
+        } else if (numericFieldDataType == DataType.HALF_FLOAT) {
+            minValue = HALF_FLOAT_MAX.negate();
+            maxValue = HALF_FLOAT_MAX;
+        } else if (numericFieldDataType == DataType.FLOAT) {
+            minValue = BigDecimal.valueOf(-Float.MAX_VALUE);
+            maxValue = BigDecimal.valueOf(Float.MAX_VALUE);
+        } else if (numericFieldDataType == DataType.DOUBLE || numericFieldDataType == DataType.SCALED_FLOAT) {
+            // Scaled floats are represented as doubles in ESQL.
+            minValue = BigDecimal.valueOf(-Double.MAX_VALUE);
+            maxValue = BigDecimal.valueOf(Double.MAX_VALUE);
+        } else {
+            throw new QlIllegalArgumentException("Data type [{}] unsupported for numeric range check", numericFieldDataType);
+        }
+
+        return minValue.compareTo(decimalValue) <= 0 && maxValue.compareTo(decimalValue) >= 0;
+    }
 }

@@ -2038,7 +2038,15 @@ public final class InternalTestCluster extends TestCluster {
     public String getMasterName(@Nullable String viaNode) {
         try {
             Client client = viaNode != null ? client(viaNode) : client();
-            return client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode().getName();
+            return client.admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .setWaitForMaster(true)
+                .get()
+                .getState()
+                .nodes()
+                .getMasterNode()
+                .getName();
         } catch (Exception e) {
             logger.warn("Can't fetch cluster state", e);
             throw new RuntimeException("Can't get master node " + e.getMessage(), e);

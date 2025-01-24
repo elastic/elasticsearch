@@ -1314,7 +1314,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         try (RefCountingListener refCountingListener = new RefCountingListener(future)) {
             SubscribableListener.<ClusterStateResponse>newForked(
-                l -> client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().execute(l)
+                l -> client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setWaitForMaster(true).all().execute(l)
             ).andThenAccept(masterStateResponse -> {
                 byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterStateResponse.getState());
                 // remove local node reference

@@ -23,13 +23,17 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
 
 import java.util.concurrent.Executor;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.Strings.format;
 
@@ -70,15 +74,19 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
             request.setParentTask(clusterService.localNode().getId(), task.getId());
         }
         final var state = clusterService.state();
-        final var clusterBlockException = checkBlock(request, state);
-        if (clusterBlockException != null) {
-            if (clusterBlockException.retryable() == false) {
-                listener.onFailure(clusterBlockException);
-            } else {
-                waitForClusterUnblock(task, request, listener, state, clusterBlockException);
-            }
+        if (request.waitForMaster() && state.nodes().getMasterNode() == null) {
+            waitForClusterUnblock(task, request, listener, state, null);
         } else {
-            innerDoExecute(task, request, listener, state);
+            final var clusterBlockException = checkBlock(request, state);
+            if (clusterBlockException != null) {
+                if (clusterBlockException.retryable() == false) {
+                    listener.onFailure(clusterBlockException);
+                } else {
+                    waitForClusterUnblock(task, request, listener, state, clusterBlockException);
+                }
+            } else {
+                innerDoExecute(task, request, listener, state);
+            }
         }
     }
 
@@ -118,16 +126,99 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
 
             @Override
             public void onTimeout(TimeValue timeout) {
-                logger.debug(
-                    () -> format("timed out while waiting for cluster to unblock in [%s] (timeout [%s])", actionName, timeout),
-                    exception
-                );
-                listener.onFailure(new ElasticsearchTimeoutException("timed out while waiting for cluster to unblock", exception));
+                logger.debug(() -> format("timed out while retrying [%s] after failure (timeout [%s])", actionName, timeout), exception);
+                final var timeoutException = initialState.nodes().getMasterNode() == null
+                    ? new MasterNotDiscoveredException()
+                    : new ElasticsearchTimeoutException("timed out while waiting for cluster to unblock", exception);
+                listener.onFailure(timeoutException);
             }
-        }, clusterState -> isTaskCancelled(task) || checkBlock(request, clusterState) == null);
+        }, clusterState -> isTaskCancelled(task) || isClusterStateReady(request, clusterState));
     }
 
-    private boolean isTaskCancelled(Task task) {
+    private boolean isClusterStateReady(Request request, ClusterState clusterState) {
+        if (request.waitForMaster() && clusterState.nodes().getMasterNode() == null) {
+            return false;
+        }
+        return checkBlock(request, clusterState) == null;
+    }
+
+    private class AsyncSingleAction {
+
+        private final ActionListener<Response> listener;
+        private final Request request;
+        private final Task task;
+        private final long startTime;
+        private ClusterStateObserver observer;
+
+        AsyncSingleAction(Task task, Request request, ActionListener<Response> listener) {
+            this.task = task;
+            this.request = request;
+            this.listener = listener;
+            this.startTime = clusterService.threadPool().relativeTimeInMillis();
+        }
+
+        protected void doStart(ClusterState clusterState) {
+            if (isTaskCancelled()) {
+                listener.onFailure(new TaskCancelledException("Task was cancelled"));
+                return;
+            }
+            if (clusterState.nodes().getMasterNode() == null) {
+                return;
+            }
+        }
+
+        private void retry(long currentStateVersion, final Throwable failure, final Predicate<ClusterState> statePredicate) {
+            if (observer == null) {
+                final TimeValue timeout;
+                if (request.masterTimeout().millis() < 0) {
+                    timeout = null;
+                } else {
+                    final long remainingTimeoutMS = request.masterTimeout().millis() - (clusterService.threadPool().relativeTimeInMillis()
+                        - startTime);
+                    if (remainingTimeoutMS <= 0) {
+                        logger.debug(() -> "timed out before retrying [" + actionName + "] after failure", failure);
+                        listener.onFailure(new MasterNotDiscoveredException(failure));
+                        return;
+                    }
+                    timeout = TimeValue.timeValueMillis(remainingTimeoutMS);
+                }
+                this.observer = new ClusterStateObserver(
+                    currentStateVersion,
+                    clusterService.getClusterApplierService(),
+                    timeout,
+                    logger,
+                    clusterService.threadPool().getThreadContext()
+                );
+            }
+            observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    logger.trace("retrying with cluster state version [{}]", state.version());
+                    doStart(state);
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    logger.debug(
+                        () -> Strings.format("timed out while retrying [%s] after failure (timeout [%s])", actionName, timeout),
+                        failure
+                    );
+                    listener.onFailure(new MasterNotDiscoveredException(failure));
+                }
+            }, clusterState -> isTaskCancelled() || statePredicate.test(clusterState));
+        }
+
+        private boolean isTaskCancelled() {
+            return task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled();
+        }
+    }
+
+    private static boolean isTaskCancelled(Task task) {
         return task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled();
     }
 }

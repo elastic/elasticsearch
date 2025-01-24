@@ -108,4 +108,9 @@ public class ClusterStateRequestBuilder extends ActionRequestBuilder<ClusterStat
         request.waitForTimeout(waitForTimeout);
         return this;
     }
+
+    public ClusterStateRequestBuilder setWaitForMaster(boolean waitForMaster) {
+        request.waitForMaster(waitForMaster);
+        return this;
+    }
 }

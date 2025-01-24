@@ -52,6 +52,7 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
         runRepeatedlyWhileChangingMaster(() -> {
             final ClusterStateRequestBuilder clusterStateRequestBuilder = clusterAdmin().prepareState(TimeValue.timeValueMillis(100))
                 .clear()
+                .setWaitForMaster(true)
                 .setNodes(true)
                 .setBlocks(true);
             final ClusterStateResponse clusterStateResponse;
@@ -98,6 +99,7 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
                 .cluster()
                 .prepareState(TimeValue.timeValueMillis(100))
                 .clear()
+                .setWaitForMaster(true)
                 .setNodes(true)
                 .setMetadata(true)
                 .setBlocks(true)

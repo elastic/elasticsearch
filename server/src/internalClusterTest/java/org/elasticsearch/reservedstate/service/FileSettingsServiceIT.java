@@ -127,7 +127,15 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
     private void assertMasterNode(Client client, String node) {
         assertThat(
-            client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode().getName(),
+            client.admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .setWaitForMaster(true)
+                .get()
+                .getState()
+                .nodes()
+                .getMasterNode()
+                .getName(),
             equalTo(node)
         );
     }

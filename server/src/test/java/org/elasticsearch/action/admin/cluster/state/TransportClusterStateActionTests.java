@@ -206,7 +206,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
             projectResolver
         );
         final PlainActionFuture<ClusterStateResponse> future = new PlainActionFuture<>();
-        action.masterOperation(task, request, state, future);
+        action.localClusterStateOperation(task, request, state, future);
         return future.get();
     }
 

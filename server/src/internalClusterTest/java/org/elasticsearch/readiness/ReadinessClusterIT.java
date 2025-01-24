@@ -112,13 +112,24 @@ public class ReadinessClusterIT extends ESIntegTestCase {
 
     private void assertMasterNode(Client client, String node) {
         assertThat(
-            client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode().getName(),
+            client.admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .setWaitForMaster(true)
+                .get()
+                .getState()
+                .nodes()
+                .getMasterNode()
+                .getName(),
             equalTo(node)
         );
     }
 
     private void expectMasterNotFound() {
-        expectThrows(MasterNotDiscoveredException.class, clusterAdmin().prepareState(TimeValue.timeValueMillis(100)));
+        expectThrows(
+            MasterNotDiscoveredException.class,
+            clusterAdmin().prepareState(TimeValue.timeValueMillis(100)).setWaitForMaster(true)
+        );
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108613")
@@ -193,8 +204,6 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                expectMasterNotFound();
-
                 logger.info("--> master node [{}] stopped", nodeName);
 
                 for (String dataNode : dataNodes) {

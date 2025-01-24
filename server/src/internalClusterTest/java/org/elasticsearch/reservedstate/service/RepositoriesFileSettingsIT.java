@@ -94,7 +94,16 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
 
     private void assertMasterNode(Client client, String node) throws ExecutionException, InterruptedException {
         assertThat(
-            client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).execute().get().getState().nodes().getMasterNode().getName(),
+            client.admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .setWaitForMaster(true)
+                .execute()
+                .get()
+                .getState()
+                .nodes()
+                .getMasterNode()
+                .getName(),
             equalTo(node)
         );
     }

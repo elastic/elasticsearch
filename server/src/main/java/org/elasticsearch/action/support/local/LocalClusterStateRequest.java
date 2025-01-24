@@ -32,6 +32,8 @@ public abstract class LocalClusterStateRequest extends ActionRequest {
      */
     private final TimeValue masterTimeout;
 
+    private boolean waitForMaster = false;
+
     protected LocalClusterStateRequest(TimeValue masterTimeout) {
         this.masterTimeout = Objects.requireNonNull(masterTimeout);
     }
@@ -73,5 +75,14 @@ public abstract class LocalClusterStateRequest extends ActionRequest {
 
     public TimeValue masterTimeout() {
         return masterTimeout;
+    }
+
+    public LocalClusterStateRequest waitForMaster(boolean waitForMaster) {
+        this.waitForMaster = waitForMaster;
+        return this;
+    }
+
+    public boolean waitForMaster() {
+        return waitForMaster;
     }
 }

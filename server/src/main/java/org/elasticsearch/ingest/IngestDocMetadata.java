@@ -19,7 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-class IngestDocMetadata extends Metadata {
+final class IngestDocMetadata extends Metadata {
 
     static final Map<String, FieldProperty<?>> PROPERTIES = Map.of(
         INDEX,

@@ -255,7 +255,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
         Source source = source(ctx);
-        TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
+        TableIdentifier table = new TableIdentifier(source, visitIndexPattern(ctx.indexPattern()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
             for (var c : ctx.metadata().UNQUOTED_SOURCE()) {
@@ -468,7 +468,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new IllegalArgumentException("METRICS command currently requires a snapshot build");
         }
         Source source = source(ctx);
-        TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
+        TableIdentifier table = new TableIdentifier(source, visitIndexPattern(ctx.indexPattern()));
 
         if (ctx.aggregates == null && ctx.grouping == null) {
             return new UnresolvedRelation(source, table, false, List.of(), IndexMode.STANDARD, null, "METRICS");
@@ -530,7 +530,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         UnresolvedRelation right = new UnresolvedRelation(
             source(target),
-            new TableIdentifier(source(target.index), null, rightPattern),
+            new TableIdentifier(source(target.index), rightPattern),
             false,
             emptyList(),
             IndexMode.LOOKUP,

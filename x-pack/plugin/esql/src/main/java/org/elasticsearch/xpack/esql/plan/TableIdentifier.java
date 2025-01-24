@@ -10,32 +10,23 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Objects;
 
-import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
-
 public class TableIdentifier {
 
     private final Source source;
+    private final String indexPattern;
 
-    private final String cluster;
-    private final String index;
-
-    public TableIdentifier(Source source, String catalog, String index) {
+    public TableIdentifier(Source source, String indexPattern) {
         this.source = source;
-        this.cluster = catalog;
-        this.index = index;
-    }
-
-    public String cluster() {
-        return cluster;
+        this.indexPattern = indexPattern;
     }
 
     public String index() {
-        return index;
+        return indexPattern;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(cluster, index);
+        return Objects.hash(indexPattern);
     }
 
     @Override
@@ -49,25 +40,15 @@ public class TableIdentifier {
         }
 
         TableIdentifier other = (TableIdentifier) obj;
-        return Objects.equals(index, other.index) && Objects.equals(cluster, other.cluster);
+        return Objects.equals(indexPattern, other.indexPattern);
     }
 
     public Source source() {
         return source;
     }
 
-    public String qualifiedIndex() {
-        return cluster != null ? cluster + REMOTE_CLUSTER_INDEX_SEPARATOR + index : index;
-    }
-
     @Override
     public String toString() {
-        StringBuilder builder = new StringBuilder();
-        if (cluster != null) {
-            builder.append(cluster);
-            builder.append(REMOTE_CLUSTER_INDEX_SEPARATOR);
-        }
-        builder.append(index);
-        return builder.toString();
+        return indexPattern;
     }
 }

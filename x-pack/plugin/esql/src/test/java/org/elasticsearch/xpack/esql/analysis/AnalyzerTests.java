@@ -98,7 +98,7 @@ public class AnalyzerTests extends ESTestCase {
 
     private static final UnresolvedRelation UNRESOLVED_RELATION = new UnresolvedRelation(
         EMPTY,
-        new TableIdentifier(EMPTY, null, "idx"),
+        new TableIdentifier(EMPTY, "idx"),
         false,
         List.of(),
         IndexMode.STANDARD,

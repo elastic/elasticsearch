@@ -36,7 +36,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -500,8 +499,6 @@ public class MetadataUpdateSettingsService {
                                 var indexSettings = Settings.builder().put(indexMetadata.getSettings());
                                 indexSettings.remove(VERIFIED_READ_ONLY_SETTING.getKey());
                                 metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(indexSettings));
-                            } else if (Assertions.ENABLED) {
-                                assert VERIFIED_READ_ONLY_SETTING.get(metadataBuilder.get(index).getSettings());
                             }
                         }
                     }

@@ -329,6 +329,18 @@ public class IngestCtxMapTests extends ESTestCase {
         assertNull(md.getVersionType());
     }
 
+    public void testGetOrDefault() {
+        map = new IngestCtxMap(Map.of("foo", "bar"), new IngestDocMetadata(Map.of("_version", 5L), null));
+
+        // it does the expected thing for fields that are present
+        assertThat(map.getOrDefault("_version", -1L), equalTo(5L));
+        assertThat(map.getOrDefault("foo", "wat"), equalTo("bar"));
+
+        // it does the expected thing for fields that are not present
+        assertThat(map.getOrDefault("_version_type", "something"), equalTo("something"));
+        assertThat(map.getOrDefault("baz", "quux"), equalTo("quux"));
+    }
+
     private static class TestEntry implements Map.Entry<String, Object> {
         String key;
         Object value;

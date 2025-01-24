@@ -59,14 +59,7 @@ public class LogsdbRestIT extends ESRestTestCase {
                 var settings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "field1").build();
                 createIndex("test-index", settings, mapping);
             } else {
-                String mapping = """
-                    {
-                        "_source": {
-                            "mode": "synthetic"
-                        }
-                    }
-                    """;
-                createIndex("test-index", Settings.EMPTY, mapping);
+                createIndex("test-index", Settings.builder().put("index.mapping.source.mode", "synthetic").build());
             }
             var response = getAsMap("/_license/feature_usage");
             @SuppressWarnings("unchecked")
@@ -77,8 +70,15 @@ public class LogsdbRestIT extends ESRestTestCase {
             assertThat(feature.get("name"), equalTo("synthetic-source"));
             assertThat(feature.get("license_level"), equalTo("enterprise"));
 
-            var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings("test-index").get("test-index")).get("settings");
-            assertNull(settings.get("index.mapping.source.mode"));  // Default, no downgrading.
+            var indexResponse = (Map<?, ?>) getIndexSettings("test-index", true).get("test-index");
+            logger.info("indexResponse: {}", indexResponse);
+            var sourceMode = ((Map<?, ?>) indexResponse.get("settings")).get("index.mapping.source.mode");
+            if (sourceMode != null) {
+                assertThat(sourceMode, equalTo("synthetic"));
+            } else {
+                var defaultSourceMode = ((Map<?, ?>) indexResponse.get("defaults")).get("index.mapping.source.mode");
+                assertThat(defaultSourceMode, equalTo("SYNTHETIC"));
+            }
         }
     }
 

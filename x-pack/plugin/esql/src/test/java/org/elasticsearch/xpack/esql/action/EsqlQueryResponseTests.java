@@ -519,7 +519,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     }
 
     public void testChunkResponseSizeColumnar() {
-        int sizeClusterDetails = 14;
+        int sizeClusterDetails = 9;
         try (EsqlQueryResponse resp = randomResponse(true, null)) {
             int columnCount = resp.pages().get(0).getBlockCount();
             int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount() * p.getBlockCount()).sum() + columnCount * 2;
@@ -534,7 +534,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     }
 
     public void testChunkResponseSizeRows() {
-        int sizeClusterDetails = 14;
+        int sizeClusterDetails = 9;
         try (EsqlQueryResponse resp = randomResponse(false, null)) {
             int bodySize = resp.pages().stream().mapToInt(Page::getPositionCount).sum();
             assertChunkCount(resp, r -> 5 + sizeClusterDetails + bodySize);

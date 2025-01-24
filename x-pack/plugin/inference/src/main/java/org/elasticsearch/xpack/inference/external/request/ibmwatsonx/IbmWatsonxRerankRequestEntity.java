@@ -46,6 +46,10 @@ public record IbmWatsonxRerankRequestEntity( String query, List<String> inputs, 
 
         builder.startObject("parameters");
         {
+            if (taskSettings.getTruncateInputTokens() != null) {
+                builder.field("truncate_input_tokens", taskSettings.getTruncateInputTokens());
+            }
+
             builder.startObject("return_options");
             {
                 if (taskSettings.getDoesReturnDocuments() != null) {

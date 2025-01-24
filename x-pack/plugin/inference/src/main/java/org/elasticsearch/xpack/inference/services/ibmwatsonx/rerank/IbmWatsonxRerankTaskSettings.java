@@ -33,7 +33,7 @@ public class IbmWatsonxRerankTaskSettings implements TaskSettings {
     public static final String NAME = "ibm_watsonx_rerank_task_settings";
     public static final String RETURN_DOCUMENTS = "return_documents";
     public static final String TOP_N_DOCS_ONLY = "top_n";
-    public static final String MAX_CHUNKS_PER_DOC = "max_chunks_per_doc";
+    public static final String TRUNCATE_INPUT_TOKENS = "truncate_input_tokens";
 
     static final IbmWatsonxRerankTaskSettings EMPTY_SETTINGS = new IbmWatsonxRerankTaskSettings(null, null, null);
 
@@ -51,9 +51,9 @@ public class IbmWatsonxRerankTaskSettings implements TaskSettings {
             ModelConfigurations.TASK_SETTINGS,
             validationException
         );
-        Integer maxChunksPerDoc = extractOptionalPositiveInteger(
+        Integer truncateInputTokens = extractOptionalPositiveInteger(
             map,
-            MAX_CHUNKS_PER_DOC,
+            TRUNCATE_INPUT_TOKENS,
             ModelConfigurations.TASK_SETTINGS,
             validationException
         );
@@ -62,7 +62,7 @@ public class IbmWatsonxRerankTaskSettings implements TaskSettings {
             throw validationException;
         }
 
-        return of(topNDocumentsOnly, returnDocuments, maxChunksPerDoc);
+        return of(topNDocumentsOnly, returnDocuments, truncateInputTokens);
     }
 
     /**
@@ -82,9 +82,9 @@ public class IbmWatsonxRerankTaskSettings implements TaskSettings {
             requestTaskSettings.getReturnDocuments() != null
                 ? requestTaskSettings.getReturnDocuments()
                 : originalSettings.getReturnDocuments(),
-            requestTaskSettings.getMaxChunksPerDoc() != null
-                ? requestTaskSettings.getMaxChunksPerDoc()
-                : originalSettings.getMaxChunksPerDoc()
+            requestTaskSettings.getTruncateInputTokens() != null
+                ? requestTaskSettings.getTruncateInputTokens()
+                : originalSettings.getTruncateInputTokens()
         );
     }
 
@@ -94,7 +94,7 @@ public class IbmWatsonxRerankTaskSettings implements TaskSettings {
 
     private final Integer topNDocumentsOnly;
     private final Boolean returnDocuments;
-    private final Integer maxChunksPerDoc;
+    private final Integer truncateInputTokens;
 
     public IbmWatsonxRerankTaskSettings(StreamInput in) throws IOException {
         this(in.readOptionalInt(), in.readOptionalBoolean(), in.readOptionalInt());
@@ -103,16 +103,16 @@ public class IbmWatsonxRerankTaskSettings implements TaskSettings {
     public IbmWatsonxRerankTaskSettings(
         @Nullable Integer topNDocumentsOnly,
         @Nullable Boolean doReturnDocuments,
-        @Nullable Integer maxChunksPerDoc
+        @Nullable Integer truncateInputTokens
     ) {
         this.topNDocumentsOnly = topNDocumentsOnly;
         this.returnDocuments = doReturnDocuments;
-        this.maxChunksPerDoc = maxChunksPerDoc;
+        this.truncateInputTokens = truncateInputTokens;
     }
 
     @Override
     public boolean isEmpty() {
-        return topNDocumentsOnly == null && returnDocuments == null && maxChunksPerDoc == null;
+        return topNDocumentsOnly == null && returnDocuments == null && truncateInputTokens == null;
     }
 
     @Override
@@ -124,8 +124,8 @@ public class IbmWatsonxRerankTaskSettings implements TaskSettings {
         if (returnDocuments != null) {
             builder.field(RETURN_DOCUMENTS, returnDocuments);
         }
-        if (maxChunksPerDoc != null) {
-            builder.field(MAX_CHUNKS_PER_DOC, maxChunksPerDoc);
+        if (truncateInputTokens != null) {
+            builder.field(TRUNCATE_INPUT_TOKENS, truncateInputTokens);
         }
         builder.endObject();
         return builder;
@@ -145,7 +145,7 @@ public class IbmWatsonxRerankTaskSettings implements TaskSettings {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalInt(topNDocumentsOnly);
         out.writeOptionalBoolean(returnDocuments);
-        out.writeOptionalInt(maxChunksPerDoc);
+        out.writeOptionalInt(truncateInputTokens);
     }
 
     @Override
@@ -155,12 +155,12 @@ public class IbmWatsonxRerankTaskSettings implements TaskSettings {
         IbmWatsonxRerankTaskSettings that = (IbmWatsonxRerankTaskSettings) o;
         return Objects.equals(returnDocuments, that.returnDocuments)
             && Objects.equals(topNDocumentsOnly, that.topNDocumentsOnly)
-            && Objects.equals(maxChunksPerDoc, that.maxChunksPerDoc);
+            && Objects.equals(truncateInputTokens, that.truncateInputTokens);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(returnDocuments, topNDocumentsOnly, maxChunksPerDoc);
+        return Objects.hash(returnDocuments, topNDocumentsOnly, truncateInputTokens);
     }
 
     public static String invalidInputTypeMessage(InputType inputType) {
@@ -179,8 +179,8 @@ public class IbmWatsonxRerankTaskSettings implements TaskSettings {
         return returnDocuments;
     }
 
-    public Integer getMaxChunksPerDoc() {
-        return maxChunksPerDoc;
+    public Integer getTruncateInputTokens() {
+        return truncateInputTokens;
     }
 
     @Override

@@ -62,6 +62,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -76,6 +78,11 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.WILDCARD_PATTERN;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPattern;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPatterns;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.unquoteIndexPattern;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.without;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -2894,5 +2901,31 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 )
             );
         }
+    }
+
+    public void testValidJoinPattern() {
+        var basePattern = randomIndexPatterns();
+        var joinPattern = randomIndexPattern(without(WILDCARD_PATTERN));
+        var onField = randomIdentifier();
+        var type = randomFrom("", "LOOKUP ");
+
+        var plan = statement("FROM " + basePattern + " | " + type + " JOIN " + joinPattern + " ON " + onField);
+
+        var join = as(plan, LookupJoin.class);
+        assertThat(as(join.left(), UnresolvedRelation.class).table().index(), equalTo(unquoteIndexPattern(basePattern)));
+        assertThat(as(join.right(), UnresolvedRelation.class).table().index(), equalTo(unquoteIndexPattern(joinPattern)));
+
+        var joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
+        assertThat(joinType.columns(), hasSize(1));
+        assertThat(as(joinType.columns().getFirst(), UnresolvedAttribute.class).name(), equalTo(onField));
+        assertThat(joinType.coreJoin().joinName(), equalTo("LEFT OUTER"));
+    }
+
+    public void testInvalidJoinPatterns() {
+        var joinPattern = randomIndexPattern(WILDCARD_PATTERN);
+        expectError(
+            "FROM " + randomIndexPatterns() + " | JOIN " + joinPattern + " ON " + randomIdentifier(),
+            "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], * is not allowed in LOOKUP JOIN"
+        );
     }
 }

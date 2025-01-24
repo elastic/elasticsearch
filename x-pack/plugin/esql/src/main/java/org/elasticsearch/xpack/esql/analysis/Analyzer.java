@@ -64,7 +64,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -202,7 +202,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
             return resolveIndex(
                 plan,
-                plan.indexMode().equals(IndexMode.LOOKUP) ? context.lookupResolution().get(plan.table().index()) : context.indexResolution()
+                plan.indexMode().equals(IndexMode.LOOKUP)
+                    ? context.lookupResolution().get(plan.indexPattern().indexPattern())
+                    : context.indexResolution()
             );
         }
 
@@ -213,7 +215,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     ? plan
                     : new UnresolvedRelation(
                         plan.source(),
-                        plan.table(),
+                        plan.indexPattern(),
                         plan.frozen(),
                         plan.metadataFields(),
                         plan.indexMode(),
@@ -221,12 +223,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         plan.commandName()
                     );
             }
-            TableIdentifier table = plan.table();
-            if (indexResolution.matches(table.index()) == false) {
+            IndexPattern table = plan.indexPattern();
+            if (indexResolution.matches(table.indexPattern()) == false) {
                 // TODO: fix this (and tests), or drop check (seems SQL-inherited, where's also defective)
                 new UnresolvedRelation(
                     plan.source(),
-                    plan.table(),
+                    plan.indexPattern(),
                     plan.frozen(),
                     plan.metadataFields(),
                     plan.indexMode(),
@@ -237,36 +239,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             EsIndex esIndex = indexResolution.get();
 
-            if (plan.indexMode().equals(IndexMode.LOOKUP)) {
-                String indexResolutionMessage = null;
-
-                var indexNameWithModes = esIndex.indexNameWithModes();
-                if (indexNameWithModes.size() != 1) {
-                    indexResolutionMessage = "invalid ["
-                        + table
-                        + "] resolution in lookup mode to ["
-                        + indexNameWithModes.size()
-                        + "] indices";
-                } else if (indexNameWithModes.values().iterator().next() != IndexMode.LOOKUP) {
-                    indexResolutionMessage = "invalid ["
-                        + table
-                        + "] resolution in lookup mode to an index in ["
-                        + indexNameWithModes.values().iterator().next()
-                        + "] mode";
-                }
-
-                if (indexResolutionMessage != null) {
-                    return new UnresolvedRelation(
-                        plan.source(),
-                        plan.table(),
-                        plan.frozen(),
-                        plan.metadataFields(),
-                        plan.indexMode(),
-                        indexResolutionMessage,
-                        plan.commandName()
-                    );
-                }
-            }
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
             return new EsRelation(

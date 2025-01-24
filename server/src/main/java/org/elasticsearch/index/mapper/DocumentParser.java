@@ -731,27 +731,19 @@ public final class DocumentParser {
 
         XContentParser parser = context.parser();
         XContentParser.Token token;
-        int elements = 0;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
-                elements = Integer.MAX_VALUE;
                 parseObject(context, lastFieldName);
             } else if (token == XContentParser.Token.START_ARRAY) {
-                elements = Integer.MAX_VALUE;
                 parseArray(context, lastFieldName);
             } else if (token == XContentParser.Token.VALUE_NULL) {
-                elements++;
                 parseNullValue(context, lastFieldName);
             } else if (token == null) {
                 throwEOFOnParseArray(arrayFieldName, context);
             } else {
                 assert token.isValue();
-                elements++;
                 parseValue(context, lastFieldName);
             }
-        }
-        if (elements <= 1 && canRemoveSingleLeafElement) {
-            context.removeLastIgnoredField(fullPath);
         }
         postProcessDynamicArrayMapping(context, lastFieldName);
     }

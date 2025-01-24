@@ -524,8 +524,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         var target = ctx.joinTarget();
-        var rightPattern = visitIdentifier(target.index);
-
+        var rightPattern = visitIndexPattern(List.of(target.index));
+        if (rightPattern.contains(WILDCARD)) {
+            throw new ParsingException(source(target), "invalid index pattern [{}], * is not allowed in LOOKUP JOIN", rightPattern);
+        }
         if (RemoteClusterAware.isRemoteIndexName(rightPattern)) {
             throw new ParsingException(source(target), "LOOKUP JOIN does not support remote cluster indices [{}]", rightPattern);
         }

@@ -103,6 +103,7 @@ public class MistralService extends SenderService {
         Model model,
         DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         InputType inputType,
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
@@ -114,7 +115,7 @@ public class MistralService extends SenderService {
                 inputs.getInputs(),
                 MistralConstants.MAX_BATCH_SIZE,
                 EmbeddingRequestChunker.EmbeddingType.FLOAT,
-                mistralEmbeddingsModel.getConfigurations().getChunkingSettings()
+                chunkingSettings != null ? chunkingSettings : mistralEmbeddingsModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
 
             for (var request : batchedRequests) {

@@ -362,7 +362,16 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
             };
             inferenceProvider.service()
-                .chunkedInfer(inferenceProvider.model(), null, inputs, Map.of(), InputType.INGEST, TimeValue.MAX_VALUE, completionListener);
+                .chunkedInfer(
+                    inferenceProvider.model(),
+                    null,
+                    inputs,
+                    Map.of(),
+                    null,
+                    InputType.INGEST,
+                    TimeValue.MAX_VALUE,
+                    completionListener
+                );
         }
 
         private FieldInferenceResponseAccumulator ensureResponseAccumulatorSlot(int id) {

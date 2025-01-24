@@ -115,6 +115,7 @@ public class HuggingFaceService extends HuggingFaceBaseService {
         Model model,
         DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         InputType inputType,
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
@@ -131,7 +132,7 @@ public class HuggingFaceService extends HuggingFaceBaseService {
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
             EmbeddingRequestChunker.EmbeddingType.FLOAT,
-            huggingFaceModel.getConfigurations().getChunkingSettings()
+            chunkingSettings != null ? chunkingSettings : huggingFaceModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {

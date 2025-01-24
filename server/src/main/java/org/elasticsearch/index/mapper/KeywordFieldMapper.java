@@ -503,7 +503,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptValues = builder.scriptValues();
             this.isDimension = builder.dimension.getValue();
             this.isSyntheticSource = isSyntheticSource;
-            this.hasDocValuesSparseIndex = fieldType.docValuesSkipIndexType().equals(DocValuesSkipIndexType.RANGE);
+            this.hasDocValuesSparseIndex = DocValuesSkipIndexType.NONE.equals(fieldType.docValuesSkipIndexType()) == false;
         }
 
         public KeywordFieldType(String name, boolean isIndexed, boolean hasDocValues, Map<String, String> meta) {
@@ -538,7 +538,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptValues = null;
             this.isDimension = false;
             this.isSyntheticSource = false;
-            this.hasDocValuesSparseIndex = fieldType.docValuesSkipIndexType().equals(DocValuesSkipIndexType.RANGE);
+            this.hasDocValuesSparseIndex = DocValuesSkipIndexType.NONE.equals(fieldType.docValuesSkipIndexType()) == false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {

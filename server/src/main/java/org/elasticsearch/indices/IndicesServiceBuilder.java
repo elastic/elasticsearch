@@ -34,7 +34,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.internal.InternalSearchPlugin;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -266,8 +266,8 @@ public class IndicesServiceBuilder {
             .flatMap(m -> m.entrySet().stream())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        var queryRewriteInterceptors = pluginsService.filterPlugins(SearchPlugin.class)
-            .map(SearchPlugin::getQueryRewriteInterceptors)
+        var queryRewriteInterceptors = pluginsService.filterPlugins(InternalSearchPlugin.class)
+            .map(InternalSearchPlugin::getQueryRewriteInterceptors)
             .flatMap(List::stream)
             .collect(Collectors.toMap(QueryRewriteInterceptor::getQueryName, interceptor -> {
                 if (interceptor.getQueryName() == null) {

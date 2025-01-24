@@ -415,11 +415,14 @@ public class DesiredBalanceComputer {
     }
 
     private static Map<ShardId, ShardAssignment> collectShardAssignments(RoutingNodes routingNodes) {
-        final var entries = routingNodes.getAssignedShards().entrySet();
-        assert entries.stream().flatMap(t -> t.getValue().stream()).allMatch(ShardRouting::started) : routingNodes;
-        final Map<ShardId, ShardAssignment> res = Maps.newHashMapWithExpectedSize(entries.size());
-        for (var shardAndAssignments : entries) {
-            res.put(shardAndAssignments.getKey(), ShardAssignment.ofAssignedShards(shardAndAssignments.getValue()));
+        final var allAssignedShards = routingNodes.getAssignedShards().entrySet();
+        assert allAssignedShards.stream().flatMap(t -> t.getValue().stream()).allMatch(ShardRouting::started) : routingNodes;
+        final Map<ShardId, ShardAssignment> res = Maps.newHashMapWithExpectedSize(allAssignedShards.size());
+        for (var shardIdAndShardRoutings : allAssignedShards) {
+            res.put(
+                shardIdAndShardRoutings.getKey(),
+                ShardAssignment.createFromAssignedShardRoutingsList(shardIdAndShardRoutings.getValue())
+            );
         }
         return res;
     }

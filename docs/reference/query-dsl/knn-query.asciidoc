@@ -137,6 +137,9 @@ documents are then scored according to <<dense-vector-similarity, `similarity`>>
 and the provided `boost` is applied.
 --
 
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-rescore-vector]
+
+
 `boost`::
 +
 --

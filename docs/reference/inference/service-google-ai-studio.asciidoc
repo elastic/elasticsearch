@@ -1,5 +1,5 @@
 [[infer-service-google-ai-studio]]
-=== Google AI Studio {infer} service
+=== Google AI Studio {infer} integration
 
 .New API reference
 [sidebar]

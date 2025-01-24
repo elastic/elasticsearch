@@ -242,7 +242,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithCompletionTaskType() throws IOException {
         List<Object> services = getServices(TaskType.COMPLETION);
-        assertThat(services.size(), equalTo(10));
+        assertThat(services.size(), equalTo(9));
 
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
@@ -250,8 +250,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             providers[i] = (String) serviceConfig.get("service");
         }
 
-        assertArrayEquals(
-            providers,
+        var providerList = new ArrayList<>(
             List.of(
                 "alibabacloud-ai-search",
                 "amazonbedrock",
@@ -259,12 +258,39 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
                 "azureaistudio",
                 "azureopenai",
                 "cohere",
-                "elastic",
                 "googleaistudio",
                 "openai",
                 "streaming_completion_test_service"
-            ).toArray()
+            )
         );
+
+        assertArrayEquals(providers, providerList.toArray());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetServicesWithChatCompletionTaskType() throws IOException {
+        List<Object> services = getServices(TaskType.CHAT_COMPLETION);
+        if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
+            || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
+            assertThat(services.size(), equalTo(3));
+        } else {
+            assertThat(services.size(), equalTo(2));
+        }
+
+        String[] providers = new String[services.size()];
+        for (int i = 0; i < services.size(); i++) {
+            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
+            providers[i] = (String) serviceConfig.get("service");
+        }
+
+        var providerList = new ArrayList<>(List.of("openai", "streaming_completion_test_service"));
+
+        if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
+            || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
+            providerList.addFirst("elastic");
+        }
+
+        assertArrayEquals(providers, providerList.toArray());
     }
 
     @SuppressWarnings("unchecked")
@@ -493,14 +519,19 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
 
     public void testUnifiedCompletionInference() throws Exception {
         String modelId = "streaming";
-        putModel(modelId, mockCompletionServiceModelConfig(TaskType.COMPLETION));
+        putModel(modelId, mockCompletionServiceModelConfig(TaskType.CHAT_COMPLETION));
         var singleModel = getModel(modelId);
         assertEquals(modelId, singleModel.get("inference_id"));
-        assertEquals(TaskType.COMPLETION.toString(), singleModel.get("task_type"));
+        assertEquals(TaskType.CHAT_COMPLETION.toString(), singleModel.get("task_type"));
 
         var input = IntStream.range(1, 2 + randomInt(8)).mapToObj(i -> randomAlphanumericOfLength(5)).toList();
         try {
-            var events = unifiedCompletionInferOnMockService(modelId, TaskType.COMPLETION, input, VALIDATE_ELASTIC_PRODUCT_HEADER_CONSUMER);
+            var events = unifiedCompletionInferOnMockService(
+                modelId,
+                TaskType.CHAT_COMPLETION,
+                input,
+                VALIDATE_ELASTIC_PRODUCT_HEADER_CONSUMER
+            );
             var expectedResponses = expectedResultsIterator(input);
             assertThat(events.size(), equalTo((input.size() + 1) * 2));
             events.forEach(event -> {

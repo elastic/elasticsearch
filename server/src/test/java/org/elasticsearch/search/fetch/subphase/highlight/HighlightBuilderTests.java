@@ -574,11 +574,10 @@ public class HighlightBuilderTests extends ESTestCase {
         assertEquals("pre_tags are set but post_tags are not set", e.getCause().getCause().getMessage());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/119723")
     public void testInvalidMaxAnalyzedOffset() throws IOException {
         XContentParseException e = expectParseThrows(
             XContentParseException.class,
-            "{ \"max_analyzed_offset\" : " + randomIntBetween(-100, -1) + "}"
+            "{ \"max_analyzed_offset\" : " + randomIntBetween(-100, -2) + "}"
         );
         assertThat(e.getMessage(), containsString("[highlight] failed to parse field [" + MAX_ANALYZED_OFFSET_FIELD.toString() + "]"));
         assertThat(e.getCause().getMessage(), containsString("[max_analyzed_offset] must be a positive integer, or -1"));

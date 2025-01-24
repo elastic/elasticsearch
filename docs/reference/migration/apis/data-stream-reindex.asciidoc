@@ -154,8 +154,8 @@ For the above example, the following would be a possible status:
   "in_progress": [
     {
       "index": ".ds-my-data-stream-2025.01.23-000001",
-      "total_doc_count": 164937,
-      "reindexed_doc_count": 6849
+      "total_doc_count": 10000000,
+      "reindexed_doc_count": 999999
     }
   ],
   "pending": 2,
@@ -201,7 +201,8 @@ returns the following:
 
 Let's assume the task has been running for a long time. By default, we throttle how many requests the reindex operation
 can execute per second. This keeps the reindex process from consuming too many resources. But the default value of `1000`
-request per second could be to low for your use case. The <<migrate_data_stream_reindex_max_request_per_second-setting,`migrate.data_stream_reindex_max_request_per_second` setting>>
+request per second could be to low for your use case.
+The <<migrate_data_stream_reindex_max_request_per_second-setting,`migrate.data_stream_reindex_max_request_per_second` setting>>
 can be used to increase or decrease the number of requests per second, or to remove the throttle entirely.
 
 Changing this setting won't have an effect on the backing index that is currently being reindexed.
@@ -251,15 +252,14 @@ Later, once all the backing indices have finished, the <<data-stream-reindex-sta
 ----
 The completed status will be accessible from the status API for 24 hours after completion of the task.
 
-
-We can now check the data stream to verify that indices were upgraded.
+We can now check the data stream to verify that indices were upgraded:
 
 [source,console-result]
 ----
 GET _data_stream/my-data-stream?filter_path=data_streams.indices.index_name
 ----
 
-We now get these results:
+which returns:
 [source,console-result]
 ----
 {
@@ -311,9 +311,8 @@ which returns:
 [[reindex-data-stream-handling-failure]]
 ===== Handling Failures
 Since the reindex data stream API runs in the background, failure information can be obtained through the status API.
-
-For example, if the user does not have the `manage` permission for the data stream, after starting reindexing, we
-can check the status API:
+For example, if the user does not have the `manage` permission for the data stream,
+after starting reindexing, we can check the status API:
 
 [source,console-result]
 ----
@@ -329,16 +328,16 @@ In this case we get the following result:
   "complete": false,
   "total_indices_in_data_stream": 4,
   "total_indices_requiring_upgrade": 3,
-  "successes": 0,
+  "successes": 1,
   "in_progress": [
-    {
-      "index": ".ds-my-data-stream-2024.01.07-000001",
-      "total_doc_count": 164937,
-      "reindexed_doc_count": 6849
-    }
+
   ],
   "pending": 2,
-  "errors": []
+  "errors": [
+    {
+      "index": ".ds-my-data-stream-2025.01.23-000002",
+    }
+  ]
 }
 ----
 

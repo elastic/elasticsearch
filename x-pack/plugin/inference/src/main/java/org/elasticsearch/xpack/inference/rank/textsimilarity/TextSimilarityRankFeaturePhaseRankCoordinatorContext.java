@@ -150,11 +150,19 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     }
 
     private float[] extractScoresFromRankedDocs(List<RankedDocsResults.RankedDoc> rankedDocs) {
+        // As some models might produce negative scores, we want to ensure that all scores will be positive
+        // so we will make use of the following normalization formula:
+        // score = max(score, 0) + min(exp(score), 1)
+        // this will ensure that all positive scores lie in the [1, inf) range,
+        // while negative values (and 0) will be shifted to (0, 1]
         float[] scores = new float[rankedDocs.size()];
         for (RankedDocsResults.RankedDoc rankedDoc : rankedDocs) {
-            scores[rankedDoc.index()] = rankedDoc.relevanceScore();
+            scores[rankedDoc.index()] = normalizeScore(rankedDoc.relevanceScore());
         }
-
         return scores;
+    }
+
+    private static float normalizeScore(float score) {
+        return Math.max(score, 0) + Math.min((float) Math.exp(score), 1);
     }
 }

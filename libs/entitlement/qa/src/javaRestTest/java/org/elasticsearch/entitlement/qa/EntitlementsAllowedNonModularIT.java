@@ -28,7 +28,7 @@ public class EntitlementsAllowedNonModularIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("test-plugin", spec -> EntitlementsUtil.setupEntitlements(spec, false, ALLOWED_ENTITLEMENTS))
+        .module("entitlement-test-plugin", spec -> EntitlementsUtil.setupEntitlements(spec, false, ALLOWED_ENTITLEMENTS))
         .systemProperty("es.entitlements.enabled", "true")
         .setting("xpack.security.enabled", "false")
         .build();

@@ -33,6 +33,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.junit.After;
@@ -422,6 +423,28 @@ public class AsyncSearchTaskTests extends ESTestCase {
             assertTrue(latch.await(1000, TimeUnit.SECONDS));
         }
         assertThat(failure.get(), instanceOf(RuntimeException.class));
+    }
+
+    public void testDelayedOnListShardsShouldNotResultInExceptions() throws InterruptedException {
+        try (AsyncSearchTask task = createAsyncSearchTask()) {
+            // Methods on search listener called in some random order.
+            // Aim is to ensure that these methods do not result in an NPE.
+            task.getSearchProgressActionListener()
+                .onPartialReduce(Collections.emptyList(), new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
+
+            task.getSearchProgressActionListener()
+                .onClusterResponseMinimizeRoundtrips(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, newSearchResponse(0, 0, 0));
+
+            task.getSearchProgressActionListener()
+                .onFinalReduce(Collections.emptyList(), new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
+
+            // Pass the shard info at last.
+            task.getSearchProgressActionListener()
+                .onListShards(Collections.emptyList(), Collections.emptyList(), SearchResponse.Clusters.EMPTY, false, createTimeProvider());
+
+            ActionListener.respondAndRelease((AsyncSearchTask.Listener) task.getProgressListener(), newSearchResponse(0, 0, 0));
+            assertCompletionListeners(task, 0, 0, 0, 0, false, false);
+        }
     }
 
     private static SearchResponse newSearchResponse(

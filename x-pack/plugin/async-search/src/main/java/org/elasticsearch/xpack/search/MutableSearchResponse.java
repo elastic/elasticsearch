@@ -92,10 +92,10 @@ class MutableSearchResponse implements Releasable {
     }
 
     /**
-     * Updates the response with the number of total and skipped shards.
+     * Updates the response with the number of total and skipped local shards.
      *
-     * @param totalShards The number of shards that participate in the request.
-     * @param skippedShards The number of skipped shards.
+     * @param totalShards The number of local shards that participate in the request.
+     * @param skippedShards The number of local shards skipped.
      */
     synchronized void updateShardsAndClusters(int totalShards, int skippedShards, Clusters clusters) {
         this.totalShards = totalShards;

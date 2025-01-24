@@ -4320,10 +4320,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
         assert waitForEngineOrClosedShardListeners.isDone();
         try {
-            final var currentEngine = getEngine();
-            currentEngine.prepareForEngineReset();
-            var engineConfig = newEngineConfig(replicationTracker);
             synchronized (engineMutex) {
+                final var currentEngine = getEngine();
+                currentEngine.prepareForEngineReset();
+                var engineConfig = newEngineConfig(replicationTracker);
                 verifyNotClosed();
                 IOUtils.close(currentEngine);
                 var newEngine = createEngine(engineConfig);

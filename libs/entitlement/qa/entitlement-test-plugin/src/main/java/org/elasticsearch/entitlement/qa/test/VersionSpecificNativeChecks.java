@@ -11,7 +11,7 @@ package org.elasticsearch.entitlement.qa.test;
 
 class VersionSpecificNativeChecks {
 
-    static void enableNativeAccess() {}
+    static void enableNativeAccess() throws Exception {}
 
     static void addressLayoutWithTargetLayout() {}
 

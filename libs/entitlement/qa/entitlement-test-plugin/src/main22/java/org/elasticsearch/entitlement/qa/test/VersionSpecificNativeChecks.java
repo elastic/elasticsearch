@@ -31,13 +31,20 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
 class VersionSpecificNativeChecks {
 
-    static void enableNativeAccess() {
+    static void enableNativeAccess() throws Exception {
         ModuleLayer parent = ModuleLayer.boot();
-        Configuration cf = parent.configuration().resolve(ModuleFinder.of(), ModuleFinder.of(), Set.of());
-        ClassLoader scl = ClassLoader.getSystemClassLoader();
 
-        var controller = ModuleLayer.defineModulesWithOneLoader(cf, List.of(parent), scl);
-        controller.enableNativeAccess(scl.getUnnamedModule());
+        var location = EntitlementTestPlugin.class.getProtectionDomain().getCodeSource().getLocation();
+
+        // We create a layer for our own module, so we have a controller to try and call enableNativeAccess on it.
+        // This works in both the modular and non-modular case: the target module has to be present in the new layer, but its entitlements
+        // and policies do not matter to us: we are checking that the caller is (or isn't) entitled to use enableNativeAccess
+        Configuration cf = parent.configuration()
+            .resolve(ModuleFinder.of(Path.of(location.toURI())), ModuleFinder.of(), Set.of("org.elasticsearch.entitlement.qa.test"));
+        var controller = ModuleLayer.defineModulesWithOneLoader(cf, List.of(parent), ClassLoader.getSystemClassLoader());
+        var targetModule = controller.layer().findModule("org.elasticsearch.entitlement.qa.test");
+
+        controller.enableNativeAccess(targetModule.get());
     }
 
     static void addressLayoutWithTargetLayout() {
@@ -74,24 +81,21 @@ class VersionSpecificNativeChecks {
     }
 
     static void memorySegmentReinterpret() {
-        try (Arena arena = Arena.ofAuto()) {
-            MemorySegment segment = arena.allocate(100);
-            segment.reinterpret(50);
-        }
+        Arena arena = Arena.ofAuto();
+        MemorySegment segment = arena.allocate(100);
+        segment.reinterpret(50);
     }
 
     static void memorySegmentReinterpretWithCleanup() {
-        try (Arena arena = Arena.ofAuto()) {
-            MemorySegment segment = arena.allocate(100);
-            segment.reinterpret(Arena.ofAuto(), s -> {});
-        }
+        Arena arena = Arena.ofAuto();
+        MemorySegment segment = arena.allocate(100);
+        segment.reinterpret(Arena.ofAuto(), s -> {});
     }
 
     static void memorySegmentReinterpretWithSizeAndCleanup() {
-        try (Arena arena = Arena.ofAuto()) {
-            MemorySegment segment = arena.allocate(100);
-            segment.reinterpret(50, Arena.ofAuto(), s -> {});
-        }
+        Arena arena = Arena.ofAuto();
+        MemorySegment segment = arena.allocate(100);
+        segment.reinterpret(50, Arena.ofAuto(), s -> {});
     }
 
     static void symbolLookupWithPath() {

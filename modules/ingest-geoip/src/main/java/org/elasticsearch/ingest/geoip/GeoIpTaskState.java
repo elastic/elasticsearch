@@ -218,6 +218,11 @@ public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWritea
             // micro optimization: this looks a little silly, but the expected case is that database_validity is only used in tests.
             // we run this code on every document, though, so the argument checking and other bits that getAsTime does is enough
             // to show up in a flame graph.
+
+            // if you grep for "ingest.geoip.database_validity" and you'll see that it's not a 'real' setting -- it's only defined in
+            // AbstractGeoIpIT, that's why it's an inline string constant here and no some static final, and also why it cannot
+            // be the case that this setting exists in a real running cluster
+
             final long valid;
             if (settings.hasValue("ingest.geoip.database_validity")) {
                 valid = settings.getAsTime("ingest.geoip.database_validity", THIRTY_DAYS).millis();

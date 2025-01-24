@@ -253,7 +253,11 @@ public class InternalEngine extends Engine {
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
-            mergeScheduler = createMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), engineConfig.getThreadPoolMergeExecutor());
+            mergeScheduler = createMergeScheduler(
+                engineConfig.getShardId(),
+                engineConfig.getIndexSettings(),
+                engineConfig.getThreadPoolMergeExecutor()
+            );
             scheduler = mergeScheduler.getMergeScheduler();
             throttle = new IndexThrottle();
             try {

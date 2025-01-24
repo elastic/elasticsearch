@@ -75,8 +75,10 @@ public class ThreadPoolMergeExecutor {
         }
     }
 
-    public synchronized void updateMergeScheduler(ThreadPoolMergeScheduler threadPoolMergeScheduler,
-                                                  Consumer<ThreadPoolMergeScheduler> updater) {
+    public synchronized void updateMergeScheduler(
+        ThreadPoolMergeScheduler threadPoolMergeScheduler,
+        Consumer<ThreadPoolMergeScheduler> updater
+    ) {
         boolean removed = registeredMergeSchedulers.remove(threadPoolMergeScheduler);
         if (false == removed) {
             throw new IllegalStateException("Cannot update a merge scheduler that is not registered");

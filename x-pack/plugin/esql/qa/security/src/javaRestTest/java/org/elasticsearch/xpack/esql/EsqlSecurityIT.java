@@ -59,6 +59,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("fls_user", "x-pack-test-password", "fls_user", false)
         .user("fls_user2", "x-pack-test-password", "fls_user2", false)
         .user("fls_user3", "x-pack-test-password", "fls_user3", false)
+        .user("fls_user4_1", "x-pack-test-password", "fls_user4_1", false)
         .user("dls_user", "x-pack-test-password", "dls_user", false)
         .user("metadata1_read2", "x-pack-test-password", "metadata1_read2", false)
         .user("alias_user1", "x-pack-test-password", "alias_user1", false)
@@ -699,6 +700,13 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 )
             )
         );
+
+        ResponseException error = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("fls_user4_1", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN `lookup-user2` ON value")
+        );
+        assertThat(error.getMessage(), containsString("Unknown column [value] in right side of join"));
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
     }
 
     public void testLookupJoinIndexForbidden() throws Exception {

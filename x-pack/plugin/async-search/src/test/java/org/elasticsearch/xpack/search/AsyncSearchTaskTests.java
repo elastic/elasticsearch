@@ -432,8 +432,9 @@ public class AsyncSearchTaskTests extends ESTestCase {
             task.getSearchProgressActionListener()
                 .onPartialReduce(Collections.emptyList(), new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
 
+            var searchResponse = newSearchResponse(0, 0, 0);
             task.getSearchProgressActionListener()
-                .onClusterResponseMinimizeRoundtrips(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, newSearchResponse(0, 0, 0));
+                .onClusterResponseMinimizeRoundtrips(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, searchResponse);
 
             task.getSearchProgressActionListener()
                 .onFinalReduce(Collections.emptyList(), new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
@@ -442,7 +443,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
             task.getSearchProgressActionListener()
                 .onListShards(Collections.emptyList(), Collections.emptyList(), SearchResponse.Clusters.EMPTY, false, createTimeProvider());
 
-            ActionListener.respondAndRelease((AsyncSearchTask.Listener) task.getProgressListener(), newSearchResponse(0, 0, 0));
+            ActionListener.respondAndRelease((AsyncSearchTask.Listener) task.getProgressListener(), searchResponse);
             assertCompletionListeners(task, 0, 0, 0, 0, false, false);
         }
     }

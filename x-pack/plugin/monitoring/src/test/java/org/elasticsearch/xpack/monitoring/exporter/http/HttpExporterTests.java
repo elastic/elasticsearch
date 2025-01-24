@@ -415,7 +415,7 @@ public class HttpExporterTests extends ESTestCase {
             builder.setSecureSettings(mockSecureSettings);
             expectedWarnings.add(
                 "[xpack.monitoring.exporters._http.auth.username] setting was deprecated in Elasticsearch and will be "
-                    + "removed in a future release."
+                    + "removed in a future release. See the deprecation changes documentation for the next major version."
             );
         }
 

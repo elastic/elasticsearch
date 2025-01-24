@@ -269,7 +269,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
             // Check the write alias points to the new index
             Map<String, Object> aliasesMap = entityAsMap(getAliasesResponse);
-            var stateAlias = (Map<String, Object>)aliasesMap.get(".ml-state-000002");
+            var stateAlias = (Map<String, Object>) aliasesMap.get(".ml-state-000002");
             assertNotNull(stateAlias);
             var isHidden = XContentMapValues.extractValue(stateAlias, "aliases", ".ml-state-write", "is_hidden");
             assertTrue(Boolean.TRUE.equals(isHidden));

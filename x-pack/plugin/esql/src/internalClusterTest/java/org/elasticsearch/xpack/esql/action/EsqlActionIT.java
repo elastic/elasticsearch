@@ -1063,7 +1063,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             );
             deleteTemplate = true;
 
-            String[] dsNames = {"test_ds_patterns_1", "test_ds_patterns_2", "test_ds_patterns_3"};
+            String[] dsNames = { "test_ds_patterns_1", "test_ds_patterns_2", "test_ds_patterns_3" };
             String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
             int i = 0;
             for (String dsName : dsNames) {

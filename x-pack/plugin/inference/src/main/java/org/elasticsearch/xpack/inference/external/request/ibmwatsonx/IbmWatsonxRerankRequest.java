@@ -92,6 +92,18 @@ public class IbmWatsonxRerankRequest implements IbmWatsonxRequest {
         return this; // TODO?
     }
 
+    public String getQuery(){
+        return query;
+    }
+
+    public List<String> getInput(){
+        return input;
+    }
+
+    public IbmWatsonxRerankModel getModel(){
+        return model;
+    }
+
     @Override
     public boolean[] getTruncationInfo() {
         return null;

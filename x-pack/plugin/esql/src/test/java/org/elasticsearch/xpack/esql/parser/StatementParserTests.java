@@ -78,6 +78,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.CROSS_CLUSTER;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.WILDCARD_PATTERN;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPattern;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPatterns;
@@ -2947,13 +2948,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testValidJoinPattern() {
+    public void testValidFromPattern() {
         var basePattern = randomIndexPatterns();
-        var joinPattern = randomIndexPattern(without(WILDCARD_PATTERN));
-        var onField = randomIdentifier();
-        var type = randomFrom("", "LOOKUP ");
 
-        var plan = statement("FROM " + basePattern + " | " + type + " JOIN " + joinPattern + " ON " + onField);
+        var plan = statement("FROM " + basePattern);
+
+        assertThat(as(plan, UnresolvedRelation.class).table().index(), equalTo(unquoteIndexPattern(basePattern)));
+    }
+
+    public void testValidJoinPattern() {
+        var basePattern = randomIndexPatterns(without(CROSS_CLUSTER));
+        var joinPattern = randomIndexPattern(without(WILDCARD_PATTERN), without(CROSS_CLUSTER));
+        var onField = randomIdentifier();
+
+        var plan = statement("FROM " + basePattern + " | LOOKUP JOIN " + joinPattern + " ON " + onField);
 
         var join = as(plan, LookupJoin.class);
         assertThat(as(join.left(), UnresolvedRelation.class).table().index(), equalTo(unquoteIndexPattern(basePattern)));
@@ -2966,20 +2974,30 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidJoinPatterns() {
-        var joinPattern = randomIndexPattern(WILDCARD_PATTERN);
-        expectError(
-            "FROM " + randomIndexPatterns() + " | JOIN " + joinPattern + " ON " + randomIdentifier(),
-            "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], * is not allowed in LOOKUP JOIN"
-        );
-    }
-
-    public void testRemoteLookupJoin() {
-        expectError("FROM remote:left | LOOKUP JOIN right ON field", "LOOKUP JOIN does not support remote cluster indices [remote:left]");
-        expectError(
-            "FROM  left | LOOKUP JOIN `remote:right` ON field",
-            "LOOKUP JOIN does not support remote cluster indices [remote:right]"
-        );
-        // TODO ES-10559 this should be replaced with a proper error message once grammar allows indexPattern as joinTarget
-        expectError("FROM my-index | LOOKUP JOIN remote:languages_lookup ON language_code", "line 1:35: token recognition error at: ':'");
+        {
+            // wildcard
+            var joinPattern = randomIndexPattern(WILDCARD_PATTERN, without(CROSS_CLUSTER));
+            expectError(
+                "FROM " + randomIndexPatterns() + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], * is not allowed in LOOKUP JOIN"
+            );
+        }
+        {
+            // remote cluster on the right
+            var joinPattern = randomIndexPattern(CROSS_CLUSTER, without(WILDCARD_PATTERN));
+            expectError(
+                "FROM " + randomIndexPatterns() + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], remote clusters are not supported in LOOKUP JOIN"
+            );
+        }
+        {
+            // remote cluster on the left
+            var fromPatterns = randomIndexPatterns(CROSS_CLUSTER, without(WILDCARD_PATTERN));
+            var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN));
+            expectError(
+                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported in LOOKUP JOIN"
+            );
+        }
     }
 }

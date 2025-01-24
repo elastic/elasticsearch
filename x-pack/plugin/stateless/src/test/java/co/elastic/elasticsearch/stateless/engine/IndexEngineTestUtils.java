@@ -18,6 +18,8 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.index.engine.Engine;
 
 import java.util.Map;
 import java.util.Set;
@@ -32,5 +34,9 @@ public class IndexEngineTestUtils {
 
     public static long getLatestCommittedGeneration(DirectoryReader directoryReader) {
         return IndexEngine.getLatestCommittedGeneration(directoryReader);
+    }
+
+    public static void flushHollow(IndexEngine indexEngine, ActionListener<Engine.FlushResult> listener) {
+        indexEngine.flushHollow(listener);
     }
 }

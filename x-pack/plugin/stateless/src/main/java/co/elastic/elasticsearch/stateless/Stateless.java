@@ -1132,6 +1132,7 @@ public class Stateless extends Plugin
         TranslogReplicator translogReplicator,
         Function<String, BlobContainer> translogBlobContainer,
         StatelessCommitService statelessCommitService,
+        HollowShardsService hollowShardsService,
         SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
         RefreshThrottler.Factory refreshThrottlerFactory,
         DocumentParsingProvider documentParsingProvider,
@@ -1142,6 +1143,7 @@ public class Stateless extends Plugin
             translogReplicator,
             translogBlobContainer,
             statelessCommitService,
+            hollowShardsService,
             sharedBlobCacheWarmingService,
             refreshThrottlerFactory,
             statelessCommitService.getIndexEngineLocalReaderListenerForShard(engineConfig.getShardId()),
@@ -1213,13 +1215,14 @@ public class Stateless extends Plugin
                 }
                 if (IndexEngine.isLastCommitHollow(segmentCommitInfos)) {
                     logger.info("--> Using hollow engine for shard {}", config.getShardId());
-                    return new HollowIndexEngine(config, getCommitService());
+                    return new HollowIndexEngine(config, getCommitService(), hollowShardsService.get());
                 }
                 return newIndexEngine(
                     newConfig,
                     translogReplicator.get(),
                     getObjectStoreService()::getTranslogBlobContainer,
                     getCommitService(),
+                    hollowShardsService.get(),
                     sharedBlobCacheWarmingService.get(),
                     refreshThrottlingService.get().createRefreshThrottlerFactory(indexSettings),
                     documentParsingProvider.get(),

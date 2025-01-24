@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
+import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 
@@ -52,10 +53,10 @@ import java.util.function.Supplier;
  *
  * The hollow process is implemented in {@link TransportStatelessPrimaryRelocationAction} and is summarized as follows:
  * <ul>
- * <li> The source indexing shard acquires all primary permits when marked as relocated, and flushes a hollow commit with
- *      {@link IndexEngine#flushHollow(ActionListener)}.</li>
- * <li> The source indexing shard installs an ingestion blocker with {@link HollowShardsService#installIngestionBlocker(IndexShard)}.</li>
- * <li> The target indexing shard recovers with a {@link co.elastic.elasticsearch.stateless.engine.HollowIndexEngine}.</li>
+ * <li> The source indexing shard acquires all primary permits when marked as relocated, and installs an ingestion blocker with
+ *      {@link HollowShardsService#installIngestionBlocker(IndexShard)}.</li>
+ * <li> The source indexing shard resets the engine, which flushes a hollow commit, and switches to the {@link HollowIndexEngine}</li>
+ * <li> The target indexing shard recovers with a {@link HollowIndexEngine}.</li>
  * <li> The target indexing shard installs an ingestion blocker.</li>
  * </ul>
  */
@@ -125,7 +126,9 @@ public class HollowShardsService extends AbstractLifecycleComponent {
 
     public boolean isHollowableIndexShard(IndexShard indexShard, boolean checkPrimaryPermits) {
         boolean noActiveOperations = checkPrimaryPermits ? indexShard.getActiveOperationsCount() == 0 : true;
-        if (featureEnabled && indexShard.isSystem() == false && noActiveOperations) {
+        // TODO consider that ingestion is not blocked. We should not hollow a shard that is being unhollowed due to new blocked ingestion.
+        boolean ingestionNotBlocked = hollowShardsIngestionBlocker.get(indexShard.shardId()) == null;
+        if (featureEnabled && indexShard.isSystem() == false && noActiveOperations && ingestionNotBlocked) {
             final var engine = indexShard.getEngineOrNull();
             if (engine instanceof IndexEngine indexEngine) {
                 final var index = indexShard.shardId().getIndex();
@@ -223,8 +226,11 @@ public class HollowShardsService extends AbstractLifecycleComponent {
         }
     }
 
-    // package-private for testing
-    boolean isIngestionBlocked(ShardId shardId) {
-        return hollowShardsIngestionBlocker.get(shardId) != null;
+    public void assertIngestionBlocked(ShardId shardId, boolean blocked) {
+        assertIngestionBlocked(shardId, blocked, "ingestion should be " + (blocked ? "blocked" : "unblocked"));
+    }
+
+    public void assertIngestionBlocked(ShardId shardId, boolean blocked, String message) {
+        assert blocked == (hollowShardsIngestionBlocker.get(shardId) != null) : message;
     }
 }

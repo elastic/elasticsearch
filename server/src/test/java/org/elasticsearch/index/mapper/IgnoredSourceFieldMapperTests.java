@@ -752,7 +752,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         })).documentMapper();
         var syntheticSource = syntheticSource(documentMapper, b -> b.array("value", new String[] { "foo", null }));
         // TODO: nulls
-//        assertEquals("{\"value\":[\"foo\",null]}", syntheticSource);
+        // assertEquals("{\"value\":[\"foo\",null]}", syntheticSource);
         assertEquals("{\"value\":[\"foo\"]}", syntheticSource);
     }
 

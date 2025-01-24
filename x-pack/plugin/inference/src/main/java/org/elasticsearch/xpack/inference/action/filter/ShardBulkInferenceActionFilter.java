@@ -41,6 +41,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
@@ -366,7 +367,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     null,
                     inputs,
                     Map.of(),
-                    null,
+                    inferenceProvider.model().getConfigurations().getChunkingSettings(), // TODO Override here
                     InputType.INGEST,
                     TimeValue.MAX_VALUE,
                     completionListener
@@ -450,7 +451,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         model != null ? new SemanticTextField.ModelSettings(model) : null,
                         chunkMap
                     ),
-                    indexRequest.getContentType()
+                    indexRequest.getContentType(),
+                    ChunkingSettingsBuilder.fromMap(inferenceFieldMetadata.getChunkingSettings())
                 );
 
                 if (useLegacyFormat) {

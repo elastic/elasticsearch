@@ -31,11 +31,19 @@ import org.elasticsearch.entitlement.runtime.policy.Scope;
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Modifier;
+import java.nio.file.FileSystems;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
@@ -59,11 +67,23 @@ public class EntitlementInitialization {
     public static void initialize(Instrumentation inst) throws Exception {
         manager = initChecker();
 
-        Map<MethodKey, CheckMethod> checkMethods = INSTRUMENTER_FACTORY.lookupMethods(EntitlementChecker.class);
+        Map<MethodKey, CheckMethod> checkMethods = new HashMap<>(INSTRUMENTATION_SERVICE.lookupMethods(EntitlementChecker.class));
+
+        var fileSystemProviderClass = FileSystems.getDefault().provider().getClass();
+        addInstrumentationMethod(
+            checkMethods,
+            FileSystemProvider.class,
+            "newInputStream",
+            fileSystemProviderClass,
+            EntitlementChecker.class,
+            "checkNewInputStream",
+            Path.class,
+            OpenOption[].class
+        );
 
         var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
 
-        Instrumenter instrumenter = INSTRUMENTER_FACTORY.newInstrumenter(EntitlementChecker.class, checkMethods);
+        Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(EntitlementChecker.class, checkMethods);
         inst.addTransformer(new Transformer(instrumenter, classesToTransform), true);
         inst.retransformClasses(findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform));
     }
@@ -108,6 +128,30 @@ public class EntitlementInitialization {
         return new PolicyManager(serverPolicy, agentEntitlements, pluginPolicies, resolver, ENTITLEMENTS_MODULE);
     }
 
+    static void addInstrumentationMethod(
+        Map<MethodKey, CheckMethod> checkMethods,
+        Class<?> clazz,
+        String methodName,
+        Class<?> implementationClass,
+        Class<?> checkerClass,
+        String checkMethodName,
+        Class<?>... parameterTypes
+    ) throws NoSuchMethodException {
+        var instrumentationMethod = clazz.getMethod(methodName, parameterTypes);
+
+        var checkerAdditionalArguments = Modifier.isStatic(instrumentationMethod.getModifiers())
+            ? Stream.of(Class.class)
+            : Stream.of(Class.class, clazz);
+
+        var checkerArgumentTypes = Stream.concat(checkerAdditionalArguments, Arrays.stream(parameterTypes)).toArray(n -> new Class<?>[n]);
+        var additionalMethod = INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+            implementationClass,
+            instrumentationMethod,
+            checkerClass.getMethod(checkMethodName, checkerArgumentTypes)
+        );
+        checkMethods.put(additionalMethod.methodToInstrument(), additionalMethod.checkMethod());
+    }
+
     private static ElasticsearchEntitlementChecker initChecker() {
         final PolicyManager policyManager = createPolicyManager();
 
@@ -138,7 +182,7 @@ public class EntitlementInitialization {
         }
     }
 
-    private static final InstrumentationService INSTRUMENTER_FACTORY = new ProviderLocator<>(
+    private static final InstrumentationService INSTRUMENTATION_SERVICE = new ProviderLocator<>(
         "entitlement",
         InstrumentationService.class,
         "org.elasticsearch.entitlement.instrumentation",

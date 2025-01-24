@@ -20,6 +20,8 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -48,20 +50,106 @@ public class InstrumentationServiceImpl implements InstrumentationService {
                 String[] exceptions
             ) {
                 var mv = super.visitMethod(access, checkerMethodName, checkerMethodDescriptor, signature, exceptions);
+                if (checkerMethodName.startsWith(InstrumentationService.CHECK_METHOD_PREFIX)) {
+                    var checkerMethodArgumentTypes = Type.getArgumentTypes(checkerMethodDescriptor);
+                    var methodToInstrument = parseCheckerMethodSignature(checkerMethodName, checkerMethodArgumentTypes);
 
-                var checkerMethodArgumentTypes = Type.getArgumentTypes(checkerMethodDescriptor);
-                var methodToInstrument = parseCheckerMethodSignature(checkerMethodName, checkerMethodArgumentTypes);
+                    var checkerParameterDescriptors = Arrays.stream(checkerMethodArgumentTypes).map(Type::getDescriptor).toList();
+                    var checkMethod = new CheckMethod(Type.getInternalName(checkerClass), checkerMethodName, checkerParameterDescriptors);
 
-                var checkerParameterDescriptors = Arrays.stream(checkerMethodArgumentTypes).map(Type::getDescriptor).toList();
-                var checkMethod = new CheckMethod(Type.getInternalName(checkerClass), checkerMethodName, checkerParameterDescriptors);
-
-                methodsToInstrument.put(methodToInstrument, checkMethod);
-
+                    methodsToInstrument.put(methodToInstrument, checkMethod);
+                }
                 return mv;
             }
         };
         reader.accept(visitor, 0);
         return methodsToInstrument;
+    }
+
+    @Override
+    public InstrumentationInfo lookupImplementationMethod(Class<?> implementationClass, Method instrumentMethod, Method checkMethod) {
+        checkMethodIsValid(implementationClass, instrumentMethod);
+
+        var instrumentMethodArguments = Type.getArgumentTypes(instrumentMethod);
+        var checkMethodArguments = Type.getArgumentTypes(checkMethod);
+
+        checkArguments(checkMethodArguments, instrumentMethodArguments, Modifier.isStatic(instrumentMethod.getModifiers()));
+
+        return new InstrumentationInfo(
+            new MethodKey(
+                Type.getInternalName(implementationClass),
+                instrumentMethod.getName(),
+                Arrays.stream(instrumentMethodArguments).map(Type::getInternalName).toList()
+            ),
+            new CheckMethod(
+                Type.getInternalName(checkMethod.getDeclaringClass()),
+                checkMethod.getName(),
+                Arrays.stream(checkMethodArguments).map(Type::getDescriptor).toList()
+            )
+        );
+    }
+
+    private static void checkArguments(Type[] checkMethodArguments, Type[] instrumentMethodArguments, boolean isStatic) {
+        var additionalCheckArgs = (isStatic ? 1 : 2);
+        if (checkMethodArguments.length != instrumentMethodArguments.length + additionalCheckArgs) {
+            throw new IllegalArgumentException("The check method argument count is incorrect");
+        }
+
+        if (checkMethodArguments[0] != Type.getType(Class.class)) {
+            throw new IllegalArgumentException("The first argument of a check method must be the caller Class");
+        }
+
+        for (int i = additionalCheckArgs; i < checkMethodArguments.length; ++i) {
+            if (checkMethodArguments[i] != instrumentMethodArguments[i - additionalCheckArgs]) {
+                throw new IllegalArgumentException("Additional arguments of a check method must be the same as the instrumented method");
+            }
+        }
+    }
+
+    private static void checkMethodIsValid(Class<?> implementationClass, Method targetMethod) {
+        if (targetMethod.getDeclaringClass().isAssignableFrom(implementationClass) == false) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Not an implementation class for %s: %s does not implement %s",
+                    targetMethod.getName(),
+                    implementationClass.getName(),
+                    targetMethod.getDeclaringClass().getName()
+                )
+            );
+        }
+        if (Modifier.isPrivate(targetMethod.getModifiers())) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Not a valid instrumentation method: %s is private in %s",
+                    targetMethod.getName(),
+                    targetMethod.getDeclaringClass().getName()
+                )
+            );
+        }
+        try {
+            var implementationMethod = implementationClass.getMethod(targetMethod.getName(), targetMethod.getParameterTypes());
+            var methodModifiers = implementationMethod.getModifiers();
+            if (Modifier.isAbstract(methodModifiers)) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "Not a valid instrumentation method: %s is abstract in %s",
+                        targetMethod.getName(),
+                        implementationClass.getName()
+                    )
+                );
+            }
+        } catch (NoSuchMethodException e) {
+            assert false
+                : String.format(
+                    Locale.ROOT,
+                    "Not a valid instrumentation method: %s cannot be found in %s",
+                    targetMethod.getName(),
+                    implementationClass.getName()
+                );
+        }
     }
 
     private static final Type CLASS_TYPE = Type.getType(Class.class);
@@ -85,8 +173,8 @@ public class InstrumentationServiceImpl implements InstrumentationService {
                 String.format(
                     Locale.ROOT,
                     "Checker method %s has incorrect name format. "
-                        + "It should be either check$$methodName (instance), check$package_ClassName$methodName (static) or "
-                        + "check$package_ClassName$ (ctor)",
+                        + "It should be either check$package_ClassName$methodName (instance), check$package_ClassName$$methodName (static) "
+                        + "or check$package_ClassName$ (ctor)",
                     checkerMethodName
                 )
             );

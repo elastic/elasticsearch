@@ -40,6 +40,9 @@ import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.spi.FileSystemProvider;
 import java.security.cert.CertStoreParameters;
 import java.util.List;
 import java.util.Properties;
@@ -410,4 +413,12 @@ public interface EntitlementChecker {
     void check$java_lang_System$$load(Class<?> callerClass, String filename);
 
     void check$java_lang_System$$loadLibrary(Class<?> callerClass, String libname);
+
+    ////////////////////
+    //
+    // Filesystem access
+    //
+
+    // hand-wired methods
+    void checkNewInputStream(Class<?> callerClass, FileSystemProvider that, Path path, OpenOption... options);
 }

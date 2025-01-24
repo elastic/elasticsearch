@@ -10,13 +10,21 @@
 package org.elasticsearch.entitlement.instrumentation;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.util.Map;
 
 /**
  * The SPI service entry point for instrumentation.
  */
 public interface InstrumentationService {
+
+    String CHECK_METHOD_PREFIX = "check$";
+
+    record InstrumentationInfo(MethodKey methodToInstrument, CheckMethod checkMethod) {}
+
     Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, CheckMethod> methods);
 
     Map<MethodKey, CheckMethod> lookupMethods(Class<?> clazz) throws IOException;
+
+    InstrumentationInfo lookupImplementationMethod(Class<?> implementationClass, Method instrumentMethod, Method checkMethod);
 }

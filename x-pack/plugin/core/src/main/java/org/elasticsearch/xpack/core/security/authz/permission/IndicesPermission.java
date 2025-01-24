@@ -825,10 +825,10 @@ public final class IndicesPermission {
             this.privilege = privilege;
             this.actionMatcher = privilege.predicate();
             this.indices = indices;
-            // TODO: [Jake] how to support selectors for hasPrivileges ?
-            // TODO: [Jake] figure out regular expression support for selectors (else security bug where /.*/ will match ::failures !!)
-            // TODO: [Jake] ensure that selectors added to the role are validated at time of role create/update (else will blow up on usage)
-            // TODO: [Jake] ensure that remote_indices can not have selectors via role validation (until ready to support via RCS 2.0)
+            // TODO: [Jake] how to support selectors for hasPrivileges ? (are reg-ex's just broken for hasPrivilege index checks ?)
+            // TODO: [Jake] can regular expressions can be used to match failure indices with a single expression ?
+            // TODO: [Jake] ensure that only ::failure selectors can be added the role
+            // TODO: [Jake] ensure that no selectors can be added to remote_indices (or gate usage with a feature flag, or just test)
             String[] indicesResolved = resolvePatternsForNameMatching(indices);
             this.allowRestrictedIndices = allowRestrictedIndices;
             ConcurrentHashMap<String[], Automaton> indexNameAutomatonMemo = new ConcurrentHashMap<>(1);

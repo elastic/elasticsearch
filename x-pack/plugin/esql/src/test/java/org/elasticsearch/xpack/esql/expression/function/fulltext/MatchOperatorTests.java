@@ -25,12 +25,12 @@ import java.util.function.Supplier;
 public class MatchOperatorTests extends AbstractMatchFullTextFunctionTests {
 
     public MatchOperatorTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
-        super(testCaseSupplier);
+        this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return AparameterSuppliersFromTypedData(parametersWithoutFunctionNamedParams());
+        return parameterSuppliersFromTypedData(testCaseSuppliers());
     }
 
     @Override

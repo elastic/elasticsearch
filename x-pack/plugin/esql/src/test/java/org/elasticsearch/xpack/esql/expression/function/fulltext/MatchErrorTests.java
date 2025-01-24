@@ -28,9 +28,10 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
 import static org.hamcrest.Matchers.equalTo;
 
 public class MatchErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(AbstractMatchFullTextFunctionTests.parameters());
+        return paramsToSuppliers(MatchTests.parameters());
     }
 
     @Override

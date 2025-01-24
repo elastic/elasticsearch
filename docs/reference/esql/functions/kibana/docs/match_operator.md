@@ -14,9 +14,9 @@ For using the function syntax, or adding <<match-field-params,match query parame
 `:` returns true if the provided query matches the row.
 
 ```
-FROM books
+FROM books 
 | WHERE MATCH(author, "Faulkner")
-| KEEP book_no, author
-| SORT book_no
+| KEEP book_no, author 
+| SORT book_no 
 | LIMIT 5;
 ```

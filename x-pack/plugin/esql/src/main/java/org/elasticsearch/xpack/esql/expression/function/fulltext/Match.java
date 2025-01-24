@@ -7,31 +7,21 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
-import org.elasticsearch.xpack.esql.common.Failure;
-import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
-import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
-import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
-import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
@@ -42,10 +32,8 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -60,33 +48,20 @@ import static org.elasticsearch.index.query.MatchQueryBuilder.MINIMUM_SHOULD_MAT
 import static org.elasticsearch.index.query.MatchQueryBuilder.OPERATOR_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.PREFIX_LENGTH_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.ZERO_TERMS_QUERY_FIELD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.formatIncompatibleTypesMessage;
 
 /**
  * Full text function that performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MatchQuery} .
  */
-public class Match extends AbstractMatchFullTextFunction, OptionalArgument {
+public class Match extends AbstractMatchFullTextFunction implements OptionalArgument {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
 
@@ -225,7 +200,7 @@ public class Match extends AbstractMatchFullTextFunction, OptionalArgument {
     }
 
     public Match(Source source, Expression field, Expression matchQuery, Expression options, QueryBuilder queryBuilder) {
-        super(source, matchQuery, options == null ? List.of(field, matchQuery) : List.of(field, matchQuery, options), queryBuilder);
+        super(source, matchQuery, options == null ? List.of(field, matchQuery) : List.of(field, matchQuery, options), queryBuilder, field);
         this.options = options;
     }
 
@@ -311,6 +286,9 @@ public class Match extends AbstractMatchFullTextFunction, OptionalArgument {
         return matchOptions;
     }
 
+    private Expression options() {
+        return options;
+    }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
@@ -325,11 +303,12 @@ public class Match extends AbstractMatchFullTextFunction, OptionalArgument {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Match::new, field(), query(), queryBuilder());
+        return NodeInfo.create(this, Match::new, field(), query(), options(), queryBuilder());
     }
 
-    private Expression options() {
-        return options;
+    @Override
+    public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
+        return new Match(source(), field, query(), options(), queryBuilder);
     }
 
     @Override

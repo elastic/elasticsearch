@@ -4,34 +4,34 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-ArgSignature{name='field', type=[keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version], description='Field that the query will target.', optional=false, targetDataType=UNSUPPORTED}} | ArgSignature{name='query', type=[keyword, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version], description='Value to find in the provided field.', optional=false, targetDataType=UNSUPPORTED}} | (optional) MapArgSignature{name='map', type='map', description='Match additional options as <<esql-function-named-params,function named parameters>>. See <<query-dsl-match-query,match query>> for more information.', optional=true, targetDataType=unsupported, mapParams={{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='zero_terms_query', values=[none, all], description='Number of beginning characters left unchanged for fuzzy matching.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba).'}, {name='fuzzy_rewrite', values=[constant_score_blended, constant_score, constant_score_boolean, top_terms_blended_freqs_N, top_terms_boost_N, top_terms_N], description='Method used to rewrite the query. See the rewrite parameter for valid values and more information.'}, {name='prefix_length', values=[1], description=''}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand.'}}} | result
-boolean | boolean | | boolean
-boolean | keyword | | boolean
-date | date | | boolean
-date | keyword | | boolean
-date_nanos | date_nanos | | boolean
-date_nanos | keyword | | boolean
-double | double | | boolean
-double | integer | | boolean
-double | keyword | | boolean
-double | long | | boolean
-integer | double | | boolean
-integer | integer | | boolean
-integer | keyword | | boolean
-integer | long | | boolean
-ip | ip | | boolean
-ip | keyword | | boolean
-keyword | keyword | | boolean
-long | double | | boolean
-long | integer | | boolean
-long | keyword | | boolean
-long | long | | boolean
-text | keyword | | boolean
-unsigned_long | double | | boolean
-unsigned_long | integer | | boolean
-unsigned_long | keyword | | boolean
-unsigned_long | long | | boolean
-unsigned_long | unsigned_long | | boolean
-version | keyword | | boolean
-version | version | | boolean
+field | query | result
+boolean | boolean | boolean
+boolean | keyword | boolean
+date | date | boolean
+date | keyword | boolean
+date_nanos | date_nanos | boolean
+date_nanos | keyword | boolean
+double | double | boolean
+double | integer | boolean
+double | keyword | boolean
+double | long | boolean
+integer | double | boolean
+integer | integer | boolean
+integer | keyword | boolean
+integer | long | boolean
+ip | ip | boolean
+ip | keyword | boolean
+keyword | keyword | boolean
+long | double | boolean
+long | integer | boolean
+long | keyword | boolean
+long | long | boolean
+text | keyword | boolean
+unsigned_long | double | boolean
+unsigned_long | integer | boolean
+unsigned_long | keyword | boolean
+unsigned_long | long | boolean
+unsigned_long | unsigned_long | boolean
+version | keyword | boolean
+version | version | boolean
 |===

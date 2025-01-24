@@ -10,16 +10,25 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
+import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("match")
 public class MatchTests extends AbstractMatchFullTextFunctionTests {
@@ -30,10 +39,13 @@ public class MatchTests extends AbstractMatchFullTextFunctionTests {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return addFunctionNamedParams(AbstractMatchFullTextFunctionTests.parameters());
+        return parameterSuppliersFromTypedData(addFunctionNamedParams(testCaseSuppliers()));
     }
 
-    private static List<TestCaseSupplier> addFunctionNamedParams(Collection<TestCaseSupplier> suppliers) {
+    /**
+     * Adds function named parameters to all the test case suppliers provided
+     */
+    private static List<TestCaseSupplier> addFunctionNamedParams(List<TestCaseSupplier> suppliers) {
         List<TestCaseSupplier> result = new ArrayList<>();
         for (TestCaseSupplier supplier : suppliers) {
             List<DataType> dataTypes = new ArrayList<>(supplier.types());
@@ -54,7 +66,7 @@ public class MatchTests extends AbstractMatchFullTextFunctionTests {
                     ).forceLiteral()
                 );
 
-                return new TestCaseSupplier.TestCase(values, equalTo("MatchEvaluator"), DataType.BOOLEAN, equalTo(true));
+                return new TestCaseSupplier.TestCase(values, equalTo("MatchEvaluator"), BOOLEAN, equalTo(true));
             }));
         }
         return result;

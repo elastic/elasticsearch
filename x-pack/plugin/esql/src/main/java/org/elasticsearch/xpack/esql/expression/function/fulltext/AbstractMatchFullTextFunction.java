@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -25,11 +27,12 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
@@ -98,7 +101,21 @@ public abstract class AbstractMatchFullTextFunction extends FullTextFunction imp
     }
 
     @Override
-    protected TypeResolution resolveNonQueryParamTypes() {
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(field());
+        out.writeNamedWriteable(query());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(queryBuilder());
+        }
+    }
+
+    @Override
+    protected TypeResolution resolveParams() {
+        return resolveField().and(resolveQuery()).and(checkParamCompatibility());
+    }
+
+    protected TypeResolution resolveField() {
         return isNotNull(field, sourceText(), FIRST).and(
             isType(
                 field,
@@ -110,18 +127,16 @@ public abstract class AbstractMatchFullTextFunction extends FullTextFunction imp
         );
     }
 
-    @Override
-    protected TypeResolution resolveQueryParamType() {
+    protected TypeResolution resolveQuery() {
         return isType(
             query(),
             QUERY_DATA_TYPES::contains,
             sourceText(),
-            queryParamOrdinal(),
+            SECOND,
             "keyword, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
-        ).and(isNotNullAndFoldable(query(), sourceText(), queryParamOrdinal()));
+        ).and(isNotNullAndFoldable(query(), sourceText(), SECOND));
     }
 
-    @Override
     protected TypeResolution checkParamCompatibility() {
         DataType fieldType = field().dataType();
         DataType queryType = query().dataType();
@@ -206,14 +221,4 @@ public abstract class AbstractMatchFullTextFunction extends FullTextFunction imp
 
         throw new IllegalArgumentException("Match must have a field attribute as the first argument");
     }
-
-    @Override
-    public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new Match(source(), field, query(), queryBuilder);
-    }
-
-    protected ParamOrdinal queryParamOrdinal() {
-        return SECOND;
-    }
-
 }

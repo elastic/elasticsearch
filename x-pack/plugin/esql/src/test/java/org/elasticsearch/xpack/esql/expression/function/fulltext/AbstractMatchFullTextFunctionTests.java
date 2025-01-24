@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -23,8 +21,8 @@ import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractMatchFullTextFunctionTests extends AbstractFunctionTestCase {
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() {
+
+    protected static List<TestCaseSupplier> testCaseSuppliers() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         AbstractMatchFullTextFunctionTests.addUnsignedLongCases(suppliers);
@@ -32,8 +30,7 @@ public abstract class AbstractMatchFullTextFunctionTests extends AbstractFunctio
         AbstractMatchFullTextFunctionTests.addNonNumericCases(suppliers);
         AbstractMatchFullTextFunctionTests.addQueryAsStringTestCases(suppliers);
         AbstractMatchFullTextFunctionTests.addStringTestCases(suppliers);
-
-        return parameterSuppliersFromTypedData(suppliers);
+        return suppliers;
     }
 
     private static void addNonNumericCases(List<TestCaseSupplier> suppliers) {

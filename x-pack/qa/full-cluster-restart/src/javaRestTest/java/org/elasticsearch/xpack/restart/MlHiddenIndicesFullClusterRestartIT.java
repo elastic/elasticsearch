@@ -46,7 +46,8 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractXpackFullCluste
     private static final List<Tuple<List<String>, String>> EXPECTED_INDEX_ALIAS_PAIRS = List.of(
         Tuple.tuple(List.of(".ml-annotations-000001"), ".ml-annotations-read"),
         Tuple.tuple(List.of(".ml-annotations-000001"), ".ml-annotations-write"),
-        Tuple.tuple(List.of(".ml-state", ".ml-state-000001"), ".ml-state-write"),
+        // .ml-state-000002 is will be created on upgrade if earlier indices are 7.x versions
+        Tuple.tuple(List.of(".ml-state", ".ml-state-000001", ".ml-state-000002"), ".ml-state-write"),
         Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-" + JOB_ID),
         Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-.write-" + JOB_ID)
     );

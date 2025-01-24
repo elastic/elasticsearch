@@ -2830,10 +2830,10 @@ public class InternalEngine extends Engine {
     protected ElasticsearchMergeScheduler createMergeScheduler(
         ShardId shardId,
         IndexSettings indexSettings,
-        ThreadPoolMergeExecutor threadPoolMergeExecutor
+        ThreadPoolMergeExecutorVer1 threadPoolMergeExecutorVer1
     ) {
         // return new EngineMergeScheduler(shardId, indexSettings);
-        return new ThreadPoolMergeScheduler(shardId, indexSettings, threadPoolMergeExecutor) {
+        return new ThreadPoolMergeSchedulerVer1(shardId, indexSettings, threadPoolMergeExecutorVer1) {
 
             @Override
             protected synchronized void activateThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {

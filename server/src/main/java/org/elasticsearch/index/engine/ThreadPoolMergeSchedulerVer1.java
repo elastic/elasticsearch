@@ -40,13 +40,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class ThreadPoolMergeScheduler extends MergeScheduler implements ElasticsearchMergeScheduler {
+public class ThreadPoolMergeSchedulerVer1 extends MergeScheduler implements ElasticsearchMergeScheduler {
     private final ShardId shardId;
     private final MergeSchedulerConfig config;
     private final Logger logger;
     // per-scheduler merge stats
     private final MergeTracking mergeTracking;
-    private final ThreadPoolMergeExecutor threadPoolMergeExecutor;
+    private final ThreadPoolMergeExecutorVer1 threadPoolMergeExecutorVer1;
     private final ThreadLocal<MergeRateLimiter> onGoingMergeRateLimiter = new ThreadLocal<>();
     private final PriorityQueue<MergeTask> queuedMergeTasks = new PriorityQueue<>();
     private final List<MergeTask> currentlyRunningMergeTasks = new ArrayList<>();
@@ -59,16 +59,16 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private boolean shouldIOThrottledMergeTasks;
 
     @SuppressWarnings("this-escape")
-    public ThreadPoolMergeScheduler(ShardId shardId, IndexSettings indexSettings, ThreadPoolMergeExecutor threadPoolMergeExecutor) {
+    public ThreadPoolMergeSchedulerVer1(ShardId shardId, IndexSettings indexSettings, ThreadPoolMergeExecutorVer1 threadPoolMergeExecutorVer1) {
         this.shardId = shardId;
         this.config = indexSettings.getMergeSchedulerConfig();
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.mergeTracking = new MergeTracking(
             logger,
-            () -> this.config.isAutoThrottle() ? threadPoolMergeExecutor.getTargetMBPerSec() : Double.POSITIVE_INFINITY
+            () -> this.config.isAutoThrottle() ? threadPoolMergeExecutorVer1.getTargetMBPerSec() : Double.POSITIVE_INFINITY
         );
-        this.threadPoolMergeExecutor = threadPoolMergeExecutor;
-        threadPoolMergeExecutor.registerMergeScheduler(this);
+        this.threadPoolMergeExecutorVer1 = threadPoolMergeExecutorVer1;
+        threadPoolMergeExecutorVer1.registerMergeScheduler(this);
         refreshConfig();
     }
 
@@ -237,7 +237,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     }
 
     private void update(Runnable updater) {
-        threadPoolMergeExecutor.updateMergeScheduler(this, (ignored) -> {
+        threadPoolMergeExecutorVer1.updateMergeScheduler(this, (ignored) -> {
             synchronized (this) {
                 updater.run();
             }
@@ -442,7 +442,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     @Override
     public void close() throws IOException {
         super.close();
-        threadPoolMergeExecutor.unregisterMergeScheduler(this);
+        threadPoolMergeExecutorVer1.unregisterMergeScheduler(this);
     }
 
     private static double nsToSec(long ns) {

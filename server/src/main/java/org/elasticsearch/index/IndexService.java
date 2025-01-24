@@ -49,7 +49,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.ThreadPoolMergeExecutor;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorVer1;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -155,7 +155,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     private final AsyncTrimTranslogTask trimTranslogTask;
     private final ThreadPool threadPool;
-    private final ThreadPoolMergeExecutor threadPoolMergeExecutor;
+    private final ThreadPoolMergeExecutorVer1 threadPoolMergeExecutorVer1;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
@@ -262,7 +262,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexFoldersDeletionListener = indexFoldersDeletionListener;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
-        this.threadPoolMergeExecutor = new ThreadPoolMergeExecutor(threadPool);
+        this.threadPoolMergeExecutorVer1 = new ThreadPoolMergeExecutorVer1(threadPool);
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.client = client;
@@ -558,7 +558,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 eventListener,
                 readerWrapper,
                 threadPool,
-                threadPoolMergeExecutor,
+                    threadPoolMergeExecutorVer1,
                 bigArrays,
                 engineWarmer,
                 searchOperationListeners,
@@ -823,8 +823,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return threadPool;
     }
 
-    public ThreadPoolMergeExecutor getThreadPoolMergeExecutor() {
-        return threadPoolMergeExecutor;
+    public ThreadPoolMergeExecutorVer1 getThreadPoolMergeExecutor() {
+        return threadPoolMergeExecutorVer1;
     }
 
     /**

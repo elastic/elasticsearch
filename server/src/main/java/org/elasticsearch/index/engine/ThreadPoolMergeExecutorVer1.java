@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
+import org.elasticsearch.index.engine.ThreadPoolMergeSchedulerVer1.MergeTask;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
@@ -18,7 +18,7 @@ import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
-public class ThreadPoolMergeExecutor {
+public class ThreadPoolMergeExecutorVer1 {
     /**
      * Floor for IO write rate limit (we will never go any lower than this)
      */
@@ -35,9 +35,9 @@ public class ThreadPoolMergeExecutor {
      * Current IO write throttle rate, for all merge, across all merge schedulers (shards) on the node
      */
     private double targetMBPerSec = START_MB_PER_SEC;
-    private final SortedSet<ThreadPoolMergeScheduler> registeredMergeSchedulers = new TreeSet<>(new Comparator<ThreadPoolMergeScheduler>() {
+    private final SortedSet<ThreadPoolMergeSchedulerVer1> registeredMergeSchedulers = new TreeSet<>(new Comparator<ThreadPoolMergeSchedulerVer1>() {
         @Override
-        public int compare(ThreadPoolMergeScheduler tpms1, ThreadPoolMergeScheduler tpms2) {
+        public int compare(ThreadPoolMergeSchedulerVer1 tpms1, ThreadPoolMergeSchedulerVer1 tpms2) {
             MergeTask mergeTask1 = tpms1.peekMergeTaskToExecute();
             MergeTask mergeTask2 = tpms2.peekMergeTaskToExecute();
             if (mergeTask1 == null && mergeTask2 == null) {
@@ -60,7 +60,7 @@ public class ThreadPoolMergeExecutor {
     private int currentlyExecutingMergesCount;
     private int currentlyActiveIOThrottledMergesCount;
 
-    public ThreadPoolMergeExecutor(ThreadPool threadPool) {
+    public ThreadPoolMergeExecutorVer1(ThreadPool threadPool) {
         this.executorService = threadPool.executor(ThreadPool.Names.MERGE);
         this.maxConcurrentMerges = threadPool.info(ThreadPool.Names.MERGE).getMax();
     }
@@ -69,39 +69,39 @@ public class ThreadPoolMergeExecutor {
         return targetMBPerSec;
     }
 
-    public synchronized void registerMergeScheduler(ThreadPoolMergeScheduler threadPoolMergeScheduler) {
-        if (registeredMergeSchedulers.add(threadPoolMergeScheduler) == false) {
+    public synchronized void registerMergeScheduler(ThreadPoolMergeSchedulerVer1 threadPoolMergeSchedulerVer1) {
+        if (registeredMergeSchedulers.add(threadPoolMergeSchedulerVer1) == false) {
             throw new IllegalStateException("cannot register the same scheduler multiple times");
         }
     }
 
-    public synchronized void unregisterMergeScheduler(ThreadPoolMergeScheduler threadPoolMergeScheduler) {
-        if (registeredMergeSchedulers.remove(threadPoolMergeScheduler) == false) {
+    public synchronized void unregisterMergeScheduler(ThreadPoolMergeSchedulerVer1 threadPoolMergeSchedulerVer1) {
+        if (registeredMergeSchedulers.remove(threadPoolMergeSchedulerVer1) == false) {
             throw new IllegalStateException("cannot unregister if the scheduler has not been registered");
         }
     }
 
     public synchronized void updateMergeScheduler(
-        ThreadPoolMergeScheduler threadPoolMergeScheduler,
-        Consumer<ThreadPoolMergeScheduler> updater
+        ThreadPoolMergeSchedulerVer1 threadPoolMergeSchedulerVer1,
+        Consumer<ThreadPoolMergeSchedulerVer1> updater
     ) {
-        boolean removed = registeredMergeSchedulers.remove(threadPoolMergeScheduler);
+        boolean removed = registeredMergeSchedulers.remove(threadPoolMergeSchedulerVer1);
         if (false == removed) {
             throw new IllegalStateException("Cannot update a merge scheduler that is not registered");
         }
-        currentlyExecutingMergesCount -= threadPoolMergeScheduler.getCurrentlyRunningMergeTasks().size();
-        currentlyActiveIOThrottledMergesCount -= getIOThrottledMergeTasksCount(threadPoolMergeScheduler);
-        updater.accept(threadPoolMergeScheduler);
-        boolean added = registeredMergeSchedulers.add(threadPoolMergeScheduler);
+        currentlyExecutingMergesCount -= threadPoolMergeSchedulerVer1.getCurrentlyRunningMergeTasks().size();
+        currentlyActiveIOThrottledMergesCount -= getIOThrottledMergeTasksCount(threadPoolMergeSchedulerVer1);
+        updater.accept(threadPoolMergeSchedulerVer1);
+        boolean added = registeredMergeSchedulers.add(threadPoolMergeSchedulerVer1);
         if (false == added) {
             throw new IllegalStateException("Found duplicate registered merge scheduler");
         }
-        currentlyExecutingMergesCount += threadPoolMergeScheduler.getCurrentlyRunningMergeTasks().size();
-        currentlyActiveIOThrottledMergesCount += getIOThrottledMergeTasksCount(threadPoolMergeScheduler);
+        currentlyExecutingMergesCount += threadPoolMergeSchedulerVer1.getCurrentlyRunningMergeTasks().size();
+        currentlyActiveIOThrottledMergesCount += getIOThrottledMergeTasksCount(threadPoolMergeSchedulerVer1);
         double newTargetMBPerSec = maybeUpdateTargetMBPerSec();
         if (newTargetMBPerSec != targetMBPerSec) {
             targetMBPerSec = newTargetMBPerSec;
-            threadPoolMergeScheduler.setIORateLimitForAllMergeTasks(newTargetMBPerSec);
+            threadPoolMergeSchedulerVer1.setIORateLimitForAllMergeTasks(newTargetMBPerSec);
         }
         maybeExecuteNextMerges();
     }
@@ -116,17 +116,17 @@ public class ThreadPoolMergeExecutor {
                 // no merges available to run
                 return;
             }
-            ThreadPoolMergeScheduler threadPoolMergeScheduler = registeredMergeSchedulers.removeFirst();
-            currentlyExecutingMergesCount -= threadPoolMergeScheduler.getCurrentlyRunningMergeTasks().size();
-            MergeTask mergeTask = threadPoolMergeScheduler.executeNextMergeTask();
+            ThreadPoolMergeSchedulerVer1 threadPoolMergeSchedulerVer1 = registeredMergeSchedulers.removeFirst();
+            currentlyExecutingMergesCount -= threadPoolMergeSchedulerVer1.getCurrentlyRunningMergeTasks().size();
+            MergeTask mergeTask = threadPoolMergeSchedulerVer1.executeNextMergeTask();
             assert mergeTask != null;
             executorService.execute(mergeTask);
-            registeredMergeSchedulers.add(threadPoolMergeScheduler);
-            currentlyExecutingMergesCount += threadPoolMergeScheduler.getCurrentlyRunningMergeTasks().size();
+            registeredMergeSchedulers.add(threadPoolMergeSchedulerVer1);
+            currentlyExecutingMergesCount += threadPoolMergeSchedulerVer1.getCurrentlyRunningMergeTasks().size();
         }
     }
 
-    private int getIOThrottledMergeTasksCount(ThreadPoolMergeScheduler mergeScheduler) {
+    private int getIOThrottledMergeTasksCount(ThreadPoolMergeSchedulerVer1 mergeScheduler) {
         if (mergeScheduler.shouldIOThrottleMergeTasks() == false) {
             return 0;
         } else {

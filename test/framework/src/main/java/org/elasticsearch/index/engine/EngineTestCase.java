@@ -155,7 +155,7 @@ public abstract class EngineTestCase extends ESTestCase {
     protected static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
 
     protected ThreadPool threadPool;
-    protected ThreadPoolMergeExecutor threadPoolMergeExecutor;
+    protected ThreadPoolMergeExecutorVer1 threadPoolMergeExecutorVer1;
     protected TranslogHandler translogHandler;
 
     protected Store store;
@@ -242,7 +242,7 @@ public abstract class EngineTestCase extends ESTestCase {
         }
         defaultSettings = IndexSettingsModule.newIndexSettings("index", indexSettings());
         threadPool = new TestThreadPool(getClass().getName());
-        threadPoolMergeExecutor = new ThreadPoolMergeExecutor(threadPool);
+        threadPoolMergeExecutorVer1 = new ThreadPoolMergeExecutorVer1(threadPool);
 
         store = createStore();
         storeReplica = createStore();
@@ -846,7 +846,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(
             shardId,
             threadPool,
-            threadPoolMergeExecutor,
+                threadPoolMergeExecutorVer1,
             indexSettings,
             null,
             store,

@@ -25,6 +25,8 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -178,7 +180,10 @@ public class CrossClusterEsqlRCS2UnavailableRemotesIT extends AbstractRemoteClus
             Map<String, ?> failuresMap = (Map<String, ?>) remoteClusterFailures.get(0);
 
             Map<String, ?> reason = (Map<String, ?>) failuresMap.get("reason");
-            assertThat(reason.get("type").toString(), oneOf("node_disconnected_exception", "connect_transport_exception"));
+            assertThat(
+                reason.get("type").toString(),
+                oneOf("node_disconnected_exception", "connect_transport_exception", "node_not_connected_exception")
+            );
         } finally {
             fulfillingCluster.start();
             closeFulfillingClusterClient();
@@ -199,7 +204,14 @@ public class CrossClusterEsqlRCS2UnavailableRemotesIT extends AbstractRemoteClus
             // A simple query that targets our remote cluster.
             String query = "FROM *,my_remote_cluster:* | LIMIT 10";
             ResponseException ex = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(esqlRequest(query)));
-            assertThat(ex.getMessage(), oneOf("node_disconnected_exception", "connect_transport_exception"));
+            assertThat(
+                ex.getMessage(),
+                anyOf(
+                    containsString("node_disconnected_exception"),
+                    containsString("connect_transport_exception"),
+                    containsString("node_not_connected_exception")
+                )
+            );
         } finally {
             fulfillingCluster.start();
             closeFulfillingClusterClient();

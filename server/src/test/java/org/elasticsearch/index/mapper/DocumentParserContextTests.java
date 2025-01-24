@@ -9,9 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -53,26 +51,18 @@ public class DocumentParserContextTests extends ESTestCase {
     }
 
     public void testAddRuntimeFieldWhenLimitIsReachedViaMapper() {
-        final IndexSettings indexSettings = new IndexSettings(
-            IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).build(),
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
-        );
         context = new TestDocumentParserContext(
             Settings.builder()
                 .put("index.mapping.total_fields.limit", 1)
                 .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
                 .build()
         );
-        assertTrue(context.addDynamicMapper(new KeywordFieldMapper.Builder("keyword_field", indexSettings).build(root)));
+        assertTrue(context.addDynamicMapper(new KeywordFieldMapper.Builder("keyword_field", IndexVersion.current()).build(root)));
         assertFalse(context.addDynamicRuntimeField(new TestRuntimeField("runtime_field", "keyword")));
         assertThat(context.getIgnoredFields(), contains("runtime_field"));
     }
 
     public void testAddFieldWhenLimitIsReachedViaRuntimeField() {
-        final IndexSettings indexSettings = new IndexSettings(
-            IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).build(),
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
-        );
         context = new TestDocumentParserContext(
             Settings.builder()
                 .put("index.mapping.total_fields.limit", 1)
@@ -80,7 +70,7 @@ public class DocumentParserContextTests extends ESTestCase {
                 .build()
         );
         assertTrue(context.addDynamicRuntimeField(new TestRuntimeField("runtime_field", "keyword")));
-        assertFalse(context.addDynamicMapper(new KeywordFieldMapper.Builder("keyword_field", indexSettings).build(root)));
+        assertFalse(context.addDynamicMapper(new KeywordFieldMapper.Builder("keyword_field", IndexVersion.current()).build(root)));
         assertThat(context.getIgnoredFields(), contains("keyword_field"));
     }
 

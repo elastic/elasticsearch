@@ -34,9 +34,11 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
@@ -216,6 +218,25 @@ public final class KeywordFieldMapper extends FieldMapper {
             IndexAnalyzers indexAnalyzers,
             ScriptCompiler scriptCompiler,
             int ignoreAboveDefault,
+            IndexVersion indexCreatedVersion
+        ) {
+            this(
+                name,
+                indexAnalyzers,
+                scriptCompiler,
+                ignoreAboveDefault,
+                new IndexSettings(
+                    IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).build(),
+                    Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreatedVersion).build()
+                )
+            );
+        }
+
+        private Builder(
+            String name,
+            IndexAnalyzers indexAnalyzers,
+            ScriptCompiler scriptCompiler,
+            int ignoreAboveDefault,
             IndexSettings indexSettings
         ) {
             super(name);
@@ -256,8 +277,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.indexSettings = indexSettings;
         }
 
-        public Builder(String name, IndexSettings indexSettings) {
-            this(name, null, ScriptCompiler.NONE, Integer.MAX_VALUE, indexSettings);
+        public Builder(String name, IndexVersion indexCreatedVersion) {
+            this(name, null, ScriptCompiler.NONE, Integer.MAX_VALUE, indexCreatedVersion);
         }
 
         public Builder ignoreAbove(int ignoreAbove) {

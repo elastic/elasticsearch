@@ -9,14 +9,12 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
@@ -735,18 +733,14 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testNestedObjectWithMultiFieldsgetTotalFieldsCount() {
-        final IndexSettings indexSettings = new IndexSettings(
-            IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).build(),
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
-        );
         ObjectMapper.Builder mapperBuilder = new ObjectMapper.Builder("parent_size_1", Optional.empty()).add(
             new ObjectMapper.Builder("child_size_2", Optional.empty()).add(
                 new TextFieldMapper.Builder("grand_child_size_3", createDefaultIndexAnalyzers(), false).addMultiField(
-                    new KeywordFieldMapper.Builder("multi_field_size_4", indexSettings)
+                    new KeywordFieldMapper.Builder("multi_field_size_4", IndexVersion.current())
                 )
                     .addMultiField(
                         new TextFieldMapper.Builder("grand_child_size_5", createDefaultIndexAnalyzers(), false).addMultiField(
-                            new KeywordFieldMapper.Builder("multi_field_of_multi_field_size_6", indexSettings)
+                            new KeywordFieldMapper.Builder("multi_field_of_multi_field_size_6", IndexVersion.current())
                         )
                     )
             )
@@ -786,40 +780,28 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testFlatten() {
-        final IndexSettings indexSettings = new IndexSettings(
-            IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).build(),
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
-        );
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
         ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.empty()).add(
-            new ObjectMapper.Builder("child", Optional.empty()).add(new KeywordFieldMapper.Builder("keyword2", indexSettings))
-        ).add(new KeywordFieldMapper.Builder("keyword1", indexSettings)).build(rootContext);
+            new ObjectMapper.Builder("child", Optional.empty()).add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
+        ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
         List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
     }
 
     public void testFlattenSubobjectsAuto() {
-        final IndexSettings indexSettings = new IndexSettings(
-            IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).build(),
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
-        );
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
         ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.of(ObjectMapper.Subobjects.AUTO)).add(
-            new ObjectMapper.Builder("child", Optional.empty()).add(new KeywordFieldMapper.Builder("keyword2", indexSettings))
-        ).add(new KeywordFieldMapper.Builder("keyword1", indexSettings)).build(rootContext);
+            new ObjectMapper.Builder("child", Optional.empty()).add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
+        ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
         List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
     }
 
     public void testFlattenSubobjectsFalse() {
-        final IndexSettings indexSettings = new IndexSettings(
-            IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).build(),
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
-        );
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
         ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.of(ObjectMapper.Subobjects.DISABLED)).add(
-            new ObjectMapper.Builder("child", Optional.empty()).add(new KeywordFieldMapper.Builder("keyword2", indexSettings))
-        ).add(new KeywordFieldMapper.Builder("keyword1", indexSettings)).build(rootContext);
+            new ObjectMapper.Builder("child", Optional.empty()).add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
+        ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
         List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
     }
@@ -873,26 +855,22 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testFindParentMapper() {
-        final IndexSettings indexSettings = new IndexSettings(
-            IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).build(),
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
-        );
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
 
         var rootBuilder = new RootObjectMapper.Builder("_doc", Optional.empty());
-        rootBuilder.add(new KeywordFieldMapper.Builder("keyword", indexSettings));
+        rootBuilder.add(new KeywordFieldMapper.Builder("keyword", IndexVersion.current()));
 
         var child = new ObjectMapper.Builder("child", Optional.empty());
-        child.add(new KeywordFieldMapper.Builder("keyword2", indexSettings));
-        child.add(new KeywordFieldMapper.Builder("keyword.with.dot", indexSettings));
+        child.add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()));
+        child.add(new KeywordFieldMapper.Builder("keyword.with.dot", IndexVersion.current()));
         var secondLevelChild = new ObjectMapper.Builder("child2", Optional.empty());
-        secondLevelChild.add(new KeywordFieldMapper.Builder("keyword22", indexSettings));
+        secondLevelChild.add(new KeywordFieldMapper.Builder("keyword22", IndexVersion.current()));
         child.add(secondLevelChild);
         rootBuilder.add(child);
 
         var childWithDot = new ObjectMapper.Builder("childwith.dot", Optional.empty());
-        childWithDot.add(new KeywordFieldMapper.Builder("keyword3", indexSettings));
-        childWithDot.add(new KeywordFieldMapper.Builder("keyword4.with.dot", indexSettings));
+        childWithDot.add(new KeywordFieldMapper.Builder("keyword3", IndexVersion.current()));
+        childWithDot.add(new KeywordFieldMapper.Builder("keyword4.with.dot", IndexVersion.current()));
         rootBuilder.add(childWithDot);
 
         RootObjectMapper root = rootBuilder.build(rootContext);

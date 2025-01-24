@@ -8,9 +8,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
@@ -218,15 +215,11 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     }
 
     public void testMergeWithLimitTruncatedObjectField() {
-        final IndexSettings indexSettings = new IndexSettings(
-            IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).build(),
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
-        );
         RootObjectMapper root = new RootObjectMapper.Builder("_doc", Optional.empty()).build(MapperBuilderContext.root(false, false));
         RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
             new ObjectMapper.Builder("parent", Optional.of(ObjectMapper.Subobjects.DISABLED)).add(
-                new KeywordFieldMapper.Builder("child1", indexSettings)
-            ).add(new KeywordFieldMapper.Builder("child2", indexSettings))
+                new KeywordFieldMapper.Builder("child1", IndexVersion.current())
+            ).add(new KeywordFieldMapper.Builder("child2", IndexVersion.current()))
         ).build(MapperBuilderContext.root(false, false));
 
         ObjectMapper mergedAdd0 = root.merge(mergeWith, MapperMergeContext.root(false, false, MAPPING_UPDATE, 0));
@@ -253,17 +246,13 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     }
 
     public void testMergeSameObjectDifferentFields() {
-        final IndexSettings indexSettings = new IndexSettings(
-            IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).build(),
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
-        );
         RootObjectMapper root = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
-            new ObjectMapper.Builder("parent", Optional.empty()).add(new KeywordFieldMapper.Builder("child1", indexSettings))
+            new ObjectMapper.Builder("parent", Optional.empty()).add(new KeywordFieldMapper.Builder("child1", IndexVersion.current()))
         ).build(MapperBuilderContext.root(false, false));
         RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
             new ObjectMapper.Builder("parent", Optional.empty()).add(
-                new KeywordFieldMapper.Builder("child1", indexSettings).ignoreAbove(42)
-            ).add(new KeywordFieldMapper.Builder("child2", indexSettings))
+                new KeywordFieldMapper.Builder("child1", IndexVersion.current()).ignoreAbove(42)
+            ).add(new KeywordFieldMapper.Builder("child2", IndexVersion.current()))
         ).build(MapperBuilderContext.root(false, false));
 
         ObjectMapper mergedAdd0 = root.merge(mergeWith, MapperMergeContext.root(false, false, MAPPING_UPDATE, 0));
@@ -318,16 +307,14 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     }
 
     public void testMergeSubobjectsFalseWithObject() {
-        final IndexSettings indexSettings = new IndexSettings(
-            IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).build(),
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
-        );
         RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
             new ObjectMapper.Builder("parent", Optional.of(ObjectMapper.Subobjects.DISABLED))
         ).build(MapperBuilderContext.root(false, false));
         RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
             new ObjectMapper.Builder("parent", Optional.empty()).add(
-                new ObjectMapper.Builder("child", Optional.empty()).add(new KeywordFieldMapper.Builder("grandchild", indexSettings))
+                new ObjectMapper.Builder("child", Optional.empty()).add(
+                    new KeywordFieldMapper.Builder("grandchild", IndexVersion.current())
+                )
             )
         ).build(MapperBuilderContext.root(false, false));
 
@@ -338,12 +325,8 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     }
 
     public void testConflictingDynamicUpdate() {
-        final IndexSettings indexSettings = new IndexSettings(
-            IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).build(),
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
-        );
         RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
-            new KeywordFieldMapper.Builder("http.status_code", indexSettings)
+            new KeywordFieldMapper.Builder("http.status_code", IndexVersion.current())
         ).build(MapperBuilderContext.root(false, false));
         RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
             new NumberFieldMapper.Builder(
@@ -370,11 +353,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     }
 
     private static RootObjectMapper createRootSubobjectFalseLeafWithDots() {
-        final IndexSettings indexSettings = new IndexSettings(
-            IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).build(),
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
-        );
-        FieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", indexSettings);
+        FieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", IndexVersion.current());
         FieldMapper fieldMapper = fieldBuilder.build(MapperBuilderContext.root(false, false));
         assertEquals("host.name", fieldMapper.leafName());
         assertEquals("host.name", fieldMapper.fullPath());
@@ -383,11 +362,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     }
 
     private static ObjectMapper.Builder createObjectSubobjectsFalseLeafWithDots() {
-        final IndexSettings indexSettings = new IndexSettings(
-            IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).build(),
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
-        );
-        KeywordFieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", indexSettings);
+        KeywordFieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", IndexVersion.current());
         KeywordFieldMapper fieldMapper = fieldBuilder.build(
             new MapperBuilderContext(
                 "foo.metrics",
@@ -434,12 +409,8 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     }
 
     private TextFieldMapper.Builder createTextKeywordMultiField(String name, String multiFieldName) {
-        final IndexSettings indexSettings = new IndexSettings(
-            IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).build(),
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
-        );
         TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers(), false);
-        builder.multiFieldsBuilder.add(new KeywordFieldMapper.Builder(multiFieldName, indexSettings));
+        builder.multiFieldsBuilder.add(new KeywordFieldMapper.Builder(multiFieldName, IndexVersion.current()));
         return builder;
     }
 }

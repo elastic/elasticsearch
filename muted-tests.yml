@@ -243,6 +243,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120767
 - class: org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT
   issue: https://github.com/elastic/elasticsearch/issues/120772
+- class: org.elasticsearch.action.search.SearchProgressActionListenerIT
+  method: testSearchProgressWithHits
+  issue: https://github.com/elastic/elasticsearch/issues/120671
 
 # Examples:
 #

@@ -236,6 +236,7 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
         }
 
         try (var inputStream = new BytesArray(payloadBytes).streamInput()) {
+            inputStream.setTransportVersion(TransportHandshaker.V8_HANDSHAKE_VERSION);
             assertEquals(TransportVersion.current().id(), inputStream.readVInt());
             assertEquals(-1, inputStream.read());
         }

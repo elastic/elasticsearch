@@ -206,12 +206,14 @@ public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWritea
         }
 
         public boolean isCloseToExpiration() {
-            return Instant.ofEpochMilli(lastCheck).isBefore(Instant.now().minus(25, ChronoUnit.DAYS));
+            final Instant now = Instant.ofEpochMilli(System.currentTimeMillis()); // millisecond precision is sufficient (and faster)
+            return Instant.ofEpochMilli(lastCheck).isBefore(now.minus(25, ChronoUnit.DAYS));
         }
 
         public boolean isNewEnough(Settings settings) {
-            TimeValue valid = settings.getAsTime("ingest.geoip.database_validity", TimeValue.timeValueDays(30));
-            return Instant.ofEpochMilli(lastCheck).isAfter(Instant.now().minus(valid.getMillis(), ChronoUnit.MILLIS));
+            final TimeValue valid = settings.getAsTime("ingest.geoip.database_validity", TimeValue.timeValueDays(30));
+            final Instant now = Instant.ofEpochMilli(System.currentTimeMillis()); // millisecond precision is sufficient (and faster)
+            return Instant.ofEpochMilli(lastCheck).isAfter(now.minus(valid.getMillis(), ChronoUnit.MILLIS));
         }
 
         @Override

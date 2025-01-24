@@ -154,7 +154,9 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
         for (String key : new ArrayList<>(metadata.keySet())) { // copy the key set to get around the ConcurrentModificationException
             metadata.remove(key);
         }
-        // TODO: this is just bogus, there isn't any case where metadata won't trip a failure above?
+        // note: this is actually bogus in the general case, though! for this to work there must be some Metadata or subclass of Metadata
+        // for which all the FieldPoperty properties of the metadata are nullable and therefore could have been removed in the previous
+        // loop -- does such a class even exist? (that is, is there any *real* CtxMap for which the previous loop didn't throw?)
         source.clear();
     }
 

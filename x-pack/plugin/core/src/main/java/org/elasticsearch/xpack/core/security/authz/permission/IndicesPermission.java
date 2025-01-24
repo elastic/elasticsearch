@@ -43,13 +43,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -514,8 +512,8 @@ public final class IndicesPermission {
             // If the request has name::* upstream code will convert to name::failures and name (without ::data)
             assert selector != IndexComponentSelector.DATA : "Data selector is not allowed in this context";
             assert selector != IndexComponentSelector.ALL_APPLICABLE : "All selector is not allowed in this context";
-            assert selector == null || selector == IndexComponentSelector.FAILURES : "Only the failures selector " +
-                "or none is not allowed in this context";
+            assert selector == null || selector == IndexComponentSelector.FAILURES
+                : "Only the failures selector " + "or none is not allowed in this context";
             // look up the IndexAbstraction by the name without the selector, but leave the (::failures) selector for authorization
             final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(expressionAndSelector.v1()), selector);
             resources.put(resource.name, resource);
@@ -856,22 +854,16 @@ public final class IndicesPermission {
         final String[] resolvePatternsForNameMatching(final String[] indexPatterns) {
             // TODO: [Jake] use trace logging !
             logger.error(() -> String.format(Locale.ROOT, "original indices: %s", Arrays.toString(indexPatterns)));
-            // String[] afterResolveSelectors = resolveSelectors(indexPatterns);
-            // logger.error(() -> String.format(Locale.ROOT, "after selector resolution: %s", Arrays.toString(indexPatterns)));
-            // String[] afterFailureExclusions = maybeAddFailureExclusions(afterResolveSelectors);
-            // String[] afterFailureExclusions = maybeAddFailureExclusions(afterResolveSelectors);
             String[] afterFailureExclusions = maybeAddFailureExclusions(indexPatterns);
             logger.error(() -> String.format(Locale.ROOT, "after failure exclusions: %s", Arrays.toString(afterFailureExclusions)));
             return afterFailureExclusions;
         }
-
 
         /**
          * This method looks for any index patterns in this group that have all the following characteristics:
          * <ul>
          *     <li>Index pattern has a trailing wildcard, i.e., {@code name*}</li>
          *     <li>Index pattern is a regular expression, i.e. {@code /name.*fooba[r]+/}</li>
-         *     <li>Index pattern does not have an explicit entry for ::failures, i.e. does not have `name*::failures`</li>
          *     <li>Index pattern is not {@code "*"}.</li>
          * </ul>
          *
@@ -892,225 +884,37 @@ public final class IndicesPermission {
          *         that will be used for authorization purposes
          */
         static String[] maybeAddFailureExclusions(final String[] indexPatterns) {
-            Map<String, Set<Optional<String>>> indexPatternsToSelectors = new HashMap<>();
-            final String ADD_FAILURES_EXCLUSION = "ADD_FAILURES_EXCLUSION";
-            boolean canRequireTransformation = false;
-            for (String indexPattern : indexPatterns) {
-                if(indexPattern.equals("*")){
-                    // special case that allows access to both data and failures
-                    indexPatternsToSelectors.computeIfAbsent(indexPattern, k -> new HashSet<>()).add(Optional.empty());
-                } else  if (indexPattern.endsWith("*")) {
-                    //trailing wildcard
-                    canRequireTransformation = true;
-                    if (IndexNameExpressionResolver.hasSelectorSuffix(indexPattern)) {
-                        //trailing wildcard with failure selector
-                        Tuple<String, String> parts = IndexNameExpressionResolver.splitSelectorExpression(indexPattern);
-                        assert parts.v2() != null && parts.v2().toLowerCase(Locale.ROOT).equals(IndexComponentSelector.FAILURES.getKey())
-                            : "Only the ::failures selector should be present.";
-                        indexPatternsToSelectors.computeIfAbsent(parts.v1(), k -> new HashSet<>()).add(Optional.of(parts.v2()));
-                    } else {
-                        // trailing wildcard and no selector
-                        indexPatternsToSelectors.computeIfAbsent(indexPattern, k -> new HashSet<>()).add(Optional.empty());
-                    }
-                } else if(Automatons.isLuceneRegex(indexPattern)) {
-                    // regular expression
-                    canRequireTransformation = true;
-                    indexPatternsToSelectors.computeIfAbsent(indexPattern, k -> new HashSet<>()).add(Optional.empty());
-                }else {
-                    // not trailing wildcard and not a regular expression
-                    indexPatternsToSelectors.computeIfAbsent(indexPattern, k -> new HashSet<>()).add(Optional.empty());
+            String[] indexPatternsWithExclusions = new String[indexPatterns.length];
+            for (int i = 0; i < indexPatterns.length; i++) {
+                assert indexPatterns[i].endsWith("::data") == false : "Data selector is not allowed in this context";
+                assert indexPatterns[i].endsWith("::*") == false : "All selector is not allowed in this context";
+                if (indexPatterns[i].equals("*") == false
+                    && (indexPatterns[i].endsWith("*") || Automatons.isLuceneRegex(indexPatterns[i]))) {
+                    indexPatternsWithExclusions[i] = convertToExcludeFailures(indexPatterns[i]);
+                } else {
+                    indexPatternsWithExclusions[i] = indexPatterns[i];
                 }
             }
-            // there are no trailing wildcard patterns or regular expressions so need to continue
-            if (canRequireTransformation == false) {
-                return indexPatterns;
-            }
-
-            // find all the patterns that have a wildcard and do not also already have a ::failures selector
-            for (Map.Entry<String, Set<Optional<String>>> entry : indexPatternsToSelectors.entrySet()) {
-                if (entry.getKey().endsWith("*") || Automatons.isLuceneRegex(entry.getKey())) {
-                    // index pattern has a wildcard or is a regular expression
-                    if (entry.getValue().stream().filter(Optional::isEmpty).distinct().count() == 1) {
-                        //there are 3 states for the selectors per index pattern, either it is empty or it is ::failures, or it both
-                        //if it is both, then we don't need to add the exclusion
-                        //if it is :failures, then we don't need to add the exclusion
-                        //if it is empty, then we need to add the exclusion
-                        //TODO: [Jake] double check this is correct logic and maybe rewrite this ... it's kinda hacky
-                        entry.getValue().add(Optional.of(ADD_FAILURES_EXCLUSION));
-                    }
-                }
-            }
-
-            List<String> indicesWithExclusions = new ArrayList<>();
-            for (Map.Entry<String, Set<Optional<String>>> entry : indexPatternsToSelectors.entrySet()) {
-                boolean addExclusion = entry.getValue().stream().anyMatch(s -> s.isPresent() && s.get().equals(ADD_FAILURES_EXCLUSION));
-                for (Optional<String> selector : entry.getValue().stream()
-                    .filter(s -> s.isEmpty() || s.get().equals(ADD_FAILURES_EXCLUSION) == false).toList()) {
-                    if (selector.isEmpty()) {
-                        if (addExclusion) {
-                            indicesWithExclusions.add(convertToExcludeFailures(entry.getKey()));
-                        } else {
-                            indicesWithExclusions.add(entry.getKey());
-                        }
-                    } else  {
-                        assert selector.get().equals(IndexComponentSelector.FAILURES.getKey()) : "Only the ::failures selector expected.";
-                        indicesWithExclusions.add(
-                            IndexNameExpressionResolver.combineSelector(entry.getKey(), IndexComponentSelector.FAILURES)
-                        );
-                    }
-                }
-            }
-            return indicesWithExclusions.toArray(String[]::new);
+            return indexPatternsWithExclusions;
         }
 
-        static  String convertToExcludeFailures(String indexPattern){
-            assert indexPattern != "*": "* is a special case and should never exclude failures";
-            assert indexPattern.endsWith("*") || Automatons.isLuceneRegex(indexPattern): "Only patterns with a trailing wildcard " +
-                "or regular expressions should explicitly exclude failures";
-            //TODO: [Jake] also handle properly convert `?` and `\\` and `.` cases for non-regular expressions
+        static String convertToExcludeFailures(String indexPattern) {
+            assert indexPattern != "*" : "* is a special case and should never exclude failures";
+            assert indexPattern.endsWith("*") || Automatons.isLuceneRegex(indexPattern)
+                : "Only patterns with a trailing wildcard " + "or regular expressions should explicitly exclude failures";
+            // TODO: [Jake] also handle properly convert `?` and `\\` and `.` cases for non-regular expressions
             // TODO: [Jake] look for other special characters allowed by Lucene regular expressions vs. special chars in role vs. special
             // chars allowed in index names
             if (indexPattern.endsWith("*")) {
                 return "/(" + indexPattern.replaceAll("\\*", ".*") + ")&~(" + indexPattern.replaceAll("\\*", ".*") + "::failures)/";
-            } else if(Automatons.isLuceneRegex(indexPattern)){
+            } else if (Automatons.isLuceneRegex(indexPattern)) {
                 String innerPattern = indexPattern.substring(1, indexPattern.length() - 1);
-                //TODO: [Jake] is it safe to have double parenthesis in the regular expression if the regex already had them ?
+                // TODO: [Jake] is it safe to have double parenthesis in the regular expression if the regex already had them ?
                 return "/(" + innerPattern + ")&~(" + innerPattern + "::failures)/";
             } else {
-                throw new IllegalArgumentException("Unexpected index pattern: " + indexPattern); //should never happen
+                throw new IllegalArgumentException("Unexpected index pattern: " + indexPattern); // should never happen
             }
         }
-        // /**
-        // * This method will resolve selectors for the index patterns defined for this group.
-        // * The full expression (for index/datastream/alias named `name`) can be expressed as one of the following patterns:
-        // * `name`, `name::data`, `name:failures`, or `name::*`
-        // * This method will transform the selectors to the appropriate names used for authorization purposes.
-        // * <ul>
-        // * <li>`name::data` will be converted to `name`</li>
-        // * <li>`name::*` will be converted into `name` and `name::failures`</li>
-        // * <li>`name::failures` will remain `name:failures`</li>
-        // * <li>`name` will remain `name`</li>
-        // * </ul>
-        // * @param indexPatterns - The index patterns for this group.
-        // * @return a String[] that contains the resolved selectors. Only the `::failures` selector, or no selectors should be present.
-        // */
-        // final String[] resolveSelectors(final String[] indexPatterns) {
-        // assert indexPatterns.length > 0 : "indexPatterns must not be empty";
-        // List<String> indicesResolvedBySelector = new ArrayList<>(indexPatterns.length);
-        // for (String indexPattern : indexPatterns) {
-        // if (IndexNameExpressionResolver.hasSelectorSuffix(indexPattern)) {
-        // Tuple<String, String> parts = IndexNameExpressionResolver.splitSelectorExpression(indexPattern);
-        // String patternWithoutSelector = parts.v1();
-        // String selectorAsStringOrNull = parts.v2(); // null and ::data are treated the same
-        // if (selectorAsStringOrNull != null) {
-        // IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorAsStringOrNull.toLowerCase(Locale.ROOT));
-        // assert selector != null;
-        // switch (selector) {
-        // case DATA:
-        // indicesResolvedBySelector.add(patternWithoutSelector); // remove `::data`
-        // break;
-        // case ALL_APPLICABLE:
-        // // expand `name::*` into `name`, `name::failures`
-        // indicesResolvedBySelector.add(patternWithoutSelector); // ::data intentionally omitted
-        // indicesResolvedBySelector.add(
-        // IndexNameExpressionResolver.combineSelector(patternWithoutSelector, IndexComponentSelector.FAILURES)
-        // );
-        // break;
-        // case FAILURES:
-        // indicesResolvedBySelector.add(indexPattern); // `name::failures`, add as-is
-        // break;
-        // default:
-        // // other validation should prevent this from ever happening
-        // throw new IllegalArgumentException("Unexpected selector: " + selector + " for : " + indexPattern);
-        // }
-        // }
-        // } else {
-        // indicesResolvedBySelector.add(indexPattern); // no selectors, keep as-is
-        // }
-        // }
-        // return indicesResolvedBySelector.toArray(String[]::new);
-        // }
-
-        // /**
-        // * This method looks for any index patterns in this group that have all the following characteristics:
-        // * <ul>
-        // * <li>Index pattern has a trailing wildcard, i.e. `name*`</li>
-        // * <li>Index pattern does not have an explicit entry for ::failures, i.e. does not have `name*::failures`</li>
-        // * </ul>
-        // * If all of these conditions are met, then pattern is transformed into a regular expression to exclude failures.
-        // * For example, `name*` becomes {@code /(name.*)&~(name.*::failures)/}, but `na*me` remains `na*me`.
-        // * Note - Lucene regular expressions are always anchored at the start and end of the string.
-        // * It is expected that #resolveSelectors is called before this method to ensure that all selectors are resolved such that there
-        // are
-        // * no `::*` or `::data` patterns in the list of index patterns. Only the `::failures` selector, or no selector should be present.
-        // * @param indexPatterns the index patterns for this group that have been resolved to only contain the ::failures selector or
-        // * no selector
-        // * @return the String[] of the transformed and/or non-transformed index patterns for this group that will be for authz purposes
-        // */
-        // final String[] maybeAddFailureExclusions(final String[] indexPatterns) {
-        // Map<String, Set<Optional<String>>> indexPatternsToSelectors = new HashMap<>();
-        // boolean canRequireTransformation = false;
-        // // collect all the indices, keyed by name with a value of all the selectors.
-        // // Only the ::failures selector should be present since ::* is expanded to ::failures,::data and ::data has been removed.
-        // for (String indexPattern : indexPatterns) {
-        // // TODO: [Jake] handling regular expressions must addressed here !
-        // if (indexPattern.startsWith("/")) {
-        // // add the regular expression as-is until can address the regular expression handling
-        // indexPatternsToSelectors.computeIfAbsent(indexPattern, k -> new HashSet<>()).add(Optional.empty());
-        // continue;
-        // }
-        // if (indexPattern.endsWith("*")) {
-        // canRequireTransformation = true;
-        // if (IndexNameExpressionResolver.hasSelectorSuffix(indexPattern)) {
-        // Tuple<String, String> parts = IndexNameExpressionResolver.splitSelectorExpression(indexPattern);
-        // assert parts.v2() != null && parts.v2().toLowerCase(Locale.ROOT).equals(IndexComponentSelector.FAILURES.getKey())
-        // : "Only the ::failures selector should be present.";
-        // indexPatternsToSelectors.computeIfAbsent(parts.v1(), k -> new HashSet<>()).add(Optional.of(parts.v2()));
-        // } else {
-        // indexPatternsToSelectors.computeIfAbsent(indexPattern, k -> new HashSet<>()).add(Optional.empty()); // no selector
-        // // == ::data
-        // }
-        // } else {
-        // indexPatternsToSelectors.computeIfAbsent(indexPattern, k -> new HashSet<>()).add(Optional.empty()); // no selector ==
-        // // ::data
-        // }
-        // }
-        // // there are no trailing wildcard patterns so need to continue
-        // if (canRequireTransformation == false) {
-        // return indexPatterns;
-        // }
-        //
-        // // find all the patterns that have a wildcard and do not also already have a ::failures selector
-        // for (Map.Entry<String, Set<Optional<String>>> entry : indexPatternsToSelectors.entrySet()) {
-        // if (entry.getKey().endsWith("*") && entry.getKey().startsWith("/") == false) {
-        // // index pattern has a wildcard and is not a regular expression
-        // if (entry.getValue().stream().noneMatch(Optional::isPresent)) {
-        // entry.getValue().add(Optional.of("ADD_FAILURES_EXCLUSION"));
-        // }
-        // }
-        // }
-        //
-        // List<String> indicesWithExclusions = new ArrayList<>();
-        // for (Map.Entry<String, Set<Optional<String>>> entry : indexPatternsToSelectors.entrySet()) {
-        // boolean addExclusion = entry.getValue().stream().anyMatch(s -> s.isPresent() && s.get().equals("ADD_FAILURES_EXCLUSION"));
-        // for (Optional<String> selector : entry.getValue()) {
-        // if (selector.isEmpty()) { // the ::data selector
-        // if (addExclusion) { // needs the exclusion
-        // String asRegex = "(" + entry.getKey().replaceAll("\\*", ".*") + ")";
-        // indicesWithExclusions.add("/" + asRegex + "&~(" + asRegex + "::failures)/");
-        // } else {
-        // indicesWithExclusions.add(entry.getKey()); // no exclusion needed
-        // }
-        // } else if (selector.get().equals(IndexComponentSelector.FAILURES.getKey())) {
-        // indicesWithExclusions.add(
-        // IndexNameExpressionResolver.combineSelector(entry.getKey(), IndexComponentSelector.FAILURES)
-        // );
-        // }
-        // }
-        // }
-        //
-        // return indicesWithExclusions.toArray(String[]::new);
-        // }
 
         public IndexPrivilege privilege() {
             return privilege;

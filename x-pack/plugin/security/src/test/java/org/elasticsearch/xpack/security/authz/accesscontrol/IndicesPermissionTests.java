@@ -331,8 +331,7 @@ public class IndicesPermissionTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             String prefix = randomAlphaOfLengthBetween(4, 12);
             String suffixBegin = randomAlphaOfLengthBetween(12, 36);
-            // has ::failures to avoid the index patterns ending in a trailing wildcard which would re-write the pattern to a regex
-            indices.add("*" + prefix + "*" + suffixBegin + "*::failures");
+            indices.add("*" + prefix + "*" + suffixBegin + "*");
         }
         final ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
@@ -345,7 +344,9 @@ public class IndicesPermissionTests extends ESTestCase {
                 indices.toArray(Strings.EMPTY_ARRAY)
             )
         );
-        assertThat(e.getMessage(), containsString(indices.get(0)));
+        // trailing wildcards will be converted to regular expressions to avoid matching ::failure indices so this assert needs to
+        // convert `*` to `.`*`
+        assertThat(e.getMessage(), containsString(indices.get(0).replace("*", ".*")));
         assertThat(e.getMessage(), containsString("too complex to evaluate"));
     }
 
@@ -668,23 +669,6 @@ public class IndicesPermissionTests extends ESTestCase {
             true,
             "*"
         ).addGroup(IndexPrivilege.NONE, fieldPermissions, queries, randomBoolean(), "*").build();
-
-        // TODO: [Jake] revisit this.... I could change the from false to true and it would pass but I think that is wrong.
-        // Within StringMatcher "*" has special meaning in that we short circuit the creation of the automaton in favor of
-        // just using the ALWAYS predicate. That made sense before ::failures, but now that we have ::failures,
-        // "*" now means "/(.*)&~(.*::failures)/" e.g. "all but failures". To get the same behavior as before
-        // we would need need define "*::*" but that also does not result in the ALWAYS predicate (but it could).
-        // This means that by default (the "*" case) we loose the one of the primary optimization's of StringMatcher and will
-        // mostly always need to build the automaton "*::*" has limited. So I think that "*" (and only "*") is special case that should
-        // be treated as though it were "*::*" and explicitly don't allow "*::*" in the role defintion. To take it a step further,
-        // there is not really a need to add "anything::*" to the role definition at all, and in the role definition we choose to only
-        // support name and name::failure and you have to be explicity about giving access to the failures index, excect for the special
-        // case of "*" which give access to both sets (in most cases the user would not request both, but if they did then having "*" mostly
-        // makes sense to give access to both).
-        //
-        // In summary, we should not allow ::data nor ::* in the role definition and only support nonregex patterns
-        // (but still support wildcards) via name::failures to access the failure indices either alone, or in addition to the main index.
-
         assertThat(indicesPermission3.hasFieldOrDocumentLevelSecurity(), is(false));
     }
 

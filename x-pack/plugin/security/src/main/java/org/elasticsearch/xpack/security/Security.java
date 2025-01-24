@@ -63,6 +63,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.features.FeatureService;
@@ -1273,7 +1274,7 @@ public class Security extends Plugin
                 SecurityMigrationTaskParams.TASK_NAME,
                 SecurityMigrationTaskParams.TASK_NAME,
                 new SecurityMigrationTaskParams(migrationsVersion, securityMigrationNeeded),
-                null,
+                TimeValue.THIRTY_SECONDS /* TODO should this be configurable? longer by default? infinite? */,
                 ActionListener.wrap((response) -> {
                     logger.debug("Security migration task submitted");
                 }, (exception) -> {

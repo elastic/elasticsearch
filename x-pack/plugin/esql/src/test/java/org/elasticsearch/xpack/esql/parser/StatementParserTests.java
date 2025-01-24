@@ -2960,7 +2960,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         var joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
         assertThat(joinType.columns(), hasSize(1));
-        assertThat(as(joinType.columns().getFirst(), UnresolvedAttribute.class).name(), equalTo(onField));
+        assertThat(as(joinType.columns().get(0), UnresolvedAttribute.class).name(), equalTo(onField));
         assertThat(joinType.coreJoin().joinName(), equalTo("LEFT OUTER"));
     }
 

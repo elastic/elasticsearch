@@ -42,7 +42,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -2058,7 +2058,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LogicalPlan from = statement(statement);
         assertThat(from, instanceOf(UnresolvedRelation.class));
         UnresolvedRelation table = (UnresolvedRelation) from;
-        assertThat(table.table().index(), is(string));
+        assertThat(table.indexPattern().indexPattern(), is(string));
     }
 
     private void assertStringAsLookupIndexPattern(String string, String statement) {
@@ -2289,20 +2289,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan unresolvedRelation(String index) {
-        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), false, List.of(), IndexMode.STANDARD, null, "FROM");
+        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, List.of(), IndexMode.STANDARD, null, "FROM");
     }
 
     private LogicalPlan unresolvedTSRelation(String index) {
         List<Attribute> metadata = List.of(new MetadataAttribute(EMPTY, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false));
-        return new UnresolvedRelation(
-            EMPTY,
-            new TableIdentifier(EMPTY, null, index),
-            false,
-            metadata,
-            IndexMode.TIME_SERIES,
-            null,
-            "FROM TS"
-        );
+        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, metadata, IndexMode.TIME_SERIES, null, "FROM TS");
     }
 
     public void testMetricWithGroupKeyAsAgg() {
@@ -2955,8 +2947,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = statement("FROM " + basePattern + " | " + type + " JOIN " + joinPattern + " ON " + onField);
 
         var join = as(plan, LookupJoin.class);
-        assertThat(as(join.left(), UnresolvedRelation.class).table().index(), equalTo(unquoteIndexPattern(basePattern)));
-        assertThat(as(join.right(), UnresolvedRelation.class).table().index(), equalTo(unquoteIndexPattern(joinPattern)));
+        assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
+        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(joinPattern)));
 
         var joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
         assertThat(joinType.columns(), hasSize(1));

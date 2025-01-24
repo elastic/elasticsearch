@@ -125,7 +125,8 @@ interface FieldSpecificMatcher {
             var expectedNormalized = normalizeValues(expected);
             var actualNormalized = normalizeValues(actual);
             for (var expectedValue : expectedNormalized) {
-                if (actualNormalized.contains(expectedValue) == false && actualNormalized.contains(encodeDecodeWithPrecisionLoss(expectedValue, scalingFactorDouble)) == false) {
+                if (actualNormalized.contains(expectedValue) == false
+                    && actualNormalized.contains(encodeDecodeWithPrecisionLoss(expectedValue, scalingFactorDouble)) == false) {
                     return MatchResult.noMatch(
                         formatErrorMessage(
                             actualMappings,

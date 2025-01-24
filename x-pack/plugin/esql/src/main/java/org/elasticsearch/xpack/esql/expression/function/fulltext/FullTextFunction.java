@@ -187,7 +187,7 @@ public abstract class FullTextFunction extends Function implements TranslationAw
             checkCommandsBeforeExpression(
                 plan,
                 condition,
-                Match.class,
+                AbstractMatchFullTextFunction.class,
                 lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
@@ -260,26 +260,6 @@ public abstract class FullTextFunction extends Function implements TranslationAw
             return onlyFullTextFunctionsInExpression(expression.children().get(0));
         } else if (expression instanceof BinaryLogic binaryLogic) {
             return onlyFullTextFunctionsInExpression(binaryLogic.left()) && onlyFullTextFunctionsInExpression(binaryLogic.right());
-        }
-
-        return false;
-    }
-
-    /**
-     * Checks whether an expression contains a full text function as part of it
-     *
-     * @param expression expression to check
-     * @return true if the expression or any of its children is a full text function, false otherwise
-     */
-    private static boolean anyFullTextFunctionsInExpression(Expression expression) {
-        if (expression instanceof FullTextFunction) {
-            return true;
-        }
-
-        for (Expression child : expression.children()) {
-            if (anyFullTextFunctionsInExpression(child)) {
-                return true;
-            }
         }
 
         return false;

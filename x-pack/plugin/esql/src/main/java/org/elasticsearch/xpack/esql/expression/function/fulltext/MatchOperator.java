@@ -65,7 +65,7 @@ public class MatchOperator extends AbstractMatchFullTextFunction {
         this(source, field, matchQuery, null);
     }
 
-    public MatchOperator(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder) {
+    private MatchOperator(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder) {
         super(source, matchQuery, List.of(field, matchQuery), queryBuilder, field);
     }
 

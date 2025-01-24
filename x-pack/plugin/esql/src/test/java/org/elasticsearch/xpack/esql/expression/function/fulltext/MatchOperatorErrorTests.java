@@ -32,7 +32,7 @@ public class MatchOperatorErrorTests extends ErrorsForCasesWithoutExamplesTestCa
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MatchOperator(source, args.get(0), args.get(1), null);
+        return new MatchOperator(source, args.get(0), args.get(1));
     }
 
     @Override

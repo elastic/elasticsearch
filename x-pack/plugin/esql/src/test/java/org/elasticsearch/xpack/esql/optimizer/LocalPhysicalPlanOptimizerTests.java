@@ -202,14 +202,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(stat.query(), is(nullValue()));
     }
 
-    public void test() {
-        var plan = plannerOptimizer.plan("""
-            from test | eval s = emp_no + 2""");
-        var stat = queryStatsFor(plan);
-        assertThat(stat.type(), is(StatsType.COUNT));
-        assertThat(stat.query(), is(nullValue()));
-    }
-
     /**
      * Expects
      * LimitExec[1000[INTEGER]]

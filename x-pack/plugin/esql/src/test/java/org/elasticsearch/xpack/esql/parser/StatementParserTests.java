@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
@@ -2303,7 +2303,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMatchOperatorConstantQueryString() {
         var plan = statement("FROM test | WHERE field:\"value\"");
         var filter = as(plan, Filter.class);
-        var match = (Match) filter.condition();
+        var match = (MatchOperator) filter.condition();
         var matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("field"));
         assertThat(match.query().fold(FoldContext.small()), equalTo("value"));
@@ -2347,7 +2347,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMatchOperatorFieldCasting() {
         var plan = statement("FROM test | WHERE field::int : \"value\"");
         var filter = as(plan, Filter.class);
-        var match = (Match) filter.condition();
+        var match = (MatchOperator) filter.condition();
         var toInteger = (ToInteger) match.field();
         var matchField = (UnresolvedAttribute) toInteger.field();
         assertThat(matchField.name(), equalTo("field"));

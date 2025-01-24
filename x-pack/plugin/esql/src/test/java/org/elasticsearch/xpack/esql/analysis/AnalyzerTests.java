@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.map.LogWithBaseInMap;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -2577,7 +2577,7 @@ public class AnalyzerTests extends ESTestCase {
             """, "mapping-default.json");
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
-        var match = as(filter.condition(), Match.class);
+        var match = as(filter.condition(), MatchOperator.class);
         var enrich = as(filter.child(), Enrich.class);
         assertEquals(enrich.mode(), Enrich.Mode.ANY);
         assertEquals(enrich.policy().getMatchField(), "language_code");

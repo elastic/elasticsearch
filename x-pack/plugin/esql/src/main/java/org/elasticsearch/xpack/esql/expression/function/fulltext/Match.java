@@ -182,9 +182,14 @@ public class Match extends AbstractMatchFullTextFunction implements OptionalArgu
                     name = "operator",
                     type = "keyword",
                     valueHint = { "AND", "OR" },
-                    description = "Boolean logic used to interpret text in the query value"
+                    description = "Boolean logic used to interpret text in the query value."
                 ),
-                @MapParam.MapParamEntry(name = "prefix_length", valueHint = { "1" }, description = ""),
+                @MapParam.MapParamEntry(
+                    name = "prefix_length",
+                    type = "integer",
+                    valueHint = { "1" },
+                    description = "Number of beginning characters left unchanged for fuzzy matching."
+                ),
                 @MapParam.MapParamEntry(
                     name = "zero_terms_query",
                     type = "keyword",

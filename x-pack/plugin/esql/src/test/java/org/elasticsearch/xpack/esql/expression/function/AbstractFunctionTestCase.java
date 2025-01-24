@@ -928,7 +928,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 );
             }
             renderTypes(name, description.args());
-            renderParametersList(name, description.argNames(), description.argDescriptions());
+            renderParametersList(name, description.argNames(), description.argDescriptions(), description.argOptionals());
             FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
             renderDescription(name, description.description(), info.detailedDescription(), info.note());
             Optional<EsqlFunctionRegistry.ArgSignature> mapArgSignature = description.args()
@@ -1007,12 +1007,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         writeToTempDir("types", name, "asciidoc", rendered);
     }
 
-    private static void renderParametersList(String name, List<String> argNames, List<String> argDescriptions) throws IOException {
+    private static void renderParametersList(String name, List<String> argNames, List<String> argDescriptions, List<Boolean> argsOptional)
+        throws IOException {
         StringBuilder builder = new StringBuilder();
         builder.append(DOCS_WARNING);
         builder.append("*Parameters*\n");
         for (int a = 0; a < argNames.size(); a++) {
-            builder.append("\n`").append(argNames.get(a)).append("`::\n").append(argDescriptions.get(a)).append('\n');
+            builder.append("\n`").append(argNames.get(a)).append("`::\n");
+            if (argsOptional.get(a)) {
+                builder.append("(Optional) ");
+            }
+            builder.append(argDescriptions.get(a)).append('\n');
         }
         String rendered = builder.toString();
         LogManager.getLogger(getTestClass()).info("Writing parameters for [{}]:\n{}", name, rendered);
@@ -1127,7 +1132,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             .replace("$UPPER_NAME$", name.toUpperCase(Locale.ROOT))
             .replace("$PREVIEW_CALLOUT$", preview ? PREVIEW_CALLOUT : "");
         if (hasFunctionOptions) {
-            rendered += "include::../optionalFunctionParams/" + name + ".asciidoc[]\n";
+            rendered += "include::../functionNamedParams/" + name + ".asciidoc[]\n";
         }
         if (hasExamples) {
             rendered += "include::../examples/" + name + ".asciidoc[]\n";

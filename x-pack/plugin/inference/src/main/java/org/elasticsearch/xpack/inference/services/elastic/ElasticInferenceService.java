@@ -59,6 +59,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
@@ -86,7 +87,8 @@ public class ElasticInferenceService extends SenderService {
 
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
     private Configuration configuration;
-    private EnumSet<TaskType> enabledTaskTypes;
+    // private EnumSet<TaskType> enabledTaskTypes;
+    private final AtomicReference<EnumSet<TaskType>> enabledTaskTypesRef = new AtomicReference<>(EnumSet.noneOf(TaskType.class));
     private final ModelRegistry modelRegistry;
     private final ElasticInferenceServiceAuthorizationHandler authorizationHandler;
     private final CountDownLatch authorizationCompletedLatch = new CountDownLatch(1);
@@ -103,8 +105,7 @@ public class ElasticInferenceService extends SenderService {
         this.modelRegistry = Objects.requireNonNull(modelRegistry);
         this.authorizationHandler = Objects.requireNonNull(authorizationHandler);
 
-        enabledTaskTypes = EnumSet.noneOf(TaskType.class);
-        configuration = new Configuration(enabledTaskTypes);
+        configuration = new Configuration(enabledTaskTypesRef.get());
 
         getAuthorization();
     }
@@ -126,8 +127,8 @@ public class ElasticInferenceService extends SenderService {
     }
 
     private synchronized void setEnabledTaskTypes(ElasticInferenceServiceAuthorization auth) {
-        enabledTaskTypes = filterTaskTypesByAuthorization(auth);
-        configuration = new Configuration(enabledTaskTypes);
+        enabledTaskTypesRef.set(filterTaskTypesByAuthorization(auth));
+        configuration = new Configuration(enabledTaskTypesRef.get());
 
         defaultConfigIds().forEach(modelRegistry::addDefaultIds);
     }
@@ -152,7 +153,7 @@ public class ElasticInferenceService extends SenderService {
     @Override
     public synchronized Set<TaskType> supportedStreamingTasks() {
         var enabledStreamingTaskTypes = EnumSet.of(TaskType.CHAT_COMPLETION);
-        enabledStreamingTaskTypes.retainAll(enabledTaskTypes);
+        enabledStreamingTaskTypes.retainAll(enabledTaskTypesRef.get());
 
         if (enabledStreamingTaskTypes.isEmpty() == false) {
             enabledStreamingTaskTypes.add(TaskType.ANY);
@@ -297,12 +298,12 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public synchronized EnumSet<TaskType> supportedTaskTypes() {
-        return enabledTaskTypes;
+        return enabledTaskTypesRef.get();
     }
 
     @Override
     public synchronized boolean hideFromConfigurationApi() {
-        return enabledTaskTypes.isEmpty();
+        return enabledTaskTypesRef.get().isEmpty();
     }
 
     private static ElasticInferenceServiceModel createModel(

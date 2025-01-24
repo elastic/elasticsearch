@@ -104,7 +104,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             // See #111916.
             var genericMatchResult = matchWithGenericMatcher(actualValues, expectedValues);
             if (genericMatchResult.isMatch()) {
-                return genericMatchResult;
+                continue;
             }
 
             var matchIncludingFieldSpecificMatchers = matchWithFieldSpecificMatcher(name, actualValues, expectedValues).orElse(
@@ -115,7 +115,6 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
                 return MatchResult.noMatch(message);
             }
         }
-
         return MatchResult.match();
     }
 

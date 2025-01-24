@@ -195,6 +195,10 @@ public final class ClientHelper {
     public static final String INFERENCE_ORIGIN = "inference";
     public static final String APM_ORIGIN = "apm";
     public static final String OTEL_ORIGIN = "otel";
+    public static final String REINDEX_DATA_STREAM_ORIGIN = "reindex_data_stream";
+    // TODO consolidate the Kibana origin with the one defined in org/elasticsearch/kibana/KibanaPlugin.java
+    public static final String KIBANA_ORIGIN = "kibana";
+    public static final String CLOUD_ORIGIN = "cloud";
 
     private ClientHelper() {}
 

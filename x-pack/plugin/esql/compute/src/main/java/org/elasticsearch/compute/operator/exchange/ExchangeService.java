@@ -76,6 +76,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     private final BlockFactory blockFactory;
 
     private final Map<String, ExchangeSinkHandler> sinks = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, ExchangeSourceHandler> exchangeSources = ConcurrentCollections.newConcurrentMap();
 
     public ExchangeService(Settings settings, ThreadPool threadPool, String executorName, BlockFactory blockFactory) {
         this.threadPool = threadPool;
@@ -170,6 +171,32 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> TransportResponse.Empty.INSTANCE, responseExecutor)
         );
+    }
+
+    /**
+     * Remember the exchange source handler for the given session ID.
+     * This can be used for async/stop requests.
+     */
+    public void addExchangeSourceHandler(String sessionId, ExchangeSourceHandler sourceHandler) {
+        exchangeSources.put(sessionId, sourceHandler);
+    }
+
+    public ExchangeSourceHandler removeExchangeSourceHandler(String sessionId) {
+        return exchangeSources.remove(sessionId);
+    }
+
+    /**
+     * Finishes the session early, i.e., before all sources are finished.
+     * It is called by async/stop API and should be called on the node that coordinates the async request.
+     * It will close all sources and return the results - unlike cancel, this does not discard the results.
+     */
+    public void finishSessionEarly(String sessionId, ActionListener<Void> listener) {
+        ExchangeSourceHandler exchangeSource = removeExchangeSourceHandler(sessionId);
+        if (exchangeSource != null) {
+            exchangeSource.finishEarly(false, listener);
+        } else {
+            listener.onResponse(null);
+        }
     }
 
     private static class OpenExchangeRequest extends TransportRequest {

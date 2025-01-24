@@ -185,8 +185,8 @@ public class PolicyManager {
     /**
      * Check for operations that can access sensitive network information, e.g. secrets, tokens or SSL sessions
      */
-    public void checkReadSensitiveNetworkInformation(Class<?> callerClass) {
-        neverEntitled(callerClass, "access sensitive network information");
+    public void checkLoadingNativeLibraries(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, LoadNativeLibrariesEntitlement.class);
     }
 
     private String operationDescription(String methodName) {

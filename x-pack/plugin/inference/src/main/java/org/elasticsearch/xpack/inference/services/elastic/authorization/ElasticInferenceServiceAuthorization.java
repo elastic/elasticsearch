@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 public record ElasticInferenceServiceAuthorization(Map<String, EnumSet<TaskType>> enabledModels) {
 
     /**
-     * Converts an authorization response from EIS into the {@link ElasticInferenceServiceAuthorization} format.
+     * Converts an authorization response from Elastic Inference Service into the {@link ElasticInferenceServiceAuthorization} format.
      *
      * @param responseEntity the {@link ElasticInferenceServiceAuthorizationResponseEntity} response from the upstream gateway.
      * @return a new {@link ElasticInferenceServiceAuthorization}
@@ -44,7 +44,7 @@ public record ElasticInferenceServiceAuthorization(Map<String, EnumSet<TaskType>
     }
 
     /**
-     * Returns an object indicating that the cluster has no access to EIS.
+     * Returns an object indicating that the cluster has no access to Elastic Inference Service.
      */
     public static ElasticInferenceServiceAuthorization newDisabledService() {
         return new ElasticInferenceServiceAuthorization();

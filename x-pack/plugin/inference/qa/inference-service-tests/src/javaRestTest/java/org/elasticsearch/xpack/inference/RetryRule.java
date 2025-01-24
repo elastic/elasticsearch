@@ -45,17 +45,17 @@ public class RetryRule implements TestRule {
                 Throwable lastThrowable = null;
                 for (int i = 0; i < maxAttempts; i++) {
                     try {
-                        logger.info(Strings.format("Running test [%s] attempt [%s/%s]", description.getMethodName(), i + 1, maxAttempts));
+                        logger.info(Strings.format("Running test [%s] attempt [%d/%d]", description.getMethodName(), i + 1, maxAttempts));
                         statement.evaluate();
                         logger.info(
-                            Strings.format("Test [%s] succeeded on attempt [%s/%s]", description.getMethodName(), i + 1, maxAttempts)
+                            Strings.format("Test [%s] succeeded on attempt [%d/%d]", description.getMethodName(), i + 1, maxAttempts)
                         );
                         // Test succeeded so we'll return
                         return;
                     } catch (Throwable t) {
                         logger.info(
                             Strings.format(
-                                "Test [%s] failed with exception: %s, attempt [%s/%s]",
+                                "Test [%s] failed with exception: %s, attempt [%d/%d]",
                                 description.getMethodName(),
                                 t.getMessage(),
                                 i + 1,

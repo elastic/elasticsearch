@@ -42,6 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class InferenceBaseRestTest extends ESRestTestCase {
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -51,7 +52,6 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         .user("x_pack_rest_user", "x-pack-test-password")
         .feature(FeatureFlag.INFERENCE_UNIFIED_API_ENABLED)
         .build();
-
     @ClassRule
     public static MlModelServer mlModelServer = new MlModelServer();
 
@@ -174,20 +174,20 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     protected void deleteModel(String modelId) throws IOException {
         var request = new Request("DELETE", "_inference/" + modelId);
         var response = client().performRequest(request);
-        assertOkOrCreated(response);
+        assertStatusOkOrCreated(response);
     }
 
     protected Response deleteModel(String modelId, String queryParams) throws IOException {
         var request = new Request("DELETE", "_inference/" + modelId + "?" + queryParams);
         var response = client().performRequest(request);
-        assertOkOrCreated(response);
+        assertStatusOkOrCreated(response);
         return response;
     }
 
     protected void deleteModel(String modelId, TaskType taskType) throws IOException {
         var request = new Request("DELETE", Strings.format("_inference/%s/%s", taskType, modelId));
         var response = client().performRequest(request);
-        assertOkOrCreated(response);
+        assertStatusOkOrCreated(response);
     }
 
     protected void putSemanticText(String endpointId, String indexName) throws IOException {
@@ -206,7 +206,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
             """, endpointId);
         request.setJsonEntity(body);
         var response = client().performRequest(request);
-        assertOkOrCreated(response);
+        assertStatusOkOrCreated(response);
     }
 
     protected void putSemanticText(String endpointId, String searchEndpointId, String indexName) throws IOException {
@@ -226,7 +226,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
             """, endpointId, searchEndpointId);
         request.setJsonEntity(body);
         var response = client().performRequest(request);
-        assertOkOrCreated(response);
+        assertStatusOkOrCreated(response);
     }
 
     protected Map<String, Object> putModel(String modelId, String modelConfig, TaskType taskType) throws IOException {
@@ -259,7 +259,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     protected void deletePipeline(String pipelineId) throws IOException {
         var request = new Request("DELETE", Strings.format("_ingest/pipeline/%s", pipelineId));
         var response = client().performRequest(request);
-        assertOkOrCreated(response);
+        assertStatusOkOrCreated(response);
     }
 
     /**
@@ -274,7 +274,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         var request = new Request("PUT", endpoint);
         request.setJsonEntity(body);
         var response = client().performRequest(request);
-        assertOkOrCreated(response);
+        assertStatusOkOrCreated(response);
         return entityAsMap(response);
     }
 
@@ -282,7 +282,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         var request = new Request("POST", endpoint);
         request.setJsonEntity(body);
         var response = client().performRequest(request);
-        assertOkOrCreated(response);
+        assertStatusOkOrCreated(response);
         return entityAsMap(response);
     }
 
@@ -299,7 +299,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
         request.setJsonEntity(body);
         var response = client().performRequest(request);
-        assertOkOrCreated(response);
+        assertStatusOkOrCreated(response);
         return entityAsMap(response);
     }
 
@@ -307,7 +307,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         var request = new Request("POST", "_ml/trained_models/.multilingual-e5-small/deployment/_start?wait_for=fully_allocated");
 
         var response = client().performRequest(request);
-        assertOkOrCreated(response);
+        assertStatusOkOrCreated(response);
         return entityAsMap(response);
     }
 
@@ -332,7 +332,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     private Map<String, Object> getInternalAsMap(String endpoint) throws IOException {
         var request = new Request("GET", endpoint);
         var response = client().performRequest(request);
-        assertOkOrCreated(response);
+        assertStatusOkOrCreated(response);
         return entityAsMap(response);
     }
 
@@ -456,7 +456,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     ) throws IOException {
         var request = createInferenceRequest(endpoint, input, query, queryParameters);
         var response = client().performRequest(request);
-        assertOkOrCreated(response);
+        assertStatusOkOrCreated(response);
         return entityAsMap(response);
     }
 
@@ -492,7 +492,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         }
     }
 
-    static void assertOkOrCreated(Response response) throws IOException {
+    static void assertStatusOkOrCreated(Response response) throws IOException {
         int statusCode = response.getStatusLine().getStatusCode();
         // Once EntityUtils.toString(entity) is called the entity cannot be reused.
         // Avoid that call with check here.
@@ -508,7 +508,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         var endpoint = Strings.format("_ml/trained_models/%s/_stats", inferenceEntityId);
         var request = new Request("GET", endpoint);
         var response = client().performRequest(request);
-        assertOkOrCreated(response);
+        assertStatusOkOrCreated(response);
         return entityAsMap(response);
     }
 }

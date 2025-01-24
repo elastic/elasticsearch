@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 public class TimedListener<Response> {
 
     private final ActionListener<Response> listenerWithTimeout;
-    private final AtomicBoolean finished = new AtomicBoolean();
+    private final AtomicBoolean completed = new AtomicBoolean();
 
     public TimedListener(@Nullable TimeValue timeout, ActionListener<Response> listener, ThreadPool threadPool) {
         listenerWithTimeout = getListener(Objects.requireNonNull(listener), timeout, Objects.requireNonNull(threadPool));
@@ -42,10 +42,10 @@ public class TimedListener<Response> {
         ThreadPool threadPool
     ) {
         ActionListener<Response> notificationListener = ActionListener.wrap(result -> {
-            finished.set(true);
+            completed.set(true);
             origListener.onResponse(result);
         }, e -> {
-            finished.set(true);
+            completed.set(true);
             origListener.onFailure(e);
         });
 
@@ -65,7 +65,7 @@ public class TimedListener<Response> {
     }
 
     public boolean hasCompleted() {
-        return finished.get();
+        return completed.get();
     }
 
     public ActionListener<Response> getListener() {

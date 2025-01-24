@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Requ
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 
 /**
- * Handles retrieving the authorization information from EIS.
+ * Handles retrieving the authorization information from Elastic Inference Service.
  */
 public class ElasticInferenceServiceAuthorizationHandler {
 
@@ -67,9 +67,9 @@ public class ElasticInferenceServiceAuthorizationHandler {
     }
 
     /**
-     * Retrieve the authorization information from EIS
+     * Retrieve the authorization information from Elastic Inference Service
      * @param listener a listener to receive the response
-     * @param sender a {@link Sender} for making the request to the EIS gateway
+     * @param sender a {@link Sender} for making the request to the Elastic Inference Service
      */
     public void getAuthorization(ActionListener<ElasticInferenceServiceAuthorization> listener, Sender sender) {
         try {

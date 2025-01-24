@@ -155,8 +155,7 @@ public class HttpRequestSender implements Sender {
      * @param logger          A logger to use for messages
      * @param request         A request to be sent
      * @param responseHandler A handler for parsing the response
-     * @param timeout         the maximum time the request should wait for a response before timing out. If null, the timeout is ignored.
-     *                        The queuing logic may still throw a timeout if it fails to send the request because it couldn't get a leased
+     * @param timeout         the maximum time the request should wait for a response before timing out. If null, the timeout is ignored
      * @param listener        a listener to handle the response
      */
     public void sendWithoutQueuing(

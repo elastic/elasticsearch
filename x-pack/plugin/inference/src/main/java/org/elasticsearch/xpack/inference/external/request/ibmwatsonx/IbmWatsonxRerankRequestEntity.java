@@ -51,6 +51,9 @@ public record IbmWatsonxRerankRequestEntity( String query, List<String> inputs, 
                 if (taskSettings.getDoesReturnDocuments() != null) {
                     builder.field("inputs", taskSettings.getDoesReturnDocuments());
                 }
+                if (taskSettings.getTopNDocumentsOnly() != null) {
+                    builder.field("top_n", taskSettings.getTopNDocumentsOnly());
+                }
             }
             builder.endObject();
         }

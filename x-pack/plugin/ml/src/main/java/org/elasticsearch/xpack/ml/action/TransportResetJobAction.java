@@ -57,6 +57,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
 
     private static final Logger logger = LogManager.getLogger(TransportResetJobAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Client client;
     private final JobConfigProvider jobConfigProvider;
     private final JobResultsProvider jobResultsProvider;
@@ -81,9 +82,9 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
             threadPool,
             actionFilters,
             ResetJobAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
         this.client = Objects.requireNonNull(client);
         this.jobConfigProvider = Objects.requireNonNull(jobConfigProvider);
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);

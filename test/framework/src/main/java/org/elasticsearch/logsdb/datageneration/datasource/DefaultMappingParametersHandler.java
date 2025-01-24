@@ -32,8 +32,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
         return new DataSourceResponse.LeafMappingParametersGenerator(switch (request.fieldType()) {
             case KEYWORD -> keywordMapping(request, map);
-            case LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, HALF_FLOAT, UNSIGNED_LONG -> plain(map);
-            case SCALED_FLOAT -> scaledFloatMapping(map);
+            case LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, UNSIGNED_LONG -> plain(map);
         });
     }
 

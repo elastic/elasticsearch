@@ -1,6 +1,7 @@
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
+  javaRestTestImplementation project(path: xpackModule('core'))
   javaRestTestImplementation project(path: xpackModule('inference'))
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 }

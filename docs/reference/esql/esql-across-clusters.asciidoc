@@ -210,6 +210,7 @@ Which returns:
 {
   "is_running": false,
   "took": 42,  <1>
+  "is_partial": false, <7>
   "columns" : [
     {
       "name" : "COUNT(http.response.status_code)",
@@ -275,8 +276,9 @@ Which returns:
 <2> This section of counters shows all possible cluster search states and how many cluster
 searches are currently in that state. The clusters can have one of the following statuses: *running*,
 *successful* (searches on all shards were successful), *skipped* (the search
-failed on a cluster marked with `skip_unavailable`=`true`) or *failed* (the search
-failed on a cluster marked with `skip_unavailable`=`false`).
+failed on a cluster marked with `skip_unavailable`=`true`), *failed* (the search
+failed on a cluster marked with `skip_unavailable`=`false`) or **partial** (the search was
+<<esql-async-query-stop-api, interrupted>> before finishing).
 <3> The `_clusters/details` section shows metadata about the search on each cluster.
 <4> If you included indices from the local cluster you sent the request to in your {ccs},
 it is identified as "(local)".
@@ -285,6 +287,8 @@ which clusters have slower response times than others.
 <6> The shard details for the search on that cluster, including a count of shards that were
 skipped due to the can-match phase results. Shards are skipped when they cannot have any matching data
 and therefore are not included in the full ES|QL query.
+<7> The `is_partial` field is set to `true` if the search has partial results for any reason,
+for example if it was interrupted before finishing using the <<esql-async-query-stop-api,async query stop API>>.
 
 
 The cross-cluster metadata can be used to determine whether any data came back from a cluster.
@@ -314,6 +318,7 @@ Which returns:
 {
   "is_running": false,
   "took": 55,
+  "is_partial": false,
   "columns": [
      ... // not shown
   ],

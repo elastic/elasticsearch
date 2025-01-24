@@ -58,6 +58,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private int maxMergeCount;
     private boolean shouldIOThrottledMergeTasks;
 
+    @SuppressWarnings("this-escape")
     public ThreadPoolMergeScheduler(ShardId shardId, IndexSettings indexSettings, ThreadPoolMergeExecutor threadPoolMergeExecutor) {
         this.shardId = shardId;
         this.config = indexSettings.getMergeSchedulerConfig();

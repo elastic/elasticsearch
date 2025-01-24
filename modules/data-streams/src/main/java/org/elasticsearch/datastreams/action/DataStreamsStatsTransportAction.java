@@ -16,7 +16,6 @@ import org.elasticsearch.action.datastreams.DataStreamsActionUtil;
 import org.elasticsearch.action.datastreams.DataStreamsStatsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -103,17 +102,6 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         String[] concreteIndices
     ) {
         return state.blocks().indicesBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ, concreteIndices);
-    }
-
-    @Override
-    protected String[] resolveConcreteIndexNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
-        return DataStreamsActionUtil.resolveConcreteIndexNamesWithSelector(
-            indexNameExpressionResolver,
-            projectResolver.getProjectMetadata(clusterState),
-            request.indices(),
-            IndexComponentSelector.ALL_APPLICABLE,
-            request.indicesOptions()
-        ).toArray(String[]::new);
     }
 
     @Override

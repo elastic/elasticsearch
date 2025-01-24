@@ -96,7 +96,17 @@ public class IndexNameExpressionResolver {
      */
     public record ResolvedExpression(String resource, @Nullable IndexComponentSelector selector) {
         public ResolvedExpression(String indexAbstraction) {
-            this(indexAbstraction, null);
+            this(indexAbstraction, (IndexComponentSelector) null);
+        }
+
+        /**
+         * Constructs a ResolvedExpression with the DATA selector if the selectors are allowed
+         * or null otherwise.
+         * @param indexAbstraction
+         * @param options
+         */
+        public ResolvedExpression(String indexAbstraction, IndicesOptions options) {
+            this(indexAbstraction, options.allowSelectors() ? IndexComponentSelector.DATA : null);
         }
 
         public String combined() {
@@ -710,19 +720,19 @@ public class IndexNameExpressionResolver {
         }
     }
 
-    private static boolean shouldIncludeRegularIndices(IndicesOptions indicesOptions, IndexComponentSelector expressionSelector) {
+    public static boolean shouldIncludeRegularIndices(IndicesOptions indicesOptions, IndexComponentSelector expressionSelector) {
         if (indicesOptions.allowSelectors()) {
             return expressionSelector == null || expressionSelector.shouldIncludeData();
         }
         return true;
     }
 
-    private static boolean shouldIncludeFailureIndices(IndicesOptions indicesOptions, IndexComponentSelector expressionSelector) {
+    public static boolean shouldIncludeFailureIndices(IndicesOptions indicesOptions, IndexComponentSelector expressionSelector) {
         // We return failure indices regardless of whether the data stream actually has the `failureStoreEnabled` flag set to true.
         if (indicesOptions.allowSelectors()) {
             return expressionSelector != null && expressionSelector.shouldIncludeFailures();
         }
-        return false;
+        return indicesOptions.includeFailureIndices();
     }
 
     private static boolean resolvesToMoreThanOneIndex(IndexAbstraction indexAbstraction, Context context, ResolvedExpression expression) {
@@ -1941,12 +1951,7 @@ public class IndexNameExpressionResolver {
                         Index index = indexAbstraction.getIndices().get(i);
                         IndexMetadata indexMetadata = context.project.index(index);
                         if (indexMetadata.getState() != excludeState) {
-                            resources.add(
-                                new ResolvedExpression(
-                                    index.getName(),
-                                    context.options.allowSelectors() ? IndexComponentSelector.DATA : null
-                                )
-                            );
+                            resources.add(new ResolvedExpression(index.getName(), context.getOptions()));
                         }
                     }
                 }
@@ -1957,7 +1962,7 @@ public class IndexNameExpressionResolver {
                             Index index = failureIndices.get(i);
                             IndexMetadata indexMetadata = context.getProject().index(index);
                             if (indexMetadata.getState() != excludeState) {
-                                resources.add(new ResolvedExpression(index.getName(), IndexComponentSelector.DATA));
+                                resources.add(new ResolvedExpression(index.getName(), context.getOptions()));
                             }
                         }
                     }

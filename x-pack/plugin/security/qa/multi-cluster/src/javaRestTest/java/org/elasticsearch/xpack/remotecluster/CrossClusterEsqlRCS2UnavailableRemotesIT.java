@@ -15,8 +15,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.hamcrest.CoreMatchers;
-import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -27,6 +25,8 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.CoreMatchers.anyOf;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -206,10 +206,10 @@ public class CrossClusterEsqlRCS2UnavailableRemotesIT extends AbstractRemoteClus
             ResponseException ex = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(esqlRequest(query)));
             assertThat(
                 ex.getMessage(),
-                Matchers.anyOf(
-                    CoreMatchers.containsString("connect_transport_exception"),
-                    CoreMatchers.containsString("node_disconnected_exception"),
-                    CoreMatchers.containsString("node_not_connected_exception")
+                anyOf(
+                    containsString("connect_transport_exception"),
+                    containsString("node_disconnected_exception"),
+                    containsString("node_not_connected_exception")
                 )
             );
         } finally {

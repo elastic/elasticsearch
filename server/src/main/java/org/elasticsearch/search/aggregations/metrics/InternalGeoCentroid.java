@@ -13,9 +13,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.support.SamplingContext;
-import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.util.Map;
@@ -26,21 +23,14 @@ import java.util.Map;
 public class InternalGeoCentroid extends InternalCentroid implements GeoCentroid {
 
     public InternalGeoCentroid(String name, SpatialPoint centroid, long count, Map<String, Object> metadata) {
-        super(
-            name,
-            centroid,
-            count,
-            metadata,
-            new FieldExtractor("lat", SpatialPoint::getY),
-            new FieldExtractor("lon", SpatialPoint::getX)
-        );
+        super(name, centroid, count, metadata);
     }
 
     /**
      * Read from a stream.
      */
     public InternalGeoCentroid(StreamInput in) throws IOException {
-        super(in, new FieldExtractor("lat", SpatialPoint::getY), new FieldExtractor("lon", SpatialPoint::getX));
+        super(in);
     }
 
     public static InternalGeoCentroid empty(String name, Map<String, Object> metadata) {
@@ -84,12 +74,22 @@ public class InternalGeoCentroid extends InternalCentroid implements GeoCentroid
     }
 
     @Override
-    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalGeoCentroid(name, centroid, samplingContext.scaleUp(count), getMetadata());
+    protected String nameFirst() {
+        return "lat";
     }
 
-    static class Fields {
-        static final ParseField CENTROID_LAT = new ParseField("lat");
-        static final ParseField CENTROID_LON = new ParseField("lon");
+    @Override
+    protected double extractFirst(SpatialPoint point) {
+        return point.getY();
+    }
+
+    @Override
+    protected String nameSecond() {
+        return "lon";
+    }
+
+    @Override
+    protected double extractSecond(SpatialPoint point) {
+        return point.getX();
     }
 }

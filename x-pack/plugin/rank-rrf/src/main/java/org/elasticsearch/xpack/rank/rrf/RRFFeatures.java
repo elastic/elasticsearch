@@ -12,7 +12,7 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
-import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilder.RRF_RETRIEVER_COMPOSITION_SUPPORTED;
+import static org.elasticsearch.search.retriever.CompoundRetrieverBuilder.INNER_RETRIEVERS_FILTER_SUPPORT;
 
 /**
  * A set of features specifically for the rrf plugin.
@@ -20,7 +20,7 @@ import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilder.RRF_RETRIEVER
 public class RRFFeatures implements FeatureSpecification {
 
     @Override
-    public Set<NodeFeature> getFeatures() {
-        return Set.of(RRFRetrieverBuilder.RRF_RETRIEVER_SUPPORTED, RRF_RETRIEVER_COMPOSITION_SUPPORTED);
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(INNER_RETRIEVERS_FILTER_SUPPORT);
     }
 }

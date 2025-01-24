@@ -51,11 +51,12 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
         Map.entry(DataType.IP, MaxIpAggregatorFunctionSupplier::new),
         Map.entry(DataType.KEYWORD, MaxBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.TEXT, MaxBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.SEMANTIC_TEXT, MaxBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.VERSION, MaxBytesRefAggregatorFunctionSupplier::new)
     );
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "long", "version" },
+        returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "long", "version" },
         description = "The maximum value of a field.",
         isAggregation = true,
         examples = {
@@ -72,7 +73,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "text", "long", "version" }
+            type = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "text", "long", "version" }
         ) Expression field
     ) {
         this(source, field, Literal.TRUE);

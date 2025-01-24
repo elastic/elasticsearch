@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.cons
  * Provides a way to construct an {@link ExecutableAction} using the visitor pattern based on the openai model type.
  */
 public class OpenAiActionCreator implements OpenAiActionVisitor {
-    private static final String COMPLETION_ERROR_PREFIX = "OpenAI chat completions";
+    public static final String COMPLETION_ERROR_PREFIX = "OpenAI chat completions";
     private final Sender sender;
     private final ServiceComponents serviceComponents;
 

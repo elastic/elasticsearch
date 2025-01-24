@@ -25,6 +25,10 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
     private final TableIdentifier table;
     private final boolean frozen;
     private final List<Attribute> metadataFields;
+    /*
+     * Expected indexMode based on the declaration - used later for verification
+     * at resolution time.
+     */
     private final IndexMode indexMode;
     private final String unresolvedMsg;
 

@@ -1,9 +1,10 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
 ---
 object with unmapped fields:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source", "mapper.bwc_workaround_9_0"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
@@ -11,13 +12,11 @@ object with unmapped fields:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 total_fields:
                   ignore_dynamic_beyond_limit: true
                   limit: 1
-
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -53,10 +52,6 @@ object with unmapped fields:
 
 ---
 unmapped arrays:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
@@ -64,13 +59,12 @@ unmapped arrays:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 total_fields:
                   ignore_dynamic_beyond_limit: true
                   limit: 1
 
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -100,10 +94,6 @@ unmapped arrays:
 
 ---
 nested object with unmapped fields:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source", "mapper.bwc_workaround_9_0"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
@@ -111,13 +101,12 @@ nested object with unmapped fields:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 total_fields:
                   ignore_dynamic_beyond_limit: true
                   limit: 3
 
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path:
                 properties:
@@ -152,10 +141,6 @@ nested object with unmapped fields:
 
 ---
 empty object with unmapped fields:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source", "mapper.bwc_workaround_9_0"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
@@ -163,13 +148,12 @@ empty object with unmapped fields:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 total_fields:
                   ignore_dynamic_beyond_limit: true
                   limit: 3
 
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path:
                 properties:
@@ -205,9 +189,10 @@ disabled root object:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             enabled: false
 
   - do:
@@ -242,9 +227,10 @@ disabled object:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path:
                 enabled: false
@@ -279,9 +265,10 @@ disabled object contains array:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path:
                 enabled: false
@@ -311,17 +298,14 @@ disabled object contains array:
 
 ---
 disabled subobject:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path:
                 properties:
@@ -349,17 +333,14 @@ disabled subobject:
 
 ---
 disabled subobject with array:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path:
                 properties:
@@ -388,17 +369,14 @@ disabled subobject with array:
 
 ---
 mixed disabled and enabled objects:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path:
                 properties:
@@ -435,16 +413,17 @@ mixed disabled and enabled objects:
 ---
 object with dynamic override:
   - requires:
-      cluster_features: ["mapper.ignored_source.dont_expand_dots", "mapper.bwc_workaround_9_0"]
+      cluster_features: ["mapper.ignored_source.dont_expand_dots"]
       reason: requires tracking ignored source
 
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path_no:
                 dynamic: false
@@ -481,17 +460,14 @@ object with dynamic override:
 
 ---
 subobject with dynamic override:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path:
                 properties:
@@ -529,17 +505,14 @@ subobject with dynamic override:
 
 ---
 object array in object with dynamic override:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -583,17 +556,14 @@ object array in object with dynamic override:
 
 ---
 value array in object with dynamic override:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path_no:
                 dynamic: false
@@ -626,17 +596,14 @@ value array in object with dynamic override:
 
 ---
 nested object:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               nested_field:
                 type: nested
@@ -671,17 +638,14 @@ nested object:
 
 ---
 nested object next to regular:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               path:
                 properties:
@@ -717,17 +681,14 @@ nested object next to regular:
 
 ---
 nested object with disabled:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               obj_field:
                 properties:
@@ -805,17 +766,14 @@ nested object with disabled:
 
 ---
 doubly nested object:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               obj_field:
                 properties:
@@ -900,17 +858,14 @@ doubly nested object:
 
 ---
 subobjects auto:
-  - requires:
-      cluster_features: ["mapper.subobjects_auto", "mapper.bwc_workaround_9_0"]
-      reason: requires tracking ignored source and supporting subobjects auto setting
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             subobjects: auto
             properties:
               id:
@@ -988,17 +943,14 @@ subobjects auto:
 
 ---
 synthetic_source with copy_to:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_fix"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               number:
                 type: integer
@@ -1124,17 +1076,14 @@ synthetic_source with copy_to:
 
 ---
 synthetic_source with disabled doc_values:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_with_copy_to_and_doc_values_false"]
-      reason: requires disabled doc_values support in synthetic source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               number:
                 type: integer
@@ -1207,17 +1156,14 @@ synthetic_source with disabled doc_values:
 
 ---
 fallback synthetic_source for text field:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_with_copy_to_and_doc_values_false"]
-      reason: requires disabled doc_values support in synthetic source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               text:
                 type: text
@@ -1241,17 +1187,14 @@ fallback synthetic_source for text field:
 
 ---
 synthetic_source with copy_to and ignored values:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_fix"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -1309,17 +1252,14 @@ synthetic_source with copy_to and ignored values:
 
 ---
 synthetic_source with copy_to field having values in source:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_fix"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -1372,17 +1312,14 @@ synthetic_source with copy_to field having values in source:
 
 ---
 synthetic_source with ignored source field using copy_to:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_fix"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -1436,17 +1373,14 @@ synthetic_source with ignored source field using copy_to:
 
 ---
 synthetic_source with copy_to field from dynamic template having values in source:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_fix"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             dynamic_templates:
               - copy_template:
                   match: "k"
@@ -1533,7 +1467,6 @@ synthetic_source with copy_to field from dynamic template having values in sourc
 ---
 synthetic_source with copy_to and invalid values for copy:
   - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_fix"]
       reason: requires copy_to support in synthetic source
       test_runner_features: "contains"
 
@@ -1541,9 +1474,10 @@ synthetic_source with copy_to and invalid values for copy:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -1569,17 +1503,14 @@ synthetic_source with copy_to and invalid values for copy:
 
 ---
 synthetic_source with copy_to pointing inside object:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -1673,17 +1604,14 @@ synthetic_source with copy_to pointing inside object:
 
 ---
 synthetic_source with copy_to pointing to ambiguous field:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               k:
                 type: keyword
@@ -1720,17 +1648,14 @@ synthetic_source with copy_to pointing to ambiguous field:
 
 ---
 synthetic_source with copy_to pointing to ambiguous field and subobjects false:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             subobjects: false
             properties:
               k:
@@ -1768,17 +1693,14 @@ synthetic_source with copy_to pointing to ambiguous field and subobjects false:
 
 ---
 synthetic_source with copy_to pointing to ambiguous field and subobjects auto:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             subobjects: auto
             properties:
               k:
@@ -1818,16 +1740,16 @@ synthetic_source with copy_to pointing to ambiguous field and subobjects auto:
 synthetic_source with copy_to pointing at dynamic field:
   - requires:
       test_runner_features: contains
-      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
       reason: requires copy_to support in synthetic source
 
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -1903,17 +1825,14 @@ synthetic_source with copy_to pointing at dynamic field:
 
 ---
 synthetic_source with copy_to pointing inside dynamic object:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -1983,3 +1902,41 @@ synthetic_source with copy_to pointing inside dynamic object:
       hits.hits.2.fields:
         c.copy.keyword: [ "hello", "zap" ]
 
+---
+create index with use_synthetic_source:
+  - requires:
+      cluster_features: ["mapper.synthetic_recovery_source"]
+      reason: requires synthetic recovery source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              recovery:
+                use_synthetic_source: true
+              mapping:
+                source:
+                  mode: synthetic
+
+  - do:
+      indices.get_settings: {}
+  - match: { test.settings.index.mapping.source.mode: synthetic}
+  - is_true: test.settings.index.recovery.use_synthetic_source
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body: { foo: bar }
+  - match: { _version: 1 }
+
+  - do:
+      indices.disk_usage:
+        index: test
+        run_expensive_tasks: true
+        flush: false
+  - gt: { test.store_size_in_bytes: 0 }
+  - is_false: test.fields._recovery_source

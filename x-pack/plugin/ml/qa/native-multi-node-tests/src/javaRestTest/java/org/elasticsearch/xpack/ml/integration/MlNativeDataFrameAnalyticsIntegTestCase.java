@@ -404,7 +404,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected static void assertMlResultsFieldMappings(String index, String predictedClassField, String expectedType) {
-        Map<String, Object> mappings = client().execute(GetIndexAction.INSTANCE, new GetIndexRequest().indices(index))
+        Map<String, Object> mappings = client().execute(GetIndexAction.INSTANCE, new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(index))
             .actionGet()
             .mappings()
             .get(index)

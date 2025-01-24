@@ -71,7 +71,6 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             threadPool,
             actionFilters,
             MigrateToDataTiersRequest::new,
-            indexNameExpressionResolver,
             MigrateToDataTiersResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -100,12 +99,12 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             ).v2();
             listener.onResponse(
                 new MigrateToDataTiersResponse(
-                    entities.removedIndexTemplateName,
-                    entities.migratedPolicies,
-                    entities.migratedIndices,
-                    entities.migratedTemplates.migratedLegacyTemplates,
-                    entities.migratedTemplates.migratedComposableTemplates,
-                    entities.migratedTemplates.migratedComponentTemplates,
+                    entities.removedIndexTemplateName(),
+                    entities.migratedPolicies(),
+                    entities.migratedIndices(),
+                    entities.migratedTemplates().migratedLegacyTemplates(),
+                    entities.migratedTemplates().migratedComposableTemplates(),
+                    entities.migratedTemplates().migratedComponentTemplates(),
                     true
                 )
             );
@@ -145,7 +144,7 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                rerouteService.reroute("cluster migrated to data tiers routing", Priority.NORMAL, new ActionListener<Void>() {
+                rerouteService.reroute("cluster migrated to data tiers routing", Priority.NORMAL, new ActionListener<>() {
                     @Override
                     public void onResponse(Void ignored) {}
 
@@ -161,12 +160,12 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
                 MigratedEntities entities = migratedEntities.get();
                 listener.onResponse(
                     new MigrateToDataTiersResponse(
-                        entities.removedIndexTemplateName,
-                        entities.migratedPolicies,
-                        entities.migratedIndices,
-                        entities.migratedTemplates.migratedLegacyTemplates,
-                        entities.migratedTemplates.migratedComposableTemplates,
-                        entities.migratedTemplates.migratedComponentTemplates,
+                        entities.removedIndexTemplateName(),
+                        entities.migratedPolicies(),
+                        entities.migratedIndices(),
+                        entities.migratedTemplates().migratedLegacyTemplates(),
+                        entities.migratedTemplates().migratedComposableTemplates(),
+                        entities.migratedTemplates().migratedComponentTemplates(),
                         false
                     )
                 );

@@ -14,13 +14,20 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
+import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
+import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
+import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,9 +35,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -181,6 +190,35 @@ public class RRFRankBuilder extends RankBuilder {
     @Override
     public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
         return null;
+    }
+
+    @Override
+    public RetrieverBuilder toRetriever(SearchSourceBuilder source, Predicate<NodeFeature> clusterSupportsFeature) {
+        int totalQueries = source.subSearches().size() + source.knnSearch().size();
+        if (totalQueries < 2) {
+            throw new IllegalArgumentException("[rrf] requires at least 2 sub-queries to be defined");
+        }
+        List<CompoundRetrieverBuilder.RetrieverSource> retrieverSources = new ArrayList<>(totalQueries);
+        for (int i = 0; i < source.subSearches().size(); i++) {
+            RetrieverBuilder standardRetriever = new StandardRetrieverBuilder(source.subSearches().get(i).getQueryBuilder());
+            standardRetriever.retrieverName(source.subSearches().get(i).getQueryBuilder().queryName());
+            retrieverSources.add(new CompoundRetrieverBuilder.RetrieverSource(standardRetriever, null));
+        }
+        for (int i = 0; i < source.knnSearch().size(); i++) {
+            KnnSearchBuilder knnSearchBuilder = source.knnSearch().get(i);
+            RetrieverBuilder knnRetriever = new KnnRetrieverBuilder(
+                knnSearchBuilder.getField(),
+                knnSearchBuilder.getQueryVector().asFloatVector(),
+                knnSearchBuilder.getQueryVectorBuilder(),
+                knnSearchBuilder.k(),
+                knnSearchBuilder.getNumCands(),
+                knnSearchBuilder.getRescoreVectorBuilder(),
+                knnSearchBuilder.getSimilarity()
+            );
+            knnRetriever.retrieverName(knnSearchBuilder.queryName());
+            retrieverSources.add(new CompoundRetrieverBuilder.RetrieverSource(knnRetriever, null));
+        }
+        return new RRFRetrieverBuilder(retrieverSources, rankWindowSize(), rankConstant());
     }
 
     @Override

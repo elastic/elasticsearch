@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConvertStringToByteRef;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PartiallyFoldCase;
@@ -46,6 +47,9 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalW
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitAndSortAsTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceOrderByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRegexMatch;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRowAsLocalRelation;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SimplifyComparisonsArithmetics;
@@ -123,8 +127,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             "Substitutions",
             Limiter.ONCE,
             new SubstituteSurrogatePlans(),
-            // translate filtered expressions into aggregate with filters - can't use surrogate expressions because it was
-            // retrofitted for constant folding - this needs to be fixed
+            // Translate filtered expressions into aggregate with filters - can't use surrogate expressions because it was
+            // retrofitted for constant folding - this needs to be fixed.
+            // Needs to occur before ReplaceAggregateAggExpressionWithEval, which will update the functions, losing the filter.
             new SubstituteFilteredExpression(),
             new RemoveStatsOverride(),
             // first extract nested expressions inside aggs
@@ -169,7 +174,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new BooleanFunctionEqualsElimination(),
             new CombineBinaryComparisons(),
             new CombineDisjunctions(),
+            // TODO: bifunction can now (since we now have just one data types set) be pushed into the rule
             new SimplifyComparisonsArithmetics(DataType::areCompatible),
+            new ReplaceStringCasingWithInsensitiveEquals(),
+            new ReplaceStatsFilteredAggWithEval(),
+            new ExtractAggregateCommonFilter(),
             // prune/elimination
             new PruneFilters(),
             new PruneColumns(),
@@ -186,6 +195,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     protected static Batch<LogicalPlan> cleanup() {
-        return new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN());
+        return new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN(), new ReplaceRowAsLocalRelation());
     }
 }

@@ -157,19 +157,17 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     }
 
     public ElasticsearchInternalServiceSettings(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.numAllocations = in.readOptionalVInt();
         } else {
             this.numAllocations = in.readVInt();
         }
         this.numThreads = in.readVInt();
         this.modelId = in.readString();
-        this.adaptiveAllocationsSettings = in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)
+        this.adaptiveAllocationsSettings = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
             ? in.readOptionalWriteable(AdaptiveAllocationsSettings::new)
             : null;
-        this.deploymentId = in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ATTACH_TO_EXISTSING_DEPLOYMENT)
-            ? in.readOptionalString()
-            : null;
+        this.deploymentId = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalString() : null;
     }
 
     public void setNumAllocations(Integer numAllocations) {
@@ -178,17 +176,15 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalVInt(getNumAllocations());
         } else {
             out.writeVInt(getNumAllocations());
         }
         out.writeVInt(getNumThreads());
         out.writeString(modelId());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalWriteable(getAdaptiveAllocationsSettings());
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ATTACH_TO_EXISTSING_DEPLOYMENT)) {
             out.writeOptionalString(deploymentId);
         }
     }

@@ -7,6 +7,12 @@
 <titleabbrev>Get {transform} statistics</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-transform[{transform-cap} APIs].
+--
+
 Retrieves usage information for {transforms}.
 
 

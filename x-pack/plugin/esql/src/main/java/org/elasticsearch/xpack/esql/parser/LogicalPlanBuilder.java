@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -33,7 +34,6 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.MetadataOptionContext;
 import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.joni.exception.SyntaxException;
@@ -68,7 +69,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
@@ -154,7 +155,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx) {
         return p -> {
             Source source = source(ctx);
-            String pattern = visitString(ctx.string()).fold().toString();
+            String pattern = visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */).toString();
             Grok.Parser grokParser;
             try {
                 grokParser = Grok.pattern(source, pattern);
@@ -185,7 +186,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitDissectCommand(EsqlBaseParser.DissectCommandContext ctx) {
         return p -> {
-            String pattern = visitString(ctx.string()).fold().toString();
+            String pattern = visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */).toString();
             Map<String, Object> options = visitCommandOptions(ctx.commandOptions());
             String appendSeparator = "";
             for (Map.Entry<String, Object> item : options.entrySet()) {
@@ -240,7 +241,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         Map<String, Object> result = new HashMap<>();
         for (EsqlBaseParser.CommandOptionContext option : ctx.commandOption()) {
-            result.put(visitIdentifier(option.identifier()), expression(option.constant()).fold());
+            result.put(visitIdentifier(option.identifier()), expression(option.constant()).fold(FoldContext.small() /* TODO remove me */));
         }
         return result;
     }
@@ -257,21 +258,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
-            var deprecatedContext = ctx.metadata().deprecated_metadata();
-            MetadataOptionContext metadataOptionContext = null;
-            if (deprecatedContext != null) {
-                var s = source(deprecatedContext).source();
-                addWarning(
-                    "Line {}:{}: Square brackets '[]' need to be removed in FROM METADATA declaration",
-                    s.getLineNumber(),
-                    s.getColumnNumber()
-                );
-                metadataOptionContext = deprecatedContext.metadataOption();
-            } else {
-                metadataOptionContext = ctx.metadata().metadataOption();
-
-            }
-            for (var c : metadataOptionContext.UNQUOTED_SOURCE()) {
+            for (var c : ctx.metadata().UNQUOTED_SOURCE()) {
                 String id = c.getText();
                 Source src = source(c);
                 if (MetadataAttribute.isSupported(id) == false) {
@@ -502,7 +489,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx) {
         if (false == Build.current().isSnapshot()) {
-            throw new ParsingException(source(ctx), "LOOKUP is in preview and only available in SNAPSHOT build");
+            throw new ParsingException(source(ctx), "LOOKUP__ is in preview and only available in SNAPSHOT build");
         }
         var source = source(ctx);
 
@@ -524,4 +511,47 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
 
+    public PlanFactory visitJoinCommand(EsqlBaseParser.JoinCommandContext ctx) {
+        var source = source(ctx);
+        if (false == Build.current().isSnapshot()) {
+            throw new ParsingException(source, "JOIN is in preview and only available in SNAPSHOT build");
+        }
+
+        if (ctx.type != null && ctx.type.getType() != EsqlBaseParser.DEV_JOIN_LOOKUP) {
+            String joinType = ctx.type == null ? "(INNER)" : ctx.type.getText();
+            throw new ParsingException(source, "only LOOKUP JOIN available, {} JOIN unsupported at the moment", joinType);
+        }
+
+        var target = ctx.joinTarget();
+        UnresolvedRelation right = new UnresolvedRelation(
+            source(target),
+            new TableIdentifier(source(target.index), null, visitIdentifier(target.index)),
+            false,
+            emptyList(),
+            IndexMode.LOOKUP,
+            null,
+            "???"
+        );
+
+        var condition = ctx.joinCondition();
+
+        // ON only with qualified names
+        var predicates = expressions(condition.joinPredicate());
+        List<Attribute> joinFields = new ArrayList<>(predicates.size());
+        for (var f : predicates) {
+            // verify each field is an unresolved attribute
+            if (f instanceof UnresolvedAttribute ua) {
+                joinFields.add(ua);
+            } else {
+                throw new ParsingException(f.source(), "JOIN ON clause only supports fields at the moment, found [{}]", f.sourceText());
+            }
+        }
+
+        var matchFieldsCount = joinFields.size();
+        if (matchFieldsCount > 1) {
+            throw new ParsingException(source, "JOIN ON clause only supports one field at the moment, found [{}]", matchFieldsCount);
+        }
+
+        return p -> new LookupJoin(source, p, right, joinFields);
+    }
 }

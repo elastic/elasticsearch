@@ -150,7 +150,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                     + "but other privileges found for subject ["
                     + crossClusterAccessRoleReference.getUserPrincipal()
                     + "]";
-                logger.debug("{}. Invalid role descriptor: [{}]", message, roleDescriptor);
+                logger.warn("{}. Invalid role descriptor: [{}]", message, roleDescriptor);
                 listener.onFailure(new IllegalArgumentException(message));
                 return;
             }

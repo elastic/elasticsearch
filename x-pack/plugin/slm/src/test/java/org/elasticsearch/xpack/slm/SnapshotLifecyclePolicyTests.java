@@ -64,12 +64,12 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
         SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy(
             "id",
             "name",
-            "0 1 2 3 4 ? 2099",
+            "0 1 2 3 4 ? 2049",
             "repo",
             Collections.emptyMap(),
             SnapshotRetentionConfiguration.EMPTY
         );
-        assertThat(p.calculateNextExecution(-1, Clock.systemUTC()), equalTo(4078864860000L));
+        assertThat(p.calculateNextExecution(-1, Clock.systemUTC()), equalTo(2501028060000L));
     }
 
     public void testNextExecutionTimeInterval() {

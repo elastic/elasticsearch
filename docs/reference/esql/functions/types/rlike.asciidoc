@@ -6,5 +6,5 @@
 |===
 str | pattern | result
 keyword | keyword | boolean
-text | text | boolean
+text | keyword | boolean
 |===

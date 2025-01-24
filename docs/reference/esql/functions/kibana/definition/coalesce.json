@@ -92,6 +92,24 @@
       "params" : [
         {
           "name" : "first",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "date_nanos",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
           "type" : "geo_point",
           "optional" : false,
           "description" : "Expression to evaluate."

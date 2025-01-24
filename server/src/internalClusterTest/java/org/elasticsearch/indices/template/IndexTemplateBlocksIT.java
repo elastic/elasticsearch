@@ -50,7 +50,7 @@ public class IndexTemplateBlocksIT extends ESIntegTestCase {
         try {
             setClusterReadOnly(true);
 
-            GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates("template_blocks").get();
+            GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT, "template_blocks").get();
             assertThat(response.getIndexTemplates(), hasSize(1));
 
             assertBlocked(

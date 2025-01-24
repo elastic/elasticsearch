@@ -149,7 +149,10 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             List<String> backingIndices = getBackingIndices(dataStreamName);
             String firstGenerationIndex = backingIndices.get(0);
             String secondGenerationIndex = backingIndices.get(1);
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(firstGenerationIndex, secondGenerationIndex);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(
+                firstGenerationIndex,
+                secondGenerationIndex
+            );
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse firstGenerationExplain = explainResponse.getIndexResponses().get(firstGenerationIndex);
@@ -193,7 +196,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             String firstGenerationIndex = backingIndices.get(0);
             String secondGenerationIndex = backingIndices.get(1);
             String writeIndex = backingIndices.get(2);
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(
                 firstGenerationIndex,
                 secondGenerationIndex,
                 writeIndex
@@ -270,7 +273,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             String secondGenerationIndex = backingIndices.get(1);
             String thirdGenerationIndex = backingIndices.get(2);
             String writeIndex = backingIndices.get(3);
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(
                 firstGenerationIndex,
                 secondGenerationIndex,
                 thirdGenerationIndex,
@@ -348,7 +351,10 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             List<String> backingIndices = getBackingIndices(dataStreamName);
             String firstGenerationIndex = backingIndices.get(0);
             String secondGenerationIndex = backingIndices.get(1);
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(firstGenerationIndex, secondGenerationIndex);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(
+                firstGenerationIndex,
+                secondGenerationIndex
+            );
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse firstGenerationExplain = explainResponse.getIndexResponses().get(firstGenerationIndex);
@@ -401,7 +407,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             String firstGenerationIndex = backingIndices.get(0);
             String secondGenerationIndex = backingIndices.get(1);
             String thirdGenerationIndex = backingIndices.get(2);
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(
                 firstGenerationIndex,
                 secondGenerationIndex,
                 thirdGenerationIndex
@@ -465,7 +471,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             String secondGenerationIndex = backingIndices.get(1);
             String thirdGenerationIndex = backingIndices.get(2);
             String writeIndex = backingIndices.get(3);
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(
                 firstGenerationIndex,
                 secondGenerationIndex,
                 thirdGenerationIndex,
@@ -543,7 +549,10 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             List<String> backingIndices = getBackingIndices(dataStreamName);
             String firstGenerationIndex = backingIndices.get(0);
             String secondGenerationIndex = backingIndices.get(1);
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(firstGenerationIndex, secondGenerationIndex);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(
+                firstGenerationIndex,
+                secondGenerationIndex
+            );
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse firstGenerationExplain = explainResponse.getIndexResponses().get(firstGenerationIndex);
@@ -591,7 +600,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             String firstGenerationIndex = backingIndices.get(0);
             String secondGenerationIndex = backingIndices.get(1);
             String writeIndex = backingIndices.get(2);
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(
                 firstGenerationIndex,
                 secondGenerationIndex,
                 writeIndex
@@ -663,7 +672,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             String secondGenerationIndex = backingIndices.get(1);
             String thirdGenerationIndex = backingIndices.get(2);
             String writeIndex = backingIndices.get(3);
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(
                 firstGenerationIndex,
                 secondGenerationIndex,
                 thirdGenerationIndex,
@@ -720,7 +729,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             String secondGenerationIndex = backingIndices.get(1);
             String thirdGenerationIndex = backingIndices.get(2);
             String writeIndex = backingIndices.get(3);
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(
                 firstGenerationIndex,
                 secondGenerationIndex,
                 thirdGenerationIndex,
@@ -846,7 +855,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
                 assertThat(index.isManagedByLifecycle(), is(true));
             }
 
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(writeIndex);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(writeIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse writeIndexExplain = explainResponse.getIndexResponses().get(writeIndex);
@@ -875,7 +884,10 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             String thirdGenerationIndex = backingIndices.get(2);
             String writeIndex = backingIndices.get(3);
 
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(thirdGenerationIndex, writeIndex);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(
+                thirdGenerationIndex,
+                writeIndex
+            );
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse thirdGenerationExplain = explainResponse.getIndexResponses().get(thirdGenerationIndex);

@@ -1,6 +1,0 @@
-pr: 111624
-summary: Extend logging for dropped warning headers
-area: Infra/Core
-type: enhancement
-issues:
- - 90527

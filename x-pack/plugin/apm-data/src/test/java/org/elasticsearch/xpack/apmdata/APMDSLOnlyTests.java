@@ -14,8 +14,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.datastreams.DataStreamFeatures;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -24,7 +22,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -56,15 +53,13 @@ public class APMDSLOnlyTests extends ESTestCase {
             additionalSettings,
             clusterSettings
         );
-        FeatureService featureService = new FeatureService(List.of(new DataStreamFeatures()));
 
         apmIndexTemplateRegistry = new APMIndexTemplateRegistry(
             Settings.EMPTY,
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY,
-            featureService
+            NamedXContentRegistry.EMPTY
         );
         apmIndexTemplateRegistry.setEnabled(true);
     }

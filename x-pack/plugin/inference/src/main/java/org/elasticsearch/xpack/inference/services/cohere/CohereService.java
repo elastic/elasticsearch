@@ -14,10 +14,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -26,16 +24,15 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.cohere.CohereActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -46,6 +43,7 @@ import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbedd
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -55,14 +53,17 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 
 public class CohereService extends SenderService {
     public static final String NAME = "cohere";
 
+    private static final String SERVICE_NAME = "Cohere";
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.RERANK);
 
     // TODO Batching - We'll instantiate a batching class within the services that want to support it and pass it through to
@@ -91,7 +92,7 @@ public class CohereService extends SenderService {
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
             ChunkingSettings chunkingSettings = null;
-            if (ChunkingSettingsFeatureFlag.isEnabled() && TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
                 chunkingSettings = ChunkingSettingsBuilder.fromMap(
                     removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
                 );
@@ -186,8 +187,8 @@ public class CohereService extends SenderService {
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
-        if (ChunkingSettingsFeatureFlag.isEnabled() && TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
         return createModelWithoutLoggingDeprecations(
@@ -207,8 +208,8 @@ public class CohereService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
-        if (ChunkingSettingsFeatureFlag.isEnabled() && TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
         return createModelWithoutLoggingDeprecations(
@@ -230,6 +231,16 @@ public class CohereService extends SenderService {
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
         return supportedTaskTypes;
+    }
+
+    @Override
+    protected void doUnifiedCompletionInfer(
+        Model model,
+        UnifiedChatInput inputs,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        throwUnsupportedUnifiedCompletionOperation(NAME);
     }
 
     @Override
@@ -259,9 +270,8 @@ public class CohereService extends SenderService {
         DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
-        ActionListener<List<ChunkedInferenceServiceResults>> listener
+        ActionListener<List<ChunkedInference>> listener
     ) {
         if (model instanceof CohereModel == false) {
             listener.onFailure(createInvalidModelException(model));
@@ -271,21 +281,12 @@ public class CohereService extends SenderService {
         CohereModel cohereModel = (CohereModel) model;
         var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
 
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests;
-        if (ChunkingSettingsFeatureFlag.isEnabled()) {
-            batchedRequests = new EmbeddingRequestChunker(
-                inputs.getInputs(),
-                EMBEDDING_MAX_BATCH_SIZE,
-                EmbeddingRequestChunker.EmbeddingType.fromDenseVectorElementType(model.getServiceSettings().elementType()),
-                cohereModel.getConfigurations().getChunkingSettings()
-            ).batchRequestsWithListeners(listener);
-        } else {
-            batchedRequests = new EmbeddingRequestChunker(
-                inputs.getInputs(),
-                EMBEDDING_MAX_BATCH_SIZE,
-                EmbeddingRequestChunker.EmbeddingType.fromDenseVectorElementType(model.getServiceSettings().elementType())
-            ).batchRequestsWithListeners(listener);
-        }
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+            inputs.getInputs(),
+            EMBEDDING_MAX_BATCH_SIZE,
+            EmbeddingRequestChunker.EmbeddingType.fromDenseVectorElementType(model.getServiceSettings().elementType()),
+            cohereModel.getConfigurations().getChunkingSettings()
+        ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
             var action = cohereModel.accept(actionCreator, taskSettings, inputType);
@@ -302,34 +303,33 @@ public class CohereService extends SenderService {
      */
     @Override
     public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        if (model instanceof CohereEmbeddingsModel embeddingsModel) {
-            ServiceUtils.getEmbeddingSize(
-                model,
-                this,
-                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)))
-            );
-        } else {
-            listener.onResponse(model);
-        }
+        // TODO: Remove this function once all services have been updated to use the new model validators
+        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
     }
 
-    private CohereEmbeddingsModel updateModelWithEmbeddingDetails(CohereEmbeddingsModel model, int embeddingSize) {
-        var userDefinedSimilarity = model.getServiceSettings().similarity();
-        var similarityToUse = userDefinedSimilarity == null ? defaultSimilarity() : userDefinedSimilarity;
+    @Override
+    public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        if (model instanceof CohereEmbeddingsModel embeddingsModel) {
+            var serviceSettings = embeddingsModel.getServiceSettings();
+            var similarityFromModel = serviceSettings.similarity();
+            var similarityToUse = similarityFromModel == null ? defaultSimilarity() : similarityFromModel;
 
-        CohereEmbeddingsServiceSettings serviceSettings = new CohereEmbeddingsServiceSettings(
-            new CohereServiceSettings(
-                model.getServiceSettings().getCommonSettings().uri(),
-                similarityToUse,
-                embeddingSize,
-                model.getServiceSettings().getCommonSettings().maxInputTokens(),
-                model.getServiceSettings().getCommonSettings().modelId(),
-                model.getServiceSettings().getCommonSettings().rateLimitSettings()
-            ),
-            model.getServiceSettings().getEmbeddingType()
-        );
+            var updatedServiceSettings = new CohereEmbeddingsServiceSettings(
+                new CohereServiceSettings(
+                    serviceSettings.getCommonSettings().uri(),
+                    similarityToUse,
+                    embeddingSize,
+                    serviceSettings.getCommonSettings().maxInputTokens(),
+                    serviceSettings.getCommonSettings().modelId(),
+                    serviceSettings.getCommonSettings().rateLimitSettings()
+                ),
+                serviceSettings.getEmbeddingType()
+            );
 
-        return new CohereEmbeddingsModel(model, serviceSettings);
+            return new CohereEmbeddingsModel(embeddingsModel, updatedServiceSettings);
+        } else {
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
+        }
     }
 
     /**
@@ -363,19 +363,14 @@ public class CohereService extends SenderService {
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 
-                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration());
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration());
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
 
-                return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
-                    Map<String, SettingsConfiguration> taskSettingsConfig;
-                    switch (t) {
-                        case TEXT_EMBEDDING -> taskSettingsConfig = CohereEmbeddingsModel.Configuration.get();
-                        case RERANK -> taskSettingsConfig = CohereRerankModel.Configuration.get();
-                        // COMPLETION task type has no task settings
-                        default -> taskSettingsConfig = EmptySettingsConfiguration.get();
-                    }
-                    return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
-                }).toList()).setConfiguration(configurationMap).build();
+                return new InferenceServiceConfiguration.Builder().setService(NAME)
+                    .setName(SERVICE_NAME)
+                    .setTaskTypes(supportedTaskTypes)
+                    .setConfigurations(configurationMap)
+                    .build();
             }
         );
     }

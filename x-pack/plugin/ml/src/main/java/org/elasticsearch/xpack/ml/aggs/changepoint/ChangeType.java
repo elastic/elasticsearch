@@ -21,8 +21,10 @@ import java.util.Objects;
  */
 public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
+    int NO_CHANGE_POINT = -1;
+
     default int changePoint() {
-        return -1;
+        return NO_CHANGE_POINT;
     }
 
     default double pValue() {

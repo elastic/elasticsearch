@@ -31,8 +31,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
-import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
@@ -77,7 +76,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(ReindexPlugin.class, InferencePlugin.class);
+        return pluginList(ReindexPlugin.class, LocalStateInferencePlugin.class);
     }
 
     public void testStoreModel() throws Exception {
@@ -435,7 +434,10 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertNull(exceptionHolder.get());
         assertThat(modelHolder.get(), hasSize(2));
 
-        expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex().addIndices(".inference").get());
+        expectThrows(
+            IndexNotFoundException.class,
+            () -> client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(".inference").get()
+        );
 
         // this time check the index is created
         blockingCall(listener -> modelRegistry.getAllModels(true, listener), modelHolder, exceptionHolder);
@@ -553,7 +555,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     }
 
     private void assertInferenceIndexExists() {
-        var indexResponse = client().admin().indices().prepareGetIndex().addIndices(".inference").get();
+        var indexResponse = client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(".inference").get();
         assertNotNull(indexResponse.getSettings());
         assertNotNull(indexResponse.getMappings());
     }
@@ -592,7 +594,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                 ElasticsearchInternalService.NAME,
                 ElserInternalServiceSettingsTests.createRandom(),
                 ElserMlNodeTaskSettingsTests.createRandom(),
-                ChunkingSettingsFeatureFlag.isEnabled() && randomBoolean() ? ChunkingSettingsTests.createRandomChunkingSettings() : null
+                randomBoolean() ? ChunkingSettingsTests.createRandomChunkingSettings() : null
             );
             default -> throw new IllegalArgumentException("task type " + taskType + " is not supported");
         };

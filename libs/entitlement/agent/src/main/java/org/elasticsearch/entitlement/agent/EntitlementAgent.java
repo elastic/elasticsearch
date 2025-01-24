@@ -9,53 +9,41 @@
 
 package org.elasticsearch.entitlement.agent;
 
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.provider.ProviderLocator;
-import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
-
-import java.io.IOException;
 import java.lang.instrument.Instrumentation;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.Map;
-import java.util.Set;
-import java.util.jar.JarFile;
 
+/**
+ * A Java Agent that sets up the bytecode instrumentation for the entitlement system.
+ * <p>
+ * Agents are loaded into the unnamed module, which makes module exports awkward.
+ * To work around this, we keep minimal code in the agent itself, and
+ * instead use reflection to call into the main entitlement library,
+ * which bootstraps by using {@link Module#addExports} to make a single {@code initialize}
+ * method available for us to call from here.
+ * That method does the rest.
+ */
 public class EntitlementAgent {
 
-    public static void premain(String agentArgs, Instrumentation inst) throws Exception {
-        // Add the bridge library (the one with the entitlement checking interface) to the bootstrap classpath.
-        // We can't actually reference the classes here for real before this point because they won't resolve.
-        var bridgeJarName = System.getProperty("es.entitlements.bridgeJar");
-        if (bridgeJarName == null) {
-            throw new IllegalArgumentException("System property es.entitlements.bridgeJar is required");
+    public static void agentmain(String agentArgs, Instrumentation inst) {
+        final Class<?> initClazz;
+        try {
+            initClazz = Class.forName("org.elasticsearch.entitlement.initialization.EntitlementInitialization");
+        } catch (ClassNotFoundException e) {
+            throw new AssertionError("entitlement agent does could not find EntitlementInitialization", e);
         }
-        addJarToBootstrapClassLoader(inst, bridgeJarName);
 
-        Method targetMethod = System.class.getMethod("exit", int.class);
-        Method instrumentationMethod = Class.forName("org.elasticsearch.entitlement.api.EntitlementChecks")
-            .getMethod("checkSystemExit", Class.class, int.class);
-        Map<MethodKey, Method> methodMap = Map.of(INSTRUMENTER_FACTORY.methodKeyForTarget(targetMethod), instrumentationMethod);
+        final Method initMethod;
+        try {
+            initMethod = initClazz.getMethod("initialize", Instrumentation.class);
+        } catch (NoSuchMethodException e) {
+            throw new AssertionError("EntitlementInitialization missing initialize method", e);
+        }
 
-        inst.addTransformer(new Transformer(INSTRUMENTER_FACTORY.newInstrumenter("", methodMap), Set.of(internalName(System.class))), true);
-        inst.retransformClasses(System.class);
+        try {
+            initMethod.invoke(null, inst);
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            throw new AssertionError("entitlement initialization failed", e);
+        }
     }
-
-    @SuppressForbidden(reason = "The appendToBootstrapClassLoaderSearch method takes a JarFile")
-    private static void addJarToBootstrapClassLoader(Instrumentation inst, String jarString) throws IOException {
-        inst.appendToBootstrapClassLoaderSearch(new JarFile(jarString));
-    }
-
-    private static String internalName(Class<?> c) {
-        return c.getName().replace('.', '/');
-    }
-
-    private static final InstrumentationService INSTRUMENTER_FACTORY = (new ProviderLocator<>(
-        "entitlement-agent",
-        InstrumentationService.class,
-        "org.elasticsearch.entitlement.agent.impl",
-        Set.of("org.objectweb.nonexistent.asm")
-    )).get();
-
-    // private static final Logger LOGGER = LogManager.getLogger(EntitlementAgent.class);
 }

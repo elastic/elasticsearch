@@ -7,4 +7,4 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
-public record ElasticInferenceServiceComponents(String eisGatewayUrl) {}
+public record ElasticInferenceServiceComponents(String elasticInferenceServiceUrl) {}

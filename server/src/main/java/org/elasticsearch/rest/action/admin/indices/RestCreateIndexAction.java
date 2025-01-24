@@ -78,10 +78,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
         Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
         if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
             throw new IllegalArgumentException(
-                "The mapping definition cannot be nested under a type "
-                    + "["
-                    + MapperService.SINGLE_MAPPING_NAME
-                    + "] unless include_type_name is set to true."
+                "The mapping definition cannot be nested under a type [" + MapperService.SINGLE_MAPPING_NAME + "]."
             );
         }
 

@@ -20,7 +20,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.metrics.Percentile;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -408,8 +407,8 @@ class AggregationToJsonProcessor {
     }
 
     private boolean processPercentiles(Percentiles percentiles) {
-        Iterator<Percentile> percentileIterator = percentiles.iterator();
-        boolean aggregationAdded = addMetricIfFinite(percentiles.getName(), percentileIterator.next().value());
+        var percentileIterator = percentiles.iterator();
+        var aggregationAdded = percentileIterator.hasNext() && addMetricIfFinite(percentiles.getName(), percentileIterator.next().value());
         if (percentileIterator.hasNext()) {
             throw new IllegalArgumentException("Multi-percentile aggregation [" + percentiles.getName() + "] is not supported");
         }

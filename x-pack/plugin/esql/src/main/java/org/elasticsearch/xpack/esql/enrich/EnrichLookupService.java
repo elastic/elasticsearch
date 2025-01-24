@@ -16,16 +16,20 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.lookup.QueryList;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -43,19 +47,19 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
 
     public EnrichLookupService(
         ClusterService clusterService,
-        SearchService searchService,
+        LookupShardContextFactory lookupShardContextFactory,
         TransportService transportService,
         BigArrays bigArrays,
         BlockFactory blockFactory
     ) {
         super(
             LOOKUP_ACTION_NAME,
-            ClusterPrivilegeResolver.MONITOR_ENRICH.name(),
             clusterService,
-            searchService,
+            lookupShardContextFactory,
             transportService,
             bigArrays,
             blockFactory,
+            true,
             TransportRequest::readFrom
         );
     }
@@ -70,17 +74,64 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             request.matchField,
             request.inputPage,
             null,
-            request.extractFields
+            request.extractFields,
+            request.source
         );
     }
 
     @Override
     protected QueryList queryList(TransportRequest request, SearchExecutionContext context, Block inputBlock, DataType inputDataType) {
         MappedFieldType fieldType = context.getFieldType(request.matchField);
+        validateTypes(inputDataType, fieldType);
         return switch (request.matchType) {
-            case "match", "range" -> QueryList.termQueryList(fieldType, context, inputBlock, inputDataType);
-            case "geo_match" -> QueryList.geoShapeQuery(fieldType, context, inputBlock, inputDataType);
+            case "match", "range" -> termQueryList(fieldType, context, inputBlock, inputDataType);
+            case "geo_match" -> QueryList.geoShapeQueryList(fieldType, context, inputBlock);
             default -> throw new EsqlIllegalArgumentException("illegal match type " + request.matchType);
+        };
+    }
+
+    @Override
+    protected String getRequiredPrivilege() {
+        return ClusterPrivilegeResolver.MONITOR_ENRICH.name();
+    }
+
+    @Override
+    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) throws IOException {
+        if (pages.size() != 1) {
+            throw new UnsupportedOperationException("ENRICH always makes a single page of output");
+        }
+        return new LookupResponse(pages.getFirst(), blockFactory);
+    }
+
+    @Override
+    protected LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+        return new LookupResponse(in, blockFactory);
+    }
+
+    private static void validateTypes(DataType inputDataType, MappedFieldType fieldType) {
+        if (fieldType instanceof RangeFieldMapper.RangeFieldType rangeType) {
+            // For range policy types, the ENRICH index field type will be one of a list of supported range types,
+            // which need to match the input data type (eg. ip-range -> ip, date-range -> date, etc.)
+            if (rangeTypesCompatible(rangeType.rangeType(), inputDataType) == false) {
+                throw new EsqlIllegalArgumentException(
+                    "ENRICH range and input types are incompatible: range[" + rangeType.rangeType() + "], input[" + inputDataType + "]"
+                );
+            }
+        }
+        // For match policies, the ENRICH index field will always be KEYWORD, and input type will be converted to KEYWORD.
+        // For geo_match, type validation is done earlier, in the Analyzer.
+    }
+
+    private static boolean rangeTypesCompatible(RangeType rangeType, DataType inputDataType) {
+        if (inputDataType.noText() == DataType.KEYWORD) {
+            // We allow runtime parsing of string types to numeric types
+            return true;
+        }
+        return switch (rangeType) {
+            case INTEGER, LONG -> inputDataType.isWholeNumber();
+            case IP -> inputDataType == DataType.IP;
+            case DATE -> inputDataType.isDate();
+            default -> rangeType.isNumeric() == inputDataType.isNumeric();
         };
     }
 
@@ -95,9 +146,10 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             String matchType,
             String matchField,
             Page inputPage,
-            List<NamedExpression> extractFields
+            List<NamedExpression> extractFields,
+            Source source
         ) {
-            super(sessionId, index, inputDataType, inputPage, extractFields);
+            super(sessionId, index, inputDataType, inputPage, extractFields, source);
             this.matchType = matchType;
             this.matchField = matchField;
         }
@@ -115,9 +167,10 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             String matchField,
             Page inputPage,
             Page toRelease,
-            List<NamedExpression> extractFields
+            List<NamedExpression> extractFields,
+            Source source
         ) {
-            super(sessionId, shardId, inputDataType, inputPage, toRelease, extractFields);
+            super(sessionId, shardId, inputDataType, inputPage, toRelease, extractFields, source);
             this.matchType = matchType;
             this.matchField = matchField;
         }
@@ -126,9 +179,9 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             TaskId parentTaskId = TaskId.readFromStream(in);
             String sessionId = in.readString();
             ShardId shardId = new ShardId(in);
-            DataType inputDataType = DataType.fromTypeName(
-                (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) ? in.readString() : "unknown"
-            );
+            DataType inputDataType = (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0))
+                ? DataType.fromTypeName(in.readString())
+                : null;
             String matchType = in.readString();
             String matchField = in.readString();
             Page inputPage;
@@ -137,6 +190,10 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             }
             PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
+            var source = Source.EMPTY;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_RUNTIME_WARNINGS)) {
+                source = Source.readFrom(planIn);
+            }
             TransportRequest result = new TransportRequest(
                 sessionId,
                 shardId,
@@ -145,7 +202,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
                 matchField,
                 inputPage,
                 inputPage,
-                extractFields
+                extractFields,
+                source
             );
             result.setParentTask(parentTaskId);
             return result;
@@ -164,11 +222,52 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             out.writeWriteable(inputPage);
             PlanStreamOutput planOut = new PlanStreamOutput(out, null);
             planOut.writeNamedWriteableCollection(extractFields);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_RUNTIME_WARNINGS)) {
+                source.writeTo(planOut);
+            }
         }
 
         @Override
         protected String extraDescription() {
             return " ,match_type=" + matchType + " ,match_field=" + matchField;
+        }
+    }
+
+    private static class LookupResponse extends AbstractLookupService.LookupResponse {
+        private Page page;
+
+        private LookupResponse(Page page, BlockFactory blockFactory) {
+            super(blockFactory);
+            this.page = page;
+        }
+
+        private LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+            super(blockFactory);
+            try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                this.page = new Page(bsi);
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            long bytes = page.ramBytesUsedByBlocks();
+            blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize enrich lookup response");
+            reservedBytes += bytes;
+            page.writeTo(out);
+        }
+
+        @Override
+        protected List<Page> takePages() {
+            var p = List.of(page);
+            page = null;
+            return p;
+        }
+
+        @Override
+        protected void innerRelease() {
+            if (page != null) {
+                Releasables.closeExpectNoException(page::releaseBlocks);
+            }
         }
     }
 }

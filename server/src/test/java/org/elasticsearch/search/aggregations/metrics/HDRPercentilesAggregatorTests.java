@@ -164,6 +164,18 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
         assertThat(e.getMessage(), equalTo("Cannot set [compression] because the method has already been configured for HDRHistogram"));
     }
 
+    public void testInvalidNegativeNumber() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            testCase(new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(singleton(new NumericDocValuesField("number", 60)));
+                iw.addDocument(singleton(new NumericDocValuesField("number", 40)));
+                iw.addDocument(singleton(new NumericDocValuesField("number", -20)));
+                iw.addDocument(singleton(new NumericDocValuesField("number", 10)));
+            }, hdr -> { fail("Aggregation should have failed due to negative value"); });
+        });
+        assertThat(e.getMessage(), equalTo("Negative values are not supported by HDR aggregation"));
+    }
+
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalHDRPercentiles> verify)
         throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);

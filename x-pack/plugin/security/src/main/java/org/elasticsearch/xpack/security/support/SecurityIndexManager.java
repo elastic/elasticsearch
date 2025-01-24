@@ -69,7 +69,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.State.UNRECOVERED_STATE;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MIGRATION_FRAMEWORK;
 
 /**
  * Manages the lifecycle, mapping and data upgrades/migrations of the {@code RestrictedIndicesNames#SECURITY_MAIN_ALIAS}
@@ -539,7 +538,6 @@ public class SecurityIndexManager implements ClusterStateListener {
             && state.indexAvailableForSearch
             && state.isIndexUpToDate
             && state.indexExists()
-            && state.securityFeatures.contains(SECURITY_MIGRATION_FRAMEWORK)
             && isEligibleSecurityMigration(securityMigration);
     }
 
@@ -586,7 +584,7 @@ public class SecurityIndexManager implements ClusterStateListener {
      * Resolves a concrete index name or alias to a {@link IndexMetadata} instance.  Requires
      * that if supplied with an alias, the alias resolves to at most one concrete index.
      */
-    private static IndexMetadata resolveConcreteIndex(final String indexOrAliasName, final Metadata metadata) {
+    public static IndexMetadata resolveConcreteIndex(final String indexOrAliasName, final Metadata metadata) {
         final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexOrAliasName);
         if (indexAbstraction != null) {
             final List<Index> indices = indexAbstraction.getIndices();
@@ -652,7 +650,10 @@ public class SecurityIndexManager implements ClusterStateListener {
                 );
 
                 if (descriptorForVersion == null) {
-                    final String error = systemIndexDescriptor.getMinimumMappingsVersionMessage("create index");
+                    final String error = systemIndexDescriptor.getMinimumMappingsVersionMessage(
+                        "create index",
+                        state.minClusterMappingVersion
+                    );
                     consumer.accept(new IllegalStateException(error));
                 } else {
                     logger.info(
@@ -703,7 +704,10 @@ public class SecurityIndexManager implements ClusterStateListener {
                 );
 
                 if (descriptorForVersion == null) {
-                    final String error = systemIndexDescriptor.getMinimumMappingsVersionMessage("updating mapping");
+                    final String error = systemIndexDescriptor.getMinimumMappingsVersionMessage(
+                        "updating mapping",
+                        state.minClusterMappingVersion
+                    );
                     consumer.accept(new IllegalStateException(error));
                 } else {
                     logger.info(

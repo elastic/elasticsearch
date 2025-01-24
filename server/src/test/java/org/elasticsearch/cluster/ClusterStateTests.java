@@ -167,7 +167,8 @@ public class ClusterStateTests extends ESTestCase {
                                   "read",
                                   "write",
                                   "metadata_read",
-                                  "metadata_write"
+                                  "metadata_write",
+                                  "refresh"
                                 ]
                               }
                             },
@@ -180,7 +181,8 @@ public class ClusterStateTests extends ESTestCase {
                                     "read",
                                     "write",
                                     "metadata_read",
-                                    "metadata_write"
+                                    "metadata_write",
+                                    "refresh"
                                   ]
                                 }
                               }
@@ -440,7 +442,8 @@ public class ClusterStateTests extends ESTestCase {
                               "read",
                               "write",
                               "metadata_read",
-                              "metadata_write"
+                              "metadata_write",
+                              "refresh"
                             ]
                           }
                         },
@@ -453,7 +456,8 @@ public class ClusterStateTests extends ESTestCase {
                                 "read",
                                 "write",
                                 "metadata_read",
-                                "metadata_write"
+                                "metadata_write",
+                                "refresh"
                               ]
                             }
                           }
@@ -712,7 +716,8 @@ public class ClusterStateTests extends ESTestCase {
                               "read",
                               "write",
                               "metadata_read",
-                              "metadata_write"
+                              "metadata_write",
+                              "refresh"
                             ]
                           }
                         },
@@ -725,7 +730,8 @@ public class ClusterStateTests extends ESTestCase {
                                 "read",
                                 "write",
                                 "metadata_read",
-                                "metadata_write"
+                                "metadata_write",
+                                "refresh"
                               ]
                             }
                           }
@@ -1109,7 +1115,7 @@ public class ClusterStateTests extends ESTestCase {
             .putRolloverInfo(new RolloverInfo("rolloveAlias", new ArrayList<>(), 1L))
             .stats(new IndexMetadataStats(IndexWriteLoad.builder(1).build(), 120, 1))
             .indexWriteLoadForecast(8.0)
-            .eventIngestedRange(IndexLongFieldRange.UNKNOWN, TransportVersions.V_8_0_0)
+            .eventIngestedRange(IndexLongFieldRange.UNKNOWN)
             .build();
 
         return ClusterState.builder(ClusterName.DEFAULT)

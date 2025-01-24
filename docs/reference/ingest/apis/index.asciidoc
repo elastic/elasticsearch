@@ -1,6 +1,12 @@
 [[ingest-apis]]
 == Ingest APIs
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ingest[Ingest APIs].
+--
+
 Use ingest APIs to manage tasks and resources related to <<ingest,ingest
 pipelines>> and processors.
 
@@ -25,16 +31,14 @@ Use the following APIs to get statistics about ingest processing:
 the <<geoip-processor,`geoip` processor>>.
 
 [discrete]
-[[ingest-geoip-database-apis]]
-=== Ingest GeoIP Database APIs
-
-preview::["The commercial IP geolocation database download management APIs are in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but this feature is not subject to the support SLA of official GA features."]
+[[ingest-ip-location-database-apis]]
+=== Ingest IP Location Database APIs
 
 Use the following APIs to configure and manage commercial IP geolocation database downloads:
 
-* <<put-geoip-database-api>> to create or update a database configuration
-* <<get-geoip-database-api>> to retrieve a database configuration
-* <<delete-geoip-database-api>> to delete a database configuration
+* <<put-ip-location-database-api>> to create or update a database configuration
+* <<get-ip-location-database-api>> to retrieve a database configuration
+* <<delete-ip-location-database-api>> to delete a database configuration
 
 include::put-pipeline.asciidoc[]
 include::get-pipeline.asciidoc[]
@@ -42,6 +46,6 @@ include::delete-pipeline.asciidoc[]
 include::simulate-pipeline.asciidoc[]
 include::simulate-ingest.asciidoc[]
 include::geoip-stats.asciidoc[]
-include::put-geoip-database.asciidoc[]
-include::get-geoip-database.asciidoc[]
-include::delete-geoip-database.asciidoc[]
+include::put-ip-location-database.asciidoc[]
+include::get-ip-location-database.asciidoc[]
+include::delete-ip-location-database.asciidoc[]

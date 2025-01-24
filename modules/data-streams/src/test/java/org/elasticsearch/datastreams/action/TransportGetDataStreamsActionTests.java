@@ -12,6 +12,7 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
@@ -39,6 +40,8 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TransportGetDataStreamsActionTests extends ESTestCase {
@@ -46,6 +49,9 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
     private final IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
     private final SystemIndices systemIndices = new SystemIndices(List.of());
     private final DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = DataStreamGlobalRetentionSettings.create(
+        ClusterSettings.createBuiltInClusterSettings()
+    );
+    private final DataStreamFailureStoreSettings emptyDataStreamFailureStoreSettings = DataStreamFailureStoreSettings.create(
         ClusterSettings.createBuiltInClusterSettings()
     );
 
@@ -166,6 +172,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
             null
         );
         assertThat(
@@ -197,6 +204,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
             null
         );
         assertThat(
@@ -248,6 +256,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
             null
         );
         assertThat(
@@ -292,6 +301,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
             null
         );
 
@@ -338,6 +348,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
             null
         );
         assertThat(response.getGlobalRetention(), nullValue());
@@ -363,8 +374,102 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             systemIndices,
             ClusterSettings.createBuiltInClusterSettings(),
             withGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
             null
         );
         assertThat(response.getGlobalRetention(), equalTo(globalRetention));
+    }
+
+    public void testDataStreamIsFailureStoreEffectivelyEnabled_disabled() {
+        var metadata = new Metadata.Builder();
+        DataStreamTestHelper.getClusterStateWithDataStreams(
+            metadata,
+            List.of(Tuple.tuple("data-stream-1", 2)),
+            List.of(),
+            System.currentTimeMillis(),
+            Settings.EMPTY,
+            0,
+            false,
+            false
+        );
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+
+        var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
+        var response = TransportGetDataStreamsAction.innerOperation(
+            state,
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
+            null
+        );
+        assertThat(response.getDataStreams(), hasSize(1));
+        assertThat(response.getDataStreams().getFirst().isFailureStoreEffectivelyEnabled(), is(false));
+    }
+
+    public void testDataStreamIsFailureStoreEffectivelyEnabled_enabledExplicitly() {
+        var metadata = new Metadata.Builder();
+        DataStreamTestHelper.getClusterStateWithDataStreams(
+            metadata,
+            List.of(Tuple.tuple("data-stream-1", 2)),
+            List.of(),
+            System.currentTimeMillis(),
+            Settings.EMPTY,
+            0,
+            false,
+            true
+        );
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+
+        var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
+        var response = TransportGetDataStreamsAction.innerOperation(
+            state,
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
+            null
+        );
+        assertThat(response.getDataStreams(), hasSize(1));
+        assertThat(response.getDataStreams().getFirst().isFailureStoreEffectivelyEnabled(), is(true));
+    }
+
+    public void testDataStreamIsFailureStoreEffectivelyEnabled_enabledByClusterSetting() {
+        var metadata = new Metadata.Builder();
+        DataStreamTestHelper.getClusterStateWithDataStreams(
+            metadata,
+            List.of(Tuple.tuple("data-stream-1", 2)),
+            List.of(),
+            System.currentTimeMillis(),
+            Settings.EMPTY,
+            0,
+            false,
+            false
+        );
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+
+        var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
+        var response = TransportGetDataStreamsAction.innerOperation(
+            state,
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionSettings,
+            DataStreamFailureStoreSettings.create(
+                ClusterSettings.createBuiltInClusterSettings(
+                    Settings.builder()
+                        .put(DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(), "data-stream-*")
+                        .build()
+                )
+            ),
+            null
+        );
+        assertThat(response.getDataStreams(), hasSize(1));
+        assertThat(response.getDataStreams().getFirst().isFailureStoreEffectivelyEnabled(), is(true));
     }
 }

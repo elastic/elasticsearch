@@ -199,7 +199,6 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         DummyAsyncBulkByScrollAction action = new DummyActionWithoutBackoff();
         action.start();
         assertBusy(() -> assertEquals(testRequest.getMaxRetries() + 1, client.searchAttempts.get()));
-        assertBusy(() -> assertTrue(listener.isDone()));
         ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
         assertThat(ExceptionsHelper.stackTrace(e), containsString(EsRejectedExecutionException.class.getSimpleName()));
         assertNull("There shouldn't be a search attempt pending that we didn't reject", client.lastSearch.get());
@@ -598,7 +597,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             capturedCommand.get().run();
 
             // So the next request is going to have to wait an extra 100 seconds or so (base was 10 seconds, so 110ish)
-            assertThat(client.lastScroll.get().request.scroll().keepAlive().seconds(), either(equalTo(110L)).or(equalTo(109L)));
+            assertThat(client.lastScroll.get().request.scroll().seconds(), either(equalTo(110L)).or(equalTo(109L)));
 
             // Now we can simulate a response and check the delay that we used for the task
             if (randomBoolean()) {

@@ -178,7 +178,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         } else {
             this.maxAssignedAllocations = totalCurrentAllocations();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
         } else {
             this.adaptiveAllocationsSettings = null;
@@ -382,7 +382,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeVInt(maxAssignedAllocations);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalWriteable(adaptiveAllocationsSettings);
         }
     }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -21,7 +22,9 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.Period;
+import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
@@ -33,7 +36,8 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Add", Add::new);
 
     @FunctionInfo(
-        returnType = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" },
+        operator = "+",
+        returnType = { "double", "integer", "long", "date_nanos", "date_period", "datetime", "time_duration", "unsigned_long" },
         description = "Add two numbers together. " + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`."
     )
     public Add(
@@ -41,12 +45,12 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
         @Param(
             name = "lhs",
             description = "A numeric value or a date time value.",
-            type = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" }
+            type = { "double", "integer", "long", "date_nanos", "date_period", "datetime", "time_duration", "unsigned_long" }
         ) Expression left,
         @Param(
             name = "rhs",
             description = "A numeric value or a date time value.",
-            type = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" }
+            type = { "double", "integer", "long", "date_nanos", "date_period", "datetime", "time_duration", "unsigned_long" }
         ) Expression right
     ) {
         super(
@@ -58,7 +62,8 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             AddLongsEvaluator.Factory::new,
             AddUnsignedLongsEvaluator.Factory::new,
             AddDoublesEvaluator.Factory::new,
-            AddDatetimesEvaluator.Factory::new
+            AddDatetimesEvaluator.Factory::new,
+            AddDateNanosEvaluator.Factory::new
         );
     }
 
@@ -70,7 +75,8 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             AddLongsEvaluator.Factory::new,
             AddUnsignedLongsEvaluator.Factory::new,
             AddDoublesEvaluator.Factory::new,
-            AddDatetimesEvaluator.Factory::new
+            AddDatetimesEvaluator.Factory::new,
+            AddDateNanosEvaluator.Factory::new
         );
     }
 
@@ -128,6 +134,25 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
     static long processDatetimes(long datetime, @Fixed TemporalAmount temporalAmount) {
         // using a UTC conversion since `datetime` is always a UTC-Epoch timestamp, either read from ES or converted through a function
         return asMillis(asDateTime(datetime).plus(temporalAmount));
+    }
+
+    @Evaluator(extraName = "DateNanos", warnExceptions = { ArithmeticException.class, DateTimeException.class })
+    static long processDateNanos(long dateNanos, @Fixed TemporalAmount temporalAmount) {
+        // Instant.plus behaves differently from ZonedDateTime.plus, but DateUtils generally works with instants.
+        try {
+            return DateUtils.toLong(
+                Instant.from(
+                    ZonedDateTime.ofInstant(DateUtils.toInstant(dateNanos), org.elasticsearch.xpack.esql.core.util.DateUtils.UTC)
+                        .plus(temporalAmount)
+                )
+            );
+        } catch (IllegalArgumentException e) {
+            /*
+             toLong will throw IllegalArgumentException for out of range dates, but that includes the actual value which we want
+             to avoid returning here.
+            */
+            throw new DateTimeException("Date nanos out of range.  Must be between 1970-01-01T00:00:00Z and 2262-04-11T23:47:16.854775807");
+        }
     }
 
     @Override

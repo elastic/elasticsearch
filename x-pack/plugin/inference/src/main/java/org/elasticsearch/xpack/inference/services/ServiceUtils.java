@@ -42,6 +42,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.ENABLED;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MAX_NUMBER_OF_ALLOCATIONS;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MIN_NUMBER_OF_ALLOCATIONS;
+import static org.elasticsearch.xpack.inference.rest.Paths.UNIFIED_SUFFIX;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 
 public final class ServiceUtils {
@@ -205,6 +206,15 @@ public final class ServiceUtils {
     public static ElasticsearchStatusException invalidModelTypeForUpdateModelWithEmbeddingDetails(Class<? extends Model> invalidModelType) {
         throw new ElasticsearchStatusException(
             Strings.format("Can't update embedding details for model with unexpected type %s", invalidModelType),
+            RestStatus.BAD_REQUEST
+        );
+    }
+
+    public static ElasticsearchStatusException invalidModelTypeForUpdateModelWithChatCompletionDetails(
+        Class<? extends Model> invalidModelType
+    ) {
+        throw new ElasticsearchStatusException(
+            Strings.format("Can't update chat completion details for model with unexpected type %s", invalidModelType),
             RestStatus.BAD_REQUEST
         );
     }
@@ -765,6 +775,29 @@ public final class ServiceUtils {
 
     public static <T> T nonNullOrDefault(@Nullable T requestValue, @Nullable T originalSettingsValue) {
         return requestValue == null ? originalSettingsValue : requestValue;
+    }
+
+    public static void throwUnsupportedUnifiedCompletionOperation(String serviceName) {
+        throw new UnsupportedOperationException(Strings.format("The %s service does not support unified completion", serviceName));
+    }
+
+    public static String unsupportedTaskTypeForInference(Model model, EnumSet<TaskType> supportedTaskTypes) {
+        return Strings.format(
+            "Inference entity [%s] does not support task type [%s] for inference, the task type must be one of %s.",
+            model.getInferenceEntityId(),
+            model.getTaskType(),
+            supportedTaskTypes
+        );
+    }
+
+    public static String useChatCompletionUrlMessage(Model model) {
+        return org.elasticsearch.common.Strings.format(
+            "The task type for the inference entity is %s, please use the _inference/%s/%s/%s URL.",
+            model.getTaskType(),
+            model.getTaskType(),
+            model.getInferenceEntityId(),
+            UNIFIED_SUFFIX
+        );
     }
 
     private ServiceUtils() {}

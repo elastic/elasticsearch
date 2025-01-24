@@ -101,7 +101,7 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.REGISTER_SLM_STATS;
+        return TransportVersions.V_8_16_0;
     }
 
     @Override
@@ -171,7 +171,7 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.REGISTER_SLM_STATS;
+            return TransportVersions.V_8_16_0;
         }
     }
 

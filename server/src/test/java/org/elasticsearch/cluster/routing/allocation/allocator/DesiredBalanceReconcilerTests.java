@@ -922,6 +922,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                             "node-0",
                             SingleNodeShutdownMetadata.builder()
                                 .setNodeId("node-0")
+                                .setNodeEphemeralId("node-0")
                                 .setType(SingleNodeShutdownMetadata.Type.REPLACE)
                                 .setTargetNodeName("node-2")
                                 .setStartedAtMillis(System.currentTimeMillis())
@@ -1214,7 +1215,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         var reconciler = new DesiredBalanceReconciler(
             clusterSettings,
             new DeterministicTaskQueue().getThreadPool(),
-            DesiredBalanceMetrics.NOOP
+            DesiredBalanceMetrics.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
         );
 
         var totalOutgoingMoves = new HashMap<String, AtomicInteger>();
@@ -1279,6 +1281,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             var builder = SingleNodeShutdownMetadata.builder()
                 .setType(type)
                 .setNodeId("data-node-1")
+                .setNodeEphemeralId("data-node-1")
                 .setStartedAtMillis(randomNonNegativeLong())
                 .setReason("test");
             if (type.equals(SingleNodeShutdownMetadata.Type.SIGTERM)) {
@@ -1296,7 +1299,12 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final var timeInMillisSupplier = new AtomicLong();
         when(threadPool.relativeTimeInMillisSupplier()).thenReturn(timeInMillisSupplier::incrementAndGet);
 
-        var reconciler = new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, DesiredBalanceMetrics.NOOP);
+        var reconciler = new DesiredBalanceReconciler(
+            createBuiltInClusterSettings(),
+            threadPool,
+            DesiredBalanceMetrics.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
+        );
         final long initialDelayInMillis = TimeValue.timeValueMinutes(5).getMillis();
         timeInMillisSupplier.addAndGet(randomLongBetween(initialDelayInMillis, 2 * initialDelayInMillis));
 
@@ -1348,10 +1356,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     private static void reconcile(RoutingAllocation routingAllocation, DesiredBalance desiredBalance) {
         final var threadPool = mock(ThreadPool.class);
         when(threadPool.relativeTimeInMillisSupplier()).thenReturn(new AtomicLong()::incrementAndGet);
-        new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, DesiredBalanceMetrics.NOOP).reconcile(
-            desiredBalance,
-            routingAllocation
-        );
+        new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, DesiredBalanceMetrics.NOOP, EMPTY_NODE_ALLOCATION_STATS)
+            .reconcile(desiredBalance, routingAllocation);
     }
 
     private static boolean isReconciled(RoutingNode node, DesiredBalance balance) {

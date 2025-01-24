@@ -157,7 +157,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                     noMatchSize,
                     expectedPassages.length,
                     maxAnalyzedOffset,
-                    queryMaxAnalyzedOffset,
+                    QueryMaxAnalyzedOffset.create(queryMaxAnalyzedOffset, maxAnalyzedOffset),
                     true,
                     true
                 );

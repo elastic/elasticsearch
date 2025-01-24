@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -29,15 +30,20 @@ public enum TaskType implements Writeable {
         public boolean isAnyOrSame(TaskType other) {
             return true;
         }
-    };
+    },
+    CHAT_COMPLETION;
 
-    public static String NAME = "task_type";
+    public static final String NAME = "task_type";
 
     public static TaskType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
     }
 
     public static TaskType fromStringOrStatusException(String name) {
+        if (name == null) {
+            throw new ElasticsearchStatusException("Task type must not be null", RestStatus.BAD_REQUEST);
+        }
+
         try {
             TaskType taskType = TaskType.fromString(name);
             return Objects.requireNonNull(taskType);
@@ -72,5 +78,15 @@ public enum TaskType implements Writeable {
 
     public static String unsupportedTaskTypeErrorMsg(TaskType taskType, String serviceName) {
         return "The [" + serviceName + "] service does not support task type [" + taskType + "]";
+    }
+
+    /**
+     * Copies a {@link EnumSet<TaskType>} if non-empty, otherwise returns an empty {@link EnumSet<TaskType>}. This is essentially the same
+     * as {@link EnumSet#copyOf(EnumSet)}, except it does not throw for an empty set.
+     * @param taskTypes task types to copy
+     * @return a copy of the passed in {@link EnumSet<TaskType>}
+     */
+    public static EnumSet<TaskType> copyOf(EnumSet<TaskType> taskTypes) {
+        return taskTypes.isEmpty() ? EnumSet.noneOf(TaskType.class) : EnumSet.copyOf(taskTypes);
     }
 }

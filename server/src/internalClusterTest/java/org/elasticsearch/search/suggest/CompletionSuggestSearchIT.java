@@ -61,6 +61,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -159,21 +160,13 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         }
         indexRandom(true, indexRequestBuilders);
         CompletionSuggestionBuilder noText = SuggestBuilders.completionSuggestion(FIELD);
-        assertResponse(
-            prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion("foo", noText).setGlobalText("sugg")),
-            response -> assertSuggestions(response, "foo", "suggestion10", "suggestion9", "suggestion8", "suggestion7", "suggestion6")
-        );
-
         CompletionSuggestionBuilder withText = SuggestBuilders.completionSuggestion(FIELD).text("sugg");
-        assertResponse(
+        assertResponses(
+            response -> assertSuggestions(response, "foo", "suggestion10", "suggestion9", "suggestion8", "suggestion7", "suggestion6"),
+            prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion("foo", noText).setGlobalText("sugg")),
             prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion("foo", withText)),
-            response -> assertSuggestions(response, "foo", "suggestion10", "suggestion9", "suggestion8", "suggestion7", "suggestion6")
-        );
-
-        // test that suggestion text takes precedence over global text
-        assertResponse(
-            prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion("foo", withText).setGlobalText("bogus")),
-            response -> assertSuggestions(response, "foo", "suggestion10", "suggestion9", "suggestion8", "suggestion7", "suggestion6")
+            // test that suggestion text takes precedence over global text
+            prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion("foo", withText).setGlobalText("bogus"))
         );
     }
 
@@ -363,8 +356,9 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                     assertThat(option.getText().toString(), equalTo("suggestion" + id));
                     assertThat(option.getHit(), hasId("" + id));
                     assertThat(option.getHit(), hasScore((id)));
-                    assertNotNull(option.getHit().getSourceAsMap());
-                    Set<String> sourceFields = option.getHit().getSourceAsMap().keySet();
+                    Map<String, Object> source = option.getHit().getSourceAsMap();
+                    assertNotNull(source);
+                    Set<String> sourceFields = source.keySet();
                     assertThat(sourceFields, contains("a"));
                     assertThat(sourceFields, not(contains("b")));
                     id--;

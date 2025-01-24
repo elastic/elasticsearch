@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -18,17 +19,20 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
-public final class PushDownAndCombineLimits extends OptimizerRules.OptimizerRule<Limit> {
+public final class PushDownAndCombineLimits extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext> {
+
+    public PushDownAndCombineLimits() {
+        super(OptimizerRules.TransformDirection.DOWN);
+    }
 
     @Override
-    public LogicalPlan rule(Limit limit) {
+    public LogicalPlan rule(Limit limit, LogicalOptimizerContext ctx) {
         if (limit.child() instanceof Limit childLimit) {
             var limitSource = limit.limit();
-            var l1 = (int) limitSource.fold();
-            var l2 = (int) childLimit.limit().fold();
+            var l1 = (int) limitSource.fold(ctx.foldCtx());
+            var l2 = (int) childLimit.limit().fold(ctx.foldCtx());
             return new Limit(limit.source(), Literal.of(limitSource, Math.min(l1, l2)), childLimit.child());
         } else if (limit.child() instanceof UnaryPlan unary) {
             if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof Enrich) {
@@ -42,7 +46,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.OptimizerRule
                 // we add an inner limit to MvExpand and just push down the existing limit, ie.
                 // | MV_EXPAND | LIMIT N -> | LIMIT N | MV_EXPAND (with limit N)
                 var limitSource = limit.limit();
-                var limitVal = (int) limitSource.fold();
+                var limitVal = (int) limitSource.fold(ctx.foldCtx());
                 Integer mvxLimit = mvx.limit();
                 if (mvxLimit == null || mvxLimit > limitVal) {
                     mvx = new MvExpand(mvx.source(), mvx.child(), mvx.target(), mvx.expanded(), limitVal);
@@ -55,16 +59,18 @@ public final class PushDownAndCombineLimits extends OptimizerRules.OptimizerRule
             else {
                 Limit descendantLimit = descendantLimit(unary);
                 if (descendantLimit != null) {
-                    var l1 = (int) limit.limit().fold();
-                    var l2 = (int) descendantLimit.limit().fold();
+                    var l1 = (int) limit.limit().fold(ctx.foldCtx());
+                    var l2 = (int) descendantLimit.limit().fold(ctx.foldCtx());
                     if (l2 <= l1) {
                         return new Limit(limit.source(), Literal.of(limit.limit(), l2), limit.child());
                     }
                 }
             }
         } else if (limit.child() instanceof Join join) {
-            if (join.config().type() == JoinType.LEFT && join.right() instanceof LocalRelation) {
-                // This is a hash join from something like a lookup.
+            if (join.config().type() == JoinTypes.LEFT) {
+                // NOTE! This is only correct because our LEFT JOINs preserve the number of rows from the left hand side.
+                // This deviates from SQL semantics. In SQL, multiple matches on the right hand side lead to multiple rows in the output.
+                // For us, multiple matches on the right hand side are collected into multi-values.
                 return join.replaceChildren(limit.replaceChild(join.left()), join.right());
             }
         }

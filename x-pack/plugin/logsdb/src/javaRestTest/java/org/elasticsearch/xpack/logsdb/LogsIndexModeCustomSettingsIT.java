@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.junit.Before;
@@ -112,11 +114,22 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
             }""";
 
         assertOK(putComponentTemplate(client, "logs@custom", storedSourceMapping));
-        assertOK(createDataStream(client, "logs-custom-dev"));
-
+        Request request = new Request("PUT", "_data_stream/logs-custom-dev");
+        if (SourceFieldMapper.onOrAfterDeprecateModeVersion(minimumIndexVersion())) {
+            request.setOptions(expectVersionSpecificWarnings(v -> v.current(SourceFieldMapper.DEPRECATION_WARNING)));
+        }
+        assertOK(client.performRequest(request));
         var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
         String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
         assertThat(sourceMode, equalTo("stored"));
+
+        request = new Request("GET", "/_migration/deprecations");
+        var nodeSettings = (Map<?, ?>) ((List<?>) entityAsMap(client.performRequest(request)).get("node_settings")).getFirst();
+        assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
+        assertThat(
+            (String) nodeSettings.get("details"),
+            containsString(SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [logs@custom]")
+        );
     }
 
     public void testConfigureDisabledSourceBeforeIndexCreation() {
@@ -182,11 +195,23 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
             }""";
 
         assertOK(putComponentTemplate(client, "logs@custom", storedSourceMapping));
-        assertOK(createDataStream(client, "logs-custom-dev"));
+        Request request = new Request("PUT", "_data_stream/logs-custom-dev");
+        if (SourceFieldMapper.onOrAfterDeprecateModeVersion(minimumIndexVersion())) {
+            request.setOptions(expectVersionSpecificWarnings(v -> v.current(SourceFieldMapper.DEPRECATION_WARNING)));
+        }
+        assertOK(client.performRequest(request));
 
         var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
         String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
         assertThat(sourceMode, equalTo("stored"));
+
+        request = new Request("GET", "/_migration/deprecations");
+        var nodeSettings = (Map<?, ?>) ((List<?>) entityAsMap(client.performRequest(request)).get("node_settings")).getFirst();
+        assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
+        assertThat(
+            (String) nodeSettings.get("details"),
+            containsString(SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [logs@custom]")
+        );
     }
 
     public void testConfigureDisabledSourceWhenIndexIsCreated() throws IOException {

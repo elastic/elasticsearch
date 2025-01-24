@@ -27,13 +27,14 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.test.ByteSizeEqualsMatcher.byteSizeEquals;
 
 public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<EsIndex> {
     public static EsIndex randomEsIndex() {
         String name = randomAlphaOfLength(5);
         Map<String, EsField> mapping = randomMapping();
-        return new EsIndex(name, mapping, randomConcreteIndices());
+        return new EsIndex(name, mapping, randomIndexNameWithModes());
     }
 
     private static Map<String, EsField> randomMapping() {
@@ -45,18 +46,13 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
         return result;
     }
 
-    private static Map<String, IndexMode> randomConcreteIndices() {
-        int size = between(0, 10);
-        Map<String, IndexMode> result = new HashMap<>(size);
-        while (result.size() < size) {
-            result.put(randomAlphaOfLength(5), randomFrom(IndexMode.values()));
-        }
-        return result;
+    public static Map<String, IndexMode> randomIndexNameWithModes() {
+        return randomMap(0, 10, () -> tuple(randomIdentifier(), randomFrom(IndexMode.values())));
     }
 
     @Override
     protected Writeable.Reader<EsIndex> instanceReader() {
-        return a -> new EsIndex(new PlanStreamInput(a, a.namedWriteableRegistry(), null));
+        return a -> EsIndex.readFrom(new PlanStreamInput(a, a.namedWriteableRegistry(), null));
     }
 
     @Override
@@ -77,7 +73,10 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
         switch (between(0, 2)) {
             case 0 -> name = randomValueOtherThan(name, () -> randomAlphaOfLength(5));
             case 1 -> mapping = randomValueOtherThan(mapping, EsIndexSerializationTests::randomMapping);
-            case 2 -> indexedNameWithModes = randomValueOtherThan(indexedNameWithModes, EsIndexSerializationTests::randomConcreteIndices);
+            case 2 -> indexedNameWithModes = randomValueOtherThan(
+                indexedNameWithModes,
+                EsIndexSerializationTests::randomIndexNameWithModes
+            );
             default -> throw new IllegalArgumentException();
         }
         return new EsIndex(name, mapping, indexedNameWithModes);

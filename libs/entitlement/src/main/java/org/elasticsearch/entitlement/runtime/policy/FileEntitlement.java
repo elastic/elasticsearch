@@ -20,21 +20,24 @@ public class FileEntitlement implements Entitlement {
     public static final int READ_ACTION = 0x1;
     public static final int WRITE_ACTION = 0x2;
 
+    public static final String READ = "read";
+    public static final String WRITE = "write";
+
     private final String path;
     private final int actions;
 
-    @ExternalEntitlement(parameterNames = { "path", "actions" })
+    @ExternalEntitlement(parameterNames = { "path", "actions" }, esModulesOnly = false)
     public FileEntitlement(String path, List<String> actionsList) {
         this.path = path;
         int actionsInt = 0;
 
         for (String actionString : actionsList) {
-            if ("read".equals(actionString)) {
+            if (READ.equals(actionString)) {
                 if ((actionsInt & READ_ACTION) == READ_ACTION) {
                     throw new IllegalArgumentException("file action [read] specified multiple times");
                 }
                 actionsInt |= READ_ACTION;
-            } else if ("write".equals(actionString)) {
+            } else if (WRITE.equals(actionString)) {
                 if ((actionsInt & WRITE_ACTION) == WRITE_ACTION) {
                     throw new IllegalArgumentException("file action [write] specified multiple times");
                 }

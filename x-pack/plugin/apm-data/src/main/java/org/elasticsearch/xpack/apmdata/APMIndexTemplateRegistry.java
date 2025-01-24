@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.apmdata;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -33,8 +32,7 @@ public class APMIndexTemplateRegistry extends YamlTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry,
-        FeatureService featureService
+        NamedXContentRegistry xContentRegistry
     ) {
         super(
             nodeSettings,
@@ -42,7 +40,6 @@ public class APMIndexTemplateRegistry extends YamlTemplateRegistry {
             threadPool,
             client,
             xContentRegistry,
-            featureService,
             templateFilter(isDataStreamsLifecycleOnlyMode(clusterService.getSettings()))
         );
     }

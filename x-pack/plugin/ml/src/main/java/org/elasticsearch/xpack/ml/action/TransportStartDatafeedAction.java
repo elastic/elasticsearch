@@ -127,7 +127,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             threadPool,
             actionFilters,
             StartDatafeedAction.Request::new,
-            indexNameExpressionResolver,
             NodeAcknowledgedResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

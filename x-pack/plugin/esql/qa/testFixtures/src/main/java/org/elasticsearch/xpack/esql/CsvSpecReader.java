@@ -80,7 +80,12 @@ public final class CsvSpecReader {
                     testCase.expectedWarningsRegexString.add(regex);
                     testCase.expectedWarningsRegex.add(warningRegexToPattern(regex));
                 } else if (lower.startsWith("ignoreorder:")) {
-                    testCase.ignoreOrder = Boolean.parseBoolean(line.substring("ignoreOrder:".length()).trim());
+                    String value = lower.substring("ignoreOrder:".length()).trim();
+                    if ("true".equals(value)) {
+                        testCase.ignoreOrder = true;
+                    } else if ("false".equals(value) == false) {
+                        throw new IllegalArgumentException("Invalid value for ignoreOrder: [" + value + "], it can only be true or false");
+                    }
                 } else if (line.startsWith(";")) {
                     testCase.expectedResults = data.toString();
                     // clean-up and emit
@@ -141,6 +146,26 @@ public final class CsvSpecReader {
 
         public List<Pattern> expectedWarningsRegex() {
             return expectedWarningsRegex;
+        }
+
+        /**
+         * How should we assert the warnings returned by ESQL.
+         * @param deduplicateExact Should tests configured with {@code warnings:} deduplicate
+         *                         the warnings before asserting? Normally don't do it because
+         *                         duplicate warnings are lame. We'd like to fix them all. But
+         *                         in multi-node and multi-shard tests we can emit duplicate
+         *                         warnings and it isn't worth fixing them now.
+         */
+        public AssertWarnings assertWarnings(boolean deduplicateExact) {
+            if (expectedWarnings.isEmpty() == false) {
+                return deduplicateExact
+                    ? new AssertWarnings.DeduplicatedStrings(expectedWarnings)
+                    : new AssertWarnings.ExactStrings(expectedWarnings);
+            }
+            if (expectedWarningsRegex.isEmpty() == false) {
+                return new AssertWarnings.AllowedRegexes(expectedWarningsRegex);
+            }
+            return new AssertWarnings.NoWarnings();
         }
     }
 

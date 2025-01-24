@@ -9,6 +9,7 @@ include::{docs-root}/shared/versions/stack/{source_branch}.asciidoc[]
 
 :docker-repo:       docker.elastic.co/elasticsearch/elasticsearch
 :docker-image:      {docker-repo}:{version}
+:docker-wolfi-image: {docker-repo}-wolfi:{version}
 :kib-docker-repo:   docker.elastic.co/kibana/kibana
 :kib-docker-image:  {kib-docker-repo}:{version}
 :plugin_url:      https://artifacts.elastic.co/downloads/elasticsearch-plugins

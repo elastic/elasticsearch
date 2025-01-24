@@ -12,8 +12,6 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
-import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
-import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
@@ -22,6 +20,7 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -62,8 +61,7 @@ public abstract class SpatialPushDownPointsTestCase extends SpatialPushDownTestC
         CentroidCalculator withinCentroid = new CentroidCalculator();
         CentroidCalculator disjointCentroid = new CentroidCalculator();
         for (int i = 0; i < data.size(); i++) {
-            index("indexed", i + "", "{\"location\" : " + data.get(i).data + " }");
-            index("not-indexed", i + "", "{\"location\" : " + data.get(i).data + " }");
+            addToIndexes(i, data.get(i).data, "indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
             if (data.get(i).intersects) {
                 expectedIntersects++;
                 data.get(i).centroid.addTo(intersectsCentroid);
@@ -76,7 +74,7 @@ public abstract class SpatialPushDownPointsTestCase extends SpatialPushDownTestC
                 data.get(i).centroid.addTo(withinCentroid);
             }
         }
-        refresh("indexed", "not-indexed");
+        refresh("indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
 
         for (String polygon : new String[] {
             "POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))",
@@ -89,24 +87,28 @@ public abstract class SpatialPushDownPointsTestCase extends SpatialPushDownTestC
 
     protected void assertFunction(String spatialFunction, String wkt, long expected, CentroidCalculator centroid) throws IOException,
         ParseException {
-        final String query1 = String.format(Locale.ROOT, """
+        List<String> queries = getQueries(String.format(Locale.ROOT, """
             FROM indexed | WHERE %s(location, %s("%s")) | STATS COUNT(*), ST_CENTROID_AGG(location)
-            """, spatialFunction, castingFunction(), wkt);
-        final String query2 = String.format(Locale.ROOT, """
-             FROM not-indexed | WHERE %s(location, %s("%s")) | STATS COUNT(*), ST_CENTROID_AGG(location)
-            """, spatialFunction, castingFunction(), wkt);
-        try (
-            EsqlQueryResponse response1 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query1).get();
-            EsqlQueryResponse response2 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query2).get();
-        ) {
-            Object indexedCount = response1.response().column(0).iterator().next();
-            Object notIndexedCount = response2.response().column(0).iterator().next();
-            assertEquals(spatialFunction + "[expected=" + expected + "]", expected, indexedCount);
-            assertEquals(spatialFunction + "[expected=" + expected + "]", expected, notIndexedCount);
-            Object indexedCentroid = response1.response().column(1).iterator().next();
-            Object notIndexedCentroid = response2.response().column(1).iterator().next();
-            assertThat(spatialFunction + "[expected=" + toString(centroid) + "]", centroid, matchesCentroid(indexedCentroid));
-            assertThat(spatialFunction + "[expected=" + toString(centroid) + "]", centroid, matchesCentroid(notIndexedCentroid));
+            """, spatialFunction, castingFunction(), wkt));
+        try (TestQueryResponseCollection responses = new TestQueryResponseCollection(queries)) {
+            for (int i = 0; i < ALL_INDEXES.length; i++) {
+                Object resultCount = responses.getResponse(i, 0);
+                Object resultCentroid = responses.getResponse(i, 1);
+                assertEquals(spatialFunction + "[expected=" + expected + "] for " + ALL_INDEXES[i], expected, resultCount);
+                assertThat(
+                    spatialFunction + "[expected=" + toString(centroid) + "] for " + ALL_INDEXES[i],
+                    centroid,
+                    matchesCentroid(resultCentroid)
+                );
+            }
+            long allIndexesCount = (long) responses.getResponse(ALL_INDEXES.length, 0);
+            assertEquals(spatialFunction + "[expected=" + expected + "] for all indexes", expected * 4, allIndexesCount);
+            Object allIndexesCentroid = responses.getResponse(ALL_INDEXES.length, 1);
+            assertThat(
+                spatialFunction + "[expected=" + toString(centroid) + "] for all indexes",
+                centroid,
+                matchesCentroid(allIndexesCentroid)
+            );
         }
     }
 
@@ -126,16 +128,14 @@ public abstract class SpatialPushDownPointsTestCase extends SpatialPushDownTestC
                 for (int j = 0; j < values.length; j++) {
                     values[j] = "\"" + WellKnownText.toWKT(getIndexGeometry()) + "\"";
                 }
-                index("indexed", i + "", "{\"location\" : " + Arrays.toString(values) + " }");
-                index("not-indexed", i + "", "{\"location\" : " + Arrays.toString(values) + " }");
+                addToIndexes(i, Arrays.toString(values), "indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
             } else {
                 final String value = WellKnownText.toWKT(getIndexGeometry());
-                index("indexed", i + "", "{\"location\" : \"" + value + "\" }");
-                index("not-indexed", i + "", "{\"location\" : \"" + value + "\" }");
+                addToIndexes(i, "\"" + value + "\"", "indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
             }
         }
 
-        refresh("indexed", "not-indexed");
+        refresh("indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
 
         for (int i = 0; i < 10; i++) {
             final Geometry geometry = getIndexGeometry();
@@ -149,19 +149,17 @@ public abstract class SpatialPushDownPointsTestCase extends SpatialPushDownTestC
     protected void assertDistanceFunction(String wkt) {
         String spatialFunction = "ST_DISTANCE";
         String castingFunction = castingFunction().replaceAll("SHAPE", "POINT");
-        final String query1 = String.format(Locale.ROOT, """
-            FROM indexed | WHERE %s(location, %s("%s")) < %.1f | STATS COUNT(*)
-            """, spatialFunction, castingFunction, wkt, searchDistance());
-        final String query2 = String.format(Locale.ROOT, """
-            FROM not-indexed | WHERE %s(location, %s("%s")) < %.1f | STATS COUNT(*)
-            """, spatialFunction, castingFunction, wkt, searchDistance());
-        try (
-            EsqlQueryResponse response1 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query1).get();
-            EsqlQueryResponse response2 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query2).get();
-        ) {
-            Object indexedResult = response1.response().column(0).iterator().next();
-            Object notIndexedResult = response2.response().column(0).iterator().next();
-            assertEquals(spatialFunction, indexedResult, notIndexedResult);
+        List<String> queries = getQueries(String.format(Locale.ROOT, """
+            FROM index | WHERE %s(location, %s("%s")) < %.1f | STATS COUNT(*)
+            """, spatialFunction, castingFunction, wkt, searchDistance()));
+        try (TestQueryResponseCollection responses = new TestQueryResponseCollection(queries)) {
+            Object indexedResult = responses.getResponse(0, 0);
+            for (int i = 1; i < ALL_INDEXES.length; i++) {
+                Object result = responses.getResponse(i, 0);
+                assertEquals(spatialFunction + " for " + ALL_INDEXES[i], indexedResult, result);
+            }
+            long allIndexesResult = (long) responses.getResponse(ALL_INDEXES.length, 0);
+            assertEquals(spatialFunction + " for all indexes", (long) indexedResult * 4, allIndexesResult);
         }
     }
 

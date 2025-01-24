@@ -53,7 +53,6 @@ import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
@@ -308,19 +307,8 @@ public class ContextIndexSearcherTests extends ESTestCase {
         w.deleteDocuments(new Term("delete", "yes"));
 
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
-        BitsetFilterCache.Listener listener = new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-
-            }
-
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
-
-            }
-        };
         DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(w), new ShardId(settings.getIndex(), 0));
-        BitsetFilterCache cache = new BitsetFilterCache(settings, listener);
+        BitsetFilterCache cache = new BitsetFilterCache(settings, BitsetFilterCache.Listener.NOOP);
         Query roleQuery = new TermQuery(new Term("allowed", "yes"));
         BitSet bitSet = cache.getBitSetProducer(roleQuery).getBitSet(reader.leaves().get(0));
         if (sparse) {

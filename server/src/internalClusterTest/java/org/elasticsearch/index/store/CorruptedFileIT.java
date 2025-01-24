@@ -155,7 +155,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                     // no checkindex - we corrupt shards on purpose
                     .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
                     // no translog based flush - it might change the .liv / segments.N files
-                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
             )
         );
         ensureGreen();
@@ -269,7 +269,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                     .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on
                                                                                               // purpose
                     // no translog based flush - it might change the .liv / segments.N files
-                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
             )
         );
         ensureGreen();
@@ -544,7 +544,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                     // no checkindex - we corrupt shards on purpose
                     .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
                     // no translog based flush - it might change the .liv / segments.N files
-                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
             )
         );
         ensureGreen();
@@ -612,7 +612,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                     // no checkindex - we corrupt shards on purpose
                     .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
                     // no translog based flush - it might change the .liv / segments.N files
-                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
             )
         );
         ensureGreen();

@@ -55,7 +55,7 @@ public class CCSCanMatchIT extends AbstractMultiClustersTestCase {
     static final String REMOTE_CLUSTER = "cluster_a";
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of("cluster_a");
     }
 

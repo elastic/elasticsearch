@@ -33,12 +33,19 @@ import java.util.stream.Collectors;
  * @see org.elasticsearch.index.mapper.LookupRuntimeFieldType
  */
 final class FetchLookupFieldsPhase extends SearchPhase {
-    private final SearchPhaseContext context;
+
+    static final String NAME = "fetch_lookup_fields";
+
+    private final AbstractSearchAsyncAction<?> context;
     private final SearchResponseSections searchResponse;
     private final AtomicArray<SearchPhaseResult> queryResults;
 
-    FetchLookupFieldsPhase(SearchPhaseContext context, SearchResponseSections searchResponse, AtomicArray<SearchPhaseResult> queryResults) {
-        super("fetch_lookup_fields");
+    FetchLookupFieldsPhase(
+        AbstractSearchAsyncAction<?> context,
+        SearchResponseSections searchResponse,
+        AtomicArray<SearchPhaseResult> queryResults
+    ) {
+        super(NAME);
         this.context = context;
         this.searchResponse = searchResponse;
         this.queryResults = queryResults;
@@ -70,7 +77,7 @@ final class FetchLookupFieldsPhase extends SearchPhase {
     }
 
     @Override
-    public void run() {
+    protected void run() {
         final List<Cluster> clusters = groupLookupFieldsByClusterAlias(searchResponse.hits);
         if (clusters.isEmpty()) {
             context.sendSearchResponse(searchResponse, queryResults);
@@ -125,7 +132,7 @@ final class FetchLookupFieldsPhase extends SearchPhase {
                     }
                 }
                 if (failure != null) {
-                    context.onPhaseFailure(FetchLookupFieldsPhase.this, "failed to fetch lookup fields", failure);
+                    context.onPhaseFailure(NAME, "failed to fetch lookup fields", failure);
                 } else {
                     context.sendSearchResponse(searchResponse, queryResults);
                 }
@@ -133,7 +140,7 @@ final class FetchLookupFieldsPhase extends SearchPhase {
 
             @Override
             public void onFailure(Exception e) {
-                context.onPhaseFailure(FetchLookupFieldsPhase.this, "failed to fetch lookup fields", e);
+                context.onPhaseFailure(NAME, "failed to fetch lookup fields", e);
             }
         });
     }

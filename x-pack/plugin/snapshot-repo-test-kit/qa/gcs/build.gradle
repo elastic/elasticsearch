@@ -5,8 +5,6 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
@@ -36,7 +34,7 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
 tasks.named("javaRestTest").configure {
   systemProperty 'test.google.fixture', Boolean.toString(useFixture)
   systemProperty 'test.gcs.bucket', gcsBucket
-  nonInputProperties.systemProperty 'test.gcs.base_path', gcsBasePath + "_repository_test_kit_tests" + BuildParams.testSeed
+  nonInputProperties.systemProperty 'test.gcs.base_path', gcsBasePath + "_repository_test_kit_tests" + buildParams.testSeed
 
   if (useFixture == false) {
     systemProperty 'test.google.account', serviceAccountFile

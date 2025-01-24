@@ -55,6 +55,13 @@
             }
           }
         },
+        "os": {
+          "properties": {
+            "type": {
+              "type": "keyword"
+            }
+          }
+        },
         "profiling": {
           "properties": {
             "project.id": {
@@ -134,6 +141,9 @@
                   "type": "unsigned_long"
                 },
                 "config.present_cpu_cores": {
+                  "type": "integer"
+                },
+                "config.sampling_frequency": {
                   "type": "integer"
                 }
               }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
@@ -22,7 +21,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * Base class for functions that reduce multivalued fields into single valued fields.
@@ -32,27 +30,6 @@ import java.util.List;
  * </p>
  */
 public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            MvAppend.ENTRY,
-            MvAvg.ENTRY,
-            MvConcat.ENTRY,
-            MvCount.ENTRY,
-            MvDedupe.ENTRY,
-            MvFirst.ENTRY,
-            MvLast.ENTRY,
-            MvMax.ENTRY,
-            MvMedian.ENTRY,
-            MvMedianAbsoluteDeviation.ENTRY,
-            MvMin.ENTRY,
-            MvPercentile.ENTRY,
-            MvPSeriesWeightedSum.ENTRY,
-            MvSlice.ENTRY,
-            MvSort.ENTRY,
-            MvSum.ENTRY,
-            MvZip.ENTRY
-        );
-    }
 
     protected AbstractMultivalueFunction(Source source, Expression field) {
         super(source, field);

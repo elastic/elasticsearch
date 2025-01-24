@@ -80,6 +80,50 @@ interface KqlBaseListener extends ParseTreeListener {
      */
     void exitNestedQuery(KqlBaseParser.NestedQueryContext ctx);
     /**
+     * Enter a parse tree produced by the {@code booleanNestedQuery}
+     * labeled alternative in {@link KqlBaseParser#nestedSubQuery}.
+     * @param ctx the parse tree
+     */
+    void enterBooleanNestedQuery(KqlBaseParser.BooleanNestedQueryContext ctx);
+    /**
+     * Exit a parse tree produced by the {@code booleanNestedQuery}
+     * labeled alternative in {@link KqlBaseParser#nestedSubQuery}.
+     * @param ctx the parse tree
+     */
+    void exitBooleanNestedQuery(KqlBaseParser.BooleanNestedQueryContext ctx);
+    /**
+     * Enter a parse tree produced by the {@code defaultNestedQuery}
+     * labeled alternative in {@link KqlBaseParser#nestedSubQuery}.
+     * @param ctx the parse tree
+     */
+    void enterDefaultNestedQuery(KqlBaseParser.DefaultNestedQueryContext ctx);
+    /**
+     * Exit a parse tree produced by the {@code defaultNestedQuery}
+     * labeled alternative in {@link KqlBaseParser#nestedSubQuery}.
+     * @param ctx the parse tree
+     */
+    void exitDefaultNestedQuery(KqlBaseParser.DefaultNestedQueryContext ctx);
+    /**
+     * Enter a parse tree produced by {@link KqlBaseParser#nestedSimpleSubQuery}.
+     * @param ctx the parse tree
+     */
+    void enterNestedSimpleSubQuery(KqlBaseParser.NestedSimpleSubQueryContext ctx);
+    /**
+     * Exit a parse tree produced by {@link KqlBaseParser#nestedSimpleSubQuery}.
+     * @param ctx the parse tree
+     */
+    void exitNestedSimpleSubQuery(KqlBaseParser.NestedSimpleSubQueryContext ctx);
+    /**
+     * Enter a parse tree produced by {@link KqlBaseParser#nestedParenthesizedQuery}.
+     * @param ctx the parse tree
+     */
+    void enterNestedParenthesizedQuery(KqlBaseParser.NestedParenthesizedQueryContext ctx);
+    /**
+     * Exit a parse tree produced by {@link KqlBaseParser#nestedParenthesizedQuery}.
+     * @param ctx the parse tree
+     */
+    void exitNestedParenthesizedQuery(KqlBaseParser.NestedParenthesizedQueryContext ctx);
+    /**
      * Enter a parse tree produced by {@link KqlBaseParser#matchAllQuery}.
      * @param ctx the parse tree
      */

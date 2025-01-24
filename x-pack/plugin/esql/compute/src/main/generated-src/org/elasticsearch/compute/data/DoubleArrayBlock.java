@@ -101,7 +101,7 @@ final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
                 int valueCount = getValueCount(pos);
                 int first = getFirstValueIndex(pos);
                 if (valueCount == 1) {
-                    builder.appendDouble(getDouble(getFirstValueIndex(pos)));
+                    builder.appendDouble(getDouble(first));
                 } else {
                     builder.beginPositionEntry();
                     for (int c = 0; c < valueCount; c++) {

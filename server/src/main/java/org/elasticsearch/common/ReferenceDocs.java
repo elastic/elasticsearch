@@ -82,6 +82,8 @@ public enum ReferenceDocs {
     CIRCUIT_BREAKER_ERRORS,
     ALLOCATION_EXPLAIN_NO_COPIES,
     ALLOCATION_EXPLAIN_MAX_RETRY,
+    SECURE_SETTINGS,
+    CLUSTER_SHARD_LIMIT,
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 

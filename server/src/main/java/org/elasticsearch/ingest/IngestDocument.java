@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -957,6 +958,8 @@ public final class IngestDocument {
         terminate = false;
     }
 
+    // Unconditionally deprecate the _type field once V7 BWC support is removed
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     public enum Metadata {
         INDEX(IndexFieldMapper.NAME),
         TYPE("_type"),

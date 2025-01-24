@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStrategy;
 import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
@@ -138,6 +139,10 @@ public class ClusterModule extends AbstractModule {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);
+        var nodeAllocationStatsAndWeightsCalculator = new NodeAllocationStatsAndWeightsCalculator(
+            writeLoadForecaster,
+            clusterService.getClusterSettings()
+        );
         this.shardsAllocator = createShardsAllocator(
             settings,
             clusterService.getClusterSettings(),
@@ -146,7 +151,8 @@ public class ClusterModule extends AbstractModule {
             clusterService,
             this::reconcile,
             writeLoadForecaster,
-            telemetryProvider
+            telemetryProvider,
+            nodeAllocationStatsAndWeightsCalculator
         );
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices);
@@ -160,7 +166,12 @@ public class ClusterModule extends AbstractModule {
         );
         this.allocationService.addAllocFailuresResetListenerTo(clusterService);
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
-        this.allocationStatsService = new AllocationStatsService(clusterService, clusterInfoService, shardsAllocator, writeLoadForecaster);
+        this.allocationStatsService = new AllocationStatsService(
+            clusterService,
+            clusterInfoService,
+            shardsAllocator,
+            nodeAllocationStatsAndWeightsCalculator
+        );
         this.telemetryProvider = telemetryProvider;
     }
 
@@ -400,7 +411,8 @@ public class ClusterModule extends AbstractModule {
         ClusterService clusterService,
         DesiredBalanceReconcilerAction reconciler,
         WriteLoadForecaster writeLoadForecaster,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
         allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(clusterSettings, writeLoadForecaster));
@@ -412,7 +424,8 @@ public class ClusterModule extends AbstractModule {
                 threadPool,
                 clusterService,
                 reconciler,
-                telemetryProvider
+                telemetryProvider,
+                nodeAllocationStatsAndWeightsCalculator
             )
         );
 

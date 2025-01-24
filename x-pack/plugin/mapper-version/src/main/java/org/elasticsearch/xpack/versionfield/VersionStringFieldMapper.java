@@ -403,7 +403,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         return concat;
     }
 
-    public static DocValueFormat VERSION_DOCVALUE = new DocValueFormat() {
+    public static final DocValueFormat VERSION_DOCVALUE = new DocValueFormat() {
 
         @Override
         public String getWriteableName() {

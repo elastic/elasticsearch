@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -22,6 +24,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.session.QueryBuilderResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
@@ -40,13 +43,13 @@ public class PlanExecutor {
     private final Verifier verifier;
     private final PlanningMetricsManager planningMetricsManager;
 
-    public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry) {
+    public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry, XPackLicenseState licenseState) {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
         this.mapper = new Mapper();
         this.metrics = new Metrics(functionRegistry);
-        this.verifier = new Verifier(metrics);
+        this.verifier = new Verifier(metrics, licenseState);
         this.planningMetricsManager = new PlanningMetricsManager(meterRegistry);
     }
 
@@ -54,10 +57,12 @@ public class PlanExecutor {
         EsqlQueryRequest request,
         String sessionId,
         Configuration cfg,
+        FoldContext foldContext,
         EnrichPolicyResolver enrichPolicyResolver,
         EsqlExecutionInfo executionInfo,
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
+        QueryBuilderResolver queryBuilderResolver,
         ActionListener<Result> listener
     ) {
         final PlanningMetrics planningMetrics = new PlanningMetrics();
@@ -68,15 +73,17 @@ public class PlanExecutor {
             enrichPolicyResolver,
             preAnalyzer,
             functionRegistry,
-            new LogicalPlanOptimizer(new LogicalOptimizerContext(cfg)),
+            new LogicalPlanOptimizer(new LogicalOptimizerContext(cfg, foldContext)),
             mapper,
             verifier,
             planningMetrics,
-            indicesExpressionGrouper
+            indicesExpressionGrouper,
+            queryBuilderResolver
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);
-        session.execute(request, executionInfo, planRunner, wrap(x -> {
+
+        ActionListener<Result> executeListener = wrap(x -> {
             planningMetricsManager.publish(planningMetrics, true);
             listener.onResponse(x);
         }, ex -> {
@@ -84,7 +91,10 @@ public class PlanExecutor {
             metrics.failed(clientId);
             planningMetricsManager.publish(planningMetrics, false);
             listener.onFailure(ex);
-        }));
+        });
+        // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
+        // and all the metrics are properly updated
+        ActionListener.run(executeListener, l -> session.execute(request, executionInfo, planRunner, l));
     }
 
     public IndexResolver indexResolver() {

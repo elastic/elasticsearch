@@ -7,16 +7,12 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.capabilities.Validatable;
-import org.elasticsearch.xpack.esql.common.Failure;
-import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
-import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -27,48 +23,69 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-
 /**
- * Full text function that performs a {@link QueryStringQuery} .
+ * Full text function that performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MatchQuery} .
  */
-public class Match extends FullTextFunction implements Validatable {
+public class Match extends AbstractMatchFullTextFunction {
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
 
-    private final Expression field;
+    private transient Boolean isOperator;
 
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
-        description = "Performs a match query on the specified field. Returns true if the provided query matches the row.",
+        description = """
+            Use `MATCH` to perform a <<query-dsl-match-query,match query>> on the specified field.
+            Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.
+
+            Match can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>,
+            as well as other field types like keyword, boolean, dates, and numeric types.
+
+            For a simplified syntax, you can use the <<esql-search-operators,match operator>> `:` operator instead of `MATCH`.
+
+            `MATCH` returns true if the provided query matches the row.""",
         examples = { @Example(file = "match-function", tag = "match-with-field") }
     )
     public Match(
         Source source,
-        @Param(name = "field", type = { "keyword", "text" }, description = "Field that the query will target.") Expression field,
+        @Param(
+            name = "field",
+            type = { "keyword", "text", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
+            description = "Field that the query will target."
+        ) Expression field,
         @Param(
             name = "query",
-            type = { "keyword", "text" },
-            description = "Text you wish to find in the provided field."
+            type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
+            description = "Value to find in the provided field."
         ) Expression matchQuery
     ) {
-        super(source, matchQuery, List.of(field, matchQuery));
-        this.field = field;
+        this(source, field, matchQuery, null);
     }
 
-    private Match(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
+    public Match(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder) {
+        super(source, matchQuery, List.of(field, matchQuery), queryBuilder, field);
+    }
+
+    private static Match readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression query = in.readNamedWriteable(Expression.class);
+        QueryBuilder queryBuilder = null;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+            queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+        }
+        return new Match(source, field, query, queryBuilder);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeNamedWriteable(field);
+        out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(queryBuilder());
+        }
     }
 
     @Override
@@ -77,40 +94,12 @@ public class Match extends FullTextFunction implements Validatable {
     }
 
     @Override
-    protected TypeResolution resolveNonQueryParamTypes() {
-        return isNotNull(field, sourceText(), FIRST).and(isString(field, sourceText(), FIRST)).and(super.resolveNonQueryParamTypes());
-    }
-
-    @Override
-    public void validate(Failures failures) {
-        if (field instanceof FieldAttribute == false) {
-            failures.add(
-                Failure.fail(
-                    field,
-                    "[{}] cannot operate on [{}], which is not a field from an index mapping",
-                    functionName(),
-                    field.sourceText()
-                )
-            );
-        }
-    }
-
-    @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        // Query is the first child, field is the second child
-        return new Match(source(), newChildren.get(0), newChildren.get(1));
+        return new Match(source(), newChildren.get(0), newChildren.get(1), queryBuilder());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Match::new, field, query());
-    }
-
-    protected TypeResolutions.ParamOrdinal queryParamOrdinal() {
-        return SECOND;
-    }
-
-    public Expression field() {
-        return field;
+        return NodeInfo.create(this, Match::new, field(), query(), queryBuilder());
     }
 }

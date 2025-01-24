@@ -480,11 +480,8 @@ public final class TextFieldMapper extends FieldMapper {
         }
     }
 
-    private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
-
-    public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), SourceFieldMapper.isSynthetic(c.getIndexSettings())),
-        MINIMUM_COMPATIBILITY_VERSION
+    public static final TypeParser PARSER = createTypeParserWithLegacySupport(
+        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), SourceFieldMapper.isSynthetic(c.getIndexSettings()))
     );
 
     private static class PhraseWrappedAnalyzer extends AnalyzerWrapper {
@@ -968,15 +965,27 @@ public final class TextFieldMapper extends FieldMapper {
             return fielddata;
         }
 
-        public boolean canUseSyntheticSourceDelegateForQuerying() {
+        /**
+         * Returns true if the delegate sub-field can be used for loading and querying (ie. either isIndexed or isStored is true)
+         */
+        public boolean canUseSyntheticSourceDelegateForLoading() {
             return syntheticSourceDelegate != null
                 && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE
                 && (syntheticSourceDelegate.isIndexed() || syntheticSourceDelegate.isStored());
         }
 
+        /**
+         * Returns true if the delegate sub-field can be used for querying only (ie. isIndexed must be true)
+         */
+        public boolean canUseSyntheticSourceDelegateForQuerying() {
+            return syntheticSourceDelegate != null
+                && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE
+                && syntheticSourceDelegate.isIndexed();
+        }
+
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (canUseSyntheticSourceDelegateForQuerying()) {
+            if (canUseSyntheticSourceDelegateForLoading()) {
                 return new BlockLoader.Delegating(syntheticSourceDelegate.blockLoader(blContext)) {
                     @Override
                     protected String delegatingTo() {

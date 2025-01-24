@@ -7,14 +7,18 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
+import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.Before;
@@ -50,6 +54,14 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     private static final String BASIC_AUTH_VALUE_NO_ACCESS = basicAuthHeaderValue(TEST_USER_NAME_NO_ACCESS, TEST_PASSWORD_SECURE_STRING);
 
     private static boolean indicesCreated = false;
+
+    @Override
+    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
+        RestClientBuilder builder = RestClient.builder(hosts);
+        configureClient(builder, settings);
+        builder.setStrictDeprecationMode(false);
+        return builder.build();
+    }
 
     // preserve indices in order to reuse source indices in several test cases
     @Override
@@ -2705,6 +2717,54 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             .get(0);
         importConfig.remove("id");
         assertThat(storedConfig, equalTo(importConfig));
+    }
+
+    public void testPivotWithDeprecatedMaxPageSearchSize() throws Exception {
+        String transformId = "deprecated_settings_pivot";
+        String transformIndex = "deprecated_settings_pivot_index";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+
+        String config = Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "every_2": {
+                    "histogram": {
+                      "interval": 2,
+                      "field": "stars"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                },
+                "max_page_search_size": 1234
+              }
+            }""", REVIEWS_INDEX_NAME, transformIndex);
+
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        Map<String, Object> transform = getTransformConfig(transformId, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertNull(XContentMapValues.extractValue("pivot.max_page_search_size", transform));
+        assertThat(XContentMapValues.extractValue("settings.max_page_search_size", transform), equalTo(1234));
     }
 
     private void createDateNanoIndex(String indexName, int numDocs) throws IOException {

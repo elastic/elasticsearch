@@ -93,6 +93,7 @@ public class CountedCollectorTests extends ESTestCase {
             for (int i = numResultsExpected; i < results.length(); i++) {
                 assertNull("index: " + i, results.get(i));
             }
+            context.results.close();
         }
     }
 }

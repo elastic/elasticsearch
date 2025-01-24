@@ -33,7 +33,6 @@ import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
@@ -433,18 +432,18 @@ public class QueryRulesIndexService {
 
     private static QueryRulesetResult mapSearchResponseToQueryRulesetList(SearchResponse response) {
         final List<QueryRulesetListItem> rulesetResults = Arrays.stream(response.getHits().getHits())
-            .map(QueryRulesIndexService::hitToQueryRulesetListItem)
+            .map(searchHit -> QueryRulesIndexService.hitToQueryRulesetListItem(searchHit.getSourceAsMap()))
             .toList();
         return new QueryRulesetResult(rulesetResults, (int) response.getHits().getTotalHits().value());
     }
 
-    private static QueryRulesetListItem hitToQueryRulesetListItem(SearchHit searchHit) {
-        final Map<String, Object> sourceMap = searchHit.getSourceAsMap();
+    private static QueryRulesetListItem hitToQueryRulesetListItem(final Map<String, Object> sourceMap) {
         final String rulesetId = (String) sourceMap.get(QueryRuleset.ID_FIELD.getPreferredName());
         @SuppressWarnings("unchecked")
         final List<LinkedHashMap<?, ?>> rules = ((List<LinkedHashMap<?, ?>>) sourceMap.get(QueryRuleset.RULES_FIELD.getPreferredName()));
         final int numRules = rules.size();
         final Map<QueryRuleCriteriaType, Integer> queryRuleCriteriaTypeToCountMap = new EnumMap<>(QueryRuleCriteriaType.class);
+        final Map<QueryRule.QueryRuleType, Integer> ruleTypeToCountMap = new EnumMap<>(QueryRule.QueryRuleType.class);
         for (LinkedHashMap<?, ?> rule : rules) {
             @SuppressWarnings("unchecked")
             List<LinkedHashMap<?, ?>> criteriaList = ((List<LinkedHashMap<?, ?>>) rule.get(QueryRule.CRITERIA_FIELD.getPreferredName()));
@@ -453,9 +452,12 @@ public class QueryRulesIndexService {
                 final QueryRuleCriteriaType queryRuleCriteriaType = QueryRuleCriteriaType.type(criteriaType);
                 queryRuleCriteriaTypeToCountMap.compute(queryRuleCriteriaType, (k, v) -> v == null ? 1 : v + 1);
             }
+            final String ruleType = ((String) rule.get(QueryRule.TYPE_FIELD.getPreferredName()));
+            final QueryRule.QueryRuleType queryRuleType = QueryRule.QueryRuleType.queryRuleType(ruleType);
+            ruleTypeToCountMap.compute(queryRuleType, (k, v) -> v == null ? 1 : v + 1);
         }
 
-        return new QueryRulesetListItem(rulesetId, numRules, queryRuleCriteriaTypeToCountMap);
+        return new QueryRulesetListItem(rulesetId, numRules, queryRuleCriteriaTypeToCountMap, ruleTypeToCountMap);
     }
 
     public record QueryRulesetResult(List<QueryRulesetListItem> rulesets, long totalResults) {}

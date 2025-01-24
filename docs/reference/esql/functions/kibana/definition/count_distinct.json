@@ -140,6 +140,72 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Column or literal for which to count the number of distinct values."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Column or literal for which to count the number of distinct values."
+        },
+        {
+          "name" : "precision",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Column or literal for which to count the number of distinct values."
+        },
+        {
+          "name" : "precision",
+          "type" : "long",
+          "optional" : true,
+          "description" : "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Column or literal for which to count the number of distinct values."
+        },
+        {
+          "name" : "precision",
+          "type" : "unsigned_long",
+          "optional" : true,
+          "description" : "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "double",
           "optional" : false,
           "description" : "Column or literal for which to count the number of distinct values."

@@ -43,11 +43,6 @@
         "description":"Control whether the response should be stored in the cluster if it completed within the provided [wait_for_completion] time (default: false)",
         "default":false
       },
-      "keep_alive": {
-        "type": "time",
-        "description": "Update the time interval in which the results (partial or final) for this search will be available",
-        "default": "5d"
-      },
       "batched_reduce_size":{
         "type":"number",
         "description":"The number of shard results that should be reduced at once on the coordinating node. This value should be used as the granularity at which progress results will be made available.",
@@ -64,6 +59,11 @@
       "analyze_wildcard":{
         "type":"boolean",
         "description":"Specify whether wildcard and prefix queries should be analyzed (default: false)"
+      },
+      "ccs_minimize_roundtrips":{
+        "type":"boolean",
+        "default":false,
+        "description":"When doing a cross-cluster search, setting it to true may improve overall search latency, particularly when searching clusters with a large number of shards. However, when set to true, the progress of searches on the remote clusters will not be received until the search finishes on all clusters."
       },
       "default_operator":{
         "type":"enum",
@@ -125,6 +125,11 @@
       "preference":{
         "type":"string",
         "description":"Specify the node or shard the operation should be performed on (default: random)"
+      },
+      "rest_total_hits_as_int":{
+        "type":"boolean",
+        "description":"Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
+        "default":false
       },
       "q":{
         "type":"string",

@@ -34,21 +34,20 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
 
 /**
- * A skeleton service for watching and reacting to a single file changing on disk
+ * A skeleton service for watching and reacting to files changing in a directory
  *
- * <p>A file watching service watches for changes in a particular file on disk. There
- * are three assumptions about the file structure:</p>
+ * <p>A file watching service watches for changes to a particular directory. There
+ * are two assumptions about the file structure:</p>
  * <ol>
- *     <li>The file itself may or may not exist.</li>
- *     <li>The file's parent directory may or may not exist.</li>
- *     <li>The directory above the file's parent directory must always exist.</li>
+ *     <li>The directory may or may not exist.</li>
+ *     <li>The directory's parent directory must always exist.</li>
  * </ol>
  *
- * <p>For example, if the watched file is under /usr/elastic/elasticsearch/conf/special/settings.yml,
- * then /usr/elastic/elasticsearch/conf/ must exist, but special/ and special/settings.yml may
- * be created, updated, or deleted during runtime.</p>
+ * <p>For example, if the watched directory is {@code /usr/elastic/elasticsearch/conf/special},
+ * then {@code /usr/elastic/elasticsearch/conf} must exist, but {@code special} and any files in that directory
+ * may be created, updated, or deleted during runtime.</p>
  *
- * <p>What this class does not do is define what should happen after the file changes.
+ * <p>What this class does not do is define what should happen after the directory changes.
  * An implementation class should override {@link #processFileChanges(Path)} to define
  * the correct behavior.</p>
  */
@@ -72,8 +71,9 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
 
     /**
      * Any implementation of this class must implement this method in order
-     * to define what happens once the watched file changes.
+     * to define what happens once a file in the watched directory changes.
      *
+     * @param file  the full path of the file that has changed inside the watched directory
      * @throws IOException if there is an error reading the file itself
      * @throws ExecutionException if there is an issue while applying the changes from the file
      * @throws InterruptedException if the file processing is interrupted by another thread.
@@ -84,7 +84,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
 
     /**
      * Defaults to generic {@link #processFileChanges(Path)} behavior.
-     * An implementation can override this to define different file handling when the file is processed during
+     * An implementation can override this to define different file handling when the directory is processed during
      * initial service start.
      */
     protected void processFileOnServiceStart(Path file) throws IOException, ExecutionException, InterruptedException {

@@ -26,7 +26,6 @@ import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -294,7 +293,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         );
     }
 
-    public void testCamelCaseDeprecation() throws IOException {
+    public void testCamelCaseDeprecation() {
         String simpleMapping = "{\n\"_doc\": {"
             + "\"properties\" : {\n"
             + "   \"date_time_field\" : {\n"
@@ -326,5 +325,33 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             null
         );
         assertThat(issuesByIndex.get(indexName), hasItem(expected));
+    }
+
+    public void testLegacyTierIndex() {
+        Settings.Builder settings = settings(IndexVersion.current());
+        String filter = randomFrom("include", "exclude", "require");
+        String tier = randomFrom("hot", "warm", "cold", "frozen");
+        settings.put("index.routing.allocation." + filter + ".data", tier);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true)).build();
+        Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
+            state,
+            new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS)
+        );
+        assertThat(
+            issuesByIndex.get("test"),
+            contains(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
+                    "index [test] is configuring tiers via filtered allocation which is not recommended.",
+                    "https://ela.st/migrate-to-tiers",
+                    "One or more of your indices is configured with 'index.routing.allocation.*.data' settings."
+                        + " This is typically used to create a hot/warm or tiered architecture, based on legacy guidelines."
+                        + " Data tiers are a recommended replacement for tiered architecture clusters.",
+                    false,
+                    DeprecationIssue.createMetaMapForRemovableSettings(List.of("index.routing.allocation." + filter + ".data"))
+                )
+            )
+        );
     }
 }

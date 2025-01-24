@@ -30,6 +30,8 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.deprecation.DeprecationInfoAction.filterChecks;
+import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_COMMON_DETAIL;
+import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_HELP_URL;
 
 /**
  * Index-specific deprecation checks
@@ -44,7 +46,8 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         IndexDeprecationChecker::checkIndexDataPath,
         IndexDeprecationChecker::storeTypeSettingCheck,
         IndexDeprecationChecker::frozenIndexSettingCheck,
-        IndexDeprecationChecker::deprecatedCamelCasePattern
+        IndexDeprecationChecker::deprecatedCamelCasePattern,
+        IndexDeprecationChecker::legacyRoutingSettingCheck
     );
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -189,6 +192,22 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
             );
         }
         return null;
+    }
+
+    static DeprecationIssue legacyRoutingSettingCheck(IndexMetadata indexMetadata, ClusterState clusterState) {
+        List<String> deprecatedSettings = LegacyTiersDetection.getDeprecatedFilteredAllocationSettings(indexMetadata.getSettings());
+        if (deprecatedSettings.isEmpty()) {
+            return null;
+        }
+        String indexName = indexMetadata.getIndex().getName();
+        return new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "index [" + indexName + "] is configuring tiers via filtered allocation which is not recommended.",
+            DEPRECATION_HELP_URL,
+            "One or more of your indices is configured with 'index.routing.allocation.*.data' settings. " + DEPRECATION_COMMON_DETAIL,
+            false,
+            DeprecationIssue.createMetaMapForRemovableSettings(deprecatedSettings)
+        );
     }
 
     private static void fieldLevelMappingIssue(IndexMetadata indexMetadata, BiConsumer<MappingMetadata, Map<String, Object>> checker) {

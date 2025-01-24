@@ -547,6 +547,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         for (int i = 0; i < numberOfShards; i++) {
             var shardRoutingTable = indexRoutingTable.shard(i);
             assertThat(shardRoutingTable, is(notNullValue()));
+            // Ensure that at least one unpromotable shard is either STARTED or RELOCATING
             assertThat(shardRoutingTable.unpromotableShards().isEmpty(), is(false));
         }
         assertThat(clusterState.blocks().hasIndexBlock(indexName, INDEX_REFRESH_BLOCK), is(false));

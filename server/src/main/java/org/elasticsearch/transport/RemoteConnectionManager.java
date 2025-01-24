@@ -13,6 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
@@ -30,6 +32,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
 
 public class RemoteConnectionManager implements ConnectionManager {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RemoteConnectionManager.class);
 
     private final String clusterAlias;
     private final RemoteClusterCredentialsManager credentialsManager;
@@ -102,9 +106,25 @@ public class RemoteConnectionManager implements ConnectionManager {
             node,
             profile,
             listener.delegateFailureAndWrap(
-                (l, connection) -> l.onResponse(wrapConnectionWithRemoteClusterInfo(connection, clusterAlias, credentialsManager))
+                (l, connection) -> l.onResponse(
+                    maybeLogDeprecationWarning(wrapConnectionWithRemoteClusterInfo(connection, clusterAlias, credentialsManager))
+                )
             )
         );
+    }
+
+    private InternalRemoteConnection maybeLogDeprecationWarning(InternalRemoteConnection connection) {
+        if (connection.getClusterCredentials() == null) {
+            deprecationLogger.critical(
+                DeprecationCategory.SECURITY,
+                "cross_cluster_access_without_credentials",
+                "The remote cluster connection to [{}] is using deprecated certificated based security model. "
+                    + "The certificate based security model is deprecated and will be removed in a future major version. "
+                    + "Migrate remote cluster from certificate to API key based security model.",
+                connection.getClusterAlias()
+            );
+        }
+        return connection;
     }
 
     @Override

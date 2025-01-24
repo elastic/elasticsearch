@@ -117,7 +117,6 @@ public class ElasticInferenceServiceAuthorizationHandler {
         }
     }
 
-    // TODO do we need this?
     private TraceContext getCurrentTraceInfo() {
         var traceParent = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT);
         var traceState = threadPool.getThreadContext().getHeader(Task.TRACE_STATE);

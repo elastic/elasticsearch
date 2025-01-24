@@ -269,6 +269,7 @@ public class CohereService extends SenderService {
         Model model,
         DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         InputType inputType,
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
@@ -285,7 +286,7 @@ public class CohereService extends SenderService {
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
             EmbeddingRequestChunker.EmbeddingType.fromDenseVectorElementType(model.getServiceSettings().elementType()),
-            cohereModel.getConfigurations().getChunkingSettings()
+            chunkingSettings != null ? chunkingSettings : cohereModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {

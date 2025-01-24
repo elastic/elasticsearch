@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -146,6 +147,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             @Nullable String query,
             List<String> input,
             Map<String, Object> taskSettings,
+            ChunkingSettings chunkingSettings,
             InputType inputType,
             TimeValue timeout,
             ActionListener<List<ChunkedInference>> listener

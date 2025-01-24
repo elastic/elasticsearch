@@ -1,5 +1,5 @@
 pr: 120487
 summary: Fix cat_component_templates documentation
-area: documentation
+area: CAT APIs
 type: bug
 issues: []

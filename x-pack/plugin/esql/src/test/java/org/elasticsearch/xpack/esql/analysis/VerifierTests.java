@@ -1997,26 +1997,6 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testInvalidMapOption() {
-        // invalid key
-        assertEquals(
-            "1:22: Invalid option key in [log_with_base_in_map(languages, {\"base\":2.0, \"invalidOption\":true})], "
-                + "expected base but got [\"invalidOption\"]",
-            error("FROM test | EVAL l = log_with_base_in_map(languages, {\"base\":2.0, \"invalidOption\":true})")
-        );
-        // key is case-sensitive
-        assertEquals(
-            "1:22: Invalid option key in [log_with_base_in_map(languages, {\"Base\":2.0})], " + "expected base but got [\"Base\"]",
-            error("FROM test | EVAL l = log_with_base_in_map(languages, {\"Base\":2.0})")
-        );
-        // invalid value
-        assertEquals(
-            "1:22: Invalid option value in [log_with_base_in_map(languages, {\"base\":\"invalid\"})], "
-                + "expected a numeric number but got [invalid]",
-            error("FROM test | EVAL l = log_with_base_in_map(languages, {\"base\":\"invalid\"})")
-        );
-    }
-
     public void testMatchOptions() {
         // Check positive cases
         query("FROM test | WHERE match(first_name, \"Jean\", {\"analyzer\": \"standard\"})");

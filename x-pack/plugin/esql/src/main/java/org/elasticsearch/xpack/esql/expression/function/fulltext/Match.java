@@ -238,7 +238,7 @@ public class Match extends AbstractMatchFullTextFunction implements OptionalArgu
             }
 
             try {
-                parseOptions();
+                matchQueryOptions();
             } catch (InvalidArgumentException e) {
                 return new TypeResolution(e.getMessage());
             }
@@ -246,15 +246,16 @@ public class Match extends AbstractMatchFullTextFunction implements OptionalArgu
         return TypeResolution.TYPE_RESOLVED;
     }
 
+    @Override
+    protected Map<String, Object> matchQueryOptions() throws InvalidArgumentException {
 
-    private Map<String, Object> parseOptions() throws InvalidArgumentException {
+        if (options() == null) {
+            return super.matchQueryOptions();
+        }
+
         Map<String, Object> matchOptions = new HashMap<>();
         // Match is lenient by default to avoid failing on incompatible types
         matchOptions.put(LENIENT_FIELD.getPreferredName(), true);
-
-        if (options() == null) {
-            return matchOptions;
-        }
 
         for (EntryExpression entry : ((MapExpression) options()).entryExpressions()) {
             Expression optionExpr = entry.key();

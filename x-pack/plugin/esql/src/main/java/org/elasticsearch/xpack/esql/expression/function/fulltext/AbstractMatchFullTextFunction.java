@@ -14,6 +14,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -30,9 +31,9 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.index.query.MatchQueryBuilder.LENIENT_FIELD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
@@ -216,9 +217,16 @@ public abstract class AbstractMatchFullTextFunction extends FullTextFunction imp
                 fieldName = multiTypeEsField.getName();
             }
             // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
-            return new MatchQuery(source(), fieldName, queryAsObject(), Map.of("lenient", "true"));
+            return new MatchQuery(source(), fieldName, queryAsObject(), matchQueryOptions());
         }
 
         throw new IllegalArgumentException("Match must have a field attribute as the first argument");
+    }
+
+    /**
+     * Returns the query options for the match query
+     */
+    protected Map<String, Object> matchQueryOptions() throws InvalidArgumentException {
+        return Map.of(LENIENT_FIELD.getPreferredName(), true);
     }
 }

@@ -494,6 +494,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         var clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicasWithState(
             new String[] { indexName },
             numberOfShards,
+            ShardRouting.Role.INDEX_ONLY,
             IntStream.range(0, numberOfReplicas)
                 .mapToObj(unused -> Tuple.tuple(ShardRoutingState.UNASSIGNED, ShardRouting.Role.SEARCH_ONLY))
                 .toList()

@@ -8,26 +8,43 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.ClusterAdminClient;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ResettableValue;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -38,11 +55,13 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.junit.Assume;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -60,6 +79,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
 import static java.util.Comparator.comparing;
 import static java.util.Comparator.naturalOrder;
@@ -98,6 +118,11 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("cluster.routing.rebalance.enable", "none")
             .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Stream.concat(super.nodePlugins().stream(), Stream.of(DataStreamsPlugin.class, MapperExtrasPlugin.class)).toList();
     }
 
     public void testProjectConstant() {
@@ -967,6 +992,152 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(1, getValuesList(results).size());
             assertEquals(5L, getValuesList(results).get(0).get(0));
             assertEquals(40000L, getValuesList(results).get(0).get(1));
+        }
+    }
+
+    public void testDataStreamPatterns() throws Exception {
+        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
+
+        Map<String, Long> testCases = new HashMap<>();
+        testCases.put("test_ds_patterns*", 15L);
+        testCases.put("test_ds_patterns*::data", 15L);
+        testCases.put("test_ds_patterns*::failures", 9L);
+        testCases.put("test_ds_patterns*::*", 24L);
+
+        testCases.put("test_ds_patterns_1,test_ds_patterns_2", 10L);
+        testCases.put("test_ds_patterns_1::data,test_ds_patterns_2::data", 10L);
+        testCases.put("test_ds_patterns_1::failures,test_ds_patterns_2::failures", 6L);
+        testCases.put("test_ds_patterns_1::*,test_ds_patterns_2::*", 16L);
+
+        testCases.put("test_ds_patterns_1*,test_ds_patterns_2*", 10L);
+        testCases.put("test_ds_patterns_1*::data,test_ds_patterns_2*::data", 10L);
+        testCases.put("test_ds_patterns_1*::failures,test_ds_patterns_2*::failures", 6L);
+        testCases.put("test_ds_patterns_1*::*,test_ds_patterns_2*::*", 16L);
+
+        testCases.put("*", 15L);
+        testCases.put("*::data", 15L);
+        testCases.put("*::failures", 9L);
+        testCases.put("*::*", 24L);
+
+        testCases.put("test_ds_patterns_2", 5L);
+        testCases.put("test_ds_patterns_2::data", 5L);
+        testCases.put("test_ds_patterns_2::failures", 3L);
+        testCases.put("test_ds_patterns_2::*", 8L);
+
+        boolean deleteTemplate = false;
+        List<String> deleteDataStreams = new ArrayList<>();
+        try {
+            assertAcked(
+                client().execute(
+                    TransportPutComposableIndexTemplateAction.TYPE,
+                    new TransportPutComposableIndexTemplateAction.Request("test_ds_template").indexTemplate(
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of("test_ds_patterns_*"))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .template(
+                                Template.builder()
+                                    .mappings(new CompressedXContent("""
+                                        {
+                                          "dynamic": false,
+                                          "properties": {
+                                            "@timestamp": {
+                                              "type": "date"
+                                            },
+                                            "count": {
+                                                "type": "long"
+                                            }
+                                          }
+                                        }"""))
+                                    .dataStreamOptions(
+                                        ResettableValue.create(
+                                            new DataStreamOptions.Template(
+                                                ResettableValue.create(new DataStreamFailureStore.Template(ResettableValue.create(true)))
+                                            )
+                                        )
+                                    )
+                                    .build()
+                            )
+                            .build()
+                    )
+                )
+            );
+            deleteTemplate = true;
+
+            String[] dsNames = {"test_ds_patterns_1", "test_ds_patterns_2", "test_ds_patterns_3"};
+            String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
+            int i = 0;
+            for (String dsName : dsNames) {
+                BulkResponse bulkItemResponses = client().prepareBulk()
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .add(
+                        new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE)
+                            .id("1")
+                            .source("@timestamp", time, "count", ++i * 1000)
+                    )
+                    .add(
+                        new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE)
+                            .id("2")
+                            .source("@timestamp", time, "count", ++i * 1000)
+                    )
+                    .add(
+                        new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE)
+                            .id("3")
+                            .source("@timestamp", time, "count", ++i * 1000)
+                    )
+                    .add(
+                        new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE)
+                            .id("4")
+                            .source("@timestamp", time, "count", ++i * 1000)
+                    )
+                    .add(
+                        new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE)
+                            .id("5")
+                            .source("@timestamp", time, "count", ++i * 1000)
+                    )
+                    .add(
+                        new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE)
+                            .id("6")
+                            .source("@timestamp", time, "count", "garbage")
+                    )
+                    .add(
+                        new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE)
+                            .id("7")
+                            .source("@timestamp", time, "count", "garbage")
+                    )
+                    .add(
+                        new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE)
+                            .id("8")
+                            .source("@timestamp", time, "count", "garbage")
+                    )
+                    .get();
+                assertThat(bulkItemResponses.hasFailures(), is(false));
+                ensureYellow(dsName);
+                deleteDataStreams.add(dsName);
+            }
+
+            for (Map.Entry<String, Long> testCase : testCases.entrySet()) {
+                try (var results = run("from " + testCase.getKey() + " | stats count(@timestamp)")) {
+                    assertEquals(testCase.getKey(), 1, getValuesList(results).size());
+                    assertEquals(testCase.getKey(), testCase.getValue(), getValuesList(results).get(0).get(0));
+                }
+            }
+        } finally {
+            if (deleteDataStreams.isEmpty() == false) {
+                assertAcked(
+                    client().execute(
+                        DeleteDataStreamAction.INSTANCE,
+                        new DeleteDataStreamAction.Request(new TimeValue(30, TimeUnit.SECONDS), deleteDataStreams.toArray(String[]::new))
+                    )
+                );
+            }
+            if (deleteTemplate) {
+                assertAcked(
+                    client().execute(
+                        TransportDeleteComposableIndexTemplateAction.TYPE,
+                        new TransportDeleteComposableIndexTemplateAction.Request("test_ds_template")
+                    )
+                );
+            }
         }
     }
 
